@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+src/starter_game.egg-info/PKG-INFO
+src/starter_game.egg-info/SOURCES.txt
+src/starter_game.egg-info/dependency_links.txt
+src/starter_game.egg-info/requires.txt
+src/starter_game.egg-info/top_level.txt
