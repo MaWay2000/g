@@ -16,8 +16,19 @@ const state = {
   world: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
   view: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
   players: new Map(),
+  circles: new Map(),
   pressed: new Set(),
   lastFrame: performance.now(),
+};
+
+const dragState = {
+  circleId: null,
+  dragging: false,
+  offsetX: 0,
+  offsetY: 0,
+  startMouseX: 0,
+  startMouseY: 0,
+  lastSent: 0,
 };
 
 function resizeCanvas() {
@@ -67,6 +78,36 @@ function drawGround(camera) {
   ctx.strokeRect(-camera.x, -camera.y, state.world.width, state.world.height);
 }
 
+function drawCircles(camera) {
+  state.circles.forEach((circle) => {
+    const screenX = circle.x - camera.x;
+    const screenY = circle.y - camera.y;
+    const radius = circle.radius || 12;
+
+    if (
+      screenX < -radius ||
+      screenX > canvas.width + radius ||
+      screenY < -radius ||
+      screenY > canvas.height + radius
+    ) {
+      return;
+    }
+
+    ctx.beginPath();
+    ctx.fillStyle = circle.color || '#ffffff';
+    ctx.globalAlpha = 0.8;
+    ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if (circle.markedBy) {
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = circle.markedBy === state.selfId ? '#ffbf69' : 'rgba(0,0,0,0.4)';
+      ctx.stroke();
+    }
+  });
+}
+
 function drawPlayers(camera) {
   state.players.forEach((player) => {
     const size = 40;
@@ -103,10 +144,96 @@ function drawPlayers(camera) {
   });
 }
 
+function getCanvasRelativePosition(event) {
+  const rect = canvas.getBoundingClientRect();
+  const clientX = event.clientX ?? 0;
+  const clientY = event.clientY ?? 0;
+  return {
+    x: clientX - rect.left,
+    y: clientY - rect.top,
+  };
+}
+
+function screenToWorld(screenX, screenY) {
+  const camera = getCamera();
+  return {
+    x: screenX + camera.x,
+    y: screenY + camera.y,
+  };
+}
+
+function circleAtWorldPosition(worldX, worldY) {
+  const circles = Array.from(state.circles.values());
+  for (let index = circles.length - 1; index >= 0; index -= 1) {
+    const circle = circles[index];
+    const radius = circle.radius || 12;
+    const dx = worldX - circle.x;
+    const dy = worldY - circle.y;
+    if (Math.hypot(dx, dy) <= radius) {
+      return circle;
+    }
+  }
+  return null;
+}
+
+function clampCirclePosition(x, y, radius) {
+  const { width, height } = state.world;
+  return {
+    x: Math.max(radius, Math.min(width - radius, x)),
+    y: Math.max(radius, Math.min(height - radius, y)),
+  };
+}
+
+function updateCircleLocally(circleId, updates) {
+  const existing = state.circles.get(circleId);
+  if (!existing) {
+    return null;
+  }
+  const updated = { ...existing, ...updates };
+  state.circles.set(circleId, updated);
+  return updated;
+}
+
+function setCursorForWorldPosition(worldX, worldY) {
+  if (dragState.dragging) {
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+
+  if (dragState.circleId) {
+    canvas.style.cursor = 'grab';
+    return;
+  }
+
+  if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) {
+    canvas.style.cursor = 'default';
+    return;
+  }
+
+  const hoveredCircle = circleAtWorldPosition(worldX, worldY);
+  if (hoveredCircle && hoveredCircle.ownerId === state.selfId) {
+    canvas.style.cursor = 'pointer';
+    return;
+  }
+
+  canvas.style.cursor = 'default';
+}
+
+function resetDragState() {
+  dragState.circleId = null;
+  dragState.dragging = false;
+  dragState.offsetX = 0;
+  dragState.offsetY = 0;
+  dragState.startMouseX = 0;
+  dragState.startMouseY = 0;
+  dragState.lastSent = 0;
+}
+
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const camera = getCamera();
   drawGround(camera);
+  drawCircles(camera);
   drawPlayers(camera);
 }
 
@@ -147,10 +274,11 @@ window.addEventListener('keyup', (event) => {
   state.pressed.delete(event.code);
 });
 
-socket.on('init', ({ selfId, world, players }) => {
+socket.on('init', ({ selfId, world, players, circles }) => {
   state.selfId = selfId;
   state.world = world;
   state.players = new Map(players.map((p) => [p.id, p]));
+  state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
   resizeCanvas();
   render();
 });
@@ -166,5 +294,137 @@ socket.on('playerMoved', (player) => {
 socket.on('playerLeft', (playerId) => {
   state.players.delete(playerId);
 });
+
+socket.on('circleSpawned', (circle) => {
+  state.circles.set(circle.id, circle);
+});
+
+socket.on('circleUpdated', (circle) => {
+  state.circles.set(circle.id, circle);
+  if (dragState.circleId === circle.id && circle.markedBy !== state.selfId) {
+    resetDragState();
+    setCursorForWorldPosition(NaN, NaN);
+  }
+});
+
+socket.on('circlesRemoved', ({ circleIds }) => {
+  circleIds.forEach((circleId) => {
+    state.circles.delete(circleId);
+    if (dragState.circleId === circleId) {
+      resetDragState();
+    }
+  });
+  setCursorForWorldPosition(NaN, NaN);
+});
+
+function handleMouseDown(event) {
+  if (event.button !== 0) {
+    return;
+  }
+
+  const local = getCanvasRelativePosition(event);
+  const world = screenToWorld(local.x, local.y);
+  const circle = circleAtWorldPosition(world.x, world.y);
+  if (!circle || circle.ownerId !== state.selfId) {
+    setCursorForWorldPosition(world.x, world.y);
+    return;
+  }
+
+  dragState.circleId = circle.id;
+  dragState.offsetX = circle.x - world.x;
+  dragState.offsetY = circle.y - world.y;
+  dragState.startMouseX = local.x;
+  dragState.startMouseY = local.y;
+  dragState.dragging = false;
+  dragState.lastSent = 0;
+
+  setCursorForWorldPosition(world.x, world.y);
+  event.preventDefault();
+}
+
+function handleMouseMove(event) {
+  const local = getCanvasRelativePosition(event);
+  const world = screenToWorld(local.x, local.y);
+
+  if (dragState.circleId) {
+    const circle = state.circles.get(dragState.circleId);
+    if (!circle || circle.ownerId !== state.selfId) {
+      resetDragState();
+      setCursorForWorldPosition(world.x, world.y);
+      return;
+    }
+
+    const movedDistance = Math.hypot(local.x - dragState.startMouseX, local.y - dragState.startMouseY);
+    if (!dragState.dragging && movedDistance > 2) {
+      dragState.dragging = true;
+      if (circle.markedBy !== state.selfId) {
+        socket.emit('markCircle', { circleId: circle.id, marked: true });
+        updateCircleLocally(circle.id, { markedBy: state.selfId });
+      }
+    }
+
+    if (dragState.dragging) {
+      const targetX = world.x + dragState.offsetX;
+      const targetY = world.y + dragState.offsetY;
+      const radius = circle.radius || 12;
+      const { x, y } = clampCirclePosition(targetX, targetY, radius);
+      updateCircleLocally(circle.id, { x, y });
+
+      const now = performance.now();
+      if (now - dragState.lastSent > 50) {
+        dragState.lastSent = now;
+        socket.emit('moveCircle', { circleId: circle.id, x, y });
+      }
+    }
+
+    setCursorForWorldPosition(world.x, world.y);
+    return;
+  }
+
+  setCursorForWorldPosition(world.x, world.y);
+}
+
+function handleMouseUp(event) {
+  if (event && event.type !== 'mouseleave' && event.button !== undefined && event.button !== 0) {
+    return;
+  }
+
+  const local = event ? getCanvasRelativePosition(event) : null;
+  const world = local ? screenToWorld(local.x, local.y) : null;
+
+  if (!dragState.circleId) {
+    setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
+    return;
+  }
+
+  const circle = state.circles.get(dragState.circleId);
+  if (circle && circle.ownerId === state.selfId) {
+    if (dragState.dragging) {
+      socket.emit('moveCircle', { circleId: circle.id, x: circle.x, y: circle.y });
+      socket.emit('markCircle', { circleId: circle.id, marked: false });
+      updateCircleLocally(circle.id, { markedBy: null });
+    } else {
+      const shouldMark = circle.markedBy !== state.selfId;
+      socket.emit('markCircle', { circleId: circle.id, marked: shouldMark });
+      updateCircleLocally(circle.id, { markedBy: shouldMark ? state.selfId : null });
+    }
+  }
+
+  resetDragState();
+  setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
+}
+
+function handleWindowBlur() {
+  if (!dragState.circleId) {
+    return;
+  }
+  handleMouseUp();
+}
+
+canvas.addEventListener('mousedown', handleMouseDown);
+canvas.addEventListener('mousemove', handleMouseMove);
+canvas.addEventListener('mouseleave', handleMouseUp);
+window.addEventListener('mouseup', handleMouseUp);
+window.addEventListener('blur', handleWindowBlur);
 
 window.requestAnimationFrame(gameLoop);

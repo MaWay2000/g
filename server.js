@@ -19,10 +19,40 @@ const PORT = process.env.PORT || 3000;
 const WORLD_WIDTH = 8000;
 const WORLD_HEIGHT = 6000;
 const PLAYER_SPEED = 200; // units per second
+const CIRCLE_RADIUS = 12;
+const CIRCLE_INTERVAL_MS = 1000;
 
 app.use(express.static('public'));
 
 const players = new Map();
+const circles = new Map();
+const circleIntervals = new Map();
+let circleIdCounter = 0;
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function spawnCircleForPlayer(playerId) {
+  const player = players.get(playerId);
+  if (!player) {
+    return;
+  }
+
+  const radius = CIRCLE_RADIUS;
+  const circle = {
+    id: `circle-${++circleIdCounter}`,
+    ownerId: playerId,
+    color: player.color,
+    radius,
+    markedBy: null,
+    x: clamp(player.x, radius, WORLD_WIDTH - radius),
+    y: clamp(player.y, radius, WORLD_HEIGHT - radius),
+  };
+
+  circles.set(circle.id, circle);
+  io.emit('circleSpawned', circle);
+}
 
 function randomColor() {
   const colors = ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93'];
@@ -42,7 +72,13 @@ io.on('connection', (socket) => {
     selfId: socket.id,
     world: { width: WORLD_WIDTH, height: WORLD_HEIGHT },
     players: Array.from(players.values()),
+    circles: Array.from(circles.values()),
   });
+
+  const circleInterval = setInterval(() => {
+    spawnCircleForPlayer(socket.id);
+  }, CIRCLE_INTERVAL_MS);
+  circleIntervals.set(socket.id, circleInterval);
 
   socket.broadcast.emit('playerJoined', spawn);
 
@@ -64,7 +100,67 @@ io.on('connection', (socket) => {
     io.emit('playerMoved', player);
   });
 
+  socket.on('markCircle', ({ circleId, marked }) => {
+    const circle = circles.get(circleId);
+    if (!circle || circle.ownerId !== socket.id) {
+      return;
+    }
+
+    const shouldMark = typeof marked === 'boolean' ? marked : circle.markedBy !== socket.id;
+    if (!shouldMark && circle.markedBy !== socket.id) {
+      return;
+    }
+
+    circle.markedBy = shouldMark ? socket.id : null;
+    circles.set(circleId, circle);
+    io.emit('circleUpdated', circle);
+  });
+
+  socket.on('moveCircle', ({ circleId, x, y }) => {
+    const circle = circles.get(circleId);
+    if (
+      !circle ||
+      circle.ownerId !== socket.id ||
+      circle.markedBy !== socket.id ||
+      typeof x !== 'number' ||
+      typeof y !== 'number'
+    ) {
+      return;
+    }
+
+    const radius = circle.radius ?? CIRCLE_RADIUS;
+    const clampedX = clamp(x, radius, WORLD_WIDTH - radius);
+    const clampedY = clamp(y, radius, WORLD_HEIGHT - radius);
+
+    if (circle.x === clampedX && circle.y === clampedY) {
+      return;
+    }
+
+    circle.x = clampedX;
+    circle.y = clampedY;
+    circles.set(circleId, circle);
+    io.emit('circleUpdated', circle);
+  });
+
   socket.on('disconnect', () => {
+    const interval = circleIntervals.get(socket.id);
+    if (interval) {
+      clearInterval(interval);
+      circleIntervals.delete(socket.id);
+    }
+
+    const removedCircleIds = [];
+    for (const [circleId, circle] of circles) {
+      if (circle.ownerId === socket.id) {
+        circles.delete(circleId);
+        removedCircleIds.push(circleId);
+      }
+    }
+
+    if (removedCircleIds.length > 0) {
+      io.emit('circlesRemoved', { circleIds: removedCircleIds });
+    }
+
     players.delete(socket.id);
     io.emit('playerLeft', socket.id);
   });
