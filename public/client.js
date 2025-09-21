@@ -660,9 +660,20 @@ socket.on('playerMoved', (player) => {
   const existingPlayer = state.players.get(player.id);
   const mergedPlayer = { ...(existingPlayer || {}), ...player };
 
-  if (existingPlayer && typeof existingPlayer.name === 'string') {
+  const incomingName =
+    player && typeof player.name === 'string' ? player.name.trim() : '';
+  const existingName =
+    existingPlayer && typeof existingPlayer.name === 'string'
+      ? existingPlayer.name.trim()
+      : '';
+  const selfName =
+    typeof state.playerName === 'string' ? state.playerName.trim() : '';
+
+  if (incomingName) {
+    mergedPlayer.name = player.name;
+  } else if (existingName) {
     mergedPlayer.name = existingPlayer.name;
-  } else if (player.id === state.selfId && typeof state.playerName === 'string') {
+  } else if (player.id === state.selfId && selfName) {
     mergedPlayer.name = state.playerName;
   }
 
