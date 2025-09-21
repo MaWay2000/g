@@ -183,6 +183,21 @@ function updateLocalPlayerName(name) {
   state.pendingPlayerName = null;
 }
 
+function sendNameToServer(name) {
+  const sanitized = sanitizePlayerName(name);
+  if (!sanitized) {
+    return false;
+  }
+
+  socket.emit('setName', { name: sanitized });
+  return true;
+}
+
+function emitStoredPlayerName() {
+  const storedName = state.pendingPlayerName || state.playerName;
+  return sendNameToServer(storedName);
+}
+
 function handleStartFormSubmit(event) {
   event.preventDefault();
 
@@ -214,7 +229,7 @@ function handleStartFormSubmit(event) {
   state.isReady = true;
   state.pressed.clear();
 
-  socket.emit('setName', { name: sanitized });
+  sendNameToServer(sanitized);
 
   hideStartScreen();
   render();
@@ -636,7 +651,9 @@ socket.on('init', ({ selfId, world, players, circles }) => {
   const selfPlayer = state.players.get(selfId);
   state.playerName = selfPlayer && typeof selfPlayer.name === 'string' ? selfPlayer.name : '';
   if (state.pendingPlayerName) {
-    updateLocalPlayerName(state.pendingPlayerName);
+    const pendingName = state.pendingPlayerName;
+    updateLocalPlayerName(pendingName);
+    sendNameToServer(pendingName);
   }
   state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
   state.selectedCircleIds = new Set();
@@ -650,6 +667,10 @@ socket.on('init', ({ selfId, world, players, circles }) => {
 
 socket.on('playerJoined', (player) => {
   state.players.set(player.id, player);
+});
+
+socket.on('connect', () => {
+  emitStoredPlayerName();
 });
 
 socket.on('playerMoved', (player) => {
