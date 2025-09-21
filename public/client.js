@@ -1,6 +1,12 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const socket = io();
+
+const serverUrl =
+  (typeof window !== 'undefined' && window.GAME_CONFIG && window.GAME_CONFIG.serverUrl) ||
+  undefined;
+const socket = io(serverUrl, {
+  transports: ['websocket', 'polling'],
+});
 
 const state = {
   selfId: null,
