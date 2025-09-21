@@ -63,6 +63,8 @@ const cameraControl = {
   startPitch: 0,
   startWorldX: 0,
   startWorldY: 0,
+  button: 0,
+  allowRotation: false,
 };
 
 const CAMERA_ROTATION_SPEED = 0.0045;
@@ -575,8 +577,9 @@ socket.on('circlesRemoved', ({ circleIds }) => {
 
 function handleMouseDown(event) {
   const isPrimaryButton = event.button === 0;
+  const isSecondaryButton = event.button === 2;
 
-  if (!isPrimaryButton) {
+  if (!isPrimaryButton && !isSecondaryButton) {
     return;
   }
 
@@ -587,14 +590,14 @@ function handleMouseDown(event) {
     ? circleAtWorldPosition(world.x, world.y)
     : null;
 
-  if (circle && circle.ownerId === state.selfId && !shiftPressed) {
+  if (isPrimaryButton && circle && circle.ownerId === state.selfId && !shiftPressed) {
     state.selectedCircleIds = new Set([circle.id]);
     setCursorForWorldPosition(world.x, world.y);
     event.preventDefault();
     return;
   }
 
-  if (shiftPressed) {
+  if (isPrimaryButton && shiftPressed) {
     selectionState.active = true;
     selectionState.dragging = false;
     selectionState.startWorldX = world.x;
@@ -617,6 +620,8 @@ function handleMouseDown(event) {
   cameraControl.startPitch = state.camera.pitch;
   cameraControl.startWorldX = world.x;
   cameraControl.startWorldY = world.y;
+  cameraControl.button = event.button || 0;
+  cameraControl.allowRotation = isSecondaryButton;
   setCursorForWorldPosition(NaN, NaN);
   event.preventDefault();
 }
@@ -628,19 +633,27 @@ function handleMouseMove(event) {
   if (cameraControl.active) {
     const deltaX = local.x - cameraControl.startX;
     const deltaY = local.y - cameraControl.startY;
-    if (!cameraControl.rotating && Math.abs(deltaX) > 4) {
+    if (
+      cameraControl.allowRotation &&
+      !cameraControl.rotating &&
+      Math.abs(deltaX) > 4
+    ) {
       cameraControl.rotating = true;
     }
-    if (!cameraControl.adjustingTilt && Math.abs(deltaY) > 4) {
+    if (
+      cameraControl.allowRotation &&
+      !cameraControl.adjustingTilt &&
+      Math.abs(deltaY) > 4
+    ) {
       cameraControl.adjustingTilt = true;
     }
 
     let cameraChanged = false;
-    if (cameraControl.rotating) {
+    if (cameraControl.allowRotation && cameraControl.rotating) {
       state.camera.angle = cameraControl.startAngle + deltaX * CAMERA_ROTATION_SPEED;
       cameraChanged = true;
     }
-    if (cameraControl.adjustingTilt) {
+    if (cameraControl.allowRotation && cameraControl.adjustingTilt) {
       const nextPitch = cameraControl.startPitch - deltaY * CAMERA_TILT_SPEED;
       setCameraPitch(nextPitch);
       cameraChanged = true;
@@ -709,7 +722,8 @@ function handleMouseUp(event) {
     event &&
     event.type !== 'mouseleave' &&
     event.button !== undefined &&
-    event.button !== 0
+    event.button !== 0 &&
+    event.button !== 2
   ) {
     return;
   }
@@ -720,9 +734,17 @@ function handleMouseUp(event) {
   if (cameraControl.active) {
     const wasRotating = cameraControl.rotating;
     const wasAdjustingTilt = cameraControl.adjustingTilt;
+    const interactionButton = cameraControl.button;
     cameraControl.active = false;
     cameraControl.rotating = false;
     cameraControl.adjustingTilt = false;
+    cameraControl.button = 0;
+    cameraControl.allowRotation = false;
+
+    if (interactionButton === 2) {
+      setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
+      return;
+    }
 
     if (!wasRotating && !wasAdjustingTilt) {
       const canCommand = event && event.type !== 'mouseleave';
@@ -802,6 +824,8 @@ function handleWindowBlur() {
     cameraControl.active = false;
     cameraControl.rotating = false;
     cameraControl.adjustingTilt = false;
+    cameraControl.button = 0;
+    cameraControl.allowRotation = false;
   }
   if (dragState.circleId) {
     handleMouseUp();
@@ -859,6 +883,9 @@ function commandSelectedCirclesTo(worldX, worldY) {
 canvas.addEventListener('mousedown', handleMouseDown);
 canvas.addEventListener('mousemove', handleMouseMove);
 canvas.addEventListener('mouseleave', handleMouseUp);
+canvas.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
+});
 window.addEventListener('mouseup', handleMouseUp);
 window.addEventListener('blur', handleWindowBlur);
 
