@@ -609,6 +609,15 @@ function handleMouseDown(event) {
 
   if (isPrimaryButton && circle && circle.ownerId === state.selfId && !shiftPressed) {
     state.selectedCircleIds = new Set([circle.id]);
+
+    dragState.circleId = circle.id;
+    dragState.dragging = false;
+    dragState.offsetX = circle.x - world.x;
+    dragState.offsetY = circle.y - world.y;
+    dragState.startMouseX = local.x;
+    dragState.startMouseY = local.y;
+    dragState.lastSent = 0;
+
     setCursorForWorldPosition(world.x, world.y);
     event.preventDefault();
     return;
