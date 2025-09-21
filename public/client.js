@@ -79,7 +79,7 @@ const CAMERA_HORIZON_AT_MAX_PITCH = 0.5;
 const CAMERA_MIN_SCALE = 0.2;
 const CAMERA_ZOOM_SENSITIVITY = 0.0015;
 const CAMERA_MIN_ZOOM = 0.5;
-const CAMERA_MAX_ZOOM = 3;
+const CAMERA_MAX_ZOOM = Number.POSITIVE_INFINITY;
 const SELECTION_DRAG_THRESHOLD = 8;
 
 function clamp(value, min, max) {
@@ -773,6 +773,9 @@ function handleMouseUp(event) {
     cameraControl.allowRotation = false;
 
     if (interactionButton === 2) {
+      if (!wasRotating && !wasAdjustingTilt && state.selectedCircleIds.size > 0) {
+        state.selectedCircleIds = new Set();
+      }
       setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
       return;
     }
@@ -789,6 +792,14 @@ function handleMouseUp(event) {
     if (!selectionState.active && !dragState.circleId) {
       return;
     }
+  }
+
+  if (event && event.button === 2) {
+    if (state.selectedCircleIds.size > 0) {
+      state.selectedCircleIds = new Set();
+    }
+    setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
+    return;
   }
 
   if (selectionState.active) {
