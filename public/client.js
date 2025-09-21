@@ -18,6 +18,12 @@ const state = {
     width: typeof window !== 'undefined' ? window.innerWidth : VIEW_WIDTH,
     height: typeof window !== 'undefined' ? window.innerHeight : VIEW_HEIGHT,
   },
+  camera: {
+    angle: 0,
+    verticalScale: 0.55,
+    horizon: 0.6,
+    scale: 1,
+  },
   players: new Map(),
   circles: new Map(),
   pressed: new Set(),
@@ -46,9 +52,21 @@ const selectionState = {
   startScreenY: 0,
 };
 
+const cameraControl = {
+  active: false,
+  rotating: false,
+  startX: 0,
+  startAngle: 0,
+  startWorldX: 0,
+  startWorldY: 0,
+};
+
+const CAMERA_ROTATION_SPEED = 0.0045;
+
 function resizeCanvas() {
   canvas.width = state.view.width;
   canvas.height = state.view.height;
+  updateCameraScale();
 }
 
 function updateViewSize() {
@@ -61,75 +79,172 @@ function updateViewSize() {
   resizeCanvas();
 }
 
-function getCamera() {
+function updateCameraScale() {
+  const base = Math.min(canvas.width, canvas.height);
+  const reference = Math.max(state.world.width, state.world.height) || 1;
+  const scale = (base / reference) * 0.9;
+  state.camera.scale = Math.max(scale, 0.2);
+}
+
+function getCameraTarget() {
   const self = state.players.get(state.selfId);
   if (!self) {
-    return { x: 0, y: 0 };
+    return {
+      x: state.world.width / 2,
+      y: state.world.height / 2,
+    };
   }
 
-  const halfWidth = canvas.width / 2;
-  const halfHeight = canvas.height / 2;
+  return { x: self.x, y: self.y };
+}
+
+function projectWorldPoint(worldX, worldY) {
+  if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) {
+    return null;
+  }
+
+  const target = getCameraTarget();
+  const dx = worldX - target.x;
+  const dy = worldY - target.y;
+  const cos = Math.cos(state.camera.angle);
+  const sin = Math.sin(state.camera.angle);
+  const rotatedX = dx * cos - dy * sin;
+  const rotatedY = dx * sin + dy * cos;
+
+  const scale = state.camera.scale;
+  const baseY = canvas.height * state.camera.horizon;
+
+  const screenX = canvas.width / 2 + rotatedX * scale;
+  const screenY = baseY + rotatedY * scale * state.camera.verticalScale;
 
   return {
-    x: self.x - halfWidth,
-    y: self.y - halfHeight,
+    x: screenX,
+    y: screenY,
+    depth: rotatedY,
+    rotatedX,
+    rotatedY,
   };
 }
 
-function drawGround(camera) {
-  const gridSize = 40;
-  ctx.fillStyle = '#6bd4a8';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+function screenToWorld(screenX, screenY) {
+  const scale = state.camera.scale;
+  const baseY = canvas.height * state.camera.horizon;
+  const cos = Math.cos(state.camera.angle);
+  const sin = Math.sin(state.camera.angle);
+  const relX = (screenX - canvas.width / 2) / scale;
+  const relY = (screenY - baseY) / (scale * state.camera.verticalScale);
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-  ctx.lineWidth = 1;
-  const offsetX = ((camera.x % gridSize) + gridSize) % gridSize;
-  for (let x = -offsetX; x <= canvas.width; x += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-  const offsetY = ((camera.y % gridSize) + gridSize) % gridSize;
-  for (let y = -offsetY; y <= canvas.height; y += gridSize) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
+  const dx = relX * cos + relY * sin;
+  const dy = -relX * sin + relY * cos;
+  const target = getCameraTarget();
 
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(-camera.x, -camera.y, state.world.width, state.world.height);
+  return {
+    x: target.x + dx,
+    y: target.y + dy,
+  };
 }
 
-function drawCircles(camera) {
-  state.circles.forEach((circle) => {
-    const screenX = circle.x - camera.x;
-    const screenY = circle.y - camera.y;
-    const radius = circle.radius || 12;
+function drawGround() {
+  ctx.fillStyle = '#0b1f1b';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (
-      screenX < -radius ||
-      screenX > canvas.width + radius ||
-      screenY < -radius ||
-      screenY > canvas.height + radius
-    ) {
+  const corners = [
+    projectWorldPoint(0, 0),
+    projectWorldPoint(state.world.width, 0),
+    projectWorldPoint(state.world.width, state.world.height),
+    projectWorldPoint(0, state.world.height),
+  ];
+
+  if (corners.some((corner) => !corner)) {
+    return;
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let index = 1; index < corners.length; index += 1) {
+    ctx.lineTo(corners[index].x, corners[index].y);
+  }
+  ctx.closePath();
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, '#2c6950');
+  gradient.addColorStop(1, '#1e4e3a');
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.clip();
+
+  const gridSize = 40;
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+
+  for (let x = 0; x <= state.world.width; x += gridSize) {
+    const start = projectWorldPoint(x, 0);
+    const end = projectWorldPoint(x, state.world.height);
+    if (!start || !end) {
+      continue;
+    }
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+
+  for (let y = 0; y <= state.world.height; y += gridSize) {
+    const start = projectWorldPoint(0, y);
+    const end = projectWorldPoint(state.world.width, y);
+    if (!start || !end) {
+      continue;
+    }
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let index = 1; index < corners.length; index += 1) {
+    ctx.lineTo(corners[index].x, corners[index].y);
+  }
+  ctx.closePath();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.stroke();
+}
+
+function drawCircles() {
+  const projected = [];
+  state.circles.forEach((circle) => {
+    const point = projectWorldPoint(circle.x, circle.y);
+    if (!point) {
       return;
     }
+    projected.push({ circle, point });
+  });
+
+  projected.sort((a, b) => a.point.depth - b.point.depth);
+
+  projected.forEach(({ circle, point }) => {
+    const radius = circle.radius || 12;
+    const radiusX = radius * state.camera.scale;
+    const radiusY = radiusX * state.camera.verticalScale;
 
     ctx.beginPath();
     ctx.fillStyle = circle.color || '#ffffff';
-    ctx.globalAlpha = 0.8;
-    ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+    ctx.globalAlpha = 0.85;
+    ctx.ellipse(point.x, point.y, radiusX, radiusY, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
     if (circle.markedBy) {
       ctx.lineWidth = 3;
-      ctx.strokeStyle = circle.markedBy === state.selfId ? '#ffbf69' : 'rgba(0,0,0,0.4)';
+      ctx.strokeStyle = circle.markedBy === state.selfId ? '#ffbf69' : 'rgba(0,0,0,0.45)';
       ctx.beginPath();
-      ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+      ctx.ellipse(point.x, point.y, radiusX, radiusY, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -139,71 +254,108 @@ function drawCircles(camera) {
       ctx.strokeStyle = '#ffffff';
       ctx.setLineDash([5, 4]);
       ctx.beginPath();
-      ctx.arc(screenX, screenY, radius + 6, 0, Math.PI * 2);
+      ctx.ellipse(point.x, point.y, radiusX + 6, radiusY + 6 * state.camera.verticalScale, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
   });
 }
 
-function drawPlayers(camera) {
+function drawPlayers() {
+  const projected = [];
   state.players.forEach((player) => {
-    const size = 40;
-    const screenX = player.x - camera.x;
-    const screenY = player.y - camera.y;
+    const centerPoint = projectWorldPoint(player.x, player.y);
+    if (!centerPoint) {
+      return;
+    }
+    projected.push({ player, centerPoint });
+  });
 
-    if (
-      screenX < -size ||
-      screenX > canvas.width + size ||
-      screenY < -size ||
-      screenY > canvas.height + size
-    ) {
+  projected.sort((a, b) => a.centerPoint.depth - b.centerPoint.depth);
+
+  projected.forEach(({ player, centerPoint }) => {
+    const size = 40;
+    const half = size / 2;
+    const corners = [
+      projectWorldPoint(player.x - half, player.y - half),
+      projectWorldPoint(player.x + half, player.y - half),
+      projectWorldPoint(player.x + half, player.y + half),
+      projectWorldPoint(player.x - half, player.y + half),
+    ];
+
+    if (corners.some((corner) => !corner)) {
       return;
     }
 
+    const shadowRadiusX = size * 0.4 * state.camera.scale;
+    const shadowRadiusY = shadowRadiusX * state.camera.verticalScale;
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.ellipse(centerPoint.x, centerPoint.y + shadowRadiusY * 0.4, shadowRadiusX, shadowRadiusY, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    for (let index = 1; index < corners.length; index += 1) {
+      ctx.lineTo(corners[index].x, corners[index].y);
+    }
+    ctx.closePath();
     ctx.fillStyle = player.color;
-    ctx.fillRect(screenX - size / 2, screenY - size / 2, size, size);
+    ctx.globalAlpha = 0.95;
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
     if (player.id === state.selfId) {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 3;
-      ctx.strokeRect(
-        screenX - size / 2 - 2,
-        screenY - size / 2 - 2,
-        size + 4,
-        size + 4
-      );
+      ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(player.id.slice(0, 5), screenX, screenY - size / 2 - 8);
+    ctx.fillText(
+      player.id.slice(0, 5),
+      centerPoint.x,
+      centerPoint.y - size * state.camera.verticalScale - 10
+    );
   });
 }
 
-function drawSelectionBox(camera) {
+function drawSelectionBox() {
   if (!selectionState.active || !selectionState.dragging) {
     return;
   }
 
-  const startX = selectionState.startWorldX - camera.x;
-  const startY = selectionState.startWorldY - camera.y;
-  const endX = selectionState.currentWorldX - camera.x;
-  const endY = selectionState.currentWorldY - camera.y;
+  const minX = Math.min(selectionState.startWorldX, selectionState.currentWorldX);
+  const maxX = Math.max(selectionState.startWorldX, selectionState.currentWorldX);
+  const minY = Math.min(selectionState.startWorldY, selectionState.currentWorldY);
+  const maxY = Math.max(selectionState.startWorldY, selectionState.currentWorldY);
 
-  const x = Math.min(startX, endX);
-  const y = Math.min(startY, endY);
-  const width = Math.abs(endX - startX);
-  const height = Math.abs(endY - startY);
+  const corners = [
+    projectWorldPoint(minX, minY),
+    projectWorldPoint(maxX, minY),
+    projectWorldPoint(maxX, maxY),
+    projectWorldPoint(minX, maxY),
+  ];
+
+  if (corners.some((corner) => !corner)) {
+    return;
+  }
 
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,0.8)';
   ctx.setLineDash([6, 4]);
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(x, y, width, height);
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let index = 1; index < corners.length; index += 1) {
+    ctx.lineTo(corners[index].x, corners[index].y);
+  }
+  ctx.closePath();
+  ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fillRect(x, y, width, height);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -214,14 +366,6 @@ function getCanvasRelativePosition(event) {
   return {
     x: clientX - rect.left,
     y: clientY - rect.top,
-  };
-}
-
-function screenToWorld(screenX, screenY) {
-  const camera = getCamera();
-  return {
-    x: screenX + camera.x,
-    y: screenY + camera.y,
   };
 }
 
@@ -258,7 +402,12 @@ function updateCircleLocally(circleId, updates) {
 }
 
 function setCursorForWorldPosition(worldX, worldY) {
-  if (selectionState.active) {
+  if (cameraControl.active) {
+    canvas.style.cursor = cameraControl.rotating ? 'grabbing' : 'grab';
+    return;
+  }
+
+  if (selectionState.active || state.pressed.has('ShiftLeft') || state.pressed.has('ShiftRight')) {
     canvas.style.cursor = 'crosshair';
     return;
   }
@@ -274,7 +423,7 @@ function setCursorForWorldPosition(worldX, worldY) {
   }
 
   if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) {
-    canvas.style.cursor = 'default';
+    canvas.style.cursor = 'grab';
     return;
   }
 
@@ -284,7 +433,7 @@ function setCursorForWorldPosition(worldX, worldY) {
     return;
   }
 
-  canvas.style.cursor = 'default';
+  canvas.style.cursor = state.selectedCircleIds.size > 0 ? 'grab' : 'grab';
 }
 
 function resetDragState() {
@@ -299,11 +448,10 @@ function resetDragState() {
 
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const camera = getCamera();
-  drawGround(camera);
-  drawCircles(camera);
-  drawPlayers(camera);
-  drawSelectionBox(camera);
+  drawGround();
+  drawCircles();
+  drawPlayers();
+  drawSelectionBox();
 }
 
 function directionFromInput() {
@@ -337,10 +485,16 @@ function gameLoop(timestamp) {
 
 window.addEventListener('keydown', (event) => {
   state.pressed.add(event.code);
+  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+    setCursorForWorldPosition(NaN, NaN);
+  }
 });
 
 window.addEventListener('keyup', (event) => {
   state.pressed.delete(event.code);
+  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+    setCursorForWorldPosition(NaN, NaN);
+  }
 });
 
 socket.on('init', ({ selfId, world, players, circles }) => {
@@ -399,31 +553,57 @@ function handleMouseDown(event) {
 
   const local = getCanvasRelativePosition(event);
   const world = screenToWorld(local.x, local.y);
-  const circle = circleAtWorldPosition(world.x, world.y);
+  const shiftPressed = event.shiftKey || state.pressed.has('ShiftLeft') || state.pressed.has('ShiftRight');
+  const circle = Number.isFinite(world.x) && Number.isFinite(world.y)
+    ? circleAtWorldPosition(world.x, world.y)
+    : null;
 
-  if (circle && circle.ownerId === state.selfId) {
+  if (circle && circle.ownerId === state.selfId && !shiftPressed) {
     state.selectedCircleIds = new Set([circle.id]);
     setCursorForWorldPosition(world.x, world.y);
     event.preventDefault();
     return;
   }
 
-  selectionState.active = true;
-  selectionState.dragging = false;
-  selectionState.startWorldX = world.x;
-  selectionState.startWorldY = world.y;
-  selectionState.currentWorldX = world.x;
-  selectionState.currentWorldY = world.y;
-  selectionState.startScreenX = local.x;
-  selectionState.startScreenY = local.y;
+  if (shiftPressed) {
+    selectionState.active = true;
+    selectionState.dragging = false;
+    selectionState.startWorldX = world.x;
+    selectionState.startWorldY = world.y;
+    selectionState.currentWorldX = world.x;
+    selectionState.currentWorldY = world.y;
+    selectionState.startScreenX = local.x;
+    selectionState.startScreenY = local.y;
+    setCursorForWorldPosition(world.x, world.y);
+    event.preventDefault();
+    return;
+  }
 
-  setCursorForWorldPosition(world.x, world.y);
+  cameraControl.active = true;
+  cameraControl.rotating = false;
+  cameraControl.startX = local.x;
+  cameraControl.startAngle = state.camera.angle;
+  cameraControl.startWorldX = world.x;
+  cameraControl.startWorldY = world.y;
+  setCursorForWorldPosition(NaN, NaN);
   event.preventDefault();
 }
 
 function handleMouseMove(event) {
   const local = getCanvasRelativePosition(event);
   const world = screenToWorld(local.x, local.y);
+
+  if (cameraControl.active) {
+    const deltaX = local.x - cameraControl.startX;
+    if (!cameraControl.rotating && Math.abs(deltaX) > 4) {
+      cameraControl.rotating = true;
+    }
+    if (cameraControl.rotating) {
+      state.camera.angle = cameraControl.startAngle + deltaX * CAMERA_ROTATION_SPEED;
+      setCursorForWorldPosition(NaN, NaN);
+      return;
+    }
+  }
 
   if (dragState.circleId) {
     const circle = state.circles.get(dragState.circleId);
@@ -491,6 +671,25 @@ function handleMouseUp(event) {
   const local = event ? getCanvasRelativePosition(event) : null;
   const world = local ? screenToWorld(local.x, local.y) : null;
 
+  if (cameraControl.active) {
+    const wasRotating = cameraControl.rotating;
+    cameraControl.active = false;
+    cameraControl.rotating = false;
+
+    if (!wasRotating) {
+      const canCommand = event && event.type !== 'mouseleave';
+      const commanded = canCommand && world ? commandSelectedCirclesTo(world.x, world.y) : false;
+      if (!commanded && state.selectedCircleIds.size > 0) {
+        state.selectedCircleIds = new Set();
+      }
+    }
+
+    setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
+    if (!selectionState.active && !dragState.circleId) {
+      return;
+    }
+  }
+
   if (selectionState.active) {
     const wasDragging = selectionState.dragging;
     const endWorldX = world ? world.x : selectionState.currentWorldX;
@@ -550,6 +749,10 @@ function handleWindowBlur() {
   if (selectionState.active) {
     selectionState.active = false;
     selectionState.dragging = false;
+  }
+  if (cameraControl.active) {
+    cameraControl.active = false;
+    cameraControl.rotating = false;
   }
   if (dragState.circleId) {
     handleMouseUp();
@@ -616,5 +819,7 @@ window.addEventListener('resize', () => {
 });
 
 updateViewSize();
+
+canvas.style.cursor = 'grab';
 
 window.requestAnimationFrame(gameLoop);
