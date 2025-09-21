@@ -653,7 +653,20 @@ socket.on('playerJoined', (player) => {
 });
 
 socket.on('playerMoved', (player) => {
-  state.players.set(player.id, player);
+  if (!player || typeof player.id !== 'string') {
+    return;
+  }
+
+  const existingPlayer = state.players.get(player.id);
+  const mergedPlayer = { ...(existingPlayer || {}), ...player };
+
+  if (existingPlayer && typeof existingPlayer.name === 'string') {
+    mergedPlayer.name = existingPlayer.name;
+  } else if (player.id === state.selfId && typeof state.playerName === 'string') {
+    mergedPlayer.name = state.playerName;
+  }
+
+  state.players.set(player.id, mergedPlayer);
 });
 
 socket.on('playerLeft', (playerId) => {
