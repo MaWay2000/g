@@ -8,63 +8,106 @@ const socket = io(serverUrl, {
   transports: ['websocket', 'polling'],
 });
 
+const VIEW_WIDTH = 800;
+const VIEW_HEIGHT = 600;
+
 const state = {
   selfId: null,
-  world: { width: 800, height: 600 },
+  world: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
+  view: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
   players: new Map(),
   pressed: new Set(),
   lastFrame: performance.now(),
 };
 
 function resizeCanvas() {
-  canvas.width = state.world.width;
-  canvas.height = state.world.height;
+  canvas.width = state.view.width;
+  canvas.height = state.view.height;
 }
 
-function drawGround() {
+function getCamera() {
+  const self = state.players.get(state.selfId);
+  if (!self) {
+    return { x: 0, y: 0 };
+  }
+
+  const halfWidth = canvas.width / 2;
+  const halfHeight = canvas.height / 2;
+
+  return {
+    x: self.x - halfWidth,
+    y: self.y - halfHeight,
+  };
+}
+
+function drawGround(camera) {
   const gridSize = 40;
   ctx.fillStyle = '#6bd4a8';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.strokeStyle = 'rgba(255,255,255,0.2)';
   ctx.lineWidth = 1;
-  for (let x = gridSize; x < canvas.width; x += gridSize) {
+  const offsetX = ((camera.x % gridSize) + gridSize) % gridSize;
+  for (let x = -offsetX; x <= canvas.width; x += gridSize) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, canvas.height);
     ctx.stroke();
   }
-  for (let y = gridSize; y < canvas.height; y += gridSize) {
+  const offsetY = ((camera.y % gridSize) + gridSize) % gridSize;
+  for (let y = -offsetY; y <= canvas.height; y += gridSize) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(canvas.width, y);
     ctx.stroke();
   }
+
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-camera.x, -camera.y, state.world.width, state.world.height);
 }
 
-function drawPlayers() {
+function drawPlayers(camera) {
   state.players.forEach((player) => {
     const size = 40;
+    const screenX = player.x - camera.x;
+    const screenY = player.y - camera.y;
+
+    if (
+      screenX < -size ||
+      screenX > canvas.width + size ||
+      screenY < -size ||
+      screenY > canvas.height + size
+    ) {
+      return;
+    }
+
     ctx.fillStyle = player.color;
-    ctx.fillRect(player.x - size / 2, player.y - size / 2, size, size);
+    ctx.fillRect(screenX - size / 2, screenY - size / 2, size, size);
 
     if (player.id === state.selfId) {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 3;
-      ctx.strokeRect(player.x - size / 2 - 2, player.y - size / 2 - 2, size + 4, size + 4);
+      ctx.strokeRect(
+        screenX - size / 2 - 2,
+        screenY - size / 2 - 2,
+        size + 4,
+        size + 4
+      );
     }
 
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(player.id.slice(0, 5), player.x, player.y - size / 2 - 8);
+    ctx.fillText(player.id.slice(0, 5), screenX, screenY - size / 2 - 8);
   });
 }
 
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawGround();
-  drawPlayers();
+  const camera = getCamera();
+  drawGround(camera);
+  drawPlayers(camera);
 }
 
 function directionFromInput() {
