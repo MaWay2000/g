@@ -38,6 +38,19 @@ const circleIntervals = new Map();
 let circleIdCounter = 0;
 let lastMovementUpdate = Date.now();
 
+function sanitizePlayerNameInput(name) {
+  if (typeof name !== 'string') {
+    return null;
+  }
+
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.slice(0, PLAYER_NAME_MAX_LENGTH);
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -214,12 +227,14 @@ function randomColor() {
 }
 
 io.on('connection', (socket) => {
+  const initialName = sanitizePlayerNameInput(socket.handshake?.auth?.name);
+
   const spawn = {
     id: socket.id,
     x: Math.random() * (WORLD_WIDTH - 50) + 25,
     y: Math.random() * (WORLD_HEIGHT - 50) + 25,
     color: randomColor(),
-    name: DEFAULT_PLAYER_NAME,
+    name: initialName ?? DEFAULT_PLAYER_NAME,
   };
   players.set(socket.id, spawn);
 
@@ -257,17 +272,12 @@ io.on('connection', (socket) => {
 
   socket.on('setName', ({ name }) => {
     const player = players.get(socket.id);
-    if (!player || typeof name !== 'string') {
+    if (!player) {
       return;
     }
 
-    const trimmed = name.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    const sanitized = trimmed.slice(0, PLAYER_NAME_MAX_LENGTH);
-    if (player.name === sanitized) {
+    const sanitized = sanitizePlayerNameInput(name);
+    if (!sanitized || player.name === sanitized) {
       return;
     }
 
