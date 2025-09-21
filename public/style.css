@@ -22,6 +22,8 @@ canvas {
   border: 4px solid rgba(0, 0, 0, 0.2);
   border-radius: 12px;
   background: linear-gradient(180deg, #9be7ff 0%, #b8f2e6 35%, #fff 100%);
+  width: 800px;
+  height: 600px;
   max-width: calc(100vw - 2rem);
   max-height: calc(100vh - 12rem);
 }
