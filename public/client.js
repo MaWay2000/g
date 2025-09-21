@@ -80,6 +80,7 @@ const CAMERA_MIN_SCALE = 0.2;
 const CAMERA_ZOOM_SENSITIVITY = 0.0015;
 const CAMERA_MIN_ZOOM = 0.5;
 const CAMERA_MAX_ZOOM = 3;
+const SELECTION_DRAG_THRESHOLD = 8;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -455,7 +456,7 @@ function setCursorForWorldPosition(worldX, worldY) {
     return;
   }
 
-  if (selectionState.active || state.pressed.has('ShiftLeft') || state.pressed.has('ShiftRight')) {
+  if (selectionState.active) {
     canvas.style.cursor = 'crosshair';
     return;
   }
@@ -602,10 +603,9 @@ function handleMouseDown(event) {
 
   const local = getCanvasRelativePosition(event);
   const world = screenToWorld(local.x, local.y);
+  const worldIsValid = Number.isFinite(world.x) && Number.isFinite(world.y);
   const shiftPressed = event.shiftKey || state.pressed.has('ShiftLeft') || state.pressed.has('ShiftRight');
-  const circle = Number.isFinite(world.x) && Number.isFinite(world.y)
-    ? circleAtWorldPosition(world.x, world.y)
-    : null;
+  const circle = worldIsValid ? circleAtWorldPosition(world.x, world.y) : null;
 
   if (isPrimaryButton && circle && circle.ownerId === state.selfId && !shiftPressed) {
     state.selectedCircleIds = new Set([circle.id]);
@@ -623,7 +623,12 @@ function handleMouseDown(event) {
     return;
   }
 
-  if (isPrimaryButton && shiftPressed) {
+  const canSelectWithDrag =
+    isPrimaryButton &&
+    worldIsValid &&
+    (!circle || circle.ownerId !== state.selfId || shiftPressed);
+
+  if (canSelectWithDrag) {
     selectionState.active = true;
     selectionState.dragging = false;
     selectionState.startWorldX = world.x;
@@ -732,7 +737,7 @@ function handleMouseMove(event) {
       local.x - selectionState.startScreenX,
       local.y - selectionState.startScreenY
     );
-    if (!selectionState.dragging && movedDistance > 3) {
+    if (!selectionState.dragging && movedDistance > SELECTION_DRAG_THRESHOLD) {
       selectionState.dragging = true;
       state.selectedCircleIds = new Set();
     }
