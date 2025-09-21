@@ -1,0 +1,27 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: radial-gradient(circle at top, #fdfcdc, #fee1c7);
+  min-height: 100vh;
+}
+
+.hud {
+  text-align: center;
+  margin: 1rem 0;
+  color: #2b2d42;
+}
+
+canvas {
+  border: 4px solid rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #9be7ff 0%, #b8f2e6 35%, #fff 100%);
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 12rem);
+}
