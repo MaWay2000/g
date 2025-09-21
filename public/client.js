@@ -46,6 +46,8 @@ const selectionState = {
   startScreenY: 0,
 };
 
+let suppressContextMenu = false;
+
 function resizeCanvas() {
   canvas.width = state.view.width;
   canvas.height = state.view.height;
@@ -391,23 +393,40 @@ socket.on('circlesRemoved', ({ circleIds }) => {
 });
 
 function handleMouseDown(event) {
-  if (event.button !== 0) {
+  const isPrimaryButton = event.button === 0;
+  const isSecondaryButton = event.button === 2;
+
+  if (!isPrimaryButton && !isSecondaryButton) {
     return;
   }
 
   const local = getCanvasRelativePosition(event);
   const world = screenToWorld(local.x, local.y);
   const circle = circleAtWorldPosition(world.x, world.y);
+
+  if (isSecondaryButton) {
+    if (circle && circle.ownerId === state.selfId) {
+      state.selectedCircleIds = new Set([circle.id]);
+      dragState.circleId = circle.id;
+      dragState.offsetX = circle.x - world.x;
+      dragState.offsetY = circle.y - world.y;
+      dragState.startMouseX = local.x;
+      dragState.startMouseY = local.y;
+      dragState.dragging = false;
+      dragState.lastSent = 0;
+      suppressContextMenu = true;
+
+      setCursorForWorldPosition(world.x, world.y);
+      event.preventDefault();
+      return;
+    }
+
+    setCursorForWorldPosition(world.x, world.y);
+    return;
+  }
+
   if (circle && circle.ownerId === state.selfId) {
     state.selectedCircleIds = new Set([circle.id]);
-    dragState.circleId = circle.id;
-    dragState.offsetX = circle.x - world.x;
-    dragState.offsetY = circle.y - world.y;
-    dragState.startMouseX = local.x;
-    dragState.startMouseY = local.y;
-    dragState.dragging = false;
-    dragState.lastSent = 0;
-
     setCursorForWorldPosition(world.x, world.y);
     event.preventDefault();
     return;
@@ -484,7 +503,13 @@ function handleMouseMove(event) {
 }
 
 function handleMouseUp(event) {
-  if (event && event.type !== 'mouseleave' && event.button !== undefined && event.button !== 0) {
+  if (
+    event &&
+    event.type !== 'mouseleave' &&
+    event.button !== undefined &&
+    event.button !== 0 &&
+    event.button !== 2
+  ) {
     return;
   }
 
@@ -546,6 +571,11 @@ function handleMouseUp(event) {
   }
 
   resetDragState();
+  if (suppressContextMenu) {
+    setTimeout(() => {
+      suppressContextMenu = false;
+    }, 0);
+  }
   setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
 }
 
@@ -560,6 +590,11 @@ function handleWindowBlur() {
 }
 
 function handleContextMenu(event) {
+  if (suppressContextMenu) {
+    event.preventDefault();
+    return;
+  }
+
   if (state.selectedCircleIds.size === 0) {
     return;
   }
