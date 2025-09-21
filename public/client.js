@@ -492,49 +492,19 @@ function drawPlayers() {
       ctx.stroke();
     }
 
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     const rawName = typeof player.name === 'string' ? player.name.trim() : '';
     if (rawName) {
-      ctx.save();
-      ctx.font = '16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      const labelY = centerPoint.y - size * state.camera.verticalScale - 12;
 
-      const textMetrics = ctx.measureText(rawName);
-      const textWidth = textMetrics.width;
-      const textHeight =
-        (textMetrics.actualBoundingBoxAscent || 0) +
-          (textMetrics.actualBoundingBoxDescent || 0) ||
-        16;
-      const paddingX = 8;
-      const paddingY = 4;
-      const offset = size * state.camera.verticalScale + 14;
-
-      let labelY = centerPoint.y - offset;
-      const topEdge = labelY - textHeight / 2 - paddingY;
-      if (topEdge < 0) {
-        labelY = centerPoint.y + offset;
-      }
-      const bottomEdge = labelY + textHeight / 2 + paddingY;
-      const maxLabelY = canvas.height - (textHeight / 2 + paddingY);
-      if (bottomEdge > canvas.height) {
-        labelY = Math.max(textHeight / 2 + paddingY, Math.min(maxLabelY, labelY));
-      }
-
-      const boxWidth = textWidth + paddingX * 2;
-      const boxHeight = textHeight + paddingY * 2;
-      const boxX = centerPoint.x - boxWidth / 2;
-      const boxY = labelY - boxHeight / 2;
-
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
-      ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
       ctx.strokeText(rawName, centerPoint.x, labelY);
 
       ctx.fillStyle = '#f8fafc';
       ctx.fillText(rawName, centerPoint.x, labelY);
-      ctx.restore();
     }
   });
 }
