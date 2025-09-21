@@ -1,6 +1,12 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
+const NAME_MAX_LENGTH = 20;
+const startScreen = document.getElementById('start-screen');
+const startForm = document.getElementById('start-form');
+const nameInput = document.getElementById('player-name');
+const startError = document.getElementById('start-error');
+
 const serverUrl =
   (typeof window !== 'undefined' && window.GAME_CONFIG && window.GAME_CONFIG.serverUrl) ||
   undefined;
@@ -31,6 +37,9 @@ const state = {
   pressed: new Set(),
   lastFrame: performance.now(),
   selectedCircleIds: new Set(),
+  playerName: '',
+  isReady: false,
+  pendingPlayerName: null,
 };
 
 const dragState = {
@@ -133,6 +142,82 @@ function setCameraZoom(zoom) {
   state.camera.zoom = clamped;
   updateCameraScale();
   return true;
+}
+
+function sanitizePlayerName(name) {
+  if (typeof name !== 'string') {
+    return '';
+  }
+
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  return trimmed.slice(0, NAME_MAX_LENGTH);
+}
+
+function hideStartScreen() {
+  if (!startScreen) {
+    return;
+  }
+
+  startScreen.classList.add('hidden');
+}
+
+function updateLocalPlayerName(name) {
+  state.playerName = name;
+  if (!state.selfId) {
+    state.pendingPlayerName = name;
+    return;
+  }
+
+  const selfPlayer = state.players.get(state.selfId);
+  if (!selfPlayer) {
+    state.pendingPlayerName = name;
+    return;
+  }
+
+  selfPlayer.name = name;
+  state.players.set(state.selfId, selfPlayer);
+  state.pendingPlayerName = null;
+}
+
+function handleStartFormSubmit(event) {
+  event.preventDefault();
+
+  if (!startForm) {
+    state.isReady = true;
+    return;
+  }
+
+  const sanitized = sanitizePlayerName(nameInput ? nameInput.value : '');
+  if (!sanitized) {
+    if (startError) {
+      startError.textContent = 'Please enter a name to get started.';
+    }
+    if (nameInput) {
+      nameInput.focus();
+    }
+    return;
+  }
+
+  if (startError) {
+    startError.textContent = '';
+  }
+
+  if (nameInput) {
+    nameInput.value = sanitized;
+  }
+
+  updateLocalPlayerName(sanitized);
+  state.isReady = true;
+  state.pressed.clear();
+
+  socket.emit('setName', { name: sanitized });
+
+  hideStartScreen();
+  render();
 }
 
 function getCameraTarget() {
@@ -363,11 +448,9 @@ function drawPlayers() {
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(
-      player.id.slice(0, 5),
-      centerPoint.x,
-      centerPoint.y - size * state.camera.verticalScale - 10
-    );
+    const rawName = typeof player.name === 'string' ? player.name.trim() : '';
+    const displayName = rawName || player.id.slice(0, 5);
+    ctx.fillText(displayName, centerPoint.x, centerPoint.y - size * state.camera.verticalScale - 10);
   });
 }
 
@@ -524,7 +607,7 @@ function gameLoop(timestamp) {
   state.lastFrame = timestamp;
 
   const direction = directionFromInput();
-  if (direction) {
+  if (direction && state.isReady) {
     socket.emit('move', { direction, delta });
   }
 
@@ -550,10 +633,19 @@ socket.on('init', ({ selfId, world, players, circles }) => {
   state.selfId = selfId;
   state.world = world;
   state.players = new Map(players.map((p) => [p.id, p]));
+  const selfPlayer = state.players.get(selfId);
+  state.playerName = selfPlayer && typeof selfPlayer.name === 'string' ? selfPlayer.name : '';
+  if (state.pendingPlayerName) {
+    updateLocalPlayerName(state.pendingPlayerName);
+  }
   state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
   state.selectedCircleIds = new Set();
   updateViewSize();
   render();
+
+  if (state.isReady) {
+    hideStartScreen();
+  }
 });
 
 socket.on('playerJoined', (player) => {
@@ -566,6 +658,19 @@ socket.on('playerMoved', (player) => {
 
 socket.on('playerLeft', (playerId) => {
   state.players.delete(playerId);
+});
+
+socket.on('playerUpdated', (player) => {
+  if (!player || typeof player.id !== 'string') {
+    return;
+  }
+
+  state.players.set(player.id, player);
+  if (player.id === state.selfId) {
+    state.playerName = typeof player.name === 'string' ? player.name : '';
+    state.pendingPlayerName = null;
+  }
+  render();
 });
 
 socket.on('circleSpawned', (circle) => {
@@ -890,6 +995,10 @@ function handleWindowBlur() {
 }
 
 function commandSelectedCirclesTo(worldX, worldY) {
+  if (!state.isReady) {
+    return false;
+  }
+
   if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) {
     return false;
   }
@@ -935,6 +1044,27 @@ function commandSelectedCirclesTo(worldX, worldY) {
 
   socket.emit('commandCirclesMove', { moves });
   return true;
+}
+
+if (startForm) {
+  startForm.addEventListener('submit', handleStartFormSubmit);
+} else {
+  state.isReady = true;
+  hideStartScreen();
+}
+
+if (nameInput) {
+  nameInput.addEventListener('input', () => {
+    if (startError) {
+      startError.textContent = '';
+    }
+  });
+
+  if (typeof window !== 'undefined') {
+    window.requestAnimationFrame(() => {
+      nameInput.focus();
+    });
+  }
 }
 
 canvas.addEventListener('mousedown', handleMouseDown);
