@@ -10,9 +10,10 @@ const startError = document.getElementById('start-error');
 const serverUrl =
   (typeof window !== 'undefined' && window.GAME_CONFIG && window.GAME_CONFIG.serverUrl) ||
   undefined;
-const socket = io(serverUrl, {
-  transports: ['websocket', 'polling'],
-});
+
+let socket = null;
+let gameStarted = false;
+let interactionHandlersAttached = false;
 
 const VIEW_WIDTH = 800;
 const VIEW_HEIGHT = 600;
@@ -185,7 +186,7 @@ function updateLocalPlayerName(name) {
 
 function sendNameToServer(name) {
   const sanitized = sanitizePlayerName(name);
-  if (!sanitized) {
+  if (!sanitized || !socket) {
     return false;
   }
 
@@ -198,11 +199,33 @@ function emitStoredPlayerName() {
   return sendNameToServer(storedName);
 }
 
+function setupSocket() {
+  if (socket) {
+    return socket;
+  }
+
+  socket = io(serverUrl, {
+    transports: ['websocket', 'polling'],
+  });
+
+  socket.on('init', handleSocketInit);
+  socket.on('playerJoined', handleSocketPlayerJoined);
+  socket.on('connect', handleSocketConnect);
+  socket.on('playerMoved', handleSocketPlayerMoved);
+  socket.on('playerLeft', handleSocketPlayerLeft);
+  socket.on('playerUpdated', handleSocketPlayerUpdated);
+  socket.on('circleSpawned', handleSocketCircleSpawned);
+  socket.on('circleUpdated', handleSocketCircleUpdated);
+  socket.on('circlesRemoved', handleSocketCirclesRemoved);
+
+  return socket;
+}
+
 function handleStartFormSubmit(event) {
   event.preventDefault();
 
   if (!startForm) {
-    state.isReady = true;
+    startGame();
     return;
   }
 
@@ -226,13 +249,8 @@ function handleStartFormSubmit(event) {
   }
 
   updateLocalPlayerName(sanitized);
-  state.isReady = true;
-  state.pressed.clear();
-
-  sendNameToServer(sanitized);
-
   hideStartScreen();
-  render();
+  startGame();
 }
 
 function getCameraTarget() {
@@ -601,50 +619,7 @@ function render() {
   drawSelectionBox();
 }
 
-function directionFromInput() {
-  let x = 0;
-  let y = 0;
-  if (state.pressed.has('ArrowLeft') || state.pressed.has('KeyA')) x -= 1;
-  if (state.pressed.has('ArrowRight') || state.pressed.has('KeyD')) x += 1;
-  if (state.pressed.has('ArrowUp') || state.pressed.has('KeyW')) y -= 1;
-  if (state.pressed.has('ArrowDown') || state.pressed.has('KeyS')) y += 1;
-
-  if (x === 0 && y === 0) {
-    return null;
-  }
-
-  const length = Math.hypot(x, y);
-  return { x: x / length, y: y / length };
-}
-
-function gameLoop(timestamp) {
-  const delta = (timestamp - state.lastFrame) / 1000;
-  state.lastFrame = timestamp;
-
-  const direction = directionFromInput();
-  if (direction && state.isReady) {
-    socket.emit('move', { direction, delta });
-  }
-
-  render();
-  window.requestAnimationFrame(gameLoop);
-}
-
-window.addEventListener('keydown', (event) => {
-  state.pressed.add(event.code);
-  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
-    setCursorForWorldPosition(NaN, NaN);
-  }
-});
-
-window.addEventListener('keyup', (event) => {
-  state.pressed.delete(event.code);
-  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
-    setCursorForWorldPosition(NaN, NaN);
-  }
-});
-
-socket.on('init', ({ selfId, world, players, circles }) => {
+function handleSocketInit({ selfId, world, players, circles }) {
   state.selfId = selfId;
   state.world = world;
   state.players = new Map(players.map((p) => [p.id, p]));
@@ -663,17 +638,17 @@ socket.on('init', ({ selfId, world, players, circles }) => {
   if (state.isReady) {
     hideStartScreen();
   }
-});
+}
 
-socket.on('playerJoined', (player) => {
+function handleSocketPlayerJoined(player) {
   state.players.set(player.id, player);
-});
+}
 
-socket.on('connect', () => {
+function handleSocketConnect() {
   emitStoredPlayerName();
-});
+}
 
-socket.on('playerMoved', (player) => {
+function handleSocketPlayerMoved(player) {
   if (!player || typeof player.id !== 'string') {
     return;
   }
@@ -699,13 +674,13 @@ socket.on('playerMoved', (player) => {
   }
 
   state.players.set(player.id, mergedPlayer);
-});
+}
 
-socket.on('playerLeft', (playerId) => {
+function handleSocketPlayerLeft(playerId) {
   state.players.delete(playerId);
-});
+}
 
-socket.on('playerUpdated', (player) => {
+function handleSocketPlayerUpdated(player) {
   if (!player || typeof player.id !== 'string') {
     return;
   }
@@ -716,21 +691,21 @@ socket.on('playerUpdated', (player) => {
     state.pendingPlayerName = null;
   }
   render();
-});
+}
 
-socket.on('circleSpawned', (circle) => {
+function handleSocketCircleSpawned(circle) {
   state.circles.set(circle.id, circle);
-});
+}
 
-socket.on('circleUpdated', (circle) => {
+function handleSocketCircleUpdated(circle) {
   state.circles.set(circle.id, circle);
   if (dragState.circleId === circle.id && circle.markedBy !== state.selfId) {
     resetDragState();
     setCursorForWorldPosition(NaN, NaN);
   }
-});
+}
 
-socket.on('circlesRemoved', ({ circleIds }) => {
+function handleSocketCirclesRemoved({ circleIds }) {
   circleIds.forEach((circleId) => {
     state.circles.delete(circleId);
     if (dragState.circleId === circleId) {
@@ -741,7 +716,50 @@ socket.on('circlesRemoved', ({ circleIds }) => {
     }
   });
   setCursorForWorldPosition(NaN, NaN);
-});
+}
+
+function handleKeyDown(event) {
+  state.pressed.add(event.code);
+  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+    setCursorForWorldPosition(NaN, NaN);
+  }
+}
+
+function handleKeyUp(event) {
+  state.pressed.delete(event.code);
+  if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+    setCursorForWorldPosition(NaN, NaN);
+  }
+}
+
+function directionFromInput() {
+  let x = 0;
+  let y = 0;
+  if (state.pressed.has('ArrowLeft') || state.pressed.has('KeyA')) x -= 1;
+  if (state.pressed.has('ArrowRight') || state.pressed.has('KeyD')) x += 1;
+  if (state.pressed.has('ArrowUp') || state.pressed.has('KeyW')) y -= 1;
+  if (state.pressed.has('ArrowDown') || state.pressed.has('KeyS')) y += 1;
+
+  if (x === 0 && y === 0) {
+    return null;
+  }
+
+  const length = Math.hypot(x, y);
+  return { x: x / length, y: y / length };
+}
+
+function gameLoop(timestamp) {
+  const delta = (timestamp - state.lastFrame) / 1000;
+  state.lastFrame = timestamp;
+
+  const direction = directionFromInput();
+  if (direction && state.isReady && socket) {
+    socket.emit('move', { direction, delta });
+  }
+
+  render();
+  window.requestAnimationFrame(gameLoop);
+}
 
 function handleMouseDown(event) {
   const isPrimaryButton = event.button === 0;
@@ -1039,8 +1057,17 @@ function handleWindowBlur() {
   }
 }
 
+function handleWindowResize() {
+  updateViewSize();
+  render();
+}
+
 function commandSelectedCirclesTo(worldX, worldY) {
   if (!state.isReady) {
+    return false;
+  }
+
+  if (!socket) {
     return false;
   }
 
@@ -1091,11 +1118,60 @@ function commandSelectedCirclesTo(worldX, worldY) {
   return true;
 }
 
+function attachInteractionHandlers() {
+  if (interactionHandlersAttached) {
+    return;
+  }
+
+  if (!canvas) {
+    return;
+  }
+
+  interactionHandlersAttached = true;
+
+  canvas.addEventListener('mousedown', handleMouseDown);
+  canvas.addEventListener('mousemove', handleMouseMove);
+  canvas.addEventListener('mouseleave', handleMouseUp);
+  canvas.addEventListener('wheel', handleWheel, { passive: false });
+  canvas.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+  });
+
+  window.addEventListener('mouseup', handleMouseUp);
+  window.addEventListener('blur', handleWindowBlur);
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+  window.addEventListener('resize', handleWindowResize);
+}
+
+function startGame() {
+  if (gameStarted) {
+    return;
+  }
+
+  gameStarted = true;
+  state.isReady = true;
+  state.pressed.clear();
+
+  setupSocket();
+  attachInteractionHandlers();
+  updateViewSize();
+
+  if (canvas) {
+    canvas.style.cursor = 'grab';
+  }
+
+  state.lastFrame = performance.now();
+  render();
+  hideStartScreen();
+  window.requestAnimationFrame(gameLoop);
+}
+
 if (startForm) {
   startForm.addEventListener('submit', handleStartFormSubmit);
 } else {
-  state.isReady = true;
   hideStartScreen();
+  startGame();
 }
 
 if (nameInput) {
@@ -1111,24 +1187,3 @@ if (nameInput) {
     });
   }
 }
-
-canvas.addEventListener('mousedown', handleMouseDown);
-canvas.addEventListener('mousemove', handleMouseMove);
-canvas.addEventListener('mouseleave', handleMouseUp);
-canvas.addEventListener('wheel', handleWheel, { passive: false });
-canvas.addEventListener('contextmenu', (event) => {
-  event.preventDefault();
-});
-window.addEventListener('mouseup', handleMouseUp);
-window.addEventListener('blur', handleWindowBlur);
-
-window.addEventListener('resize', () => {
-  updateViewSize();
-  render();
-});
-
-updateViewSize();
-
-canvas.style.cursor = 'grab';
-
-window.requestAnimationFrame(gameLoop);
