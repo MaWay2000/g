@@ -19,6 +19,7 @@ const state = {
   circles: new Map(),
   pressed: new Set(),
   lastFrame: performance.now(),
+  selectedCircleIds: new Set(),
 };
 
 const dragState = {
@@ -29,6 +30,17 @@ const dragState = {
   startMouseX: 0,
   startMouseY: 0,
   lastSent: 0,
+};
+
+const selectionState = {
+  active: false,
+  dragging: false,
+  startWorldX: 0,
+  startWorldY: 0,
+  currentWorldX: 0,
+  currentWorldY: 0,
+  startScreenX: 0,
+  startScreenY: 0,
 };
 
 function resizeCanvas() {
@@ -103,7 +115,20 @@ function drawCircles(camera) {
     if (circle.markedBy) {
       ctx.lineWidth = 3;
       ctx.strokeStyle = circle.markedBy === state.selfId ? '#ffbf69' : 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
       ctx.stroke();
+    }
+
+    if (state.selectedCircleIds.has(circle.id)) {
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, radius + 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
   });
 }
@@ -142,6 +167,31 @@ function drawPlayers(camera) {
     ctx.textAlign = 'center';
     ctx.fillText(player.id.slice(0, 5), screenX, screenY - size / 2 - 8);
   });
+}
+
+function drawSelectionBox(camera) {
+  if (!selectionState.active || !selectionState.dragging) {
+    return;
+  }
+
+  const startX = selectionState.startWorldX - camera.x;
+  const startY = selectionState.startWorldY - camera.y;
+  const endX = selectionState.currentWorldX - camera.x;
+  const endY = selectionState.currentWorldY - camera.y;
+
+  const x = Math.min(startX, endX);
+  const y = Math.min(startY, endY);
+  const width = Math.abs(endX - startX);
+  const height = Math.abs(endY - startY);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, width, height);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(x, y, width, height);
+  ctx.restore();
 }
 
 function getCanvasRelativePosition(event) {
@@ -195,6 +245,11 @@ function updateCircleLocally(circleId, updates) {
 }
 
 function setCursorForWorldPosition(worldX, worldY) {
+  if (selectionState.active) {
+    canvas.style.cursor = 'crosshair';
+    return;
+  }
+
   if (dragState.dragging) {
     canvas.style.cursor = 'grabbing';
     return;
@@ -235,6 +290,7 @@ function render() {
   drawGround(camera);
   drawCircles(camera);
   drawPlayers(camera);
+  drawSelectionBox(camera);
 }
 
 function directionFromInput() {
@@ -279,6 +335,7 @@ socket.on('init', ({ selfId, world, players, circles }) => {
   state.world = world;
   state.players = new Map(players.map((p) => [p.id, p]));
   state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
+  state.selectedCircleIds = new Set();
   resizeCanvas();
   render();
 });
@@ -313,6 +370,9 @@ socket.on('circlesRemoved', ({ circleIds }) => {
     if (dragState.circleId === circleId) {
       resetDragState();
     }
+    if (state.selectedCircleIds.has(circleId)) {
+      state.selectedCircleIds.delete(circleId);
+    }
   });
   setCursorForWorldPosition(NaN, NaN);
 });
@@ -325,18 +385,30 @@ function handleMouseDown(event) {
   const local = getCanvasRelativePosition(event);
   const world = screenToWorld(local.x, local.y);
   const circle = circleAtWorldPosition(world.x, world.y);
-  if (!circle || circle.ownerId !== state.selfId) {
+  if (circle && circle.ownerId === state.selfId) {
+    state.selectedCircleIds = new Set([circle.id]);
+    dragState.circleId = circle.id;
+    dragState.offsetX = circle.x - world.x;
+    dragState.offsetY = circle.y - world.y;
+    dragState.startMouseX = local.x;
+    dragState.startMouseY = local.y;
+    dragState.dragging = false;
+    dragState.lastSent = 0;
+
     setCursorForWorldPosition(world.x, world.y);
+    event.preventDefault();
     return;
   }
 
-  dragState.circleId = circle.id;
-  dragState.offsetX = circle.x - world.x;
-  dragState.offsetY = circle.y - world.y;
-  dragState.startMouseX = local.x;
-  dragState.startMouseY = local.y;
-  dragState.dragging = false;
-  dragState.lastSent = 0;
+  selectionState.active = true;
+  selectionState.dragging = false;
+  selectionState.startWorldX = world.x;
+  selectionState.startWorldY = world.y;
+  selectionState.currentWorldX = world.x;
+  selectionState.currentWorldY = world.y;
+  selectionState.startScreenX = local.x;
+  selectionState.startScreenY = local.y;
+  state.selectedCircleIds = new Set();
 
   setCursorForWorldPosition(world.x, world.y);
   event.preventDefault();
@@ -381,6 +453,20 @@ function handleMouseMove(event) {
     return;
   }
 
+  if (selectionState.active) {
+    selectionState.currentWorldX = world.x;
+    selectionState.currentWorldY = world.y;
+    const movedDistance = Math.hypot(
+      local.x - selectionState.startScreenX,
+      local.y - selectionState.startScreenY
+    );
+    if (!selectionState.dragging && movedDistance > 3) {
+      selectionState.dragging = true;
+    }
+    setCursorForWorldPosition(world.x, world.y);
+    return;
+  }
+
   setCursorForWorldPosition(world.x, world.y);
 }
 
@@ -391,6 +477,42 @@ function handleMouseUp(event) {
 
   const local = event ? getCanvasRelativePosition(event) : null;
   const world = local ? screenToWorld(local.x, local.y) : null;
+
+  if (selectionState.active) {
+    const endWorldX = world ? world.x : selectionState.currentWorldX;
+    const endWorldY = world ? world.y : selectionState.currentWorldY;
+
+    selectionState.active = false;
+    const wasDragging = selectionState.dragging;
+    selectionState.dragging = false;
+    selectionState.currentWorldX = endWorldX;
+    selectionState.currentWorldY = endWorldY;
+
+    if (!wasDragging) {
+      state.selectedCircleIds = new Set();
+      setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
+      return;
+    }
+
+    const minX = Math.min(selectionState.startWorldX, endWorldX);
+    const maxX = Math.max(selectionState.startWorldX, endWorldX);
+    const minY = Math.min(selectionState.startWorldY, endWorldY);
+    const maxY = Math.max(selectionState.startWorldY, endWorldY);
+
+    const selectedIds = [];
+    state.circles.forEach((circle) => {
+      if (circle.ownerId !== state.selfId) {
+        return;
+      }
+      if (circle.x >= minX && circle.x <= maxX && circle.y >= minY && circle.y <= maxY) {
+        selectedIds.push(circle.id);
+      }
+    });
+
+    state.selectedCircleIds = new Set(selectedIds);
+    setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
+    return;
+  }
 
   if (!dragState.circleId) {
     setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
@@ -415,15 +537,67 @@ function handleMouseUp(event) {
 }
 
 function handleWindowBlur() {
-  if (!dragState.circleId) {
+  if (selectionState.active) {
+    selectionState.active = false;
+    selectionState.dragging = false;
+  }
+  if (dragState.circleId) {
+    handleMouseUp();
+  }
+}
+
+function handleContextMenu(event) {
+  if (state.selectedCircleIds.size === 0) {
     return;
   }
-  handleMouseUp();
+
+  const local = getCanvasRelativePosition(event);
+  const world = screenToWorld(local.x, local.y);
+
+  if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) {
+    return;
+  }
+
+  const selectedCircles = Array.from(state.selectedCircleIds)
+    .map((circleId) => state.circles.get(circleId))
+    .filter((circle) => circle && circle.ownerId === state.selfId);
+
+  if (selectedCircles.length === 0) {
+    state.selectedCircleIds = new Set();
+    return;
+  }
+
+  event.preventDefault();
+
+  const center = selectedCircles.reduce(
+    (acc, circle) => {
+      acc.x += circle.x;
+      acc.y += circle.y;
+      return acc;
+    },
+    { x: 0, y: 0 }
+  );
+  center.x /= selectedCircles.length;
+  center.y /= selectedCircles.length;
+
+  const deltaX = world.x - center.x;
+  const deltaY = world.y - center.y;
+
+  const moves = selectedCircles.map((circle) => {
+    const radius = circle.radius || 12;
+    const targetX = circle.x + deltaX;
+    const targetY = circle.y + deltaY;
+    const { x, y } = clampCirclePosition(targetX, targetY, radius);
+    return { circleId: circle.id, targetX: x, targetY: y };
+  });
+
+  socket.emit('commandCirclesMove', { moves });
 }
 
 canvas.addEventListener('mousedown', handleMouseDown);
 canvas.addEventListener('mousemove', handleMouseMove);
 canvas.addEventListener('mouseleave', handleMouseUp);
+canvas.addEventListener('contextmenu', handleContextMenu);
 window.addEventListener('mouseup', handleMouseUp);
 window.addEventListener('blur', handleWindowBlur);
 
