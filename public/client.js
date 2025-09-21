@@ -496,8 +496,9 @@ function drawPlayers() {
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
     const rawName = typeof player.name === 'string' ? player.name.trim() : '';
-    const displayName = rawName || player.id.slice(0, 5);
-    ctx.fillText(displayName, centerPoint.x, centerPoint.y - size * state.camera.verticalScale - 10);
+    if (rawName) {
+      ctx.fillText(rawName, centerPoint.x, centerPoint.y - size * state.camera.verticalScale - 10);
+    }
   });
 }
 
