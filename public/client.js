@@ -14,7 +14,10 @@ const VIEW_HEIGHT = 600;
 const state = {
   selfId: null,
   world: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
-  view: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
+  view: {
+    width: typeof window !== 'undefined' ? window.innerWidth : VIEW_WIDTH,
+    height: typeof window !== 'undefined' ? window.innerHeight : VIEW_HEIGHT,
+  },
   players: new Map(),
   circles: new Map(),
   pressed: new Set(),
@@ -46,6 +49,16 @@ const selectionState = {
 function resizeCanvas() {
   canvas.width = state.view.width;
   canvas.height = state.view.height;
+}
+
+function updateViewSize() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  state.view.width = window.innerWidth;
+  state.view.height = window.innerHeight;
+  resizeCanvas();
 }
 
 function getCamera() {
@@ -336,7 +349,7 @@ socket.on('init', ({ selfId, world, players, circles }) => {
   state.players = new Map(players.map((p) => [p.id, p]));
   state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
   state.selectedCircleIds = new Set();
-  resizeCanvas();
+  updateViewSize();
   render();
 });
 
@@ -600,5 +613,12 @@ canvas.addEventListener('mouseleave', handleMouseUp);
 canvas.addEventListener('contextmenu', handleContextMenu);
 window.addEventListener('mouseup', handleMouseUp);
 window.addEventListener('blur', handleWindowBlur);
+
+window.addEventListener('resize', () => {
+  updateViewSize();
+  render();
+});
+
+updateViewSize();
 
 window.requestAnimationFrame(gameLoop);
