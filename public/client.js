@@ -24,6 +24,7 @@ const state = {
     verticalScale: 0.55,
     horizon: 0.6,
     scale: 1,
+    zoom: 1,
   },
   players: new Map(),
   circles: new Map(),
@@ -75,6 +76,10 @@ const CAMERA_VERTICAL_SCALE_AT_MIN_PITCH = 0.55;
 const CAMERA_VERTICAL_SCALE_AT_MAX_PITCH = 1;
 const CAMERA_HORIZON_AT_MIN_PITCH = 0.6;
 const CAMERA_HORIZON_AT_MAX_PITCH = 0.5;
+const CAMERA_MIN_SCALE = 0.2;
+const CAMERA_ZOOM_SENSITIVITY = 0.0015;
+const CAMERA_MIN_ZOOM = 0.5;
+const CAMERA_MAX_ZOOM = 3;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -113,8 +118,20 @@ function updateViewSize() {
 function updateCameraScale() {
   const base = Math.min(canvas.width, canvas.height);
   const reference = Math.max(state.world.width, state.world.height) || 1;
-  const scale = (base / reference) * 0.9;
-  state.camera.scale = Math.max(scale, 0.2);
+  const baseScale = (base / reference) * 0.9;
+  const zoomedScale = baseScale * state.camera.zoom;
+  state.camera.scale = Math.max(zoomedScale, CAMERA_MIN_SCALE);
+}
+
+function setCameraZoom(zoom) {
+  const clamped = clamp(zoom, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM);
+  if (clamped === state.camera.zoom) {
+    return false;
+  }
+
+  state.camera.zoom = clamped;
+  updateCameraScale();
+  return true;
 }
 
 function getCameraTarget() {
@@ -815,6 +832,21 @@ function handleMouseUp(event) {
   setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
 }
 
+function handleWheel(event) {
+  event.preventDefault();
+
+  const deltaY = event.deltaY ?? 0;
+  if (!Number.isFinite(deltaY)) {
+    return;
+  }
+
+  const zoomFactor = Math.exp(-deltaY * CAMERA_ZOOM_SENSITIVITY);
+  if (setCameraZoom(state.camera.zoom * zoomFactor)) {
+    setCursorForWorldPosition(NaN, NaN);
+    render();
+  }
+}
+
 function handleWindowBlur() {
   if (selectionState.active) {
     selectionState.active = false;
@@ -883,6 +915,7 @@ function commandSelectedCirclesTo(worldX, worldY) {
 canvas.addEventListener('mousedown', handleMouseDown);
 canvas.addEventListener('mousemove', handleMouseMove);
 canvas.addEventListener('mouseleave', handleMouseUp);
+canvas.addEventListener('wheel', handleWheel, { passive: false });
 canvas.addEventListener('contextmenu', (event) => {
   event.preventDefault();
 });
