@@ -492,12 +492,19 @@ function drawPlayers() {
       ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     const rawName = typeof player.name === 'string' ? player.name.trim() : '';
     if (rawName) {
-      ctx.fillText(rawName, centerPoint.x, centerPoint.y - size * state.camera.verticalScale - 10);
+      const labelY = centerPoint.y - size * state.camera.verticalScale - 12;
+
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.strokeText(rawName, centerPoint.x, labelY);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(rawName, centerPoint.x, labelY);
     }
   });
 }
