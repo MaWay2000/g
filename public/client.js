@@ -14,6 +14,7 @@ const serverUrl =
 let socket = null;
 let gameStarted = false;
 let interactionHandlersAttached = false;
+let lastSentPlayerName = null;
 
 const VIEW_WIDTH = 800;
 const VIEW_HEIGHT = 600;
@@ -190,7 +191,12 @@ function sendNameToServer(name) {
     return false;
   }
 
+  if (lastSentPlayerName === sanitized) {
+    return false;
+  }
+
   socket.emit('setName', { name: sanitized });
+  lastSentPlayerName = sanitized;
   return true;
 }
 
@@ -204,9 +210,17 @@ function setupSocket() {
     return socket;
   }
 
-  socket = io(serverUrl, {
+  const handshakeName = sanitizePlayerName(state.pendingPlayerName || state.playerName);
+  const options = {
     transports: ['websocket', 'polling'],
-  });
+  };
+
+  if (handshakeName) {
+    options.auth = { name: handshakeName };
+    lastSentPlayerName = handshakeName;
+  }
+
+  socket = io(serverUrl, options);
 
   socket.on('init', handleSocketInit);
   socket.on('playerJoined', handleSocketPlayerJoined);
