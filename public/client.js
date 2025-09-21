@@ -641,7 +641,25 @@ function handleSocketInit({ selfId, world, players, circles }) {
 }
 
 function handleSocketPlayerJoined(player) {
-  state.players.set(player.id, player);
+  if (!player || typeof player.id !== 'string') {
+    return;
+  }
+
+  const existingPlayer = state.players.get(player.id);
+  const mergedPlayer = { ...(existingPlayer || {}), ...player };
+
+  const incomingName =
+    player && typeof player.name === 'string' ? player.name.trim() : '';
+  const existingName =
+    existingPlayer && typeof existingPlayer.name === 'string'
+      ? existingPlayer.name.trim()
+      : '';
+
+  if (!incomingName && existingName) {
+    mergedPlayer.name = existingPlayer.name;
+  }
+
+  state.players.set(player.id, mergedPlayer);
 }
 
 function handleSocketConnect() {
