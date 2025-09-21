@@ -46,8 +46,6 @@ const selectionState = {
   startScreenY: 0,
 };
 
-let suppressContextMenu = false;
-
 function resizeCanvas() {
   canvas.width = state.view.width;
   canvas.height = state.view.height;
@@ -394,36 +392,14 @@ socket.on('circlesRemoved', ({ circleIds }) => {
 
 function handleMouseDown(event) {
   const isPrimaryButton = event.button === 0;
-  const isSecondaryButton = event.button === 2;
 
-  if (!isPrimaryButton && !isSecondaryButton) {
+  if (!isPrimaryButton) {
     return;
   }
 
   const local = getCanvasRelativePosition(event);
   const world = screenToWorld(local.x, local.y);
   const circle = circleAtWorldPosition(world.x, world.y);
-
-  if (isSecondaryButton) {
-    if (circle && circle.ownerId === state.selfId) {
-      state.selectedCircleIds = new Set([circle.id]);
-      dragState.circleId = circle.id;
-      dragState.offsetX = circle.x - world.x;
-      dragState.offsetY = circle.y - world.y;
-      dragState.startMouseX = local.x;
-      dragState.startMouseY = local.y;
-      dragState.dragging = false;
-      dragState.lastSent = 0;
-      suppressContextMenu = true;
-
-      setCursorForWorldPosition(world.x, world.y);
-      event.preventDefault();
-      return;
-    }
-
-    setCursorForWorldPosition(world.x, world.y);
-    return;
-  }
 
   if (circle && circle.ownerId === state.selfId) {
     state.selectedCircleIds = new Set([circle.id]);
@@ -440,7 +416,6 @@ function handleMouseDown(event) {
   selectionState.currentWorldY = world.y;
   selectionState.startScreenX = local.x;
   selectionState.startScreenY = local.y;
-  state.selectedCircleIds = new Set();
 
   setCursorForWorldPosition(world.x, world.y);
   event.preventDefault();
@@ -494,6 +469,7 @@ function handleMouseMove(event) {
     );
     if (!selectionState.dragging && movedDistance > 3) {
       selectionState.dragging = true;
+      state.selectedCircleIds = new Set();
     }
     setCursorForWorldPosition(world.x, world.y);
     return;
@@ -507,8 +483,7 @@ function handleMouseUp(event) {
     event &&
     event.type !== 'mouseleave' &&
     event.button !== undefined &&
-    event.button !== 0 &&
-    event.button !== 2
+    event.button !== 0
   ) {
     return;
   }
@@ -517,37 +492,34 @@ function handleMouseUp(event) {
   const world = local ? screenToWorld(local.x, local.y) : null;
 
   if (selectionState.active) {
+    const wasDragging = selectionState.dragging;
     const endWorldX = world ? world.x : selectionState.currentWorldX;
     const endWorldY = world ? world.y : selectionState.currentWorldY;
-
-    selectionState.active = false;
-    const wasDragging = selectionState.dragging;
-    selectionState.dragging = false;
-    selectionState.currentWorldX = endWorldX;
-    selectionState.currentWorldY = endWorldY;
-
-    if (!wasDragging) {
-      state.selectedCircleIds = new Set();
-      setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
-      return;
-    }
 
     const minX = Math.min(selectionState.startWorldX, endWorldX);
     const maxX = Math.max(selectionState.startWorldX, endWorldX);
     const minY = Math.min(selectionState.startWorldY, endWorldY);
     const maxY = Math.max(selectionState.startWorldY, endWorldY);
 
-    const selectedIds = [];
-    state.circles.forEach((circle) => {
-      if (circle.ownerId !== state.selfId) {
-        return;
-      }
-      if (circle.x >= minX && circle.x <= maxX && circle.y >= minY && circle.y <= maxY) {
-        selectedIds.push(circle.id);
-      }
-    });
+    selectionState.active = false;
+    selectionState.dragging = false;
 
-    state.selectedCircleIds = new Set(selectedIds);
+    if (wasDragging) {
+      const selectedIds = [];
+      state.circles.forEach((circle) => {
+        if (circle.ownerId !== state.selfId) {
+          return;
+        }
+        if (circle.x >= minX && circle.x <= maxX && circle.y >= minY && circle.y <= maxY) {
+          selectedIds.push(circle.id);
+        }
+      });
+
+      state.selectedCircleIds = new Set(selectedIds);
+    } else if (!commandSelectedCirclesTo(endWorldX, endWorldY)) {
+      state.selectedCircleIds = new Set();
+    }
+
     setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
     return;
   }
@@ -571,11 +543,6 @@ function handleMouseUp(event) {
   }
 
   resetDragState();
-  if (suppressContextMenu) {
-    setTimeout(() => {
-      suppressContextMenu = false;
-    }, 0);
-  }
   setCursorForWorldPosition(world ? world.x : NaN, world ? world.y : NaN);
 }
 
@@ -589,21 +556,13 @@ function handleWindowBlur() {
   }
 }
 
-function handleContextMenu(event) {
-  if (suppressContextMenu) {
-    event.preventDefault();
-    return;
+function commandSelectedCirclesTo(worldX, worldY) {
+  if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) {
+    return false;
   }
 
   if (state.selectedCircleIds.size === 0) {
-    return;
-  }
-
-  const local = getCanvasRelativePosition(event);
-  const world = screenToWorld(local.x, local.y);
-
-  if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) {
-    return;
+    return false;
   }
 
   const selectedCircles = Array.from(state.selectedCircleIds)
@@ -612,10 +571,8 @@ function handleContextMenu(event) {
 
   if (selectedCircles.length === 0) {
     state.selectedCircleIds = new Set();
-    return;
+    return false;
   }
-
-  event.preventDefault();
 
   const center = selectedCircles.reduce(
     (acc, circle) => {
@@ -628,8 +585,8 @@ function handleContextMenu(event) {
   center.x /= selectedCircles.length;
   center.y /= selectedCircles.length;
 
-  const deltaX = world.x - center.x;
-  const deltaY = world.y - center.y;
+  const deltaX = worldX - center.x;
+  const deltaY = worldY - center.y;
 
   const moves = selectedCircles.map((circle) => {
     const radius = circle.radius || 12;
@@ -639,13 +596,17 @@ function handleContextMenu(event) {
     return { circleId: circle.id, targetX: x, targetY: y };
   });
 
+  if (moves.length === 0) {
+    return false;
+  }
+
   socket.emit('commandCirclesMove', { moves });
+  return true;
 }
 
 canvas.addEventListener('mousedown', handleMouseDown);
 canvas.addEventListener('mousemove', handleMouseMove);
 canvas.addEventListener('mouseleave', handleMouseUp);
-canvas.addEventListener('contextmenu', handleContextMenu);
 window.addEventListener('mouseup', handleMouseUp);
 window.addEventListener('blur', handleWindowBlur);
 
