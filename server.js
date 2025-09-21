@@ -16,8 +16,8 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3000;
-const WORLD_WIDTH = 800;
-const WORLD_HEIGHT = 600;
+const WORLD_WIDTH = 8000;
+const WORLD_HEIGHT = 6000;
 const PLAYER_SPEED = 200; // units per second
 
 app.use(express.static('public'));
