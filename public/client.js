@@ -20,6 +20,7 @@ const state = {
   },
   camera: {
     angle: 0,
+    pitch: 0,
     verticalScale: 0.55,
     horizon: 0.6,
     scale: 1,
@@ -55,13 +56,41 @@ const selectionState = {
 const cameraControl = {
   active: false,
   rotating: false,
+  adjustingTilt: false,
   startX: 0,
+  startY: 0,
   startAngle: 0,
+  startPitch: 0,
   startWorldX: 0,
   startWorldY: 0,
 };
 
 const CAMERA_ROTATION_SPEED = 0.0045;
+const CAMERA_TILT_SPEED = 0.0025;
+const CAMERA_MIN_PITCH = 0;
+const CAMERA_MAX_PITCH = 1;
+const CAMERA_VERTICAL_SCALE_AT_MIN_PITCH = 0.55;
+const CAMERA_VERTICAL_SCALE_AT_MAX_PITCH = 1;
+const CAMERA_HORIZON_AT_MIN_PITCH = 0.6;
+const CAMERA_HORIZON_AT_MAX_PITCH = 0.5;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function setCameraPitch(pitch) {
+  const clamped = clamp(pitch, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
+  state.camera.pitch = clamped;
+  const t = clamped;
+  state.camera.verticalScale =
+    CAMERA_VERTICAL_SCALE_AT_MIN_PITCH +
+    (CAMERA_VERTICAL_SCALE_AT_MAX_PITCH - CAMERA_VERTICAL_SCALE_AT_MIN_PITCH) * t;
+  state.camera.horizon =
+    CAMERA_HORIZON_AT_MIN_PITCH +
+    (CAMERA_HORIZON_AT_MAX_PITCH - CAMERA_HORIZON_AT_MIN_PITCH) * t;
+}
+
+setCameraPitch(state.camera.pitch);
 
 function resizeCanvas() {
   canvas.width = state.view.width;
@@ -403,7 +432,7 @@ function updateCircleLocally(circleId, updates) {
 
 function setCursorForWorldPosition(worldX, worldY) {
   if (cameraControl.active) {
-    canvas.style.cursor = cameraControl.rotating ? 'grabbing' : 'grab';
+    canvas.style.cursor = cameraControl.rotating || cameraControl.adjustingTilt ? 'grabbing' : 'grab';
     return;
   }
 
@@ -581,8 +610,11 @@ function handleMouseDown(event) {
 
   cameraControl.active = true;
   cameraControl.rotating = false;
+  cameraControl.adjustingTilt = false;
   cameraControl.startX = local.x;
+  cameraControl.startY = local.y;
   cameraControl.startAngle = state.camera.angle;
+  cameraControl.startPitch = state.camera.pitch;
   cameraControl.startWorldX = world.x;
   cameraControl.startWorldY = world.y;
   setCursorForWorldPosition(NaN, NaN);
@@ -595,11 +627,25 @@ function handleMouseMove(event) {
 
   if (cameraControl.active) {
     const deltaX = local.x - cameraControl.startX;
+    const deltaY = local.y - cameraControl.startY;
     if (!cameraControl.rotating && Math.abs(deltaX) > 4) {
       cameraControl.rotating = true;
     }
+    if (!cameraControl.adjustingTilt && Math.abs(deltaY) > 4) {
+      cameraControl.adjustingTilt = true;
+    }
+
+    let cameraChanged = false;
     if (cameraControl.rotating) {
       state.camera.angle = cameraControl.startAngle + deltaX * CAMERA_ROTATION_SPEED;
+      cameraChanged = true;
+    }
+    if (cameraControl.adjustingTilt) {
+      const nextPitch = cameraControl.startPitch - deltaY * CAMERA_TILT_SPEED;
+      setCameraPitch(nextPitch);
+      cameraChanged = true;
+    }
+    if (cameraChanged) {
       setCursorForWorldPosition(NaN, NaN);
       return;
     }
@@ -673,10 +719,12 @@ function handleMouseUp(event) {
 
   if (cameraControl.active) {
     const wasRotating = cameraControl.rotating;
+    const wasAdjustingTilt = cameraControl.adjustingTilt;
     cameraControl.active = false;
     cameraControl.rotating = false;
+    cameraControl.adjustingTilt = false;
 
-    if (!wasRotating) {
+    if (!wasRotating && !wasAdjustingTilt) {
       const canCommand = event && event.type !== 'mouseleave';
       const commanded = canCommand && world ? commandSelectedCirclesTo(world.x, world.y) : false;
       if (!commanded && state.selectedCircleIds.size > 0) {
@@ -753,6 +801,7 @@ function handleWindowBlur() {
   if (cameraControl.active) {
     cameraControl.active = false;
     cameraControl.rotating = false;
+    cameraControl.adjustingTilt = false;
   }
   if (dragState.circleId) {
     handleMouseUp();
