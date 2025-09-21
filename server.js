@@ -26,6 +26,8 @@ const CIRCLE_INTERVAL_MS = 1000;
 const PLAYER_COLLISION_PADDING = 1;
 const CIRCLE_COLLISION_PADDING = 0.5;
 const MAX_COLLISION_ITERATIONS = 6;
+const PLAYER_NAME_MAX_LENGTH = 20;
+const DEFAULT_PLAYER_NAME = 'Player';
 
 app.use(express.static('public'));
 
@@ -217,6 +219,7 @@ io.on('connection', (socket) => {
     x: Math.random() * (WORLD_WIDTH - 50) + 25,
     y: Math.random() * (WORLD_HEIGHT - 50) + 25,
     color: randomColor(),
+    name: DEFAULT_PLAYER_NAME,
   };
   players.set(socket.id, spawn);
 
@@ -250,6 +253,27 @@ io.on('connection', (socket) => {
 
     players.set(socket.id, player);
     io.emit('playerMoved', player);
+  });
+
+  socket.on('setName', ({ name }) => {
+    const player = players.get(socket.id);
+    if (!player || typeof name !== 'string') {
+      return;
+    }
+
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const sanitized = trimmed.slice(0, PLAYER_NAME_MAX_LENGTH);
+    if (player.name === sanitized) {
+      return;
+    }
+
+    player.name = sanitized;
+    players.set(socket.id, player);
+    io.emit('playerUpdated', player);
   });
 
   socket.on('markCircle', ({ circleId, marked }) => {
