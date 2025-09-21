@@ -19,9 +19,13 @@ const PORT = process.env.PORT || 3000;
 const WORLD_WIDTH = 8000;
 const WORLD_HEIGHT = 6000;
 const PLAYER_SPEED = 200; // units per second
+const PLAYER_SIZE = 40;
 const CIRCLE_MOVE_SPEED = PLAYER_SPEED;
 const CIRCLE_RADIUS = 12;
 const CIRCLE_INTERVAL_MS = 1000;
+const PLAYER_COLLISION_PADDING = 1;
+const CIRCLE_COLLISION_PADDING = 0.5;
+const MAX_COLLISION_ITERATIONS = 6;
 
 app.use(express.static('public'));
 
@@ -34,6 +38,150 @@ let lastMovementUpdate = Date.now();
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function clampCirclePosition(x, y, radius) {
+  return {
+    x: clamp(x, radius, WORLD_WIDTH - radius),
+    y: clamp(y, radius, WORLD_HEIGHT - radius),
+  };
+}
+
+function pushCircleAwayFromPlayer(circle, player) {
+  const radius = circle.radius ?? CIRCLE_RADIUS;
+  const halfSize = PLAYER_SIZE / 2;
+  const minX = player.x - halfSize;
+  const maxX = player.x + halfSize;
+  const minY = player.y - halfSize;
+  const maxY = player.y + halfSize;
+
+  const closestX = clamp(circle.x, minX, maxX);
+  const closestY = clamp(circle.y, minY, maxY);
+  let dx = circle.x - closestX;
+  let dy = circle.y - closestY;
+  let distance = Math.hypot(dx, dy);
+
+  if (distance >= radius) {
+    return false;
+  }
+
+  if (distance === 0) {
+    const distancesToEdges = [
+      { axis: 'left', value: circle.x - minX },
+      { axis: 'right', value: maxX - circle.x },
+      { axis: 'top', value: circle.y - minY },
+      { axis: 'bottom', value: maxY - circle.y },
+    ];
+
+    let minValue = distancesToEdges[0].value;
+    for (let index = 1; index < distancesToEdges.length; index += 1) {
+      if (distancesToEdges[index].value < minValue) {
+        minValue = distancesToEdges[index].value;
+      }
+    }
+
+    const candidates = distancesToEdges.filter((entry) => entry.value === minValue);
+    const nearest = candidates[Math.floor(Math.random() * candidates.length)];
+
+    switch (nearest.axis) {
+      case 'left':
+        circle.x = minX - radius - PLAYER_COLLISION_PADDING;
+        break;
+      case 'right':
+        circle.x = maxX + radius + PLAYER_COLLISION_PADDING;
+        break;
+      case 'top':
+        circle.y = minY - radius - PLAYER_COLLISION_PADDING;
+        break;
+      case 'bottom':
+        circle.y = maxY + radius + PLAYER_COLLISION_PADDING;
+        break;
+      default:
+        break;
+    }
+  } else {
+    const overlap = radius - distance + PLAYER_COLLISION_PADDING;
+    const nx = dx / distance;
+    const ny = dy / distance;
+    circle.x += nx * overlap;
+    circle.y += ny * overlap;
+  }
+
+  const clamped = clampCirclePosition(circle.x, circle.y, radius);
+  circle.x = clamped.x;
+  circle.y = clamped.y;
+  return true;
+}
+
+function resolveCirclePlayerCollisions(circle) {
+  players.forEach((player) => {
+    let iterations = 0;
+    while (iterations < MAX_COLLISION_ITERATIONS && pushCircleAwayFromPlayer(circle, player)) {
+      iterations += 1;
+    }
+  });
+}
+
+function resolveCircleCircleCollisions(circle) {
+  const radius = circle.radius ?? CIRCLE_RADIUS;
+
+  for (let iteration = 0; iteration < MAX_COLLISION_ITERATIONS; iteration += 1) {
+    let collided = false;
+
+    for (const otherCircle of circles.values()) {
+      if (!otherCircle || otherCircle.id === circle.id) {
+        continue;
+      }
+
+      const otherRadius = otherCircle.radius ?? CIRCLE_RADIUS;
+      const minDistance = radius + otherRadius;
+      let dx = circle.x - otherCircle.x;
+      let dy = circle.y - otherCircle.y;
+      let distance = Math.hypot(dx, dy);
+
+      if (distance >= minDistance) {
+        continue;
+      }
+
+      collided = true;
+
+      if (distance === 0) {
+        const angle = Math.random() * Math.PI * 2;
+        dx = Math.cos(angle);
+        dy = Math.sin(angle);
+        distance = 1;
+      }
+
+      const overlap = minDistance - distance + CIRCLE_COLLISION_PADDING;
+      const nx = dx / distance;
+      const ny = dy / distance;
+      circle.x += nx * overlap;
+      circle.y += ny * overlap;
+
+      const clamped = clampCirclePosition(circle.x, circle.y, radius);
+      circle.x = clamped.x;
+      circle.y = clamped.y;
+    }
+
+    if (!collided) {
+      break;
+    }
+  }
+}
+
+function applyCirclePhysics(circle) {
+  const radius = circle.radius ?? CIRCLE_RADIUS;
+  const clamped = clampCirclePosition(circle.x, circle.y, radius);
+  circle.x = clamped.x;
+  circle.y = clamped.y;
+
+  resolveCirclePlayerCollisions(circle);
+  resolveCircleCircleCollisions(circle);
+  resolveCirclePlayerCollisions(circle);
+
+  const finalClamp = clampCirclePosition(circle.x, circle.y, radius);
+  circle.x = finalClamp.x;
+  circle.y = finalClamp.y;
 }
 
 function spawnCircleForPlayer(playerId) {
@@ -53,15 +201,9 @@ function spawnCircleForPlayer(playerId) {
     y: clamp(player.y, radius, WORLD_HEIGHT - radius),
   };
 
+  applyCirclePhysics(circle);
   circles.set(circle.id, circle);
   io.emit('circleSpawned', circle);
-}
-
-function clampCirclePosition(x, y, radius) {
-  return {
-    x: clamp(x, radius, WORLD_WIDTH - radius),
-    y: clamp(y, radius, WORLD_HEIGHT - radius),
-  };
 }
 
 function randomColor() {
@@ -148,12 +290,9 @@ io.on('connection', (socket) => {
     const clampedX = clamp(x, radius, WORLD_WIDTH - radius);
     const clampedY = clamp(y, radius, WORLD_HEIGHT - radius);
 
-    if (circle.x === clampedX && circle.y === clampedY) {
-      return;
-    }
-
     circle.x = clampedX;
     circle.y = clampedY;
+    applyCirclePhysics(circle);
     circles.set(circleId, circle);
     io.emit('circleUpdated', circle);
   });
@@ -192,6 +331,7 @@ io.on('connection', (socket) => {
           targetY: target.y,
         });
       }
+      applyCirclePhysics(circle);
       circles.set(circle.id, circle);
       updates.push(circle);
     });
@@ -272,6 +412,7 @@ setInterval(() => {
       }
     }
 
+    applyCirclePhysics(circle);
     circles.set(circle.id, circle);
     movedCircles.push(circle);
   }
