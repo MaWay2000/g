@@ -378,11 +378,12 @@ function getCameraTarget() {
   return target;
 }
 
-function projectWorldPoint(worldX, worldY) {
+function projectWorldPoint(worldX, worldY, elevation = 0) {
   if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) {
     return null;
   }
 
+  const height = Number.isFinite(elevation) ? elevation : 0;
   const target = getCameraTarget();
   const dx = worldX - target.x;
   const dy = worldY - target.y;
@@ -395,7 +396,10 @@ function projectWorldPoint(worldX, worldY) {
   const baseY = canvas.height * state.camera.horizon;
 
   const screenX = canvas.width / 2 + rotatedX * scale;
-  const screenY = baseY + rotatedY * scale * state.camera.verticalScale;
+  const screenY =
+    baseY +
+    rotatedY * scale * state.camera.verticalScale -
+    height * scale * state.camera.verticalScale;
 
   return {
     x: screenX,
@@ -430,62 +434,71 @@ function drawGround() {
 
   const width = Number.isFinite(state.world.width) ? state.world.width : 0;
   const height = Number.isFinite(state.world.height) ? state.world.height : 0;
-  const corners = [
+  const baseCorners = [
     projectWorldPoint(0, 0),
     projectWorldPoint(width, 0),
     projectWorldPoint(width, height),
     projectWorldPoint(0, height),
   ];
 
-  if (corners.some((corner) => !corner)) {
+  if (baseCorners.some((corner) => !corner)) {
     return;
   }
 
   const rawBorder = Number.isFinite(state.world.border) ? state.world.border : 0;
   const maxBorder = Math.min(width, height) / 2;
   const border = Math.max(0, Math.min(rawBorder, maxBorder));
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(corners[0].x, corners[0].y);
-  for (let index = 1; index < corners.length; index += 1) {
-    ctx.lineTo(corners[index].x, corners[index].y);
-  }
-  ctx.closePath();
-
-  ctx.clip();
-
+  const walkwayElevation = border > 0 ? border : 0;
   const walkwayColor = '#18352b';
-  ctx.fillStyle = walkwayColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, '#2c6950');
-  gradient.addColorStop(1, '#1e4e3a');
-
-  const gridSize = 40;
   const hasInnerArea = border > 0 && border * 2 < width && border * 2 < height;
+  let innerGroundCorners = null;
+  let innerRaisedCorners = null;
 
-  let innerCorners = null;
   if (hasInnerArea) {
-    innerCorners = [
+    innerGroundCorners = [
       projectWorldPoint(border, border),
       projectWorldPoint(width - border, border),
       projectWorldPoint(width - border, height - border),
       projectWorldPoint(border, height - border),
     ];
 
-    if (innerCorners.some((corner) => !corner)) {
-      innerCorners = null;
+    if (!innerGroundCorners.some((corner) => !corner)) {
+      innerRaisedCorners = [
+        projectWorldPoint(border, border, walkwayElevation),
+        projectWorldPoint(width - border, border, walkwayElevation),
+        projectWorldPoint(width - border, height - border, walkwayElevation),
+        projectWorldPoint(border, height - border, walkwayElevation),
+      ];
+
+      if (innerRaisedCorners.some((corner) => !corner)) {
+        innerRaisedCorners = null;
+      }
+    } else {
+      innerGroundCorners = null;
     }
   }
 
-  if (innerCorners) {
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, '#2c6950');
+  gradient.addColorStop(1, '#1e4e3a');
+  const gridSize = 40;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(baseCorners[0].x, baseCorners[0].y);
+  for (let index = 1; index < baseCorners.length; index += 1) {
+    ctx.lineTo(baseCorners[index].x, baseCorners[index].y);
+  }
+  ctx.closePath();
+  ctx.clip();
+
+  if (innerGroundCorners) {
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(innerCorners[0].x, innerCorners[0].y);
-    for (let index = 1; index < innerCorners.length; index += 1) {
-      ctx.lineTo(innerCorners[index].x, innerCorners[index].y);
+    ctx.moveTo(innerGroundCorners[0].x, innerGroundCorners[0].y);
+    for (let index = 1; index < innerGroundCorners.length; index += 1) {
+      ctx.lineTo(innerGroundCorners[index].x, innerGroundCorners[index].y);
     }
     ctx.closePath();
     ctx.clip();
@@ -521,16 +534,6 @@ function drawGround() {
     }
 
     ctx.restore();
-
-    ctx.beginPath();
-    ctx.moveTo(innerCorners[0].x, innerCorners[0].y);
-    for (let index = 1; index < innerCorners.length; index += 1) {
-      ctx.lineTo(innerCorners[index].x, innerCorners[index].y);
-    }
-    ctx.closePath();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-    ctx.stroke();
   } else {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -565,15 +568,104 @@ function drawGround() {
 
   ctx.restore();
 
-  ctx.beginPath();
-  ctx.moveTo(corners[0].x, corners[0].y);
-  for (let index = 1; index < corners.length; index += 1) {
-    ctx.lineTo(corners[index].x, corners[index].y);
+  if (hasInnerArea && innerGroundCorners && innerRaisedCorners) {
+    for (let index = 0; index < innerGroundCorners.length; index += 1) {
+      const next = (index + 1) % innerGroundCorners.length;
+      const topStart = innerRaisedCorners[index];
+      const topEnd = innerRaisedCorners[next];
+      const baseStart = innerGroundCorners[index];
+      const baseEnd = innerGroundCorners[next];
+
+      if (!topStart || !topEnd || !baseStart || !baseEnd) {
+        continue;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(topStart.x, topStart.y);
+      ctx.lineTo(topEnd.x, topEnd.y);
+      ctx.lineTo(baseEnd.x, baseEnd.y);
+      ctx.lineTo(baseStart.x, baseStart.y);
+      ctx.closePath();
+
+      const faceGradient = ctx.createLinearGradient(
+        (topStart.x + topEnd.x) / 2,
+        (topStart.y + topEnd.y) / 2,
+        (baseStart.x + baseEnd.x) / 2,
+        (baseStart.y + baseEnd.y) / 2,
+      );
+      faceGradient.addColorStop(0, 'rgba(24, 53, 43, 0.95)');
+      faceGradient.addColorStop(1, 'rgba(11, 31, 27, 0.95)');
+      ctx.fillStyle = faceGradient;
+      ctx.fill();
+    }
   }
-  ctx.closePath();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-  ctx.stroke();
+
+  if (border > 0) {
+    const raisedOuterCorners = [
+      projectWorldPoint(0, 0, walkwayElevation),
+      projectWorldPoint(width, 0, walkwayElevation),
+      projectWorldPoint(width, height, walkwayElevation),
+      projectWorldPoint(0, height, walkwayElevation),
+    ];
+
+    if (raisedOuterCorners.some((corner) => !corner)) {
+      return;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(raisedOuterCorners[0].x, raisedOuterCorners[0].y);
+    for (let index = 1; index < raisedOuterCorners.length; index += 1) {
+      ctx.lineTo(raisedOuterCorners[index].x, raisedOuterCorners[index].y);
+    }
+    ctx.closePath();
+
+    if (innerRaisedCorners) {
+      ctx.moveTo(innerRaisedCorners[0].x, innerRaisedCorners[0].y);
+      for (let index = 1; index < innerRaisedCorners.length; index += 1) {
+        ctx.lineTo(innerRaisedCorners[index].x, innerRaisedCorners[index].y);
+      }
+      ctx.closePath();
+    }
+
+    ctx.fillStyle = walkwayColor;
+    if (innerRaisedCorners) {
+      ctx.fill('evenodd');
+    } else {
+      ctx.fill();
+    }
+
+    if (innerRaisedCorners) {
+      ctx.beginPath();
+      ctx.moveTo(innerRaisedCorners[0].x, innerRaisedCorners[0].y);
+      for (let index = 1; index < innerRaisedCorners.length; index += 1) {
+        ctx.lineTo(innerRaisedCorners[index].x, innerRaisedCorners[index].y);
+      }
+      ctx.closePath();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(raisedOuterCorners[0].x, raisedOuterCorners[0].y);
+    for (let index = 1; index < raisedOuterCorners.length; index += 1) {
+      ctx.lineTo(raisedOuterCorners[index].x, raisedOuterCorners[index].y);
+    }
+    ctx.closePath();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(baseCorners[0].x, baseCorners[0].y);
+    for (let index = 1; index < baseCorners.length; index += 1) {
+      ctx.lineTo(baseCorners[index].x, baseCorners[index].y);
+    }
+    ctx.closePath();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.stroke();
+  }
 }
 
 function drawCircles() {
