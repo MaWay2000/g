@@ -18,8 +18,10 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const WORLD_WIDTH = 8000;
 const WORLD_HEIGHT = 6000;
+const TILE_SIZE = 40;
+const WORLD_BORDER = TILE_SIZE;
 const PLAYER_SPEED = 200; // units per second
-const PLAYER_SIZE = 40;
+const PLAYER_SIZE = TILE_SIZE;
 const CIRCLE_MOVE_SPEED = PLAYER_SPEED / 5;
 const CIRCLE_RADIUS = 12;
 const CIRCLE_INTERVAL_MS = 1000;
@@ -28,6 +30,20 @@ const CIRCLE_COLLISION_PADDING = 0.5;
 const MAX_COLLISION_ITERATIONS = 6;
 const PLAYER_NAME_MAX_LENGTH = 20;
 const DEFAULT_PLAYER_NAME = 'Player';
+
+const HALF_PLAYER_SIZE = PLAYER_SIZE / 2;
+
+function clampPlayerPosition(x, y) {
+  const minX = WORLD_BORDER + HALF_PLAYER_SIZE;
+  const maxX = WORLD_WIDTH - WORLD_BORDER - HALF_PLAYER_SIZE;
+  const minY = WORLD_BORDER + HALF_PLAYER_SIZE;
+  const maxY = WORLD_HEIGHT - WORLD_BORDER - HALF_PLAYER_SIZE;
+
+  return {
+    x: clamp(x, minX, maxX),
+    y: clamp(y, minY, maxY),
+  };
+}
 
 app.use(express.static('public'));
 
@@ -56,9 +72,14 @@ function clamp(value, min, max) {
 }
 
 function clampCirclePosition(x, y, radius) {
+  const minX = WORLD_BORDER + radius;
+  const maxX = WORLD_WIDTH - WORLD_BORDER - radius;
+  const minY = WORLD_BORDER + radius;
+  const maxY = WORLD_HEIGHT - WORLD_BORDER - radius;
+
   return {
-    x: clamp(x, radius, WORLD_WIDTH - radius),
-    y: clamp(y, radius, WORLD_HEIGHT - radius),
+    x: clamp(x, minX, maxX),
+    y: clamp(y, minY, maxY),
   };
 }
 
@@ -206,14 +227,16 @@ function spawnCircleForPlayer(playerId) {
   }
 
   const radius = CIRCLE_RADIUS;
+  const spawnPosition = clampCirclePosition(player.x, player.y, radius);
+
   const circle = {
     id: `circle-${++circleIdCounter}`,
     ownerId: playerId,
     color: player.color,
     radius,
     markedBy: null,
-    x: clamp(player.x, radius, WORLD_WIDTH - radius),
-    y: clamp(player.y, radius, WORLD_HEIGHT - radius),
+    x: spawnPosition.x,
+    y: spawnPosition.y,
   };
 
   applyCirclePhysics(circle);
@@ -229,18 +252,30 @@ function randomColor() {
 io.on('connection', (socket) => {
   const initialName = sanitizePlayerNameInput(socket.handshake?.auth?.name);
 
+  const minSpawnX = WORLD_BORDER + HALF_PLAYER_SIZE;
+  const maxSpawnX = WORLD_WIDTH - WORLD_BORDER - HALF_PLAYER_SIZE;
+  const minSpawnY = WORLD_BORDER + HALF_PLAYER_SIZE;
+  const maxSpawnY = WORLD_HEIGHT - WORLD_BORDER - HALF_PLAYER_SIZE;
+
+  const spawnRangeX = Math.max(0, maxSpawnX - minSpawnX);
+  const spawnRangeY = Math.max(0, maxSpawnY - minSpawnY);
+
   const spawn = {
     id: socket.id,
-    x: Math.random() * (WORLD_WIDTH - 50) + 25,
-    y: Math.random() * (WORLD_HEIGHT - 50) + 25,
+    x: minSpawnX + Math.random() * spawnRangeX,
+    y: minSpawnY + Math.random() * spawnRangeY,
     color: randomColor(),
     name: initialName ?? DEFAULT_PLAYER_NAME,
   };
+
+  const clampedSpawn = clampPlayerPosition(spawn.x, spawn.y);
+  spawn.x = clampedSpawn.x;
+  spawn.y = clampedSpawn.y;
   players.set(socket.id, spawn);
 
   socket.emit('init', {
     selfId: socket.id,
-    world: { width: WORLD_WIDTH, height: WORLD_HEIGHT },
+    world: { width: WORLD_WIDTH, height: WORLD_HEIGHT, border: WORLD_BORDER },
     players: Array.from(players.values()),
     circles: Array.from(circles.values()),
   });
@@ -263,8 +298,9 @@ io.on('connection', (socket) => {
     const nextX = player.x + direction.x * distance;
     const nextY = player.y + direction.y * distance;
 
-    player.x = Math.max(20, Math.min(WORLD_WIDTH - 20, nextX));
-    player.y = Math.max(20, Math.min(WORLD_HEIGHT - 20, nextY));
+    const clampedPosition = clampPlayerPosition(nextX, nextY);
+    player.x = clampedPosition.x;
+    player.y = clampedPosition.y;
 
     players.set(socket.id, player);
     io.emit('playerMoved', player);
@@ -327,11 +363,10 @@ io.on('connection', (socket) => {
     circleMovements.delete(circleId);
 
     const radius = circle.radius ?? CIRCLE_RADIUS;
-    const clampedX = clamp(x, radius, WORLD_WIDTH - radius);
-    const clampedY = clamp(y, radius, WORLD_HEIGHT - radius);
+    const clampedPosition = clampCirclePosition(x, y, radius);
 
-    circle.x = clampedX;
-    circle.y = clampedY;
+    circle.x = clampedPosition.x;
+    circle.y = clampedPosition.y;
     applyCirclePhysics(circle);
     circles.set(circleId, circle);
     io.emit('circleUpdated', circle);
