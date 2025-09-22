@@ -2,6 +2,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 const NAME_MAX_LENGTH = 20;
+const DEFAULT_PLAYER_NAME = 'Player';
 const startScreen = document.getElementById('start-screen');
 const startForm = document.getElementById('start-form');
 const nameInput = document.getElementById('player-name');
@@ -157,6 +158,11 @@ function sanitizePlayerName(name) {
   }
 
   return trimmed.slice(0, NAME_MAX_LENGTH);
+}
+
+function getEffectivePlayerName(name) {
+  const sanitized = sanitizePlayerName(name);
+  return sanitized || DEFAULT_PLAYER_NAME;
 }
 
 function hideStartScreen() {
@@ -495,16 +501,16 @@ function drawPlayers() {
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const rawName = typeof player.name === 'string' ? player.name.trim() : '';
-    if (rawName) {
+    const displayName = getEffectivePlayerName(player.name);
+    if (displayName) {
       const labelY = centerPoint.y - size * state.camera.verticalScale - 12;
 
       ctx.lineWidth = 4;
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.strokeText(rawName, centerPoint.x, labelY);
+      ctx.strokeText(displayName, centerPoint.x, labelY);
 
       ctx.fillStyle = '#f8fafc';
-      ctx.fillText(rawName, centerPoint.x, labelY);
+      ctx.fillText(displayName, centerPoint.x, labelY);
     }
   });
 }
@@ -644,10 +650,20 @@ function render() {
 function handleSocketInit({ selfId, world, players, circles }) {
   state.selfId = selfId;
   state.world = world;
-  state.players = new Map(players.map((p) => [p.id, p]));
+  const normalizedPlayers = new Map();
+  (players || []).forEach((player) => {
+    if (!player || typeof player.id !== 'string') {
+      return;
+    }
+
+    normalizedPlayers.set(player.id, {
+      ...player,
+      name: getEffectivePlayerName(player.name),
+    });
+  });
+  state.players = normalizedPlayers;
   const selfPlayer = state.players.get(selfId);
-  const serverName =
-    selfPlayer && typeof selfPlayer.name === 'string' ? selfPlayer.name : '';
+  const serverName = selfPlayer ? selfPlayer.name : DEFAULT_PLAYER_NAME;
   state.playerName = serverName;
   if (state.pendingPlayerName) {
     const pendingName = state.pendingPlayerName;
@@ -675,15 +691,15 @@ function handleSocketPlayerJoined(player) {
   const existingPlayer = state.players.get(player.id);
   const mergedPlayer = { ...(existingPlayer || {}), ...player };
 
-  const incomingName =
-    player && typeof player.name === 'string' ? player.name.trim() : '';
-  const existingName =
-    existingPlayer && typeof existingPlayer.name === 'string'
-      ? existingPlayer.name.trim()
-      : '';
+  const incomingName = sanitizePlayerName(player && player.name);
+  const existingName = sanitizePlayerName(existingPlayer && existingPlayer.name);
 
-  if (!incomingName && existingName) {
-    mergedPlayer.name = existingPlayer.name;
+  if (incomingName) {
+    mergedPlayer.name = incomingName;
+  } else if (existingName) {
+    mergedPlayer.name = existingName;
+  } else {
+    mergedPlayer.name = DEFAULT_PLAYER_NAME;
   }
 
   state.players.set(player.id, mergedPlayer);
@@ -701,22 +717,16 @@ function handleSocketPlayerMoved(player) {
   const existingPlayer = state.players.get(player.id);
   const mergedPlayer = { ...(existingPlayer || {}), ...player };
 
-  const incomingName =
-    player && typeof player.name === 'string' ? player.name.trim() : '';
-  const existingName =
-    existingPlayer && typeof existingPlayer.name === 'string'
-      ? existingPlayer.name.trim()
-      : '';
-  const selfName =
-    typeof state.playerName === 'string' ? state.playerName.trim() : '';
+  const incomingName = sanitizePlayerName(player && player.name);
+  const existingName = sanitizePlayerName(existingPlayer && existingPlayer.name);
+  const selfName = sanitizePlayerName(state.playerName);
 
-  if (incomingName) {
-    mergedPlayer.name = player.name;
-  } else if (existingName) {
-    mergedPlayer.name = existingPlayer.name;
-  } else if (player.id === state.selfId && selfName) {
-    mergedPlayer.name = state.playerName;
+  let resolvedName = incomingName || existingName;
+  if (!resolvedName && player.id === state.selfId && selfName) {
+    resolvedName = selfName;
   }
+
+  mergedPlayer.name = resolvedName || DEFAULT_PLAYER_NAME;
 
   state.players.set(player.id, mergedPlayer);
 }
@@ -730,9 +740,13 @@ function handleSocketPlayerUpdated(player) {
     return;
   }
 
-  state.players.set(player.id, player);
+  const existingPlayer = state.players.get(player.id);
+  const updatedPlayer = { ...(existingPlayer || {}), ...player };
+  updatedPlayer.name = getEffectivePlayerName(updatedPlayer.name);
+
+  state.players.set(player.id, updatedPlayer);
   if (player.id === state.selfId) {
-    state.playerName = typeof player.name === 'string' ? player.name : '';
+    state.playerName = updatedPlayer.name;
     state.pendingPlayerName = null;
   }
   render();
