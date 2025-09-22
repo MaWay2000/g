@@ -3,6 +3,7 @@ const ctx = canvas.getContext('2d');
 
 const NAME_MAX_LENGTH = 20;
 const DEFAULT_PLAYER_NAME = 'Player';
+const NAME_RESEND_DELAY_MS = 2000;
 const startScreen = document.getElementById('start-screen');
 const startForm = document.getElementById('start-form');
 const nameInput = document.getElementById('player-name');
@@ -16,6 +17,7 @@ let socket = null;
 let gameStarted = false;
 let interactionHandlersAttached = false;
 let lastSentPlayerName = null;
+let nameResendTimeoutId = null;
 
 const VIEW_WIDTH = 800;
 const VIEW_HEIGHT = 600;
@@ -173,22 +175,57 @@ function hideStartScreen() {
   startScreen.classList.add('hidden');
 }
 
+function clearPendingNameResend() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (nameResendTimeoutId !== null) {
+    window.clearTimeout(nameResendTimeoutId);
+    nameResendTimeoutId = null;
+  }
+}
+
+function schedulePendingNameResend() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (nameResendTimeoutId !== null) {
+    window.clearTimeout(nameResendTimeoutId);
+    nameResendTimeoutId = null;
+  }
+
+  if (!state.pendingPlayerName || !socket || !socket.connected) {
+    return;
+  }
+
+  nameResendTimeoutId = window.setTimeout(() => {
+    nameResendTimeoutId = null;
+
+    if (!state.pendingPlayerName || !socket || !socket.connected) {
+      return;
+    }
+
+    sendNameToServer(state.pendingPlayerName, { force: true });
+  }, NAME_RESEND_DELAY_MS);
+}
+
 function updateLocalPlayerName(name) {
   state.playerName = name;
+  state.pendingPlayerName = name;
+
   if (!state.selfId) {
-    state.pendingPlayerName = name;
     return;
   }
 
   const selfPlayer = state.players.get(state.selfId);
   if (!selfPlayer) {
-    state.pendingPlayerName = name;
     return;
   }
 
   selfPlayer.name = name;
   state.players.set(state.selfId, selfPlayer);
-  state.pendingPlayerName = null;
 }
 
 function sendNameToServer(name, { force = false } = {}) {
@@ -203,6 +240,7 @@ function sendNameToServer(name, { force = false } = {}) {
 
   socket.emit('setName', { name: sanitized });
   lastSentPlayerName = sanitized;
+  schedulePendingNameResend();
   return true;
 }
 
@@ -669,8 +707,12 @@ function handleSocketInit({ selfId, world, players, circles }) {
     const pendingName = state.pendingPlayerName;
     const sanitizedPending = sanitizePlayerName(pendingName);
     updateLocalPlayerName(sanitizedPending);
+
     if (sanitizedPending && sanitizedPending !== serverName) {
       sendNameToServer(sanitizedPending, { force: true });
+    } else {
+      state.pendingPlayerName = null;
+      clearPendingNameResend();
     }
   }
   state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
@@ -748,6 +790,7 @@ function handleSocketPlayerUpdated(player) {
   if (player.id === state.selfId) {
     state.playerName = updatedPlayer.name;
     state.pendingPlayerName = null;
+    clearPendingNameResend();
   }
   render();
 }
