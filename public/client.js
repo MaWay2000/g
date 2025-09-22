@@ -185,13 +185,13 @@ function updateLocalPlayerName(name) {
   state.pendingPlayerName = null;
 }
 
-function sendNameToServer(name) {
+function sendNameToServer(name, { force = false } = {}) {
   const sanitized = sanitizePlayerName(name);
   if (!sanitized || !socket) {
     return false;
   }
 
-  if (lastSentPlayerName === sanitized) {
+  if (!force && lastSentPlayerName === sanitized) {
     return false;
   }
 
@@ -200,9 +200,9 @@ function sendNameToServer(name) {
   return true;
 }
 
-function emitStoredPlayerName() {
+function emitStoredPlayerName(force = false) {
   const storedName = state.pendingPlayerName || state.playerName;
-  return sendNameToServer(storedName);
+  return sendNameToServer(storedName, { force });
 }
 
 function setupSocket() {
@@ -646,11 +646,16 @@ function handleSocketInit({ selfId, world, players, circles }) {
   state.world = world;
   state.players = new Map(players.map((p) => [p.id, p]));
   const selfPlayer = state.players.get(selfId);
-  state.playerName = selfPlayer && typeof selfPlayer.name === 'string' ? selfPlayer.name : '';
+  const serverName =
+    selfPlayer && typeof selfPlayer.name === 'string' ? selfPlayer.name : '';
+  state.playerName = serverName;
   if (state.pendingPlayerName) {
     const pendingName = state.pendingPlayerName;
-    updateLocalPlayerName(pendingName);
-    sendNameToServer(pendingName);
+    const sanitizedPending = sanitizePlayerName(pendingName);
+    updateLocalPlayerName(sanitizedPending);
+    if (sanitizedPending && sanitizedPending !== serverName) {
+      sendNameToServer(sanitizedPending, { force: true });
+    }
   }
   state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
   state.selectedCircleIds = new Set();
@@ -685,7 +690,7 @@ function handleSocketPlayerJoined(player) {
 }
 
 function handleSocketConnect() {
-  emitStoredPlayerName();
+  emitStoredPlayerName(true);
 }
 
 function handleSocketPlayerMoved(player) {
