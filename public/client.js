@@ -38,7 +38,7 @@ const INITIAL_CAMERA_PITCH = rotationXToPitch(cameraState.rotationX);
 
 const state = {
   selfId: null,
-  world: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
+  world: { width: VIEW_WIDTH, height: VIEW_HEIGHT, border: 0 },
   view: {
     width: typeof window !== 'undefined' ? window.innerWidth : VIEW_WIDTH,
     height: typeof window !== 'undefined' ? window.innerHeight : VIEW_HEIGHT,
@@ -428,16 +428,22 @@ function drawGround() {
   ctx.fillStyle = '#0b1f1b';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  const width = Number.isFinite(state.world.width) ? state.world.width : 0;
+  const height = Number.isFinite(state.world.height) ? state.world.height : 0;
   const corners = [
     projectWorldPoint(0, 0),
-    projectWorldPoint(state.world.width, 0),
-    projectWorldPoint(state.world.width, state.world.height),
-    projectWorldPoint(0, state.world.height),
+    projectWorldPoint(width, 0),
+    projectWorldPoint(width, height),
+    projectWorldPoint(0, height),
   ];
 
   if (corners.some((corner) => !corner)) {
     return;
   }
+
+  const rawBorder = Number.isFinite(state.world.border) ? state.world.border : 0;
+  const maxBorder = Math.min(width, height) / 2;
+  const border = Math.max(0, Math.min(rawBorder, maxBorder));
 
   ctx.save();
   ctx.beginPath();
@@ -447,40 +453,114 @@ function drawGround() {
   }
   ctx.closePath();
 
+  ctx.clip();
+
+  const walkwayColor = '#18352b';
+  ctx.fillStyle = walkwayColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
   gradient.addColorStop(0, '#2c6950');
   gradient.addColorStop(1, '#1e4e3a');
-  ctx.fillStyle = gradient;
-  ctx.fill();
-
-  ctx.clip();
 
   const gridSize = 40;
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  const hasInnerArea = border > 0 && border * 2 < width && border * 2 < height;
 
-  for (let x = 0; x <= state.world.width; x += gridSize) {
-    const start = projectWorldPoint(x, 0);
-    const end = projectWorldPoint(x, state.world.height);
-    if (!start || !end) {
-      continue;
+  let innerCorners = null;
+  if (hasInnerArea) {
+    innerCorners = [
+      projectWorldPoint(border, border),
+      projectWorldPoint(width - border, border),
+      projectWorldPoint(width - border, height - border),
+      projectWorldPoint(border, height - border),
+    ];
+
+    if (innerCorners.some((corner) => !corner)) {
+      innerCorners = null;
     }
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
-    ctx.stroke();
   }
 
-  for (let y = 0; y <= state.world.height; y += gridSize) {
-    const start = projectWorldPoint(0, y);
-    const end = projectWorldPoint(state.world.width, y);
-    if (!start || !end) {
-      continue;
-    }
+  if (innerCorners) {
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
+    ctx.moveTo(innerCorners[0].x, innerCorners[0].y);
+    for (let index = 1; index < innerCorners.length; index += 1) {
+      ctx.lineTo(innerCorners[index].x, innerCorners[index].y);
+    }
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+
+    for (let x = border; x <= width - border; x += gridSize) {
+      const start = projectWorldPoint(x, border);
+      const end = projectWorldPoint(x, height - border);
+      if (!start || !end) {
+        continue;
+      }
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+
+    for (let y = border; y <= height - border; y += gridSize) {
+      const start = projectWorldPoint(border, y);
+      const end = projectWorldPoint(width - border, y);
+      if (!start || !end) {
+        continue;
+      }
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.moveTo(innerCorners[0].x, innerCorners[0].y);
+    for (let index = 1; index < innerCorners.length; index += 1) {
+      ctx.lineTo(innerCorners[index].x, innerCorners[index].y);
+    }
+    ctx.closePath();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
     ctx.stroke();
+  } else {
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+
+    for (let x = 0; x <= width; x += gridSize) {
+      const start = projectWorldPoint(x, 0);
+      const end = projectWorldPoint(x, height);
+      if (!start || !end) {
+        continue;
+      }
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+
+    for (let y = 0; y <= height; y += gridSize) {
+      const start = projectWorldPoint(0, y);
+      const end = projectWorldPoint(width, y);
+      if (!start || !end) {
+        continue;
+      }
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
   }
 
   ctx.restore();
@@ -670,10 +750,25 @@ function circleAtWorldPosition(worldX, worldY) {
 }
 
 function clampCirclePosition(x, y, radius) {
-  const { width, height } = state.world;
+  const width = Number.isFinite(state.world.width) ? state.world.width : 0;
+  const height = Number.isFinite(state.world.height) ? state.world.height : 0;
+  const rawBorder = Number.isFinite(state.world.border) ? state.world.border : 0;
+  const border = Math.max(0, rawBorder);
+
+  const minX = border + radius;
+  const maxX = width - border - radius;
+  const minY = border + radius;
+  const maxY = height - border - radius;
+
+  if (minX > maxX || minY > maxY) {
+    const fallbackX = width / 2;
+    const fallbackY = height / 2;
+    return { x: fallbackX, y: fallbackY };
+  }
+
   return {
-    x: Math.max(radius, Math.min(width - radius, x)),
-    y: Math.max(radius, Math.min(height - radius, y)),
+    x: Math.max(minX, Math.min(maxX, x)),
+    y: Math.max(minY, Math.min(maxY, y)),
   };
 }
 
@@ -742,7 +837,21 @@ function render() {
 
 function handleSocketInit({ selfId, world, players, circles }) {
   state.selfId = selfId;
-  state.world = world;
+  const incomingWorld = world || {};
+  const width = Number.isFinite(incomingWorld.width)
+    ? incomingWorld.width
+    : state.world.width;
+  const height = Number.isFinite(incomingWorld.height)
+    ? incomingWorld.height
+    : state.world.height;
+  const border = Number.isFinite(incomingWorld.border) ? incomingWorld.border : 0;
+  state.world = {
+    ...state.world,
+    ...incomingWorld,
+    width,
+    height,
+    border: Math.max(0, border),
+  };
   const normalizedPlayers = new Map();
   (players || []).forEach((player) => {
     if (!player || typeof player.id !== 'string') {
