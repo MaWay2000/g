@@ -1,5 +1,9 @@
+import { cameraState, resetCameraTarget, setupKeyboard } from './camera.js';
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+
+const ioClient = typeof window !== 'undefined' ? window.io : undefined;
 
 const NAME_MAX_LENGTH = 20;
 const DEFAULT_PLAYER_NAME = 'Player';
@@ -22,6 +26,11 @@ let nameResendTimeoutId = null;
 const VIEW_WIDTH = 800;
 const VIEW_HEIGHT = 600;
 
+const CAMERA_ROTATION_X_MIN = -1.35;
+const CAMERA_ROTATION_X_MAX = -0.35;
+
+const INITIAL_CAMERA_PITCH = rotationXToPitch(cameraState.rotationX);
+
 const state = {
   selfId: null,
   world: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
@@ -30,12 +39,12 @@ const state = {
     height: typeof window !== 'undefined' ? window.innerHeight : VIEW_HEIGHT,
   },
   camera: {
-    angle: 0,
-    pitch: 0,
+    angle: cameraState.rotationY,
+    pitch: INITIAL_CAMERA_PITCH,
     verticalScale: 0.55,
     horizon: 0.6,
     scale: 1,
-    zoom: 1,
+    zoom: cameraState.zoom,
   },
   players: new Map(),
   circles: new Map(),
@@ -100,6 +109,22 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function rotationXToPitch(rotationX) {
+  const clampedRotation = clamp(rotationX, CAMERA_ROTATION_X_MIN, CAMERA_ROTATION_X_MAX);
+  const normalized =
+    (clampedRotation - CAMERA_ROTATION_X_MIN) /
+    (CAMERA_ROTATION_X_MAX - CAMERA_ROTATION_X_MIN);
+  return clamp(normalized, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
+}
+
+function pitchToRotationX(pitch) {
+  const clampedPitch = clamp(pitch, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
+  return (
+    CAMERA_ROTATION_X_MIN +
+    (CAMERA_ROTATION_X_MAX - CAMERA_ROTATION_X_MIN) * clampedPitch
+  );
+}
+
 function setCameraPitch(pitch) {
   const clamped = clamp(pitch, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH);
   state.camera.pitch = clamped;
@@ -110,6 +135,7 @@ function setCameraPitch(pitch) {
   state.camera.horizon =
     CAMERA_HORIZON_AT_MIN_PITCH +
     (CAMERA_HORIZON_AT_MAX_PITCH - CAMERA_HORIZON_AT_MIN_PITCH) * t;
+  cameraState.rotationX = pitchToRotationX(clamped);
 }
 
 setCameraPitch(state.camera.pitch);
@@ -145,8 +171,28 @@ function setCameraZoom(zoom) {
   }
 
   state.camera.zoom = clamped;
+  cameraState.zoom = clamped;
   updateCameraScale();
   return true;
+}
+
+function applyCameraStateFromExternal() {
+  state.camera.angle = cameraState.rotationY || 0;
+  setCameraPitch(rotationXToPitch(cameraState.rotationX));
+  setCameraZoom(cameraState.zoom);
+}
+
+function resetCameraToDefault() {
+  if (!canvas) {
+    return;
+  }
+
+  const width = state.world && Number.isFinite(state.world.width) ? state.world.width : VIEW_WIDTH;
+  const height =
+    state.world && Number.isFinite(state.world.height) ? state.world.height : VIEW_HEIGHT;
+
+  resetCameraTarget(width, height, canvas);
+  applyCameraStateFromExternal();
 }
 
 function sanitizePlayerName(name) {
@@ -264,7 +310,11 @@ function setupSocket() {
     lastSentPlayerName = handshakeName;
   }
 
-  socket = io(serverUrl, options);
+  if (typeof ioClient !== 'function') {
+    return null;
+  }
+
+  socket = ioClient(serverUrl, options);
 
   socket.on('init', handleSocketInit);
   socket.on('playerJoined', handleSocketPlayerJoined);
@@ -313,14 +363,19 @@ function handleStartFormSubmit(event) {
 
 function getCameraTarget() {
   const self = state.players.get(state.selfId);
+  let target;
   if (!self) {
-    return {
+    target = {
       x: state.world.width / 2,
       y: state.world.height / 2,
     };
+  } else {
+    target = { x: self.x, y: self.y };
   }
 
-  return { x: self.x, y: self.y };
+  cameraState.camTargetX = target.x;
+  cameraState.camTargetZ = target.y;
+  return target;
 }
 
 function projectWorldPoint(worldX, worldY) {
@@ -717,6 +772,7 @@ function handleSocketInit({ selfId, world, players, circles }) {
   }
   state.circles = new Map((circles || []).map((circle) => [circle.id, circle]));
   state.selectedCircleIds = new Set();
+  resetCameraToDefault();
   updateViewSize();
   render();
 
@@ -952,6 +1008,7 @@ function handleMouseMove(event) {
     let cameraChanged = false;
     if (cameraControl.allowRotation && cameraControl.rotating) {
       state.camera.angle = cameraControl.startAngle + deltaX * CAMERA_ROTATION_SPEED;
+      cameraState.rotationY = state.camera.angle;
       cameraChanged = true;
     }
     if (cameraControl.allowRotation && cameraControl.adjustingTilt) {
@@ -1245,6 +1302,12 @@ function attachInteractionHandlers() {
   window.addEventListener('keyup', handleKeyUp);
   window.addEventListener('resize', handleWindowResize);
 }
+
+if (typeof window !== 'undefined') {
+  setupKeyboard(resetCameraToDefault);
+}
+
+resetCameraToDefault();
 
 function startGame() {
   if (gameStarted) {
