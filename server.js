@@ -283,6 +283,12 @@ io.on('connection', (socket) => {
 
     player.name = sanitized;
     players.set(socket.id, player);
+
+    if (!socket.handshake.auth || typeof socket.handshake.auth !== 'object') {
+      socket.handshake.auth = {};
+    }
+    socket.handshake.auth.name = sanitized;
+
     io.emit('playerUpdated', player);
   });
 
