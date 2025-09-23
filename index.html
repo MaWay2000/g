@@ -25,11 +25,12 @@
 
       .auth-actions {
         position: fixed;
-        inset: 0 0 0 auto;
+        bottom: 0;
+        left: 0;
         display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        padding: 2rem;
+        align-items: flex-end;
+        justify-content: flex-start;
+        padding: 2.5rem;
         pointer-events: none;
         opacity: 1;
         transition: opacity 300ms ease;
@@ -65,30 +66,41 @@
         gap: 0.75rem;
       }
 
-      .auth-actions__info {
-        margin-top: 2rem;
-        padding: 1.25rem;
-        border-radius: 1rem;
-        background: rgba(15, 23, 42, 0.35);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      .story-card {
+        position: fixed;
+        top: 50%;
+        right: 3rem;
+        transform: translateY(-50%);
+        width: min(30rem, 90vw);
+        border-radius: 1.25rem;
+        background: linear-gradient(
+          155deg,
+          rgba(15, 23, 42, 0.6) 0%,
+          rgba(30, 41, 59, 0.48) 100%
+        );
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 25px 45px rgba(15, 23, 42, 0.4);
+        backdrop-filter: blur(12px);
+        padding: 2.75rem 2.5rem;
+        pointer-events: auto;
       }
 
-      .auth-actions__info h2 {
-        margin: 0 0 0.75rem;
-        font-size: 1.25rem;
+      .story-card h2 {
+        margin: 0 0 1rem;
+        font-size: 1.5rem;
         font-weight: 600;
         letter-spacing: 0.02em;
         color: #e0f2fe;
       }
 
-      .auth-actions__info p {
-        margin: 0 0 0.85rem;
-        line-height: 1.6;
-        color: rgba(226, 232, 240, 0.88);
+      .story-card p {
+        margin: 0 0 1rem;
+        line-height: 1.7;
+        color: rgba(226, 232, 240, 0.9);
+        font-size: 0.975rem;
       }
 
-      .auth-actions__info p:last-child {
+      .story-card p:last-child {
         margin-bottom: 0;
       }
 
@@ -145,12 +157,19 @@
 
       @media (max-width: 1024px) {
         .auth-actions {
-          align-items: flex-end;
-          padding: 1.75rem;
+          padding: 2rem;
         }
 
         .auth-actions__content {
           padding: 2rem 1.75rem;
+        }
+
+        .story-card {
+          top: 3.5rem;
+          right: 2rem;
+          left: 2rem;
+          transform: none;
+          width: auto;
         }
       }
 
@@ -161,12 +180,19 @@
 
         .auth-actions {
           position: static;
-          padding: 1.5rem;
+          padding: 1.5rem 1.5rem 0;
           justify-content: center;
         }
 
         .auth-actions__content {
           width: min(28rem, 100%);
+        }
+
+        .story-card {
+          position: static;
+          margin: 1.5rem;
+          width: auto;
+          transform: none;
         }
 
         .wallpaper-frame {
@@ -239,30 +265,29 @@
             Continue as guest
           </button>
         </div>
-        <div class="auth-actions__info">
-          <h2>Welcome to Dust Nova</h2>
-          <p>
-            In the not-so-distant future, humanity has set its sights on Mars, driven by the
-            promise of untapped resources and new frontiers. As a pioneering miner, you are part of
-            the Mars Frontier Initiative—an elite team tasked with extracting precious minerals
-            scattered across the planet’s harsh, unpredictable terrain.
-          </p>
-          <p>
-            Your mission is more than mining. Establish and maintain resource outposts, research
-            advanced technologies, and defend key mining sites from rivals and Martian predators.
-            Exploration is key—hidden beneath the red dust are rare minerals, ancient ruins, and
-            abandoned settlements that hold clues to Mars’ mysterious past.
-          </p>
-          <p>
-            Alliances can turn the tide. Trade with fellow miners, or sabotage competitors to gain an
-            edge. Your choices shape the future of Mars colonization. Will you rise as a legendary
-            prospector, known for your cunning and courage, or be swallowed by the planet’s
-            unforgiving landscape? The red planet awaits—adapt, fight, and survive to claim your
-            fortune.
-          </p>
-        </div>
       </div>
     </aside>
+    <section class="story-card" aria-labelledby="story-card-title">
+      <h2 id="story-card-title">Welcome to Dust Nova</h2>
+      <p>
+        In the not-so-distant future, humanity has set its sights on Mars, driven by the promise of
+        untapped resources and new frontiers. As a pioneering miner, you are part of the Mars Frontier
+        Initiative—an elite team tasked with extracting precious minerals scattered across the
+        planet’s harsh, unpredictable terrain.
+      </p>
+      <p>
+        Your mission is more than mining. Establish and maintain resource outposts, research advanced
+        technologies, and defend key mining sites from rivals and Martian predators. Exploration is
+        key—hidden beneath the red dust are rare minerals, ancient ruins, and abandoned settlements
+        that hold clues to Mars’ mysterious past.
+      </p>
+      <p>
+        Alliances can turn the tide. Trade with fellow miners, or sabotage competitors to gain an
+        edge. Your choices shape the future of Mars colonization. Will you rise as a legendary
+        prospector, known for your cunning and courage, or be swallowed by the planet’s unforgiving
+        landscape? The red planet awaits—adapt, fight, and survive to claim your fortune.
+      </p>
+    </section>
     <noscript>This page requires JavaScript to choose a random wallpaper.</noscript>
 
     <script>
