@@ -66,13 +66,11 @@
 
     <script>
       (function () {
-        const imageDirectory = "images/";
-        const wallpaperFiles = [
-          "wallpapers/wallpaper.png",
-          "wallpapers/wallpaper2.png",
-        ];
+        const imageDirectory = "images/wallpapers/";
         const imageElement = document.getElementById("wallpaperImage");
         const captionElement = document.getElementById("wallpaperCaption");
+        const supportedExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
+        const SLIDE_DURATION_MS = 3000;
 
         const encodePathSegments = (filePath) =>
           filePath
@@ -80,15 +78,25 @@
             .map((segment) => encodeURIComponent(segment))
             .join("/");
 
-        const chooseRandom = (items) => items[Math.floor(Math.random() * items.length)];
+        const normaliseFileName = (fileName) => {
+          const trimmed = fileName.replace(/^\.\//, "");
+          if (trimmed.startsWith(imageDirectory)) {
+            return trimmed.slice(imageDirectory.length);
+          }
+          if (trimmed.startsWith("/")) {
+            return trimmed.slice(1);
+          }
+          return trimmed;
+        };
 
         const setWallpaper = (fileName) => {
-          const encodedName = encodePathSegments(fileName);
+          const normalisedFileName = normaliseFileName(fileName);
+          const encodedName = encodePathSegments(normalisedFileName);
           const fullPath = `${imageDirectory}${encodedName}`;
           imageElement.src = fullPath;
-          imageElement.alt = `Wallpaper: ${fileName}`;
+          imageElement.alt = `Wallpaper: ${normalisedFileName}`;
           imageElement.hidden = false;
-          captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${fileName}</code>.`;
+          captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${normalisedFileName}</code>.`;
         };
 
         const showError = (message) => {
@@ -96,23 +104,82 @@
           imageElement.hidden = true;
         };
 
-        const loadRandomWallpaper = () => {
-          const availableWallpapers = wallpaperFiles.filter(Boolean);
+        const isImageFile = (fileName) =>
+          supportedExtensions.some((extension) => fileName.toLowerCase().endsWith(extension));
 
-          if (availableWallpapers.length === 0) {
-            showError("No wallpaper images were found in the images directory.");
+        const parseDirectoryListing = (html) => {
+          const parser = new DOMParser();
+          const documentFragment = parser.parseFromString(html, "text/html");
+          const anchors = Array.from(documentFragment.querySelectorAll("a"));
+
+          return anchors
+            .map((anchor) => anchor.getAttribute("href") || "")
+            .map((href) => href.split("?")[0])
+            .filter((href) => href && !href.startsWith("../"))
+            .map((href) => href.replace(/^\.\//, ""))
+            .filter((href) => isImageFile(href));
+        };
+
+        const dedupe = (items) => Array.from(new Set(items));
+
+        const fetchWallpaperFiles = async () => {
+          const response = await fetch(imageDirectory, { cache: "no-store" });
+
+          if (!response.ok) {
+            throw new Error(`Unable to list wallpapers (${response.status}).`);
+          }
+
+          const contentType = response.headers.get("content-type") || "";
+
+          if (contentType.includes("application/json")) {
+            const manifest = await response.json();
+            if (Array.isArray(manifest)) {
+              return manifest
+                .filter((file) => typeof file === "string")
+                .map(normaliseFileName)
+                .filter((file) => isImageFile(file));
+            }
+            throw new Error("Unexpected wallpapers manifest format.");
+          }
+
+          const directoryHtml = await response.text();
+          return parseDirectoryListing(directoryHtml).map(normaliseFileName);
+        };
+
+        const startSlideshow = (wallpaperFiles) => {
+          if (wallpaperFiles.length === 0) {
+            showError("No wallpaper images were found in the wallpapers directory.");
             return;
           }
 
+          let index = 0;
+
+          const showNextWallpaper = () => {
+            const currentFile = wallpaperFiles[index];
+            try {
+              setWallpaper(currentFile);
+            } catch (error) {
+              console.error(error);
+              showError("Unable to display the wallpaper slideshow right now.");
+            }
+            index = (index + 1) % wallpaperFiles.length;
+          };
+
+          showNextWallpaper();
+          setInterval(showNextWallpaper, SLIDE_DURATION_MS);
+        };
+
+        const initialise = async () => {
           try {
-            setWallpaper(chooseRandom(availableWallpapers));
+            const wallpaperFiles = dedupe(await fetchWallpaperFiles());
+            startSlideshow(wallpaperFiles);
           } catch (error) {
             console.error(error);
-            showError("Unable to load a wallpaper right now. Please try again later.");
+            showError("Unable to load wallpapers automatically. Please check the server configuration.");
           }
         };
 
-        loadRandomWallpaper();
+        initialise();
       })();
     </script>
   </body>
