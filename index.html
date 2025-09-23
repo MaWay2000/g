@@ -37,16 +37,12 @@
       }
 
       .auth-actions__content {
-        width: min(24rem, 90vw);
-        border-radius: 1.25rem;
-        background: linear-gradient(
-          155deg,
-          rgba(15, 23, 42, 0.58) 0%,
-          rgba(30, 41, 59, 0.44) 100%
-        );
-        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.3);
-        backdrop-filter: blur(10px);
-        padding: 2.5rem 2.25rem;
+        width: auto;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        backdrop-filter: none;
+        padding: 0;
         pointer-events: auto;
         transition: transform 300ms ease, opacity 300ms ease;
       }
@@ -64,6 +60,7 @@
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
+        width: min(24rem, 90vw);
       }
 
       .story-card {
