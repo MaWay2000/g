@@ -23,6 +23,144 @@
         height: 100vh;
       }
 
+      .auth-actions {
+        position: fixed;
+        inset: 0 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 2rem;
+        pointer-events: none;
+        opacity: 1;
+        transition: opacity 300ms ease;
+      }
+
+      .auth-actions__content {
+        width: min(24rem, 90vw);
+        border-radius: 1.25rem;
+        background: linear-gradient(
+          155deg,
+          rgba(15, 23, 42, 0.82) 0%,
+          rgba(30, 41, 59, 0.68) 100%
+        );
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(10px);
+        padding: 2.5rem 2.25rem;
+        pointer-events: auto;
+        transition: transform 300ms ease, opacity 300ms ease;
+      }
+
+      .auth-actions.is-hidden {
+        opacity: 0;
+      }
+
+      .auth-actions.is-hidden .auth-actions__content {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+
+      .auth-actions__title {
+        margin: 0 0 0.75rem;
+        font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .auth-actions__description {
+        margin: 0 0 1.5rem;
+        color: rgba(248, 250, 252, 0.82);
+        line-height: 1.6;
+      }
+
+      .auth-actions__buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .auth-actions__button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.85rem 1.25rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        color: #f8fafc;
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        transition: transform 0.2s ease, box-shadow 0.2s ease,
+          background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        background-color: rgba(15, 23, 42, 0.3);
+        cursor: pointer;
+      }
+
+      .auth-actions__button:hover,
+      .auth-actions__button:focus-visible {
+        transform: translateY(-2px);
+        box-shadow: 0 15px 30px rgba(15, 23, 42, 0.45);
+      }
+
+      .auth-actions__button:focus-visible {
+        outline: 2px solid rgba(96, 165, 250, 0.8);
+        outline-offset: 3px;
+      }
+
+      .auth-actions__button--primary {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border-color: transparent;
+      }
+
+      .auth-actions__button--primary:hover,
+      .auth-actions__button--primary:focus-visible {
+        background: linear-gradient(135deg, #818cf8, #a855f7);
+      }
+
+      .auth-actions__button--ghost {
+        background-color: transparent;
+        border-color: rgba(148, 163, 184, 0.3);
+        color: rgba(248, 250, 252, 0.75);
+      }
+
+      .auth-actions__button--ghost:hover,
+      .auth-actions__button--ghost:focus-visible {
+        background-color: rgba(148, 163, 184, 0.1);
+        color: #f8fafc;
+      }
+
+      @media (max-width: 1024px) {
+        .auth-actions {
+          align-items: flex-end;
+          padding: 1.75rem;
+        }
+
+        .auth-actions__content {
+          padding: 2rem 1.75rem;
+        }
+      }
+
+      @media (max-width: 720px) {
+        body {
+          overflow: auto;
+        }
+
+        .auth-actions {
+          position: static;
+          padding: 1.5rem;
+          justify-content: center;
+        }
+
+        .auth-actions__content {
+          width: min(28rem, 100%);
+        }
+
+        .wallpaper-frame {
+          position: relative;
+          height: 60vh;
+        }
+      }
+
       .wallpaper-frame {
         position: fixed;
         inset: 0;
@@ -76,6 +214,23 @@
         />
       </div>
     </figure>
+    <aside class="auth-actions" aria-label="Account options">
+      <div class="auth-actions__content">
+        <h1 class="auth-actions__title">View Wallpapers</h1>
+        <p class="auth-actions__description">
+          Sign in to sync your favourites or jump straight in as a guest.
+        </p>
+        <div class="auth-actions__buttons" role="group" aria-label="Authentication actions">
+          <a class="auth-actions__button auth-actions__button--primary" href="pages/login.html"
+            >Log in</a
+          >
+          <a class="auth-actions__button" href="pages/register.html">Register</a>
+          <button class="auth-actions__button auth-actions__button--ghost" type="button">
+            Continue as guest
+          </button>
+        </div>
+      </div>
+    </aside>
     <noscript>This page requires JavaScript to choose a random wallpaper.</noscript>
 
     <script>
@@ -358,6 +513,20 @@
         };
 
         initialise();
+
+        const authAside = document.querySelector(".auth-actions");
+        const guestButton = document.querySelector(
+          ".auth-actions__button--ghost"
+        );
+
+        if (authAside && guestButton) {
+          guestButton.addEventListener("click", () => {
+            authAside.classList.add("is-hidden");
+            window.setTimeout(() => {
+              authAside.hidden = true;
+            }, 320);
+          });
+        }
       })();
     </script>
   </body>
