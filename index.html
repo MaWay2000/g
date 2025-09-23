@@ -47,13 +47,97 @@
         font-size: 0.95rem;
         color: rgba(249, 250, 251, 0.8);
       }
+
+      noscript {
+        margin-top: 1.5rem;
+        font-size: 0.95rem;
+        color: rgba(249, 250, 251, 0.75);
+        text-align: center;
+      }
     </style>
   </head>
   <body>
     <h1>Featured Wallpaper</h1>
     <figure>
-      <img src="/images/wallpaper" alt="Wallpaper" />
-      <figcaption>Direct preview of the wallpaper file located at <code>/images/wallpaper</code>.</figcaption>
+      <img id="wallpaperImage" src="" alt="Wallpaper" hidden />
+      <figcaption id="wallpaperCaption">Loading wallpaper…</figcaption>
     </figure>
+    <noscript>This page requires JavaScript to choose a random wallpaper.</noscript>
+
+    <script>
+      (function () {
+        const imageDirectory = "images/";
+        const allowedExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"]);
+        const imageElement = document.getElementById("wallpaperImage");
+        const captionElement = document.getElementById("wallpaperCaption");
+
+        const getExtension = (fileName) => {
+          const dotIndex = fileName.lastIndexOf(".");
+          return dotIndex === -1 ? "" : fileName.slice(dotIndex).toLowerCase();
+        };
+
+        const extractFileName = (href) => {
+          if (!href) return "";
+          const withoutQuery = href.split("?")[0].split("#")[0];
+          const trimmed = withoutQuery.replace(/^\/+/, "");
+
+          if (trimmed.startsWith(imageDirectory)) {
+            return trimmed.slice(imageDirectory.length);
+          }
+
+          return trimmed.replace(/^.*[\\/]/, "");
+        };
+
+        const encodePathSegments = (filePath) =>
+          filePath
+            .split("/")
+            .map((segment) => encodeURIComponent(segment))
+            .join("/");
+
+        const chooseRandom = (items) => items[Math.floor(Math.random() * items.length)];
+
+        const setWallpaper = (fileName) => {
+          const encodedName = encodePathSegments(fileName);
+          const fullPath = `${imageDirectory}${encodedName}`;
+          imageElement.src = fullPath;
+          imageElement.alt = `Wallpaper: ${fileName}`;
+          imageElement.hidden = false;
+          captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${fileName}</code>.`;
+        };
+
+        const showError = (message) => {
+          captionElement.textContent = message;
+          imageElement.hidden = true;
+        };
+
+        const loadRandomWallpaper = async () => {
+          try {
+            const response = await fetch(imageDirectory);
+            if (!response.ok) {
+              throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const documentListing = parser.parseFromString(text, "text/html");
+            const fileNames = Array.from(documentListing.querySelectorAll("a"))
+              .map((link) => extractFileName(link.getAttribute("href")))
+              .filter((name) => name && !name.startsWith("."))
+              .filter((name) => allowedExtensions.has(getExtension(name)));
+
+            if (fileNames.length === 0) {
+              throw new Error("No wallpaper images were found in the images directory.");
+            }
+
+            setWallpaper(chooseRandom(fileNames));
+          } catch (error) {
+            console.error(error);
+            showError("Unable to load a wallpaper right now. Please try again later.");
+          }
+        };
+
+        loadRandomWallpaper();
+      })();
+    </script>
   </body>
 </html>
