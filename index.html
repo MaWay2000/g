@@ -34,11 +34,32 @@
         width: min(100%, 960px);
       }
 
-      img {
-        display: block;
+      .wallpaper-frame {
+        position: relative;
         width: 100%;
         border-radius: 1.25rem;
+        overflow: hidden;
+        background: radial-gradient(
+          circle at top,
+          rgba(59, 130, 246, 0.18),
+          rgba(15, 23, 42, 0.6)
+        );
+        background-size: cover;
+        background-position: center;
         box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.7);
+      }
+
+      .wallpaper-image {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: inherit;
+        opacity: 0;
+        transition: opacity 900ms ease;
+      }
+
+      .wallpaper-image.is-visible {
+        opacity: 1;
       }
 
       figcaption {
@@ -59,7 +80,15 @@
   <body>
     <h1>Featured Wallpaper</h1>
     <figure>
-      <img id="wallpaperImage" src="" alt="Wallpaper" hidden />
+      <div id="wallpaperFrame" class="wallpaper-frame">
+        <img
+          id="wallpaperImage"
+          class="wallpaper-image"
+          src=""
+          alt="Wallpaper"
+          hidden
+        />
+      </div>
       <figcaption id="wallpaperCaption">Loading wallpaper…</figcaption>
     </figure>
     <noscript>This page requires JavaScript to choose a random wallpaper.</noscript>
@@ -67,6 +96,7 @@
     <script>
       (function () {
         const imageDirectory = "images/wallpapers/";
+        const frameElement = document.getElementById("wallpaperFrame");
         const imageElement = document.getElementById("wallpaperImage");
         const captionElement = document.getElementById("wallpaperCaption");
         const supportedExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
@@ -91,16 +121,55 @@
 
         const setWallpaper = (fileName) => {
           const normalisedFileName = normaliseFileName(fileName);
+
+          if (
+            imageElement.dataset.currentFile === normalisedFileName &&
+            !imageElement.hidden
+          ) {
+            return Promise.resolve();
+          }
+
           const encodedName = encodePathSegments(normalisedFileName);
           const fullPath = `${imageDirectory}${encodedName}`;
-          imageElement.src = fullPath;
-          imageElement.alt = `Wallpaper: ${normalisedFileName}`;
-          imageElement.hidden = false;
-          captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${normalisedFileName}</code>.`;
+          const previousSrc = imageElement.currentSrc || imageElement.src;
+
+          if (previousSrc) {
+            frameElement.style.backgroundImage = `url('${previousSrc}')`;
+          }
+
+          imageElement.classList.remove("is-visible");
+
+          return new Promise((resolve, reject) => {
+            const handleLoad = () => {
+              imageElement.removeEventListener("error", handleError);
+              imageElement.hidden = false;
+              imageElement.dataset.currentFile = normalisedFileName;
+              captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${normalisedFileName}</code>.`;
+              frameElement.style.backgroundImage = `url('${fullPath}')`;
+
+              requestAnimationFrame(() => {
+                imageElement.classList.add("is-visible");
+              });
+
+              resolve();
+            };
+
+            const handleError = () => {
+              imageElement.removeEventListener("load", handleLoad);
+              reject(new Error(`Unable to load wallpaper: ${normalisedFileName}`));
+            };
+
+            imageElement.addEventListener("load", handleLoad, { once: true });
+            imageElement.addEventListener("error", handleError, { once: true });
+
+            imageElement.alt = `Wallpaper: ${normalisedFileName}`;
+            imageElement.src = fullPath;
+          });
         };
 
         const showError = (message) => {
           captionElement.textContent = message;
+          imageElement.classList.remove("is-visible");
           imageElement.hidden = true;
         };
 
@@ -183,19 +252,20 @@
 
           let index = 0;
 
-          const showNextWallpaper = () => {
+          const showNextWallpaper = async () => {
             const currentFile = wallpaperFiles[index];
             try {
-              setWallpaper(currentFile);
+              await setWallpaper(currentFile);
             } catch (error) {
               console.error(error);
               showError("Unable to display the wallpaper slideshow right now.");
+            } finally {
+              index = (index + 1) % wallpaperFiles.length;
+              setTimeout(showNextWallpaper, SLIDE_DURATION_MS);
             }
-            index = (index + 1) % wallpaperFiles.length;
           };
 
           showNextWallpaper();
-          setInterval(showNextWallpaper, SLIDE_DURATION_MS);
         };
 
         const initialise = async () => {
