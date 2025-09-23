@@ -207,38 +207,42 @@
 
               requestAnimationFrame(() => {
                 nextImageElement.hidden = false;
-                nextImageElement.classList.add("is-visible");
+                nextImageElement.classList.remove("is-visible");
 
-                if (previousImageElement) {
-                  previousImageElement.classList.remove("is-visible");
+                requestAnimationFrame(() => {
+                  nextImageElement.classList.add("is-visible");
 
-                  let transitionCompleted = false;
-                  let fallbackTimeoutId;
+                  if (previousImageElement) {
+                    previousImageElement.classList.remove("is-visible");
 
-                  const markTransitionComplete = () => {
-                    if (transitionCompleted) {
-                      return;
-                    }
-                    transitionCompleted = true;
-                    if (fallbackTimeoutId) {
-                      window.clearTimeout(fallbackTimeoutId);
-                    }
+                    let transitionCompleted = false;
+                    let fallbackTimeoutId;
+
+                    const markTransitionComplete = () => {
+                      if (transitionCompleted) {
+                        return;
+                      }
+                      transitionCompleted = true;
+                      if (fallbackTimeoutId) {
+                        window.clearTimeout(fallbackTimeoutId);
+                      }
+                      finaliseTransition();
+                    };
+
+                    previousImageElement.addEventListener(
+                      "transitionend",
+                      markTransitionComplete,
+                      { once: true }
+                    );
+
+                    fallbackTimeoutId = window.setTimeout(
+                      markTransitionComplete,
+                      CROSS_FADE_DURATION_MS + 120
+                    );
+                  } else {
                     finaliseTransition();
-                  };
-
-                  previousImageElement.addEventListener(
-                    "transitionend",
-                    markTransitionComplete,
-                    { once: true }
-                  );
-
-                  fallbackTimeoutId = window.setTimeout(
-                    markTransitionComplete,
-                    CROSS_FADE_DURATION_MS + 120
-                  );
-                } else {
-                  finaliseTransition();
-                }
+                  }
+                });
               });
             };
 
