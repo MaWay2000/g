@@ -40,10 +40,10 @@
         border-radius: 1.25rem;
         background: linear-gradient(
           155deg,
-          rgba(15, 23, 42, 0.82) 0%,
-          rgba(30, 41, 59, 0.68) 100%
+          rgba(15, 23, 42, 0.58) 0%,
+          rgba(30, 41, 59, 0.44) 100%
         );
-        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.45);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.3);
         backdrop-filter: blur(10px);
         padding: 2.5rem 2.25rem;
         pointer-events: auto;
@@ -57,19 +57,6 @@
       .auth-actions.is-hidden .auth-actions__content {
         opacity: 0;
         transform: translateY(12px);
-      }
-
-      .auth-actions__title {
-        margin: 0 0 0.75rem;
-        font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
-        font-weight: 700;
-        letter-spacing: 0.01em;
-      }
-
-      .auth-actions__description {
-        margin: 0 0 1.5rem;
-        color: rgba(248, 250, 252, 0.82);
-        line-height: 1.6;
       }
 
       .auth-actions__buttons {
@@ -216,10 +203,6 @@
     </figure>
     <aside class="auth-actions" aria-label="Account options">
       <div class="auth-actions__content">
-        <h1 class="auth-actions__title">View Wallpapers</h1>
-        <p class="auth-actions__description">
-          Sign in to sync your favorites or jump straight in as a guest.
-        </p>
         <div class="auth-actions__buttons" role="group" aria-label="Authentication actions">
           <a class="auth-actions__button auth-actions__button--primary" href="pages/login.html"
             >Log in</a
