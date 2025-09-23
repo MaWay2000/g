@@ -47,15 +47,19 @@
         background-size: cover;
         background-position: center;
         box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.7);
+        aspect-ratio: var(--wallpaper-aspect, 16 / 9);
+        isolation: isolate;
       }
 
       .wallpaper-image {
-        display: block;
+        position: absolute;
+        inset: 0;
         width: 100%;
-        height: auto;
+        height: 100%;
+        object-fit: cover;
         border-radius: inherit;
         opacity: 0;
-        transition: opacity 900ms ease;
+        transition: opacity 900ms ease-in-out;
       }
 
       .wallpaper-image.is-visible {
@@ -84,7 +88,6 @@
         <img
           id="wallpaperImage"
           class="wallpaper-image"
-          src=""
           alt="Wallpaper"
           hidden
         />
@@ -100,7 +103,44 @@
         const imageElement = document.getElementById("wallpaperImage");
         const captionElement = document.getElementById("wallpaperCaption");
         const supportedExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
-        const SLIDE_DURATION_MS = 3000;
+        const SLIDE_DURATION_MS = 5000;
+        const CROSS_FADE_DURATION_MS = 900;
+
+        const secondaryImageElement = imageElement.cloneNode(false);
+        secondaryImageElement.removeAttribute("id");
+        secondaryImageElement.removeAttribute("src");
+        frameElement.appendChild(secondaryImageElement);
+
+        const imageElements = [imageElement, secondaryImageElement];
+
+        imageElements.forEach((img) => {
+          img.hidden = true;
+          img.classList.remove("is-visible");
+          img.dataset.currentFile = "";
+          img.decoding = "async";
+          img.loading = "eager";
+        });
+
+        imageElement.removeAttribute("src");
+
+        let activeImageElement = null;
+
+        const getNextImageElement = () => {
+          if (!activeImageElement) {
+            return imageElements[0];
+          }
+          return imageElements.find((img) => img !== activeImageElement) || imageElements[0];
+        };
+
+        const updateAspectRatio = (img) => {
+          const { naturalWidth, naturalHeight } = img;
+          if (naturalWidth > 0 && naturalHeight > 0) {
+            const ratio = naturalWidth / naturalHeight;
+            if (Number.isFinite(ratio) && ratio > 0) {
+              frameElement.style.setProperty("--wallpaper-aspect", String(ratio));
+            }
+          }
+        };
 
         const encodePathSegments = (filePath) =>
           filePath
@@ -123,54 +163,109 @@
           const normalisedFileName = normaliseFileName(fileName);
 
           if (
-            imageElement.dataset.currentFile === normalisedFileName &&
-            !imageElement.hidden
+            activeImageElement &&
+            activeImageElement.dataset.currentFile === normalisedFileName
           ) {
             return Promise.resolve();
           }
 
           const encodedName = encodePathSegments(normalisedFileName);
           const fullPath = `${imageDirectory}${encodedName}`;
-          const previousSrc = imageElement.currentSrc || imageElement.src;
-
-          if (previousSrc) {
-            frameElement.style.backgroundImage = `url('${previousSrc}')`;
-          }
-
-          imageElement.classList.remove("is-visible");
+          const nextImageElement = getNextImageElement();
 
           return new Promise((resolve, reject) => {
-            const handleLoad = () => {
-              imageElement.removeEventListener("error", handleError);
-              imageElement.hidden = false;
-              imageElement.dataset.currentFile = normalisedFileName;
-              captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${normalisedFileName}</code>.`;
-              frameElement.style.backgroundImage = `url('${fullPath}')`;
-
-              requestAnimationFrame(() => {
-                imageElement.classList.add("is-visible");
-              });
-
-              resolve();
-            };
-
             const handleError = () => {
-              imageElement.removeEventListener("load", handleLoad);
+              nextImageElement.removeEventListener("load", handleLoad);
+              nextImageElement.hidden = true;
+              nextImageElement.classList.remove("is-visible");
+              nextImageElement.removeAttribute("src");
+              nextImageElement.dataset.currentFile = "";
               reject(new Error(`Unable to load wallpaper: ${normalisedFileName}`));
             };
 
-            imageElement.addEventListener("load", handleLoad, { once: true });
-            imageElement.addEventListener("error", handleError, { once: true });
+            const handleLoad = () => {
+              nextImageElement.removeEventListener("error", handleError);
+              frameElement.style.backgroundImage = `url('${fullPath}')`;
+              captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${normalisedFileName}</code>.`;
 
-            imageElement.alt = `Wallpaper: ${normalisedFileName}`;
-            imageElement.src = fullPath;
+              updateAspectRatio(nextImageElement);
+
+              const previousImageElement = activeImageElement;
+              activeImageElement = nextImageElement;
+              nextImageElement.dataset.currentFile = normalisedFileName;
+              nextImageElement.alt = `Wallpaper: ${normalisedFileName}`;
+
+              const finaliseTransition = () => {
+                if (previousImageElement) {
+                  previousImageElement.hidden = true;
+                  previousImageElement.classList.remove("is-visible");
+                  previousImageElement.removeAttribute("src");
+                  previousImageElement.dataset.currentFile = "";
+                }
+                resolve();
+              };
+
+              requestAnimationFrame(() => {
+                nextImageElement.hidden = false;
+                nextImageElement.classList.add("is-visible");
+
+                if (previousImageElement) {
+                  previousImageElement.classList.remove("is-visible");
+
+                  let transitionCompleted = false;
+                  let fallbackTimeoutId;
+
+                  const markTransitionComplete = () => {
+                    if (transitionCompleted) {
+                      return;
+                    }
+                    transitionCompleted = true;
+                    if (fallbackTimeoutId) {
+                      window.clearTimeout(fallbackTimeoutId);
+                    }
+                    finaliseTransition();
+                  };
+
+                  previousImageElement.addEventListener(
+                    "transitionend",
+                    markTransitionComplete,
+                    { once: true }
+                  );
+
+                  fallbackTimeoutId = window.setTimeout(
+                    markTransitionComplete,
+                    CROSS_FADE_DURATION_MS + 120
+                  );
+                } else {
+                  finaliseTransition();
+                }
+              });
+            };
+
+            if (nextImageElement !== frameElement.lastElementChild) {
+              frameElement.appendChild(nextImageElement);
+            }
+
+            nextImageElement.classList.remove("is-visible");
+            nextImageElement.hidden = true;
+            nextImageElement.dataset.currentFile = "";
+
+            nextImageElement.addEventListener("load", handleLoad, { once: true });
+            nextImageElement.addEventListener("error", handleError, { once: true });
+
+            nextImageElement.src = fullPath;
           });
         };
 
         const showError = (message) => {
           captionElement.textContent = message;
-          imageElement.classList.remove("is-visible");
-          imageElement.hidden = true;
+          activeImageElement = null;
+          imageElements.forEach((img) => {
+            img.classList.remove("is-visible");
+            img.hidden = true;
+            img.removeAttribute("src");
+            img.dataset.currentFile = "";
+          });
         };
 
         const isImageFile = (fileName) =>
