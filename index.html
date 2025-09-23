@@ -122,7 +122,36 @@
 
         const dedupe = (items) => Array.from(new Set(items));
 
+        const fetchFromManifest = async () => {
+          const manifestUrl = `${imageDirectory}manifest.json`;
+
+          const response = await fetch(manifestUrl, { cache: "no-store" });
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              return null;
+            }
+            throw new Error(`Unable to load the wallpapers manifest (${response.status}).`);
+          }
+
+          const manifest = await response.json();
+
+          if (!Array.isArray(manifest)) {
+            throw new Error("Unexpected wallpapers manifest format.");
+          }
+
+          return manifest
+            .filter((file) => typeof file === "string")
+            .map(normaliseFileName)
+            .filter((file) => isImageFile(file));
+        };
+
         const fetchWallpaperFiles = async () => {
+          const manifestFiles = await fetchFromManifest();
+          if (manifestFiles && manifestFiles.length > 0) {
+            return manifestFiles;
+          }
+
           const response = await fetch(imageDirectory, { cache: "no-store" });
 
           if (!response.ok) {
