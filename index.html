@@ -152,6 +152,18 @@
         color: #f8fafc;
       }
 
+      .monitor-decoration {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: min(26rem, 40vw);
+        max-width: 420px;
+        height: auto;
+        pointer-events: none;
+        user-select: none;
+        transform: translate(-10%, 8%);
+      }
+
       @media (max-width: 1024px) {
         .auth-actions {
           padding: 2rem;
@@ -167,6 +179,11 @@
           left: 2rem;
           transform: none;
           width: auto;
+        }
+
+        .monitor-decoration {
+          width: min(22rem, 45vw);
+          transform: translate(-12%, 10%);
         }
       }
 
@@ -195,6 +212,10 @@
         .wallpaper-frame {
           position: relative;
           height: 60vh;
+        }
+
+        .monitor-decoration {
+          display: none;
         }
       }
 
@@ -251,6 +272,15 @@
         />
       </div>
     </figure>
+    <img
+      class="monitor-decoration"
+      src="images/index/monitor.png"
+      alt="Decorative mission monitor"
+      width="960"
+      height="640"
+      loading="lazy"
+      decoding="async"
+    />
     <aside class="auth-actions" aria-label="Account options">
       <div class="auth-actions__content">
         <div class="auth-actions__buttons" role="group" aria-label="Authentication actions">
