@@ -67,26 +67,12 @@
     <script>
       (function () {
         const imageDirectory = "images/";
-        const allowedExtensions = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif"]);
+        const wallpaperFiles = [
+          "wallpapers/wallpaper.png",
+          "wallpapers/wallpaper2.png",
+        ];
         const imageElement = document.getElementById("wallpaperImage");
         const captionElement = document.getElementById("wallpaperCaption");
-
-        const getExtension = (fileName) => {
-          const dotIndex = fileName.lastIndexOf(".");
-          return dotIndex === -1 ? "" : fileName.slice(dotIndex).toLowerCase();
-        };
-
-        const extractFileName = (href) => {
-          if (!href) return "";
-          const withoutQuery = href.split("?")[0].split("#")[0];
-          const trimmed = withoutQuery.replace(/^\/+/, "");
-
-          if (trimmed.startsWith(imageDirectory)) {
-            return trimmed.slice(imageDirectory.length);
-          }
-
-          return trimmed.replace(/^.*[\\/]/, "");
-        };
 
         const encodePathSegments = (filePath) =>
           filePath
@@ -110,26 +96,16 @@
           imageElement.hidden = true;
         };
 
-        const loadRandomWallpaper = async () => {
+        const loadRandomWallpaper = () => {
+          const availableWallpapers = wallpaperFiles.filter(Boolean);
+
+          if (availableWallpapers.length === 0) {
+            showError("No wallpaper images were found in the images directory.");
+            return;
+          }
+
           try {
-            const response = await fetch(imageDirectory);
-            if (!response.ok) {
-              throw new Error(`Request failed with status ${response.status}`);
-            }
-
-            const text = await response.text();
-            const parser = new DOMParser();
-            const documentListing = parser.parseFromString(text, "text/html");
-            const fileNames = Array.from(documentListing.querySelectorAll("a"))
-              .map((link) => extractFileName(link.getAttribute("href")))
-              .filter((name) => name && !name.startsWith("."))
-              .filter((name) => allowedExtensions.has(getExtension(name)));
-
-            if (fileNames.length === 0) {
-              throw new Error("No wallpaper images were found in the images directory.");
-            }
-
-            setWallpaper(chooseRandom(fileNames));
+            setWallpaper(chooseRandom(availableWallpapers));
           } catch (error) {
             console.error(error);
             showError("Unable to load a wallpaper right now. Please try again later.");
