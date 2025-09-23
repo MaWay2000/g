@@ -12,42 +12,27 @@
       body {
         margin: 0;
         min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background-color: #111827;
+        background-color: #000;
         color: #f9fafb;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        padding: 2rem 1.5rem;
-      }
-
-      h1 {
-        margin-bottom: 1.5rem;
-        font-size: clamp(2rem, 5vw, 3rem);
-        font-weight: 600;
-        text-align: center;
+        overflow: hidden;
       }
 
       figure {
         margin: 0;
-        width: min(100%, 960px);
+        height: 100vh;
       }
 
       .wallpaper-frame {
-        position: relative;
-        width: 100%;
-        border-radius: 1.25rem;
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
         overflow: hidden;
-        background: radial-gradient(
-          circle at top,
-          rgba(59, 130, 246, 0.18),
-          rgba(15, 23, 42, 0.6)
-        );
+        background-color: #000;
         background-size: cover;
         background-position: center;
-        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.7);
-        aspect-ratio: var(--wallpaper-aspect, 16 / 9);
         isolation: isolate;
       }
 
@@ -66,23 +51,21 @@
         opacity: 1;
       }
 
-      figcaption {
-        margin-top: 0.75rem;
-        text-align: center;
-        font-size: 0.95rem;
-        color: rgba(249, 250, 251, 0.8);
-      }
-
       noscript {
-        margin-top: 1.5rem;
+        position: absolute;
+        top: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
         font-size: 0.95rem;
         color: rgba(249, 250, 251, 0.75);
         text-align: center;
+        background-color: rgba(0, 0, 0, 0.6);
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
       }
     </style>
   </head>
   <body>
-    <h1>Featured Wallpaper</h1>
     <figure>
       <div id="wallpaperFrame" class="wallpaper-frame">
         <img
@@ -92,7 +75,6 @@
           hidden
         />
       </div>
-      <figcaption id="wallpaperCaption">Loading wallpaper…</figcaption>
     </figure>
     <noscript>This page requires JavaScript to choose a random wallpaper.</noscript>
 
@@ -101,7 +83,6 @@
         const imageDirectory = "images/wallpapers/";
         const frameElement = document.getElementById("wallpaperFrame");
         const imageElement = document.getElementById("wallpaperImage");
-        const captionElement = document.getElementById("wallpaperCaption");
         const supportedExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
         const SLIDE_DURATION_MS = 5000;
         const CROSS_FADE_DURATION_MS = 1000;
@@ -186,7 +167,6 @@
             const handleLoad = () => {
               nextImageElement.removeEventListener("error", handleError);
               frameElement.style.backgroundImage = `url('${fullPath}')`;
-              captionElement.innerHTML = `Direct preview of the wallpaper file located at <code>${imageDirectory}${normalisedFileName}</code>.`;
 
               updateAspectRatio(nextImageElement);
 
@@ -262,7 +242,7 @@
         };
 
         const showError = (message) => {
-          captionElement.textContent = message;
+          frameElement.setAttribute("data-wallpaper-error", message);
           activeImageElement = null;
           imageElements.forEach((img) => {
             img.classList.remove("is-visible");
