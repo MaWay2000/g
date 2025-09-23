@@ -1,4 +1,4 @@
-# Wallpaperz
+# Dust Nova
 
 This repository hosts a minimalist static page that showcases random wallpapers from the `images/wallpapers/` directory.
 
