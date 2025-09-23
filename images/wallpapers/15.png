@@ -1,3 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?><Error><Code>AuthenticationFailed</Code><Message>Server failed to authenticate the request. Make sure the value of Authorization header is formed correctly including the signature.
-RequestId:d2eb6e7d-501e-0061-1941-2cb87d000000
-Time:2025-09-23T04:18:25.5305600Z</Message><AuthenticationErrorDetail>Signed expiry time [Tue, 23 Sep 2025 04:08:06 GMT] must be after signed start time [Tue, 23 Sep 2025 04:18:25 GMT]</AuthenticationErrorDetail></Error>
