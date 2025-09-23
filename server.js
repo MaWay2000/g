@@ -24,7 +24,6 @@ const PLAYER_SPEED = 200; // units per second
 const PLAYER_SIZE = TILE_SIZE;
 const CIRCLE_MOVE_SPEED = PLAYER_SPEED / 5;
 const CIRCLE_RADIUS = 12;
-const CIRCLE_INTERVAL_MS = 1000;
 const PLAYER_COLLISION_PADDING = 1;
 const CIRCLE_COLLISION_PADDING = 0.5;
 const MAX_COLLISION_ITERATIONS = 6;
@@ -50,7 +49,6 @@ app.use(express.static('public'));
 const players = new Map();
 const circles = new Map();
 const circleMovements = new Map();
-const circleIntervals = new Map();
 let circleIdCounter = 0;
 let lastMovementUpdate = Date.now();
 
@@ -220,30 +218,6 @@ function applyCirclePhysics(circle) {
   circle.y = finalClamp.y;
 }
 
-function spawnCircleForPlayer(playerId) {
-  const player = players.get(playerId);
-  if (!player) {
-    return;
-  }
-
-  const radius = CIRCLE_RADIUS;
-  const spawnPosition = clampCirclePosition(player.x, player.y, radius);
-
-  const circle = {
-    id: `circle-${++circleIdCounter}`,
-    ownerId: playerId,
-    color: player.color,
-    radius,
-    markedBy: null,
-    x: spawnPosition.x,
-    y: spawnPosition.y,
-  };
-
-  applyCirclePhysics(circle);
-  circles.set(circle.id, circle);
-  io.emit('circleSpawned', circle);
-}
-
 function randomColor() {
   const colors = ['#ff595e', '#ffca3a', '#8ac926', '#1982c4', '#6a4c93'];
   return colors[Math.floor(Math.random() * colors.length)];
@@ -279,11 +253,6 @@ io.on('connection', (socket) => {
     players: Array.from(players.values()),
     circles: Array.from(circles.values()),
   });
-
-  const circleInterval = setInterval(() => {
-    spawnCircleForPlayer(socket.id);
-  }, CIRCLE_INTERVAL_MS);
-  circleIntervals.set(socket.id, circleInterval);
 
   socket.broadcast.emit('playerJoined', spawn);
 
@@ -417,12 +386,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const interval = circleIntervals.get(socket.id);
-    if (interval) {
-      clearInterval(interval);
-      circleIntervals.delete(socket.id);
-    }
-
     const removedCircleIds = [];
     for (const [circleId, circle] of circles) {
       if (circle.ownerId === socket.id) {
