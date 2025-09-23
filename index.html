@@ -59,7 +59,7 @@
         object-fit: cover;
         border-radius: inherit;
         opacity: 0;
-        transition: opacity 900ms ease-in-out;
+        transition: opacity 1000ms ease-in-out;
       }
 
       .wallpaper-image.is-visible {
@@ -104,7 +104,7 @@
         const captionElement = document.getElementById("wallpaperCaption");
         const supportedExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
         const SLIDE_DURATION_MS = 5000;
-        const CROSS_FADE_DURATION_MS = 900;
+        const CROSS_FADE_DURATION_MS = 1000;
 
         const secondaryImageElement = imageElement.cloneNode(false);
         secondaryImageElement.removeAttribute("id");
