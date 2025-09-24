@@ -23,26 +23,48 @@
         height: 100vh;
       }
 
-      .auth-actions {
+      .monitor-station {
+        --screen-top: 18%;
+        --screen-left: 18%;
+        --screen-right: 16%;
+        --screen-bottom: 32%;
         position: fixed;
         bottom: 0;
         left: 0;
+        width: min(27rem, 42vw);
+        max-width: 440px;
+        pointer-events: none;
+        user-select: none;
+        transform: translate(-10%, 8%);
+      }
+
+      .auth-actions {
+        position: absolute;
+        top: var(--screen-top);
+        left: var(--screen-left);
+        right: var(--screen-right);
+        bottom: var(--screen-bottom);
         display: flex;
-        align-items: flex-end;
-        justify-content: flex-start;
-        padding: 2.5rem;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0;
         pointer-events: none;
         opacity: 1;
         transition: opacity 300ms ease;
       }
 
       .auth-actions__content {
-        width: auto;
-        border-radius: 0;
-        background: none;
-        box-shadow: none;
-        backdrop-filter: none;
-        padding: 0;
+        width: 100%;
+        border-radius: 0.85rem;
+        background: linear-gradient(
+          155deg,
+          rgba(15, 23, 42, 0.7) 0%,
+          rgba(30, 41, 59, 0.52) 100%
+        );
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(14px);
+        padding: 1.25rem 1rem;
         pointer-events: auto;
         transition: transform 300ms ease, opacity 300ms ease;
       }
@@ -60,7 +82,7 @@
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
-        width: min(9rem, 60vw);
+        width: 100%;
       }
 
       .story-card {
@@ -106,6 +128,7 @@
         align-items: center;
         justify-content: center;
         padding: 0.7rem 0.5rem;
+        width: 100%;
         border-radius: 9999px;
         border: 1px solid rgba(148, 163, 184, 0.4);
         color: #f8fafc;
@@ -153,24 +176,22 @@
       }
 
       .monitor-decoration {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: min(26rem, 40vw);
-        max-width: 420px;
+        display: block;
+        width: 100%;
         height: auto;
         pointer-events: none;
         user-select: none;
-        transform: translate(-10%, 8%);
       }
 
       @media (max-width: 1024px) {
-        .auth-actions {
-          padding: 2rem;
-        }
-
-        .auth-actions__content {
-          padding: 2rem 1.75rem;
+        .monitor-station {
+          --screen-top: 15%;
+          --screen-left: 20%;
+          --screen-right: 18%;
+          --screen-bottom: 36%;
+          width: min(25rem, 52vw);
+          max-width: 420px;
+          transform: translate(-12%, 10%);
         }
 
         .story-card {
@@ -182,8 +203,7 @@
         }
 
         .monitor-decoration {
-          width: min(22rem, 45vw);
-          transform: translate(-12%, 10%);
+          width: 100%;
         }
       }
 
@@ -192,14 +212,29 @@
           overflow: auto;
         }
 
-        .auth-actions {
+        .monitor-station {
           position: static;
+          transform: none;
+          width: 100%;
+          max-width: none;
           padding: 1.5rem 1.5rem 0;
+          display: flex;
           justify-content: center;
         }
 
-        .auth-actions__content {
+        .auth-actions {
+          position: static;
+          top: auto;
+          left: auto;
+          right: auto;
+          bottom: auto;
           width: min(28rem, 100%);
+          justify-content: center;
+          margin: 0 auto;
+        }
+
+        .auth-actions__content {
+          padding: 1.5rem 1.25rem;
         }
 
         .story-card {
@@ -272,28 +307,32 @@
         />
       </div>
     </figure>
-    <img
-      class="monitor-decoration"
-      src="images/index/monitor.png"
-      alt="Decorative mission monitor"
-      width="960"
-      height="640"
-      loading="lazy"
-      decoding="async"
-    />
-    <aside class="auth-actions" aria-label="Account options">
-      <div class="auth-actions__content">
-        <div class="auth-actions__buttons" role="group" aria-label="Authentication actions">
-          <a class="auth-actions__button auth-actions__button--primary" href="pages/login.html"
-            >Log in</a
-          >
-          <a class="auth-actions__button" href="pages/register.html">Register</a>
-          <button class="auth-actions__button auth-actions__button--ghost" type="button">
-            Continue as guest
-          </button>
+    <div class="monitor-station">
+      <img
+        class="monitor-decoration"
+        src="images/index/monitor.png"
+        alt="Decorative mission monitor"
+        width="960"
+        height="640"
+        loading="lazy"
+        decoding="async"
+      />
+      <aside class="auth-actions" aria-label="Account options">
+        <div class="auth-actions__content">
+          <div class="auth-actions__buttons" role="group" aria-label="Authentication actions">
+            <a
+              class="auth-actions__button auth-actions__button--primary"
+              href="pages/login.html"
+              >Log in</a
+            >
+            <a class="auth-actions__button" href="pages/register.html">Register</a>
+            <button class="auth-actions__button auth-actions__button--ghost" type="button">
+              Continue as guest
+            </button>
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </div>
     <section class="story-card" aria-labelledby="story-card-title">
       <h2 id="story-card-title">Welcome to Dusty Nova</h2>
       <p>
