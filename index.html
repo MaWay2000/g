@@ -235,6 +235,13 @@
         gap: 0.85rem;
         width: 100%;
         z-index: 2;
+        transition: opacity 260ms ease;
+      }
+
+      .auth-actions__content.is-screen-saver-active .auth-actions__buttons {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
       }
 
       .story-card {
@@ -997,6 +1004,10 @@
           authScreenSaverDismissed = true;
           authScreenSaver.classList.add("is-dismissed");
 
+          if (authPanel) {
+            authPanel.classList.remove("is-screen-saver-active");
+          }
+
           window.setTimeout(() => {
             if (authScreenSaver.parentElement) {
               authScreenSaver.remove();
@@ -1045,6 +1056,7 @@
         }
 
         if (authScreenSaver && authPanel instanceof HTMLElement) {
+          authPanel.classList.add("is-screen-saver-active");
           authPanel.addEventListener("pointerdown", handlePanelPointerDown);
         }
 
