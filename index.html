@@ -19,6 +19,10 @@
         overflow: hidden;
       }
 
+      body.has-modal-open {
+        overflow: hidden;
+      }
+
       figure {
         margin: 0;
         height: 100vh;
@@ -242,6 +246,264 @@
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
+      }
+
+      .auth-modal {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(1.5rem, 3vw, 3rem);
+        background: transparent;
+        z-index: 40;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 280ms ease;
+      }
+
+      .auth-modal[hidden] {
+        display: none;
+      }
+
+      .auth-modal.is-open {
+        pointer-events: auto;
+        opacity: 1;
+      }
+
+      .auth-modal__backdrop {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+            135deg,
+            rgba(2, 6, 23, 0.8),
+            rgba(15, 23, 42, 0.65)
+          )
+          rgba(2, 6, 23, 0.75);
+        backdrop-filter: blur(8px);
+        opacity: 0.92;
+      }
+
+      .auth-modal__dialog {
+        position: relative;
+        width: min(100%, 520px);
+        max-height: min(90vh, 720px);
+        transform: translateY(24px);
+        transition: transform 280ms ease, opacity 280ms ease;
+        opacity: 0;
+      }
+
+      .auth-modal.is-open .auth-modal__dialog {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      .auth-modal__close {
+        position: absolute;
+        top: 0.85rem;
+        right: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.35rem;
+        height: 2.35rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.75);
+        color: rgba(226, 232, 240, 0.92);
+        cursor: pointer;
+        transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+        z-index: 2;
+      }
+
+      .auth-modal__close:hover,
+      .auth-modal__close:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(148, 163, 184, 0.55);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.55);
+        outline: none;
+      }
+
+      .auth-modal__content {
+        position: relative;
+        overflow-y: auto;
+        max-height: inherit;
+        padding: clamp(1.75rem, 3vw, 2.5rem);
+      }
+
+      .auth-card {
+        background: rgba(2, 6, 23, 0.82);
+        border-radius: 1.35rem;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 28px 60px -18px rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(16px);
+        padding: clamp(1.85rem, 3vw, 2.75rem);
+        color: rgba(248, 250, 252, 0.98);
+      }
+
+      .auth-card__brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.7rem;
+        margin-bottom: 2.2rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .auth-card__brand svg {
+        width: 1.5rem;
+        height: 1.5rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.4;
+      }
+
+      .auth-card__title {
+        margin: 0 0 0.55rem;
+        font-size: clamp(1.75rem, 3vw, 2.35rem);
+        font-weight: 600;
+        color: rgba(224, 242, 254, 0.98);
+      }
+
+      .auth-card__description {
+        margin: 0 0 1.9rem;
+        color: rgba(226, 232, 240, 0.88);
+        font-size: 0.975rem;
+        line-height: 1.65;
+      }
+
+      .auth-card__form {
+        display: grid;
+        gap: 1.1rem;
+      }
+
+      .auth-card__field label {
+        display: block;
+        margin-bottom: 0.4rem;
+        font-size: 0.85rem;
+        color: rgba(226, 232, 240, 0.95);
+      }
+
+      .auth-card__field input[type="text"],
+      .auth-card__field input[type="email"],
+      .auth-card__field input[type="password"] {
+        width: 100%;
+        padding: 0.8rem 1rem;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: rgba(15, 23, 42, 0.7);
+        color: inherit;
+        font-size: 1rem;
+        transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+      }
+
+      .auth-card__field input[type="text"]:focus,
+      .auth-card__field input[type="email"]:focus,
+      .auth-card__field input[type="password"]:focus {
+        outline: none;
+        border-color: rgba(96, 165, 250, 0.75);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25);
+        transform: translateY(-1px);
+      }
+
+      .auth-card__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        font-size: 0.85rem;
+        color: rgba(148, 163, 184, 0.95);
+      }
+
+      .auth-card__row label {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0;
+        cursor: pointer;
+      }
+
+      .auth-card__row input[type="checkbox"] {
+        width: 1rem;
+        height: 1rem;
+        accent-color: #3b82f6;
+      }
+
+      .auth-card__terms {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        font-size: 0.82rem;
+        color: rgba(148, 163, 184, 0.95);
+        line-height: 1.6;
+      }
+
+      .auth-card__terms input[type="checkbox"] {
+        margin-top: 0.2rem;
+        accent-color: #6366f1;
+      }
+
+      .auth-card__submit {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border-radius: 999px;
+        border: none;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        color: inherit;
+        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        transition: transform 150ms ease, box-shadow 150ms ease;
+      }
+
+      .auth-card[data-auth-view="register"] .auth-card__submit {
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+      }
+
+      .auth-card__submit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 18px 35px -15px rgba(99, 102, 241, 0.65);
+      }
+
+      .auth-card__submit:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.35);
+      }
+
+      .auth-card[data-auth-view="register"] .auth-card__submit:hover {
+        box-shadow: 0 18px 35px -15px rgba(236, 72, 153, 0.6);
+      }
+
+      .auth-card[data-auth-view="register"] .auth-card__submit:focus-visible {
+        box-shadow: 0 0 0 4px rgba(216, 180, 254, 0.3);
+      }
+
+      .auth-card__footer {
+        margin-top: 1.75rem;
+        text-align: center;
+        font-size: 0.9rem;
+        color: rgba(148, 163, 184, 0.95);
+      }
+
+      .auth-card__link {
+        color: #93c5fd;
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      .auth-card[data-auth-view="register"] .auth-card__link {
+        color: #c4b5fd;
+      }
+
+      .auth-card__link:hover {
+        text-decoration: underline;
+      }
+
+      .auth-card__legal-link {
+        color: inherit;
+        text-decoration: underline;
       }
 
       .story-card {
@@ -564,6 +826,18 @@
         }
       }
 
+      @media (prefers-reduced-motion: reduce) {
+        .auth-modal,
+        .auth-modal__dialog,
+        .auth-card__field input[type="text"],
+        .auth-card__field input[type="email"],
+        .auth-card__field input[type="password"],
+        .auth-card__submit,
+        .auth-modal__close {
+          transition: none;
+        }
+      }
+
       .wallpaper-frame {
         position: fixed;
         inset: 0;
@@ -644,6 +918,149 @@
         </div>
       </aside>
     </div>
+    <div class="auth-modal" hidden aria-hidden="true">
+      <div class="auth-modal__backdrop" data-auth-modal-close></div>
+      <div class="auth-modal__dialog" role="dialog" aria-modal="true" aria-label="Authentication panel">
+        <button
+          class="auth-modal__close"
+          type="button"
+          data-auth-modal-close
+          aria-label="Close authentication panel"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <div class="auth-modal__content" role="document"></div>
+      </div>
+    </div>
+
+    <template id="auth-modal-login">
+      <div class="auth-card" data-auth-view="login">
+        <span class="auth-card__brand">
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M4 10.5 16 4l12 6.5v11L16 28 4 21.5Z" />
+            <path d="M16 28V4" />
+          </svg>
+          Dusty Nova
+        </span>
+        <h2 class="auth-card__title">Welcome back</h2>
+        <p class="auth-card__description">
+          Sign in to manage your wallpaper collections, sync favourites across devices and access your personalised dashboard.
+        </p>
+        <form class="auth-card__form">
+          <div class="auth-card__field">
+            <label for="authLoginEmail">Email</label>
+            <input
+              type="email"
+              id="authLoginEmail"
+              name="authLoginEmail"
+              autocomplete="email"
+              placeholder="you@example.com"
+              required
+            />
+          </div>
+          <div class="auth-card__field">
+            <label for="authLoginPassword">Password</label>
+            <input
+              type="password"
+              id="authLoginPassword"
+              name="authLoginPassword"
+              autocomplete="current-password"
+              placeholder="Enter your password"
+              required
+            />
+          </div>
+          <div class="auth-card__row">
+            <label>
+              <input type="checkbox" name="authLoginRemember" />
+              Remember me
+            </label>
+            <a class="auth-card__link" href="#">Forgot password?</a>
+          </div>
+          <button class="auth-card__submit" type="submit">Sign in</button>
+        </form>
+        <div class="auth-card__footer">
+          New here?
+          <a class="auth-card__link" href="/pages/register.html" data-auth-switch="register">Create an account</a>
+        </div>
+      </div>
+    </template>
+
+    <template id="auth-modal-register">
+      <div class="auth-card" data-auth-view="register">
+        <span class="auth-card__brand">
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M4 10.5 16 4l12 6.5v11L16 28 4 21.5Z" />
+            <path d="M16 28V4" />
+          </svg>
+          Dusty Nova
+        </span>
+        <h2 class="auth-card__title">Create your account</h2>
+        <p class="auth-card__description">
+          Unlock personalised wallpaper recommendations, save curated collections and sync your favourites across all your devices.
+        </p>
+        <form class="auth-card__form">
+          <div class="auth-card__field">
+            <label for="authRegisterName">Full name</label>
+            <input
+              type="text"
+              id="authRegisterName"
+              name="authRegisterName"
+              autocomplete="name"
+              placeholder="Jane Doe"
+              required
+            />
+          </div>
+          <div class="auth-card__field">
+            <label for="authRegisterEmail">Email</label>
+            <input
+              type="email"
+              id="authRegisterEmail"
+              name="authRegisterEmail"
+              autocomplete="email"
+              placeholder="you@example.com"
+              required
+            />
+          </div>
+          <div class="auth-card__field">
+            <label for="authRegisterPassword">Password</label>
+            <input
+              type="password"
+              id="authRegisterPassword"
+              name="authRegisterPassword"
+              autocomplete="new-password"
+              placeholder="Create a strong password"
+              required
+            />
+          </div>
+          <div class="auth-card__field">
+            <label for="authRegisterConfirmPassword">Confirm password</label>
+            <input
+              type="password"
+              id="authRegisterConfirmPassword"
+              name="authRegisterConfirmPassword"
+              autocomplete="new-password"
+              placeholder="Repeat your password"
+              required
+            />
+          </div>
+          <label class="auth-card__terms">
+            <input type="checkbox" name="authRegisterTerms" required />
+            <span>
+              I agree to the
+              <a class="auth-card__legal-link" href="#">Terms of Service</a>
+              and
+              <a class="auth-card__legal-link" href="#">Privacy Policy</a>.
+            </span>
+          </label>
+          <button class="auth-card__submit" type="submit">Create account</button>
+        </form>
+        <div class="auth-card__footer">
+          Already have an account?
+          <a class="auth-card__link" href="/pages/login.html" data-auth-switch="login">Sign in</a>
+        </div>
+      </div>
+    </template>
+
     <section class="story-card" aria-labelledby="story-card-title">
       <div class="story-card__header">
         <h2 id="story-card-title">About Dusty Nova</h2>
@@ -1208,6 +1625,221 @@
               })
               .catch(() => {});
           });
+        }
+
+        const loginTrigger = document.querySelector(
+          '.auth-actions__button[href$="login.html"]'
+        );
+        const registerTrigger = document.querySelector(
+          '.auth-actions__button[href$="register.html"]'
+        );
+        const authModal = document.querySelector(".auth-modal");
+        const authModalDialog = authModal?.querySelector(".auth-modal__dialog");
+        const authModalContent = authModal?.querySelector(".auth-modal__content");
+        const authModalClose = authModal?.querySelector(".auth-modal__close");
+        const loginTemplate = document.getElementById("auth-modal-login");
+        const registerTemplate = document.getElementById("auth-modal-register");
+        const modalFocusableSelectors =
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        let lastFocusedElement = null;
+        let closeModalFallbackId = 0;
+
+        const getTemplateForView = (view) =>
+          view === "register" ? registerTemplate : loginTemplate;
+
+        const isTemplateElement = (template) => template instanceof HTMLTemplateElement;
+
+        const updateBodyScrollState = (isOpen) => {
+          document.body.classList.toggle("has-modal-open", Boolean(isOpen));
+        };
+
+        const trapFocusWithinModal = (event) => {
+          if (!authModalDialog) {
+            return;
+          }
+
+          const focusableElements = Array.from(
+            authModalDialog.querySelectorAll(modalFocusableSelectors)
+          ).filter(
+            (element) =>
+              element instanceof HTMLElement &&
+              !element.hasAttribute("disabled") &&
+              element.getAttribute("aria-hidden") !== "true" &&
+              element.tabIndex !== -1 &&
+              element.offsetParent !== null
+          );
+
+          if (focusableElements.length === 0) {
+            event.preventDefault();
+            return;
+          }
+
+          const [firstElement] = focusableElements;
+          const lastElement = focusableElements[focusableElements.length - 1];
+          const activeElement = document.activeElement;
+
+          if (event.shiftKey) {
+            if (
+              activeElement === firstElement ||
+              !authModalDialog.contains(activeElement)
+            ) {
+              event.preventDefault();
+              lastElement.focus({ preventScroll: true });
+            }
+          } else if (activeElement === lastElement) {
+            event.preventDefault();
+            firstElement.focus({ preventScroll: true });
+          }
+        };
+
+        const handleDocumentKeydown = (event) => {
+          if (!authModal || authModal.hidden) {
+            return;
+          }
+
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeAuthModal();
+          } else if (event.key === "Tab") {
+            trapFocusWithinModal(event);
+          }
+        };
+
+        const wireAuthModalLinks = () => {
+          if (!authModalContent) {
+            return;
+          }
+
+          const switchLinks = authModalContent.querySelectorAll("[data-auth-switch]");
+          switchLinks.forEach((link) => {
+            link.addEventListener("click", (event) => {
+              event.preventDefault();
+              const targetView = link.getAttribute("data-auth-switch");
+              if (targetView === "login" || targetView === "register") {
+                openAuthModal(targetView);
+              }
+            });
+          });
+        };
+
+        const openAuthModal = (view) => {
+          if (!authModal || !authModalContent || !authModalDialog) {
+            return;
+          }
+
+          const template = getTemplateForView(view);
+          if (!isTemplateElement(template)) {
+            return;
+          }
+
+          authModalContent.innerHTML = "";
+          authModalContent.appendChild(template.content.cloneNode(true));
+          authModalContent.scrollTop = 0;
+          wireAuthModalLinks();
+
+          authModalDialog.setAttribute(
+            "aria-label",
+            view === "register"
+              ? "Create a Dusty Nova account"
+              : "Log in to Dusty Nova"
+          );
+
+          lastFocusedElement =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+          authModal.hidden = false;
+          authModal.setAttribute("aria-hidden", "false");
+          window.clearTimeout(closeModalFallbackId);
+          closeModalFallbackId = 0;
+          requestAnimationFrame(() => {
+            authModal.classList.add("is-open");
+          });
+          updateBodyScrollState(true);
+          document.addEventListener("keydown", handleDocumentKeydown, true);
+
+          if (authModalClose instanceof HTMLElement) {
+            authModalClose.focus({ preventScroll: true });
+          }
+        };
+
+        const finishClosingModal = () => {
+          if (!authModal || !authModalContent || authModal.hidden) {
+            return;
+          }
+
+          authModal.hidden = true;
+          authModalContent.innerHTML = "";
+          document.removeEventListener("keydown", handleDocumentKeydown, true);
+          updateBodyScrollState(false);
+
+          if (closeModalFallbackId) {
+            window.clearTimeout(closeModalFallbackId);
+            closeModalFallbackId = 0;
+          }
+
+          const elementToRefocus = lastFocusedElement;
+          lastFocusedElement = null;
+          if (elementToRefocus instanceof HTMLElement) {
+            elementToRefocus.focus({ preventScroll: true });
+          }
+        };
+
+        const closeAuthModal = () => {
+          if (!authModal || !authModalContent || authModal.hidden) {
+            return;
+          }
+
+          authModal.classList.remove("is-open");
+          authModal.setAttribute("aria-hidden", "true");
+
+          const handleTransitionEnd = (event) => {
+            if (event.target === authModal) {
+              authModal.removeEventListener("transitionend", handleTransitionEnd);
+              finishClosingModal();
+            }
+          };
+
+          authModal.addEventListener("transitionend", handleTransitionEnd);
+          closeModalFallbackId = window.setTimeout(() => {
+            authModal.removeEventListener("transitionend", handleTransitionEnd);
+            finishClosingModal();
+          }, 360);
+        };
+
+        const handleAuthTriggerClick = (event) => {
+          const trigger = event.currentTarget;
+          if (!(trigger instanceof HTMLElement)) {
+            return;
+          }
+
+          const targetView = trigger.dataset.authModalView;
+          if (targetView === "login" || targetView === "register") {
+            event.preventDefault();
+            openAuthModal(targetView);
+          }
+        };
+
+        if (authModal instanceof HTMLElement) {
+          authModal.addEventListener("click", (event) => {
+            const target = event.target instanceof HTMLElement
+              ? event.target.closest("[data-auth-modal-close]")
+              : null;
+
+            if (target) {
+              event.preventDefault();
+              closeAuthModal();
+            }
+          });
+        }
+
+        if (loginTrigger instanceof HTMLElement) {
+          loginTrigger.dataset.authModalView = "login";
+          loginTrigger.addEventListener("click", handleAuthTriggerClick);
+        }
+
+        if (registerTrigger instanceof HTMLElement) {
+          registerTrigger.dataset.authModalView = "register";
+          registerTrigger.addEventListener("click", handleAuthTriggerClick);
         }
 
         if (authAside && guestButton) {
