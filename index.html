@@ -850,6 +850,35 @@
 
           const hoverSoundReady = prepareHoverSound();
 
+          const attemptUnlockHoverSound = () => {
+            const previousMutedState = hoverSound.muted;
+            hoverSound.muted = true;
+            const unlockPromise = hoverSound.play();
+            const resetHoverSound = () => {
+              hoverSound.pause();
+              hoverSound.currentTime = 0;
+              hoverSound.muted = previousMutedState;
+            };
+
+            if (unlockPromise instanceof Promise) {
+              unlockPromise
+                .then(resetHoverSound)
+                .catch(() => {
+                  hoverSound.muted = previousMutedState;
+                });
+            } else {
+              resetHoverSound();
+            }
+          };
+
+          hoverSoundReady
+            .then(() => {
+              attemptUnlockHoverSound();
+            })
+            .catch(() => {
+              attemptUnlockHoverSound();
+            });
+
           const playHoverSound = () => {
             const startPlayback = () => {
               try {
