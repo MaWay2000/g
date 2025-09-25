@@ -352,12 +352,10 @@
         color: rgba(148, 163, 184, 0.85);
       }
 
-      .auth-card__brand svg {
-        width: 1.5rem;
-        height: 1.5rem;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 1.4;
+      .auth-card__brand img {
+        height: 1.75rem;
+        width: auto;
+        display: block;
       }
 
       .auth-card__title {
@@ -936,11 +934,14 @@
     <template id="auth-modal-login">
       <div class="auth-card" data-auth-view="login">
         <span class="auth-card__brand">
-          <svg viewBox="0 0 32 32" aria-hidden="true">
-            <path d="M4 10.5 16 4l12 6.5v11L16 28 4 21.5Z" />
-            <path d="M16 28V4" />
-          </svg>
-          Dusty Nova
+          <img
+            src="images/index/logo.png"
+            alt="Dusty Nova"
+            width="256"
+            height="64"
+            loading="lazy"
+            decoding="async"
+          />
         </span>
         <h2 class="auth-card__title">Welcome back</h2>
         <form class="auth-card__form">
@@ -985,11 +986,14 @@
     <template id="auth-modal-register">
       <div class="auth-card" data-auth-view="register">
         <span class="auth-card__brand">
-          <svg viewBox="0 0 32 32" aria-hidden="true">
-            <path d="M4 10.5 16 4l12 6.5v11L16 28 4 21.5Z" />
-            <path d="M16 28V4" />
-          </svg>
-          Dusty Nova
+          <img
+            src="images/index/logo.png"
+            alt="Dusty Nova"
+            width="256"
+            height="64"
+            loading="lazy"
+            decoding="async"
+          />
         </span>
         <h2 class="auth-card__title">Create your account</h2>
         <p class="auth-card__description">
