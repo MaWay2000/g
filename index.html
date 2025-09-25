@@ -817,8 +817,6 @@
           const hoverSoundSource = "images/index/button_hower.mp3";
           const hoverSound = new Audio();
           hoverSound.preload = "auto";
-          hoverSound.src = hoverSoundSource;
-          hoverSound.load();
 
           const prepareHoverSound = async () => {
             try {
@@ -890,16 +888,12 @@
               }
             };
 
-            performUnlock();
-
             if (hoverSoundReady) {
               hoverSoundReady
-                .then(() => {
-                  performUnlock();
-                })
-                .catch(() => {
-                  performUnlock();
-                });
+                .then(performUnlock)
+                .catch(performUnlock);
+            } else {
+              performUnlock();
             }
           };
 
@@ -921,8 +915,6 @@
           });
 
           const playHoverSound = () => {
-            triggerHoverSoundUnlock();
-
             const startPlayback = () => {
               try {
                 hoverSound.currentTime = 0;
@@ -935,27 +927,23 @@
               }
             };
 
-            startPlayback();
-
             if (hoverSoundReady) {
               hoverSoundReady
                 .then((objectUrl) => {
                   if (objectUrl === null && hoverSound.src !== hoverSoundSource) {
                     hoverSound.src = hoverSoundSource;
                   }
-                  if (hoverSound.paused) {
-                    startPlayback();
-                  }
+                  startPlayback();
                 })
                 .catch(() => {
                   if (!hoverSound.src) {
                     hoverSound.src = hoverSoundSource;
                     hoverSound.load();
                   }
-                  if (hoverSound.paused) {
-                    startPlayback();
-                  }
+                  startPlayback();
                 });
+            } else {
+              startPlayback();
             }
           };
 
