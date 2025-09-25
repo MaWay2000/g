@@ -985,6 +985,7 @@
         const authButtons = document.querySelectorAll(
           '.auth-actions__button[href$="login.html"], .auth-actions__button[href$="register.html"], .auth-actions__button--ghost'
         );
+        const authPanel = document.querySelector(".auth-actions__content");
         const authScreenSaver = document.querySelector(".auth-screen-saver");
         let authScreenSaverDismissed = false;
 
@@ -1007,6 +1008,10 @@
             button.removeEventListener("focus", handleButtonFocus);
             button.removeEventListener("keydown", handleButtonKeydown);
           });
+
+          if (authPanel) {
+            authPanel.removeEventListener("pointerdown", handlePanelPointerDown);
+          }
         }
 
         function handleButtonPointerDown() {
@@ -1029,6 +1034,18 @@
             button.addEventListener("focus", handleButtonFocus);
             button.addEventListener("keydown", handleButtonKeydown);
           });
+        }
+
+        function handlePanelPointerDown(event) {
+          if (event.target instanceof HTMLElement && event.target.closest("a, button")) {
+            return;
+          }
+
+          dismissAuthScreenSaver();
+        }
+
+        if (authScreenSaver && authPanel instanceof HTMLElement) {
+          authPanel.addEventListener("pointerdown", handlePanelPointerDown);
         }
 
         if (authButtons.length) {
