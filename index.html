@@ -871,13 +871,48 @@
             }
           };
 
-          hoverSoundReady
-            .then(() => {
-              attemptUnlockHoverSound();
-            })
-            .catch(() => {
-              attemptUnlockHoverSound();
+          let hoverSoundUnlockTriggered = false;
+
+          const triggerHoverSoundUnlock = () => {
+            if (hoverSoundUnlockTriggered) {
+              return;
+            }
+
+            hoverSoundUnlockTriggered = true;
+
+            const performUnlock = () => {
+              try {
+                attemptUnlockHoverSound();
+              } catch (error) {
+                console.error("Unable to unlock hover sound", error);
+              }
+            };
+
+            if (hoverSoundReady) {
+              hoverSoundReady
+                .then(performUnlock)
+                .catch(performUnlock);
+            } else {
+              performUnlock();
+            }
+          };
+
+          const userInteractionEvents = ["pointerdown", "keydown", "touchstart", "click"];
+
+          const handleUserInteraction = () => {
+            userInteractionEvents.forEach((eventName) => {
+              document.removeEventListener(eventName, handleUserInteraction);
             });
+
+            triggerHoverSoundUnlock();
+          };
+
+          userInteractionEvents.forEach((eventName) => {
+            document.addEventListener(eventName, handleUserInteraction, {
+              once: true,
+              passive: true,
+            });
+          });
 
           const playHoverSound = () => {
             const startPlayback = () => {
