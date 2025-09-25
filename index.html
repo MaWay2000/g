@@ -73,6 +73,122 @@
         backdrop-filter: blur(3px);
       }
 
+      .auth-screen-saver {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 1.5rem;
+        border-radius: inherit;
+        background: radial-gradient(
+            circle at 50% 30%,
+            rgba(16, 185, 129, 0.2) 0%,
+            rgba(4, 12, 20, 0.85) 60%,
+            rgba(2, 6, 12, 0.92) 100%
+          ),
+          rgba(2, 6, 12, 0.88);
+        text-align: center;
+        pointer-events: none;
+        z-index: 3;
+        overflow: hidden;
+        color: rgba(226, 232, 240, 0.92);
+        letter-spacing: 0.08em;
+        transition: opacity 320ms ease, transform 320ms ease;
+      }
+
+      .auth-screen-saver::before {
+        content: "";
+        position: absolute;
+        inset: -45% -35% -45% -35%;
+        background:
+          radial-gradient(
+            120% 120% at 50% 50%,
+            rgba(59, 130, 246, 0.16) 0%,
+            rgba(8, 47, 73, 0.05) 40%,
+            rgba(2, 6, 23, 0) 65%
+          ),
+          repeating-linear-gradient(
+            0deg,
+            rgba(20, 83, 45, 0.22),
+            rgba(20, 83, 45, 0.22) 2px,
+            transparent 2px,
+            transparent 4px
+          );
+        mix-blend-mode: screen;
+        opacity: 0.85;
+        animation: auth-screen-saver-pan 7.5s linear infinite;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .auth-screen-saver::after {
+        content: "";
+        position: absolute;
+        inset: -150% -45%;
+        background: linear-gradient(
+          0deg,
+          transparent 0%,
+          rgba(16, 185, 129, 0) 30%,
+          rgba(16, 185, 129, 0.45) 48%,
+          rgba(52, 211, 153, 0.75) 50%,
+          rgba(16, 185, 129, 0.45) 52%,
+          rgba(16, 185, 129, 0) 70%,
+          transparent 100%
+        );
+        opacity: 0.6;
+        animation: auth-screen-saver-scan 3.2s linear infinite;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .auth-screen-saver__label,
+      .auth-screen-saver__divider,
+      .auth-screen-saver__hint {
+        position: relative;
+        z-index: 1;
+      }
+
+      .auth-screen-saver__label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.85);
+        letter-spacing: 0.26em;
+      }
+
+      .auth-screen-saver__divider {
+        width: min(140px, 70%);
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          rgba(16, 185, 129, 0),
+          rgba(16, 185, 129, 0.65) 50%,
+          rgba(16, 185, 129, 0)
+        );
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+      }
+
+      .auth-screen-saver__hint {
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: rgba(110, 231, 183, 0.95);
+        animation: auth-screen-saver-hint 2.4s ease-in-out infinite;
+      }
+
+      .auth-screen-saver.is-dismissed {
+        opacity: 0;
+        transform: scale(1.02);
+      }
+
+      .auth-screen-saver.is-dismissed::before,
+      .auth-screen-saver.is-dismissed::after {
+        opacity: 0;
+      }
+
       .auth-actions__content::before {
         content: "";
         position: absolute;
@@ -254,6 +370,57 @@
 
         to {
           opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes auth-screen-saver-pan {
+        0% {
+          transform: translate(-12%, -8%) rotate(4deg);
+        }
+
+        50% {
+          transform: translate(10%, 6%) rotate(-2deg);
+        }
+
+        100% {
+          transform: translate(-12%, -8%) rotate(4deg);
+        }
+      }
+
+      @keyframes auth-screen-saver-scan {
+        0% {
+          transform: translateY(-60%);
+          opacity: 0;
+        }
+
+        25% {
+          opacity: 0.6;
+        }
+
+        50% {
+          opacity: 0.8;
+        }
+
+        100% {
+          transform: translateY(60%);
+          opacity: 0;
+        }
+      }
+
+      @keyframes auth-screen-saver-hint {
+        0% {
+          opacity: 0.35;
+          transform: translateY(0);
+        }
+
+        45% {
+          opacity: 1;
+          transform: translateY(-2px);
+        }
+
+        100% {
+          opacity: 0.35;
           transform: translateY(0);
         }
       }
@@ -455,6 +622,11 @@
       />
       <aside class="auth-actions" aria-label="Account options">
         <div class="auth-actions__content">
+          <div class="auth-screen-saver" aria-hidden="true">
+            <span class="auth-screen-saver__label">Standby Mode</span>
+            <span class="auth-screen-saver__divider" aria-hidden="true"></span>
+            <span class="auth-screen-saver__hint">Select a tab to wake</span>
+          </div>
           <div class="auth-actions__buttons" role="group" aria-label="Authentication actions">
             <a class="auth-actions__button" href="pages/login.html">Log in</a>
             <a class="auth-actions__button" href="pages/register.html">Register</a>
@@ -813,6 +985,52 @@
         const authButtons = document.querySelectorAll(
           '.auth-actions__button[href$="login.html"], .auth-actions__button[href$="register.html"], .auth-actions__button--ghost'
         );
+        const authScreenSaver = document.querySelector(".auth-screen-saver");
+        let authScreenSaverDismissed = false;
+
+        function dismissAuthScreenSaver() {
+          if (!authScreenSaver || authScreenSaverDismissed) {
+            return;
+          }
+
+          authScreenSaverDismissed = true;
+          authScreenSaver.classList.add("is-dismissed");
+
+          window.setTimeout(() => {
+            if (authScreenSaver.parentElement) {
+              authScreenSaver.remove();
+            }
+          }, 360);
+
+          authButtons.forEach((button) => {
+            button.removeEventListener("pointerdown", handleButtonPointerDown);
+            button.removeEventListener("focus", handleButtonFocus);
+            button.removeEventListener("keydown", handleButtonKeydown);
+          });
+        }
+
+        function handleButtonPointerDown() {
+          dismissAuthScreenSaver();
+        }
+
+        function handleButtonFocus() {
+          dismissAuthScreenSaver();
+        }
+
+        function handleButtonKeydown(event) {
+          if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+            dismissAuthScreenSaver();
+          }
+        }
+
+        if (authScreenSaver && authButtons.length) {
+          authButtons.forEach((button) => {
+            button.addEventListener("pointerdown", handleButtonPointerDown);
+            button.addEventListener("focus", handleButtonFocus);
+            button.addEventListener("keydown", handleButtonKeydown);
+          });
+        }
+
         if (authButtons.length) {
           const hoverSoundSource = "images/index/button_hower.mp3";
           const hoverSound = new Audio();
