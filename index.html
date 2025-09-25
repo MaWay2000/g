@@ -674,6 +674,31 @@
           ".auth-actions__button--ghost"
         );
 
+        const authButtons = document.querySelectorAll(
+          '.auth-actions__button[href$="login.html"], .auth-actions__button[href$="register.html"]'
+        );
+        if (authButtons.length) {
+          const hoverSound = new Audio("images/index/button_hower.mp3");
+          hoverSound.preload = "auto";
+
+          const playHoverSound = () => {
+            try {
+              hoverSound.currentTime = 0;
+              const playPromise = hoverSound.play();
+              if (playPromise instanceof Promise) {
+                playPromise.catch(() => {});
+              }
+            } catch (error) {
+              console.error("Unable to play hover sound", error);
+            }
+          };
+
+          authButtons.forEach((button) => {
+            button.addEventListener("mouseenter", playHoverSound);
+            button.addEventListener("focus", playHoverSound);
+          });
+        }
+
         if (authAside && guestButton) {
           guestButton.addEventListener("click", () => {
             authAside.classList.add("is-hidden");
