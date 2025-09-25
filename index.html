@@ -679,25 +679,88 @@
           '.auth-actions__button[href$="login.html"], .auth-actions__button[href$="register.html"]'
         );
         if (authButtons.length) {
-          const hoverSound = new Audio("images/index/button_hower.mp3");
+          const hoverSoundSource = "images/index/button_hower.mp3";
+          const hoverSound = new Audio();
           hoverSound.preload = "auto";
-          hoverSound.load();
+
+          const prepareHoverSound = async () => {
+            try {
+              const response = await fetch(hoverSoundSource, { cache: "force-cache" });
+              if (!response.ok) {
+                throw new Error(`Unable to preload hover sound (${response.status}).`);
+              }
+
+              const audioBlob = await response.blob();
+              const objectUrl = URL.createObjectURL(audioBlob);
+
+              hoverSound.src = objectUrl;
+
+              await new Promise((resolve) => {
+                if (hoverSound.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+                  resolve();
+                  return;
+                }
+                hoverSound.addEventListener("canplaythrough", resolve, { once: true });
+                hoverSound.load();
+              });
+
+              return objectUrl;
+            } catch (error) {
+              console.error("Unable to preload hover sound", error);
+              hoverSound.src = hoverSoundSource;
+              hoverSound.load();
+              return null;
+            }
+          };
+
+          const hoverSoundReady = prepareHoverSound();
 
           const playHoverSound = () => {
-            try {
-              hoverSound.currentTime = 0;
-              const playPromise = hoverSound.play();
-              if (playPromise instanceof Promise) {
-                playPromise.catch(() => {});
+            const startPlayback = () => {
+              try {
+                hoverSound.currentTime = 0;
+                const playPromise = hoverSound.play();
+                if (playPromise instanceof Promise) {
+                  playPromise.catch(() => {});
+                }
+              } catch (error) {
+                console.error("Unable to play hover sound", error);
               }
-            } catch (error) {
-              console.error("Unable to play hover sound", error);
+            };
+
+            if (hoverSoundReady) {
+              hoverSoundReady
+                .then((objectUrl) => {
+                  if (objectUrl === null && hoverSound.src !== hoverSoundSource) {
+                    hoverSound.src = hoverSoundSource;
+                  }
+                  startPlayback();
+                })
+                .catch(() => {
+                  if (!hoverSound.src) {
+                    hoverSound.src = hoverSoundSource;
+                    hoverSound.load();
+                  }
+                  startPlayback();
+                });
+            } else {
+              startPlayback();
             }
           };
 
           authButtons.forEach((button) => {
             button.addEventListener("mouseenter", playHoverSound);
             button.addEventListener("focus", playHoverSound);
+          });
+
+          window.addEventListener("beforeunload", () => {
+            hoverSoundReady
+              .then((objectUrl) => {
+                if (objectUrl) {
+                  URL.revokeObjectURL(objectUrl);
+                }
+              })
+              .catch(() => {});
           });
         }
 
