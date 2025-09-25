@@ -186,7 +186,7 @@
         min-height: 11.5rem;
       }
 
-      .story-card__paragraph {
+      .story-card__section {
         margin: 0;
         line-height: 1.7;
         color: rgba(226, 232, 240, 0.9);
@@ -194,9 +194,20 @@
         display: none;
       }
 
-      .story-card__paragraph.is-active {
+      .story-card__section.is-active {
         display: block;
         animation: story-fade 320ms ease;
+      }
+
+      .story-card__section-title {
+        margin: 0 0 0.35rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #bae6fd;
+      }
+
+      .story-card__section p {
+        margin: 0;
       }
 
       .story-card__arrow {
@@ -456,7 +467,7 @@
     </div>
     <section class="story-card" aria-labelledby="story-card-title">
       <div class="story-card__header">
-        <h2 id="story-card-title">Welcome to Dusty Nova</h2>
+        <h2 id="story-card-title">About Dusty Nova</h2>
         <div class="story-card__nav" role="group" aria-label="Story navigation">
           <button
             class="story-card__arrow story-card__arrow--prev"
@@ -481,24 +492,34 @@
         </div>
       </div>
       <div class="story-card__body">
-        <p class="story-card__paragraph is-active">
-          In the not-so-distant future, humanity has set its sights on Mars, driven by the promise of
-          untapped resources and new frontiers. As a pioneering miner, you are part of the Mars Frontier
-          Initiative—an elite team tasked with extracting precious minerals scattered across the
-          planet’s harsh, unpredictable terrain.
-        </p>
-        <p class="story-card__paragraph" hidden>
-          Your mission is more than mining. Establish and maintain resource outposts, research advanced
-          technologies, and defend key mining sites from rivals and Martian predators. Exploration is
-          key—hidden beneath the red dust are rare minerals, ancient ruins, and abandoned settlements
-          that hold clues to Mars’ mysterious past.
-        </p>
-        <p class="story-card__paragraph" hidden>
-          Alliances can turn the tide. Trade with fellow miners, or sabotage competitors to gain an
-          edge. Your choices shape the future of Mars colonization. Will you rise as a legendary
-          prospector, known for your cunning and courage, or be swallowed by the planet’s unforgiving
-          landscape? The red planet awaits—adapt, fight, and survive to claim your fortune.
-        </p>
+        <article class="story-card__section is-active" aria-hidden="false">
+          <h3 class="story-card__section-title">The Frontier Beckons</h3>
+          <p>
+            In the not-so-distant future, humanity has set its sights on Mars, driven by the promise of
+            untapped resources and new frontiers. As a pioneering miner with the Dusty Nova initiative,
+            you join the vanguard tasked with extracting precious minerals scattered across the planet’s
+            harsh, unpredictable terrain.
+          </p>
+        </article>
+        <article class="story-card__section" aria-hidden="true" hidden>
+          <h3 class="story-card__section-title">Beyond Mining</h3>
+          <p>
+            Your mission extends far beyond drilling. Establish resilient outposts, research advanced
+            technologies, and protect vital dig sites from rival crews and the planet’s apex predators.
+            Exploration is key—hidden beneath the red dust are rare minerals, ancient ruins, and
+            abandoned settlements that whisper secrets of Mars’ mysterious past.
+          </p>
+        </article>
+        <article class="story-card__section" aria-hidden="true" hidden>
+          <h3 class="story-card__section-title">Forge Your Legacy</h3>
+          <p>
+            Alliances can turn the tide. Trade with fellow miners or sabotage competitors to gain an
+            edge. Your decisions will shape the future of Martian colonization. Will you become a
+            legendary prospector renowned for your cunning and courage, or be swallowed by the planet’s
+            unforgiving landscape? The red planet awaits—adapt, fight, and survive to claim your
+            fortune.
+          </p>
+        </article>
       </div>
     </section>
     <noscript>This page requires JavaScript to choose a random wallpaper.</noscript>
@@ -888,8 +909,8 @@
         }
 
         const storyCard = document.querySelector(".story-card");
-        const storyParagraphs = storyCard
-          ? Array.from(storyCard.querySelectorAll(".story-card__paragraph"))
+        const storySections = storyCard
+          ? Array.from(storyCard.querySelectorAll(".story-card__section"))
           : [];
         const prevArrow = storyCard?.querySelector(
           ".story-card__arrow--prev"
@@ -906,40 +927,40 @@
 
         if (
           storyCard &&
-          storyParagraphs.length > 0 &&
+          storySections.length > 0 &&
           prevArrow instanceof HTMLButtonElement &&
           nextArrow instanceof HTMLButtonElement &&
           progressCurrent instanceof HTMLElement &&
           progressTotal instanceof HTMLElement
         ) {
-          let activeIndex = storyParagraphs.findIndex((paragraph) =>
-            paragraph.classList.contains("is-active")
+          let activeIndex = storySections.findIndex((section) =>
+            section.classList.contains("is-active")
           );
 
           if (activeIndex < 0) {
             activeIndex = 0;
-            storyParagraphs[0].classList.add("is-active");
+            storySections[0].classList.add("is-active");
           }
 
-          const updateParagraphStates = () => {
-            storyParagraphs.forEach((paragraph, index) => {
+          const updateSectionStates = () => {
+            storySections.forEach((section, index) => {
               const isActive = index === activeIndex;
-              paragraph.classList.toggle("is-active", isActive);
-              paragraph.hidden = !isActive;
-              paragraph.setAttribute("aria-hidden", String(!isActive));
+              section.classList.toggle("is-active", isActive);
+              section.hidden = !isActive;
+              section.setAttribute("aria-hidden", String(!isActive));
             });
 
             progressCurrent.textContent = String(activeIndex + 1);
-            progressTotal.textContent = String(storyParagraphs.length);
+            progressTotal.textContent = String(storySections.length);
             prevArrow.disabled = activeIndex === 0;
-            nextArrow.disabled = activeIndex === storyParagraphs.length - 1;
+            nextArrow.disabled = activeIndex === storySections.length - 1;
           };
 
-          updateParagraphStates();
+          updateSectionStates();
 
           const goToIndex = (index) => {
             const targetIndex = Math.min(
-              storyParagraphs.length - 1,
+              storySections.length - 1,
               Math.max(0, index)
             );
 
@@ -948,7 +969,7 @@
             }
 
             activeIndex = targetIndex;
-            updateParagraphStates();
+            updateSectionStates();
           };
 
           prevArrow.addEventListener("click", () => {
