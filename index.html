@@ -304,7 +304,7 @@
 
       .auth-modal__dialog {
         position: relative;
-        width: min(100%, 560px);
+        width: min(100%, 720px);
         max-height: min(95vh, 820px);
         transform: translateY(24px);
         transition: transform 280ms ease, opacity 280ms ease;
@@ -347,6 +347,8 @@
         overflow-y: auto;
         max-height: inherit;
         padding: clamp(1.75rem, 3vw, 2.5rem);
+        display: flex;
+        justify-content: center;
       }
 
       .auth-card {
@@ -357,6 +359,107 @@
         backdrop-filter: blur(16px);
         padding: clamp(1.85rem, 3vw, 2.75rem);
         color: rgba(248, 250, 252, 0.98);
+        width: min(100%, 480px);
+        margin: 0 auto;
+      }
+
+      .auth-card--monitor {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        width: min(100%, 720px);
+        max-width: 720px;
+        position: relative;
+        color: rgba(248, 250, 252, 0.98);
+      }
+
+      .auth-card--monitor .auth-card__monitor-frame {
+        display: block;
+        width: 100%;
+        height: auto;
+        filter: drop-shadow(0 24px 48px rgba(15, 23, 42, 0.65));
+        user-select: none;
+        pointer-events: none;
+      }
+
+      .auth-card--monitor .auth-card__monitor-content {
+        position: absolute;
+        top: 12.5%;
+        left: 12%;
+        right: 12%;
+        bottom: 16%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: clamp(1.85rem, 3vw, 2.75rem);
+        border-radius: 1.35rem;
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        background: linear-gradient(
+            145deg,
+            rgba(15, 23, 42, 0.92) 0%,
+            rgba(2, 6, 23, 0.86) 60%,
+            rgba(2, 6, 23, 0.94) 100%
+          );
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12),
+          0 22px 40px rgba(2, 6, 23, 0.55);
+      }
+
+      .auth-card--monitor .auth-card__header,
+      .auth-card--monitor .auth-card__form,
+      .auth-card--monitor .auth-card__footer {
+        width: 100%;
+      }
+
+      .auth-card--monitor .auth-card__header {
+        margin-bottom: clamp(1.25rem, 3vw, 1.85rem);
+      }
+
+      .auth-card--monitor .auth-card__footer {
+        margin-top: clamp(1.75rem, 3vw, 2.25rem);
+      }
+
+      .auth-card--monitor .auth-card__brand img {
+        filter: drop-shadow(0 6px 14px rgba(30, 64, 175, 0.35));
+      }
+
+      .auth-card--monitor::before {
+        content: "";
+        position: absolute;
+        inset: 9% 10% 13% 10%;
+        border-radius: 1.5rem;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(14, 165, 233, 0.28) 0%,
+          rgba(14, 116, 144, 0.12) 35%,
+          rgba(2, 6, 23, 0) 75%
+        );
+        opacity: 0.6;
+        filter: blur(0.5px);
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .auth-card--monitor::after {
+        content: "";
+        position: absolute;
+        inset: 8% 9% 12% 9%;
+        border-radius: 1.65rem;
+        border: 1px solid rgba(148, 163, 184, 0.08);
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.05) 0%,
+          rgba(59, 130, 246, 0.08) 45%,
+          rgba(15, 23, 42, 0.24) 100%
+        );
+        opacity: 0.45;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .auth-card--monitor > * {
+        position: relative;
+        z-index: 1;
       }
 
       .auth-card__header {
@@ -852,6 +955,41 @@
         }
       }
 
+      @media (max-width: 640px) {
+        .auth-modal__dialog {
+          width: min(100%, 520px);
+        }
+
+        .auth-modal__content {
+          padding: 1.5rem;
+        }
+
+        .auth-card--monitor {
+          background: rgba(2, 6, 23, 0.82);
+          border-radius: 1.35rem;
+          border: 1px solid rgba(148, 163, 184, 0.18);
+          box-shadow: 0 24px 48px rgba(15, 23, 42, 0.65);
+          padding: clamp(1.65rem, 5vw, 2.35rem);
+        }
+
+        .auth-card--monitor::before,
+        .auth-card--monitor::after {
+          content: none;
+        }
+
+        .auth-card--monitor .auth-card__monitor-frame {
+          display: none;
+        }
+
+        .auth-card--monitor .auth-card__monitor-content {
+          position: static;
+          background: transparent;
+          border: none;
+          padding: 0;
+          box-shadow: none;
+        }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         .auth-modal,
         .auth-modal__dialog,
@@ -971,55 +1109,67 @@
     </div>
 
     <template id="auth-modal-login">
-      <div class="auth-card" data-auth-view="login">
-        <div class="auth-card__header">
-          <span class="auth-card__brand">
-            <img
-              src="images/index/logo.png"
-              alt="Dusty Nova"
-              width="256"
-              height="64"
-              loading="lazy"
-              decoding="async"
-            />
-          </span>
-          <h2 class="auth-card__title">Welcome back</h2>
-        </div>
-        <form class="auth-card__form">
-          <div class="auth-card__field">
-            <label for="authLoginEmail">Email</label>
-            <input
-              type="email"
-              id="authLoginEmail"
-              name="authLoginEmail"
-              autocomplete="email"
-              placeholder="you@example.com"
-              required
-            />
+      <div class="auth-card auth-card--monitor" data-auth-view="login">
+        <img
+          class="auth-card__monitor-frame"
+          src="images/index/monitor2.png"
+          alt=""
+          aria-hidden="true"
+          width="960"
+          height="640"
+          loading="lazy"
+          decoding="async"
+        />
+        <div class="auth-card__monitor-content">
+          <div class="auth-card__header">
+            <span class="auth-card__brand">
+              <img
+                src="images/index/logo.png"
+                alt="Dusty Nova"
+                width="256"
+                height="64"
+                loading="lazy"
+                decoding="async"
+              />
+            </span>
+            <h2 class="auth-card__title">Welcome back</h2>
           </div>
-          <div class="auth-card__field">
-            <label for="authLoginPassword">Password</label>
-            <input
-              type="password"
-              id="authLoginPassword"
-              name="authLoginPassword"
-              autocomplete="current-password"
-              placeholder="Enter your password"
-              required
-            />
+          <form class="auth-card__form">
+            <div class="auth-card__field">
+              <label for="authLoginEmail">Email</label>
+              <input
+                type="email"
+                id="authLoginEmail"
+                name="authLoginEmail"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+              />
+            </div>
+            <div class="auth-card__field">
+              <label for="authLoginPassword">Password</label>
+              <input
+                type="password"
+                id="authLoginPassword"
+                name="authLoginPassword"
+                autocomplete="current-password"
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+            <div class="auth-card__row">
+              <label>
+                <input type="checkbox" name="authLoginRemember" />
+                Remember me
+              </label>
+              <a class="auth-card__link" href="#">Forgot password?</a>
+            </div>
+            <button class="auth-card__submit" type="submit">Sign in</button>
+          </form>
+          <div class="auth-card__footer">
+            New here?
+            <a class="auth-card__link" href="/pages/register.html" data-auth-switch="register">Create an account</a>
           </div>
-          <div class="auth-card__row">
-            <label>
-              <input type="checkbox" name="authLoginRemember" />
-              Remember me
-            </label>
-            <a class="auth-card__link" href="#">Forgot password?</a>
-          </div>
-          <button class="auth-card__submit" type="submit">Sign in</button>
-        </form>
-        <div class="auth-card__footer">
-          New here?
-          <a class="auth-card__link" href="/pages/register.html" data-auth-switch="register">Create an account</a>
         </div>
       </div>
     </template>
