@@ -341,25 +341,31 @@
         color: rgba(248, 250, 252, 0.98);
       }
 
+      .auth-card__header {
+        display: flex;
+        align-items: center;
+        gap: clamp(0.75rem, 1.5vw, 1.25rem);
+        margin-bottom: 2.2rem;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
       .auth-card__brand {
         display: inline-flex;
         align-items: center;
         gap: 0.7rem;
-        margin-bottom: 2.2rem;
         font-size: 0.95rem;
         font-weight: 600;
         letter-spacing: 0.04em;
-        color: rgba(148, 163, 184, 0.85);
       }
 
       .auth-card__brand img {
-        height: 1.75rem;
+        height: 2.4rem;
         width: auto;
         display: block;
       }
 
       .auth-card__title {
-        margin: 0 0 0.55rem;
+        margin: 0;
         font-size: clamp(1.75rem, 3vw, 2.35rem);
         font-weight: 600;
         color: rgba(224, 242, 254, 0.98);
@@ -933,17 +939,19 @@
 
     <template id="auth-modal-login">
       <div class="auth-card" data-auth-view="login">
-        <span class="auth-card__brand">
-          <img
-            src="images/index/logo.png"
-            alt="Dusty Nova"
-            width="256"
-            height="64"
-            loading="lazy"
-            decoding="async"
-          />
-        </span>
-        <h2 class="auth-card__title">Welcome back</h2>
+        <div class="auth-card__header">
+          <span class="auth-card__brand">
+            <img
+              src="images/index/logo.png"
+              alt="Dusty Nova"
+              width="256"
+              height="64"
+              loading="lazy"
+              decoding="async"
+            />
+          </span>
+          <h2 class="auth-card__title">Welcome back</h2>
+        </div>
         <form class="auth-card__form">
           <div class="auth-card__field">
             <label for="authLoginEmail">Email</label>
@@ -985,17 +993,19 @@
 
     <template id="auth-modal-register">
       <div class="auth-card" data-auth-view="register">
-        <span class="auth-card__brand">
-          <img
-            src="images/index/logo.png"
-            alt="Dusty Nova"
-            width="256"
-            height="64"
-            loading="lazy"
-            decoding="async"
-          />
-        </span>
-        <h2 class="auth-card__title">Create your account</h2>
+        <div class="auth-card__header">
+          <span class="auth-card__brand">
+            <img
+              src="images/index/logo.png"
+              alt="Dusty Nova"
+              width="256"
+              height="64"
+              loading="lazy"
+              decoding="async"
+            />
+          </span>
+          <h2 class="auth-card__title">Create your account</h2>
+        </div>
         <p class="auth-card__description">
           Unlock personalised wallpaper recommendations, save curated collections and sync your favourites across all your devices.
         </p>
