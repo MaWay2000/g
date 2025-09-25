@@ -28,26 +28,6 @@
         height: 100vh;
       }
 
-      .monitor-top {
-        position: fixed;
-        top: clamp(1.5rem, 4vw, 2.75rem);
-        left: 50%;
-        transform: translateX(-50%);
-        width: min(18rem, 38vw);
-        max-width: 360px;
-        pointer-events: none;
-        user-select: none;
-        z-index: 5;
-      }
-
-      .monitor-top__image {
-        display: block;
-        width: 100%;
-        height: auto;
-        pointer-events: none;
-        user-select: none;
-      }
-
       .monitor-station {
         --screen-top: 18%;
         --screen-left: 11%;
@@ -783,11 +763,6 @@
       }
 
       @media (max-width: 1024px) {
-        .monitor-top {
-          width: min(16rem, 48vw);
-          top: clamp(1rem, 3vw, 2rem);
-        }
-
         .monitor-station {
           --screen-top: 15%;
           --screen-left: 20%;
@@ -814,10 +789,6 @@
       @media (max-width: 720px) {
         body {
           overflow: auto;
-        }
-
-        .monitor-top {
-          display: none;
         }
 
         .monitor-station {
@@ -928,17 +899,6 @@
         />
       </div>
     </figure>
-    <div class="monitor-top" aria-hidden="true">
-      <img
-        class="monitor-top__image"
-        src="images/index/monitor2.png"
-        alt=""
-        width="1024"
-        height="1536"
-        loading="lazy"
-        decoding="async"
-      />
-    </div>
     <div class="monitor-station">
       <img
         class="monitor-decoration"
