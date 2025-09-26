@@ -323,21 +323,20 @@
       }
 
       .auth-modal__close {
-        position: absolute;
-        top: calc(0.85rem + 100px);
-        right: calc(0.85rem + 100px);
+        position: static;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         width: 2.35rem;
         height: 2.35rem;
+        margin-left: clamp(0.65rem, 1.4vw, 1rem);
         border-radius: 9999px;
         border: 1px solid rgba(148, 163, 184, 0.35);
         background: rgba(15, 23, 42, 0.75);
         color: rgba(226, 232, 240, 0.92);
         cursor: pointer;
         transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-        z-index: 2;
+        flex-shrink: 0;
       }
 
       .auth-modal__close:hover,
@@ -443,9 +442,17 @@
       .auth-card__header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
         gap: clamp(0.75rem, 1.5vw, 1.25rem);
         margin-bottom: 2.2rem;
         color: rgba(148, 163, 184, 0.85);
+      }
+
+      .auth-card__headline {
+        display: inline-flex;
+        align-items: center;
+        gap: clamp(0.5rem, 1vw, 0.85rem);
       }
 
       .auth-card__brand {
@@ -1063,14 +1070,6 @@
     <div class="auth-modal" hidden aria-hidden="true">
       <div class="auth-modal__backdrop" data-auth-modal-close></div>
       <div class="auth-modal__dialog" role="dialog" aria-modal="true" aria-label="Authentication panel">
-        <button
-          class="auth-modal__close"
-          type="button"
-          data-auth-modal-close
-          aria-label="Close authentication panel"
-        >
-          <span aria-hidden="true">&times;</span>
-        </button>
         <div class="auth-modal__content" role="document"></div>
       </div>
     </div>
@@ -1099,7 +1098,17 @@
                 decoding="async"
               />
             </span>
-            <h2 class="auth-card__title">Welcome back</h2>
+            <div class="auth-card__headline">
+              <h2 class="auth-card__title">Welcome back</h2>
+              <button
+                class="auth-modal__close"
+                type="button"
+                data-auth-modal-close
+                aria-label="Close authentication panel"
+              >
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
           </div>
           <form class="auth-card__form">
             <div class="auth-card__field">
@@ -1154,7 +1163,17 @@
               decoding="async"
             />
           </span>
-          <h2 class="auth-card__title">Create account</h2>
+          <div class="auth-card__headline">
+            <h2 class="auth-card__title">Create account</h2>
+            <button
+              class="auth-modal__close"
+              type="button"
+              data-auth-modal-close
+              aria-label="Close authentication panel"
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
         </div>
         <form class="auth-card__form">
           <div class="auth-card__field">
@@ -2069,7 +2088,7 @@
         const authModal = document.querySelector(".auth-modal");
         const authModalDialog = authModal?.querySelector(".auth-modal__dialog");
         const authModalContent = authModal?.querySelector(".auth-modal__content");
-        const authModalClose = authModal?.querySelector(".auth-modal__close");
+        let authModalClose = null;
         const loginTemplate = document.getElementById("auth-modal-login");
         const registerTemplate = document.getElementById("auth-modal-register");
         const modalFocusableSelectors =
@@ -2167,6 +2186,8 @@
 
           authModalContent.innerHTML = "";
           authModalContent.appendChild(template.content.cloneNode(true));
+          const closeButton = authModalDialog.querySelector(".auth-modal__close");
+          authModalClose = closeButton instanceof HTMLElement ? closeButton : null;
           authModalContent.scrollTop = 0;
           configureMonitorCardLayout(authModalContent);
           wireAuthModalLinks();
@@ -2203,6 +2224,7 @@
 
           authModal.hidden = true;
           authModalContent.innerHTML = "";
+          authModalClose = null;
           document.removeEventListener("keydown", handleDocumentKeydown, true);
           updateBodyScrollState(false);
 
