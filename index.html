@@ -270,18 +270,16 @@
         position: fixed;
         inset: 0;
         display: flex;
-        align-items: stretch;
+        align-items: center;
         justify-content: center;
-        padding: clamp(2rem, 6vh, 4rem) clamp(1.5rem, 3vw, 3rem)
-          clamp(1.5rem, 3vw, 3rem);
+        padding: clamp(2rem, 6vh, 4rem) clamp(1.5rem, 3vw, 3rem);
         background: transparent;
         z-index: 40;
         pointer-events: none;
         opacity: 0;
         transition: opacity 280ms ease;
-        overflow-y: auto;
-        min-height: 100vh;
-        padding-top: 0;
+        overflow: hidden;
+        height: 100vh;
       }
 
       .auth-modal[hidden] {
