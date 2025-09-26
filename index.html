@@ -1152,89 +1152,101 @@
     </template>
 
     <template id="auth-modal-register">
-      <div class="auth-card" data-auth-view="register">
-        <div class="auth-card__header">
-          <span class="auth-card__brand">
-            <img
-              src="images/index/logo.png"
-              alt="Dusty Nova"
-              width="256"
-              height="64"
-              loading="lazy"
-              decoding="async"
-            />
-          </span>
-          <div class="auth-card__headline">
-            <h2 class="auth-card__title">Create account</h2>
-            <button
-              class="auth-modal__close"
-              type="button"
-              data-auth-modal-close
-              aria-label="Close authentication panel"
-            >
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-        </div>
-        <form class="auth-card__form">
-          <div class="auth-card__field">
-            <label for="authRegisterName">Nickname</label>
-            <input
-              type="text"
-              id="authRegisterName"
-              name="authRegisterName"
-              autocomplete="name"
-              placeholder="Jane Doe"
-              required
-            />
-          </div>
-          <div class="auth-card__field">
-            <label for="authRegisterEmail">Email</label>
-            <input
-              type="email"
-              id="authRegisterEmail"
-              name="authRegisterEmail"
-              autocomplete="email"
-              placeholder="you@example.com"
-              required
-            />
-          </div>
-          <div class="auth-card__field">
-            <label for="authRegisterPassword">Password</label>
-            <input
-              type="password"
-              id="authRegisterPassword"
-              name="authRegisterPassword"
-              autocomplete="new-password"
-              placeholder="Create a strong password"
-              required
-            />
-          </div>
-          <div class="auth-card__field">
-            <label for="authRegisterConfirmPassword">Confirm password</label>
-            <input
-              type="password"
-              id="authRegisterConfirmPassword"
-              name="authRegisterConfirmPassword"
-              autocomplete="new-password"
-              placeholder="Repeat your password"
-              required
-            />
-          </div>
-          <label class="auth-card__terms">
-            <input type="checkbox" name="authRegisterTerms" required />
-            <span>
-              I agree to the
-              <a class="auth-card__legal-link" href="#">Terms of Service</a>
-              and
-              <a class="auth-card__legal-link" href="#">Privacy Policy</a>.
+      <div class="auth-card auth-card--monitor" data-auth-view="register">
+        <img
+          class="auth-card__monitor-frame"
+          src="images/index/monitor2.png"
+          alt=""
+          aria-hidden="true"
+          width="960"
+          height="640"
+          loading="lazy"
+          decoding="async"
+        />
+        <div class="auth-card__monitor-content">
+          <div class="auth-card__header">
+            <span class="auth-card__brand">
+              <img
+                src="images/index/logo.png"
+                alt="Dusty Nova"
+                width="256"
+                height="64"
+                loading="lazy"
+                decoding="async"
+              />
             </span>
-          </label>
-          <button class="auth-card__submit" type="submit">Create account</button>
-        </form>
-        <div class="auth-card__footer">
-          Already have an account?
-          <a class="auth-card__link" href="/pages/login.html" data-auth-switch="login">Sign in</a>
+            <div class="auth-card__headline">
+              <h2 class="auth-card__title">Create account</h2>
+              <button
+                class="auth-modal__close"
+                type="button"
+                data-auth-modal-close
+                aria-label="Close authentication panel"
+              >
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+          </div>
+          <form class="auth-card__form">
+            <div class="auth-card__field">
+              <label for="authRegisterName">Nickname</label>
+              <input
+                type="text"
+                id="authRegisterName"
+                name="authRegisterName"
+                autocomplete="name"
+                placeholder="Jane Doe"
+                required
+              />
+            </div>
+            <div class="auth-card__field">
+              <label for="authRegisterEmail">Email</label>
+              <input
+                type="email"
+                id="authRegisterEmail"
+                name="authRegisterEmail"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+              />
+            </div>
+            <div class="auth-card__field">
+              <label for="authRegisterPassword">Password</label>
+              <input
+                type="password"
+                id="authRegisterPassword"
+                name="authRegisterPassword"
+                autocomplete="new-password"
+                placeholder="Create a strong password"
+                required
+              />
+            </div>
+            <div class="auth-card__field">
+              <label for="authRegisterConfirmPassword">Confirm password</label>
+              <input
+                type="password"
+                id="authRegisterConfirmPassword"
+                name="authRegisterConfirmPassword"
+                autocomplete="new-password"
+                placeholder="Repeat your password"
+                required
+              />
+            </div>
+            <label class="auth-card__terms">
+              <input type="checkbox" name="authRegisterTerms" required />
+              <span>
+                I agree to the
+                <a class="auth-card__legal-link" href="#">Terms of Service</a>
+                and
+                <a class="auth-card__legal-link" href="#">Privacy Policy</a>.
+              </span>
+            </label>
+            <button class="auth-card__submit" type="submit">Create account</button>
+          </form>
+          <div class="auth-card__footer">
+            Already have an account?
+            <a class="auth-card__link" href="/pages/login.html" data-auth-switch="login">Sign in</a>
+          </div>
         </div>
       </div>
     </template>
