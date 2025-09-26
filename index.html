@@ -352,7 +352,8 @@
         position: relative;
         overflow: hidden;
         max-height: inherit;
-        padding: clamp(1.75rem, 3vw, 2.5rem);
+        padding: clamp(0.1rem, 0.7vw, 0.4rem) clamp(1.6rem, 2.8vw, 2.25rem)
+          clamp(1.6rem, 2.8vw, 2.25rem);
         display: flex;
         justify-content: center;
         flex: 1;
@@ -374,7 +375,7 @@
         background: transparent;
         border: none;
         box-shadow: none;
-        padding: 0;
+        padding: 0 0 clamp(0.9rem, 1.8vw, 1.4rem);
         width: min(100%, 720px);
         max-width: 720px;
         position: relative;
@@ -392,7 +393,7 @@
 
       .auth-card--monitor .auth-card__monitor-content {
         position: absolute;
-        top: 12.5%;
+        top: 6%;
         left: 12%;
         right: 12%;
         bottom: 16%;
