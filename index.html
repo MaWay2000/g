@@ -381,6 +381,10 @@
         max-width: 720px;
         position: relative;
         color: rgba(248, 250, 252, 0.98);
+        --monitor-screen-top: 6%;
+        --monitor-screen-left: 12%;
+        --monitor-screen-right: 12%;
+        --monitor-screen-bottom: 16%;
       }
 
       .auth-card--monitor .auth-card__monitor-frame {
@@ -394,10 +398,10 @@
 
       .auth-card--monitor .auth-card__monitor-content {
         position: absolute;
-        top: 6%;
-        left: 12%;
-        right: 12%;
-        bottom: 16%;
+        top: var(--monitor-screen-top, 6%);
+        left: var(--monitor-screen-left, 12%);
+        right: var(--monitor-screen-right, 12%);
+        bottom: var(--monitor-screen-bottom, 16%);
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -1283,6 +1287,253 @@
         const SLIDE_DURATION_MS = 5000;
         const CROSS_FADE_DURATION_MS = 1000;
 
+        const clamp01 = (value) => Math.max(0, Math.min(1, value));
+        const toPercentage = (value) => `${Number((clamp01(value) * 100).toFixed(3))}%`;
+
+        const redFrameBoundsCache = new Map();
+
+        const waitForImageReady = (image) => {
+          if (!(image instanceof HTMLImageElement)) {
+            return Promise.resolve();
+          }
+
+          if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+            if (typeof image.decode === "function") {
+              return image.decode().catch(() => {});
+            }
+            return Promise.resolve();
+          }
+
+          return new Promise((resolve) => {
+            const cleanup = () => {
+              image.removeEventListener("load", handleLoad);
+              image.removeEventListener("error", handleError);
+            };
+
+            const handleLoad = () => {
+              cleanup();
+              resolve();
+            };
+
+            const handleError = () => {
+              cleanup();
+              resolve();
+            };
+
+            image.addEventListener("load", handleLoad, { once: true });
+            image.addEventListener("error", handleError, { once: true });
+          });
+        };
+
+        const detectRedFrameBoundsSync = (image) => {
+          const width = Math.trunc(image.naturalWidth);
+          const height = Math.trunc(image.naturalHeight);
+
+          if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+            return null;
+          }
+
+          let context = null;
+
+          if (typeof OffscreenCanvas === "function") {
+            try {
+              const offscreenCanvas = new OffscreenCanvas(width, height);
+              context =
+                offscreenCanvas.getContext("2d", { willReadFrequently: true }) ||
+                offscreenCanvas.getContext("2d");
+              if (context) {
+                context.clearRect(0, 0, width, height);
+                context.drawImage(image, 0, 0, width, height);
+              }
+            } catch (error) {
+              context = null;
+            }
+          }
+
+          if (!context) {
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            context =
+              canvas.getContext("2d", { willReadFrequently: true }) ||
+              canvas.getContext("2d");
+            if (!context) {
+              return null;
+            }
+            context.clearRect(0, 0, width, height);
+            context.drawImage(image, 0, 0, width, height);
+          }
+
+          let imageData;
+          try {
+            imageData = context.getImageData(0, 0, width, height);
+          } catch (error) {
+            return null;
+          }
+
+          const { data } = imageData;
+          const stride = width * 4;
+
+          let minX = width;
+          let minY = height;
+          let maxX = -1;
+          let maxY = -1;
+          let pixelMatches = 0;
+
+          for (let y = 0; y < height; y += 1) {
+            let offset = y * stride;
+            for (let x = 0; x < width; x += 1) {
+              const red = data[offset];
+              const green = data[offset + 1];
+              const blue = data[offset + 2];
+              const alpha = data[offset + 3];
+
+              if (alpha >= 80) {
+                const maxOther = Math.max(green, blue);
+                if (red > 170 && red - maxOther > 60 && green < 200 && blue < 200) {
+                  if (x < minX) {
+                    minX = x;
+                  }
+                  if (x > maxX) {
+                    maxX = x;
+                  }
+                  if (y < minY) {
+                    minY = y;
+                  }
+                  if (y > maxY) {
+                    maxY = y;
+                  }
+                  pixelMatches += 1;
+                }
+              }
+
+              offset += 4;
+            }
+          }
+
+          if (maxX < minX || maxY < minY) {
+            return null;
+          }
+
+          const boundsWidth = maxX - minX + 1;
+          const boundsHeight = maxY - minY + 1;
+
+          if (boundsWidth < width * 0.1 || boundsHeight < height * 0.1) {
+            return null;
+          }
+
+          const minimumPixelMatches = Math.max(400, Math.floor(width * height * 0.002));
+          if (pixelMatches < minimumPixelMatches) {
+            return null;
+          }
+
+          return {
+            top: minY / height,
+            left: minX / width,
+            right: (width - (maxX + 1)) / width,
+            bottom: (height - (maxY + 1)) / height,
+            imageWidth: width,
+            imageHeight: height,
+          };
+        };
+
+        const getRedFrameBounds = async (image) => {
+          if (!(image instanceof HTMLImageElement)) {
+            return null;
+          }
+
+          const cacheKey = image.currentSrc || image.src || "";
+          if (cacheKey && redFrameBoundsCache.has(cacheKey)) {
+            return redFrameBoundsCache.get(cacheKey) || null;
+          }
+
+          await waitForImageReady(image);
+
+          let bounds = null;
+          try {
+            bounds = detectRedFrameBoundsSync(image);
+          } catch (error) {
+            console.error("Unable to analyse the monitor frame", error);
+            bounds = null;
+          }
+
+          if (cacheKey) {
+            redFrameBoundsCache.set(cacheKey, bounds);
+          }
+
+          return bounds;
+        };
+
+        const applyBoundsToElement = (element, bounds, mapping, options = {}) => {
+          if (!(element instanceof HTMLElement) || !bounds) {
+            return;
+          }
+
+          const {
+            insetXPixels = 0,
+            insetYPixels = 0,
+            insetXPercent = 0,
+            insetYPercent = 0,
+          } = options;
+
+          const horizontalInset =
+            Math.max(0, insetXPercent) +
+            (bounds.imageWidth > 0 ? insetXPixels / bounds.imageWidth : 0);
+          const verticalInset =
+            Math.max(0, insetYPercent) +
+            (bounds.imageHeight > 0 ? insetYPixels / bounds.imageHeight : 0);
+
+          if (mapping.top) {
+            element.style.setProperty(mapping.top, toPercentage(bounds.top + verticalInset));
+          }
+          if (mapping.left) {
+            element.style.setProperty(mapping.left, toPercentage(bounds.left + horizontalInset));
+          }
+          if (mapping.right) {
+            element.style.setProperty(mapping.right, toPercentage(bounds.right + horizontalInset));
+          }
+          if (mapping.bottom) {
+            element.style.setProperty(
+              mapping.bottom,
+              toPercentage(bounds.bottom + verticalInset),
+            );
+          }
+        };
+
+        const configureMonitorCardLayout = (rootElement) => {
+          if (!rootElement) {
+            return;
+          }
+
+          const monitorCard = rootElement.querySelector(".auth-card--monitor");
+          if (!(monitorCard instanceof HTMLElement)) {
+            return;
+          }
+
+          const monitorFrame = monitorCard.querySelector(".auth-card__monitor-frame");
+          if (!(monitorFrame instanceof HTMLImageElement)) {
+            return;
+          }
+
+          getRedFrameBounds(monitorFrame).then((bounds) => {
+            if (!bounds) {
+              return;
+            }
+
+            applyBoundsToElement(
+              monitorCard,
+              bounds,
+              {
+                top: "--monitor-screen-top",
+                left: "--monitor-screen-left",
+                right: "--monitor-screen-right",
+                bottom: "--monitor-screen-bottom",
+              },
+              { insetXPixels: 6, insetYPixels: 6 },
+            );
+          });
+        };
+
         const secondaryImageElement = imageElement.cloneNode(false);
         secondaryImageElement.removeAttribute("id");
         secondaryImageElement.removeAttribute("src");
@@ -1554,6 +1805,34 @@
         };
 
         initialise();
+
+        const monitorStationElement = document.querySelector(".monitor-station");
+        const monitorDecorationImage = monitorStationElement?.querySelector(
+          ".monitor-decoration",
+        );
+
+        if (
+          monitorStationElement instanceof HTMLElement &&
+          monitorDecorationImage instanceof HTMLImageElement
+        ) {
+          getRedFrameBounds(monitorDecorationImage).then((bounds) => {
+            if (!bounds) {
+              return;
+            }
+
+            applyBoundsToElement(
+              monitorStationElement,
+              bounds,
+              {
+                top: "--screen-top",
+                left: "--screen-left",
+                right: "--screen-right",
+                bottom: "--screen-bottom",
+              },
+              { insetXPixels: 6, insetYPixels: 6 },
+            );
+          });
+        }
 
         const authAside = document.querySelector(".auth-actions");
         const guestButton = document.querySelector(
@@ -1889,6 +2168,7 @@
           authModalContent.innerHTML = "";
           authModalContent.appendChild(template.content.cloneNode(true));
           authModalContent.scrollTop = 0;
+          configureMonitorCardLayout(authModalContent);
           wireAuthModalLinks();
 
           authModalDialog.setAttribute(
