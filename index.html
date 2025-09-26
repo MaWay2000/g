@@ -270,7 +270,7 @@
         position: fixed;
         inset: 0;
         display: flex;
-        align-items: flex-start;
+        align-items: stretch;
         justify-content: center;
         padding: clamp(2rem, 6vh, 4rem) clamp(1.5rem, 3vw, 3rem)
           clamp(1.5rem, 3vw, 3rem);
@@ -280,6 +280,7 @@
         opacity: 0;
         transition: opacity 280ms ease;
         overflow-y: auto;
+        min-height: 100vh;
         padding-top: 0;
       }
 
@@ -308,10 +309,13 @@
       .auth-modal__dialog {
         position: relative;
         width: min(100%, 720px);
-        max-height: min(95vh, 820px);
+        max-height: none;
+        height: 100%;
         transform: translateY(24px);
         transition: transform 280ms ease, opacity 280ms ease;
         opacity: 0;
+        display: flex;
+        flex-direction: column;
       }
 
       .auth-modal.is-open .auth-modal__dialog {
@@ -352,6 +356,7 @@
         padding: clamp(1.75rem, 3vw, 2.5rem);
         display: flex;
         justify-content: center;
+        flex: 1;
       }
 
       .auth-card {
