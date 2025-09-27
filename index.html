@@ -19,6 +19,24 @@
         overflow: hidden;
       }
 
+      .hi-text {
+        position: fixed;
+        top: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        margin: 0;
+        padding: 0.35rem 0.75rem;
+        border-radius: 9999px;
+        background: rgba(4, 120, 87, 0.65);
+        border: 1px solid rgba(167, 243, 208, 0.4);
+        color: rgba(236, 253, 245, 0.92);
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        box-shadow: 0 10px 25px rgba(6, 95, 70, 0.35);
+        z-index: 5;
+      }
+
       body.has-modal-open {
         overflow: hidden;
       }
@@ -1084,6 +1102,7 @@
     </style>
   </head>
   <body>
+    <p class="hi-text">hi</p>
     <figure>
       <div id="wallpaperFrame" class="wallpaper-frame">
         <img
