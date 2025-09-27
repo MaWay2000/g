@@ -1992,35 +1992,62 @@
         );
         const authPanel = document.querySelector(".auth-actions__content");
         const authScreenSaver = document.querySelector(".auth-screen-saver");
-        let authScreenSaverDismissed = false;
+        const STANDBY_TIMEOUT_MS = 60 * 1000;
+        let standbyTimeoutId = 0;
 
-        function dismissAuthScreenSaver() {
-          if (!authScreenSaver || authScreenSaverDismissed) {
+        const clearStandbyTimeout = () => {
+          if (standbyTimeoutId) {
+            window.clearTimeout(standbyTimeoutId);
+            standbyTimeoutId = 0;
+          }
+        };
+
+        const showAuthScreenSaver = () => {
+          if (!authScreenSaver) {
             return;
           }
 
-          authScreenSaverDismissed = true;
+          clearStandbyTimeout();
+          authScreenSaver.classList.remove("is-dismissed");
+          authScreenSaver.setAttribute("aria-hidden", "false");
+
+          if (authPanel) {
+            authPanel.classList.add("is-screen-saver-active");
+          }
+        };
+
+        const scheduleStandbyTimeout = () => {
+          if (!authScreenSaver) {
+            return;
+          }
+
+          clearStandbyTimeout();
+          standbyTimeoutId = window.setTimeout(() => {
+            showAuthScreenSaver();
+          }, STANDBY_TIMEOUT_MS);
+        };
+
+        const resetStandbyTimeout = () => {
+          if (!authScreenSaver || !authScreenSaver.classList.contains("is-dismissed")) {
+            return;
+          }
+
+          scheduleStandbyTimeout();
+        };
+
+        function dismissAuthScreenSaver() {
+          if (!authScreenSaver || authScreenSaver.classList.contains("is-dismissed")) {
+            return;
+          }
+
           authScreenSaver.classList.add("is-dismissed");
+          authScreenSaver.setAttribute("aria-hidden", "true");
 
           if (authPanel) {
             authPanel.classList.remove("is-screen-saver-active");
           }
 
-          window.setTimeout(() => {
-            if (authScreenSaver.parentElement) {
-              authScreenSaver.remove();
-            }
-          }, 360);
-
-          authButtons.forEach((button) => {
-            button.removeEventListener("pointerdown", handleButtonPointerDown);
-            button.removeEventListener("focus", handleButtonFocus);
-            button.removeEventListener("keydown", handleButtonKeydown);
-          });
-
-          if (authPanel) {
-            authPanel.removeEventListener("pointerdown", handlePanelPointerDown);
-          }
+          scheduleStandbyTimeout();
         }
 
         function handleButtonPointerDown() {
@@ -2054,9 +2081,23 @@
         }
 
         if (authScreenSaver && authPanel instanceof HTMLElement) {
+          authScreenSaver.setAttribute("aria-hidden", "false");
           authPanel.classList.add("is-screen-saver-active");
           authPanel.addEventListener("pointerdown", handlePanelPointerDown);
         }
+
+        const idleInteractionEvents = [
+          "pointerdown",
+          "pointermove",
+          "keydown",
+          "touchstart",
+          "wheel",
+          "scroll",
+        ];
+
+        idleInteractionEvents.forEach((eventName) => {
+          document.addEventListener(eventName, resetStandbyTimeout, { passive: true });
+        });
 
         if (authButtons.length) {
           const hoverSoundSource = "images/index/button_hower.mp3";
