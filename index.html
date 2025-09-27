@@ -457,7 +457,8 @@
       }
 
       .auth-card[data-auth-view="login"] .auth-card__monitor-content,
-      .auth-card[data-auth-view="register"] .auth-card__monitor-content {
+      .auth-card[data-auth-view="register"] .auth-card__monitor-content,
+      .auth-card[data-auth-view="guest"] .auth-card__monitor-content {
         justify-content: flex-start;
         top: calc(var(--monitor-screen-top, 6%) + 85px);
         bottom: calc(var(--monitor-screen-bottom, 16%) - 65px);
@@ -475,6 +476,13 @@
 
       .auth-card--monitor .auth-card__footer {
         margin-top: clamp(1.75rem, 3vw, 2.25rem);
+      }
+
+      .auth-card__hint {
+        margin-top: clamp(0.75rem, 1.4vw, 1.1rem);
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: rgba(148, 163, 184, 0.85);
       }
 
       .auth-card--monitor .auth-card__brand img {
@@ -1296,6 +1304,70 @@
       </div>
     </template>
 
+    <template id="auth-modal-guest">
+      <div class="auth-card auth-card--monitor" data-auth-view="guest">
+        <img
+          class="auth-card__monitor-frame"
+          src="images/index/monitor2.png"
+          alt=""
+          aria-hidden="true"
+          width="960"
+          height="640"
+          loading="lazy"
+          decoding="async"
+        />
+        <div class="auth-card__monitor-content">
+          <div class="auth-card__header">
+            <span class="auth-card__brand">
+              <img
+                src="images/index/logo.png"
+                alt="Dusty Nova"
+                width="256"
+                height="64"
+                loading="lazy"
+                decoding="async"
+              />
+            </span>
+            <div class="auth-card__headline">
+              <h2 class="auth-card__title">Join as a guest</h2>
+              <button
+                class="auth-modal__close"
+                type="button"
+                data-auth-modal-close
+                aria-label="Close authentication panel"
+              >
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+          </div>
+          <form class="auth-card__form">
+            <div class="auth-card__field">
+              <label for="authGuestNickname">Nickname</label>
+              <input
+                type="text"
+                id="authGuestNickname"
+                name="authGuestNickname"
+                autocomplete="nickname"
+                placeholder="Enter your nickname"
+                minlength="2"
+                maxlength="24"
+                aria-describedby="authGuestHint"
+                required
+              />
+            </div>
+            <p class="auth-card__hint" id="authGuestHint">
+              Your nickname will appear to other players during the session.
+            </p>
+            <button class="auth-card__submit" type="submit">Start mission</button>
+          </form>
+          <div class="auth-card__footer">
+            Prefer a full account?
+            <a class="auth-card__link" href="/pages/register.html" data-auth-switch="register">Create one now</a>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <section class="story-card" aria-labelledby="story-card-title">
       <div class="story-card__header">
         <h2 id="story-card-title">About Dusty Nova</h2>
@@ -1911,7 +1983,6 @@
           });
         }
 
-        const authAside = document.querySelector(".auth-actions");
         const guestButton = document.querySelector(
           ".auth-actions__button--ghost"
         );
@@ -2149,13 +2220,23 @@
         let authModalClose = null;
         const loginTemplate = document.getElementById("auth-modal-login");
         const registerTemplate = document.getElementById("auth-modal-register");
+        const guestTemplate = document.getElementById("auth-modal-guest");
         const modalFocusableSelectors =
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
         let lastFocusedElement = null;
         let closeModalFallbackId = 0;
 
-        const getTemplateForView = (view) =>
-          view === "register" ? registerTemplate : loginTemplate;
+        const getTemplateForView = (view) => {
+          if (view === "register") {
+            return registerTemplate;
+          }
+
+          if (view === "guest") {
+            return guestTemplate;
+          }
+
+          return loginTemplate;
+        };
 
         const isTemplateElement = (template) => template instanceof HTMLTemplateElement;
 
@@ -2225,7 +2306,11 @@
             link.addEventListener("click", (event) => {
               event.preventDefault();
               const targetView = link.getAttribute("data-auth-switch");
-              if (targetView === "login" || targetView === "register") {
+              if (
+                targetView === "login" ||
+                targetView === "register" ||
+                targetView === "guest"
+              ) {
                 openAuthModal(targetView);
               }
             });
@@ -2250,11 +2335,15 @@
           configureMonitorCardLayout(authModalContent);
           wireAuthModalLinks();
 
+          const modalLabels = {
+            login: "Log in to Dusty Nova",
+            register: "Create a Dusty Nova account",
+            guest: "Join Dusty Nova as a guest",
+          };
+
           authModalDialog.setAttribute(
             "aria-label",
-            view === "register"
-              ? "Create a Dusty Nova account"
-              : "Log in to Dusty Nova"
+            modalLabels[view] || "Dusty Nova authentication",
           );
 
           lastFocusedElement =
@@ -2327,7 +2416,11 @@
           }
 
           const targetView = trigger.dataset.authModalView;
-          if (targetView === "login" || targetView === "register") {
+          if (
+            targetView === "login" ||
+            targetView === "register" ||
+            targetView === "guest"
+          ) {
             event.preventDefault();
             openAuthModal(targetView);
           }
@@ -2356,13 +2449,9 @@
           registerTrigger.addEventListener("click", handleAuthTriggerClick);
         }
 
-        if (authAside && guestButton) {
-          guestButton.addEventListener("click", () => {
-            authAside.classList.add("is-hidden");
-            window.setTimeout(() => {
-              authAside.hidden = true;
-            }, 320);
-          });
+        if (guestButton instanceof HTMLElement) {
+          guestButton.dataset.authModalView = "guest";
+          guestButton.addEventListener("click", handleAuthTriggerClick);
         }
 
         const storyCard = document.querySelector(".story-card");
