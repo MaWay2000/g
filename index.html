@@ -2514,6 +2514,9 @@
               if (clearButton instanceof HTMLElement) {
                 clearButton.hidden = false;
               }
+              window.setTimeout(() => {
+                window.location.href = "game.html";
+              }, 600);
             } catch (error) {
               console.error("Unable to store guest nickname", error);
               showError("We couldn't save your nickname. Please check your browser settings and try again.");
