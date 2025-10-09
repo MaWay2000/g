@@ -97,6 +97,60 @@ export const initScene = (
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   scene.add(roomMesh);
 
+  const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
+    const vertices = [];
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+
+    for (let i = 0; i <= segmentsX; i += 1) {
+      const x = -halfWidth + (i * width) / segmentsX;
+      vertices.push(x, halfHeight, 0, x, -halfHeight, 0);
+    }
+
+    for (let j = 0; j <= segmentsY; j += 1) {
+      const y = -halfHeight + (j * height) / segmentsY;
+      vertices.push(-halfWidth, y, 0, halfWidth, y, 0);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+
+    const material = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+    });
+
+    return new THREE.LineSegments(geometry, material);
+  };
+
+  const gridColor = 0x94a3b8;
+  const gridOpacity = 0.35;
+
+  const floorGrid = createGridLines(roomWidth, roomDepth, 20, 20, gridColor, gridOpacity);
+  floorGrid.rotation.x = -Math.PI / 2;
+  floorGrid.position.y = -roomHeight / 2 + 0.02;
+  scene.add(floorGrid);
+
+  const backWallGrid = createGridLines(roomWidth, roomHeight, 20, 10, gridColor, gridOpacity);
+  backWallGrid.position.z = -roomDepth / 2 + 0.02;
+  scene.add(backWallGrid);
+
+  const frontWallGrid = createGridLines(roomWidth, roomHeight, 20, 10, gridColor, gridOpacity);
+  frontWallGrid.rotation.y = Math.PI;
+  frontWallGrid.position.z = roomDepth / 2 - 0.02;
+  scene.add(frontWallGrid);
+
+  const leftWallGrid = createGridLines(roomDepth, roomHeight, 20, 10, gridColor, gridOpacity);
+  leftWallGrid.rotation.y = Math.PI / 2;
+  leftWallGrid.position.x = -roomWidth / 2 + 0.02;
+  scene.add(leftWallGrid);
+
+  const rightWallGrid = createGridLines(roomDepth, roomHeight, 20, 10, gridColor, gridOpacity);
+  rightWallGrid.rotation.y = -Math.PI / 2;
+  rightWallGrid.position.x = roomWidth / 2 - 0.02;
+  scene.add(rightWallGrid);
+
   const controls = new PointerLockControls(camera, canvas);
   scene.add(controls.getObject());
   controls.getObject().position.set(0, 1.6, 8);
