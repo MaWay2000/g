@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background-color: #0f172a;
+        color: #e2e8f0;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at top, #1e293b, #0f172a 60%);
+      }
+
+      main {
+        width: min(90vw, 480px);
+        padding: 3rem 2.5rem;
+        background: rgba(15, 23, 42, 0.85);
+        border-radius: 24px;
+        box-shadow: 0 24px 48px rgba(15, 23, 42, 0.65);
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0 0 1rem;
+        font-size: clamp(2rem, 4vw + 1rem, 3rem);
+        letter-spacing: 0.05em;
+      }
+
+      p {
+        margin: 0 0 2rem;
+        line-height: 1.6;
+        font-size: 1.05rem;
+        color: rgba(226, 232, 240, 0.85);
+      }
+
+      .button-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      a,
+      button {
+        font: inherit;
+        cursor: pointer;
+        border: none;
+        border-radius: 999px;
+        padding: 0.85rem 1.6rem;
+        transition: transform 150ms ease, box-shadow 150ms ease;
+        text-decoration: none;
+      }
+
+      a.cta {
+        background: linear-gradient(135deg, #38bdf8, #818cf8);
+        color: #0f172a;
+        font-weight: 700;
+        box-shadow: 0 12px 24px rgba(56, 189, 248, 0.25);
+      }
+
+      button.logout {
+        background: transparent;
+        border: 2px solid rgba(148, 163, 184, 0.65);
+        color: inherit;
+        font-weight: 600;
+      }
+
+      a.cta:focus-visible,
+      a.cta:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 32px rgba(56, 189, 248, 0.35);
+      }
+
+      button.logout:focus-visible,
+      button.logout:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(148, 163, 184, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Welcome to the Game Room</h1>
+      <p>
+        We're putting the finishing touches on an immersive experience. In the
+        meantime, explore the lobby or come back soon to see what's new!
+      </p>
+      <div class="button-row">
+        <a class="cta" href="index.html">Return to Lobby</a>
+        <button class="logout" type="button" onclick="handleLogout()">Log out</button>
+      </div>
+    </main>
+
+    <script>
+      function handleLogout() {
+        // Placeholder for future logout logic.
+        window.location.href = "index.html";
+      }
+    </script>
+  </body>
+</html>
