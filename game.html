@@ -51,6 +51,42 @@
         color: rgba(226, 232, 240, 0.85);
       }
 
+      #game-area {
+        display: grid;
+        gap: 1.25rem;
+        margin: 0 0 2.5rem;
+        padding: 1.5rem;
+        background: linear-gradient(160deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.75));
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 20px;
+        box-shadow: inset 0 0 24px rgba(15, 23, 42, 0.4);
+      }
+
+      #game-area .hud {
+        display: grid;
+        gap: 0.5rem;
+        text-align: left;
+      }
+
+      #game-area .hud p {
+        margin: 0;
+      }
+
+      #game-area .hud .hint {
+        font-size: 0.95rem;
+        color: rgba(125, 211, 252, 0.85);
+      }
+
+      #game-canvas {
+        width: 100%;
+        max-width: 100%;
+        height: 320px;
+        border-radius: 16px;
+        border: 2px solid rgba(148, 163, 184, 0.35);
+        background: radial-gradient(circle at center, rgba(56, 189, 248, 0.25), rgba(15, 23, 42, 0.9));
+        box-shadow: inset 0 0 36px rgba(15, 23, 42, 0.75);
+      }
+
       .button-row {
         display: flex;
         gap: 1rem;
@@ -99,21 +135,18 @@
   <body>
     <main>
       <h1>Welcome to the Game Room</h1>
-      <p>
-        We're putting the finishing touches on an immersive experience. In the
-        meantime, explore the lobby or come back soon to see what's new!
-      </p>
+      <section id="game-area">
+        <div class="hud">
+          <p>Use the arrow keys or WASD to guide the luminous orb around the grid.</p>
+          <p class="hint">Collect the glowing shards before the timer fades!</p>
+        </div>
+        <canvas id="game-canvas"></canvas>
+      </section>
       <div class="button-row">
         <a class="cta" href="index.html">Return to Lobby</a>
-        <button class="logout" type="button" onclick="handleLogout()">Log out</button>
+        <button class="logout" id="logout-button" type="button">Log out</button>
       </div>
     </main>
-
-    <script>
-      function handleLogout() {
-        // Placeholder for future logout logic.
-        window.location.href = "index.html";
-      }
-    </script>
+    <script type="module" src="scripts/game.js"></script>
   </body>
 </html>
