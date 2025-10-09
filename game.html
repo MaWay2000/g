@@ -94,6 +94,14 @@
         transform: translateY(-2px);
         box-shadow: 0 12px 24px rgba(148, 163, 184, 0.25);
       }
+
+      .logout-error {
+        margin-top: 1.5rem;
+        color: #fca5a5;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        min-height: 1.25rem;
+      }
     </style>
   </head>
   <body>
@@ -105,14 +113,64 @@
       </p>
       <div class="button-row">
         <a class="cta" href="index.html">Return to Lobby</a>
-        <button class="logout" type="button" onclick="handleLogout()">Log out</button>
+        <button class="logout" type="button" data-logout-button>Log out</button>
       </div>
+      <p
+        class="logout-error"
+        id="logoutError"
+        role="alert"
+        aria-live="polite"
+        hidden
+      ></p>
     </main>
 
-    <script>
-      function handleLogout() {
-        // Placeholder for future logout logic.
-        window.location.href = "index.html";
+    <script type="module">
+      import { logout } from "./scripts/auth.js";
+
+      const logoutButton = document.querySelector("[data-logout-button]");
+      const errorMessage = document.getElementById("logoutError");
+
+      const setErrorMessage = (message) => {
+        if (errorMessage instanceof HTMLElement) {
+          errorMessage.textContent = message;
+          errorMessage.hidden = !message;
+        }
+      };
+
+      const setButtonBusyState = (isBusy) => {
+        if (!(logoutButton instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        logoutButton.disabled = isBusy;
+        logoutButton.setAttribute("aria-busy", String(isBusy));
+      };
+
+      async function handleLogout(event) {
+        if (event) {
+          event.preventDefault();
+        }
+
+        setErrorMessage("");
+        setButtonBusyState(true);
+
+        try {
+          await logout();
+          window.location.href = "index.html";
+        } catch (error) {
+          console.error("Logout failed", error);
+          const message =
+            error instanceof Error && error.message
+              ? error.message
+              : "We couldn't log you out. Please try again.";
+          setErrorMessage(message);
+        } finally {
+          setButtonBusyState(false);
+        }
+      }
+
+      if (logoutButton instanceof HTMLButtonElement) {
+        logoutButton.addEventListener("click", handleLogout);
       }
     </script>
   </body>
