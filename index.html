@@ -486,6 +486,29 @@
         color: rgba(148, 163, 184, 0.85);
       }
 
+      .auth-card__message {
+        margin: 0;
+        padding: 0.75rem 1rem;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(15, 23, 42, 0.65);
+        font-size: 0.88rem;
+        line-height: 1.45;
+        color: rgba(226, 232, 240, 0.92);
+      }
+
+      .auth-card__message--success {
+        border-color: rgba(16, 185, 129, 0.45);
+        background: rgba(16, 185, 129, 0.16);
+        color: rgba(110, 231, 183, 0.95);
+      }
+
+      .auth-card__message--error {
+        border-color: rgba(248, 113, 113, 0.35);
+        background: rgba(239, 68, 68, 0.18);
+        color: rgba(252, 165, 165, 0.95);
+      }
+
       .auth-card--monitor .auth-card__brand img {
         filter: drop-shadow(0 6px 14px rgba(30, 64, 175, 0.35));
       }
@@ -654,6 +677,20 @@
         color: #93c5fd;
         text-decoration: none;
         font-weight: 500;
+      }
+
+      .auth-card__link-button {
+        background: none;
+        border: none;
+        padding: 0;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+
+      .auth-card__link-button:focus-visible {
+        outline: 2px solid rgba(96, 165, 250, 0.65);
+        outline-offset: 2px;
       }
 
       .auth-card[data-auth-view="register"] .auth-card__link {
@@ -1360,6 +1397,27 @@
               Your nickname will appear to other players during the session.
             </p>
             <button class="auth-card__submit" type="submit">Start mission</button>
+            <button
+              class="auth-card__link auth-card__link-button"
+              type="button"
+              data-guest-clear
+            >
+              Clear saved nickname
+            </button>
+            <p
+              class="auth-card__message auth-card__message--success"
+              data-guest-success
+              role="status"
+              aria-live="polite"
+              hidden
+            ></p>
+            <p
+              class="auth-card__message auth-card__message--error"
+              data-guest-error
+              role="alert"
+              aria-live="assertive"
+              hidden
+            ></p>
           </form>
           <div class="auth-card__footer">
             Prefer a full account?
@@ -2267,6 +2325,7 @@
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
         let lastFocusedElement = null;
         let closeModalFallbackId = 0;
+        const guestNicknameStorageKey = "dustyNova.guestNickname";
 
         const getTemplateForView = (view) => {
           if (view === "register") {
@@ -2359,6 +2418,133 @@
           });
         };
 
+        const wireGuestForm = () => {
+          if (!authModalContent) {
+            return;
+          }
+
+          const form = authModalContent.querySelector(".auth-card__form");
+          if (!(form instanceof HTMLFormElement)) {
+            return;
+          }
+
+          const nicknameInput = form.querySelector("#authGuestNickname");
+          if (!(nicknameInput instanceof HTMLInputElement)) {
+            return;
+          }
+
+          const submitButton = form.querySelector(".auth-card__submit");
+          const successMessage = authModalContent.querySelector("[data-guest-success]");
+          const errorMessage = authModalContent.querySelector("[data-guest-error]");
+          const clearButton = authModalContent.querySelector("[data-guest-clear]");
+
+          const updateMessage = (element, message) => {
+            if (!(element instanceof HTMLElement)) {
+              return;
+            }
+
+            const nextMessage = typeof message === "string" ? message : "";
+            element.textContent = nextMessage;
+            element.hidden = nextMessage.trim().length === 0;
+          };
+
+          const hideMessages = () => {
+            updateMessage(successMessage, "");
+            updateMessage(errorMessage, "");
+          };
+
+          const showSuccess = (message) => {
+            updateMessage(errorMessage, "");
+            updateMessage(successMessage, message);
+          };
+
+          const showError = (message) => {
+            updateMessage(successMessage, "");
+            updateMessage(errorMessage, message);
+          };
+
+          const getStoredNickname = () => {
+            try {
+              return window.localStorage.getItem(guestNicknameStorageKey) || "";
+            } catch (error) {
+              console.warn("Unable to read stored guest nickname", error);
+              return "";
+            }
+          };
+
+          const setStoredNickname = (nickname) => {
+            window.localStorage.setItem(guestNicknameStorageKey, nickname);
+          };
+
+          const clearStoredNickname = () => {
+            window.localStorage.removeItem(guestNicknameStorageKey);
+          };
+
+          hideMessages();
+
+          const storedNickname = getStoredNickname();
+          if (storedNickname && nicknameInput.value.trim() === "") {
+            nicknameInput.value = storedNickname;
+          }
+
+          if (clearButton instanceof HTMLElement) {
+            clearButton.hidden = storedNickname === "";
+          }
+
+          form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            hideMessages();
+
+            const nickname = nicknameInput.value.trim();
+            const minimumLength = Math.max(2, nicknameInput.minLength || 0);
+
+            if (nickname.length < minimumLength) {
+              showError(`Please enter a nickname with at least ${minimumLength} characters.`);
+              nicknameInput.focus();
+              return;
+            }
+
+            if (submitButton instanceof HTMLButtonElement) {
+              submitButton.disabled = true;
+            }
+
+            try {
+              setStoredNickname(nickname);
+              showSuccess("Nickname saved. You're ready for launch!");
+              if (clearButton instanceof HTMLElement) {
+                clearButton.hidden = false;
+              }
+            } catch (error) {
+              console.error("Unable to store guest nickname", error);
+              showError("We couldn't save your nickname. Please check your browser settings and try again.");
+            } finally {
+              if (submitButton instanceof HTMLButtonElement) {
+                window.setTimeout(() => {
+                  submitButton.disabled = false;
+                }, 800);
+              }
+            }
+          });
+
+          if (clearButton instanceof HTMLElement) {
+            clearButton.addEventListener("click", (event) => {
+              event.preventDefault();
+              hideMessages();
+
+              try {
+                clearStoredNickname();
+                nicknameInput.value = "";
+                showSuccess("Saved nickname cleared.");
+                clearButton.hidden = true;
+                nicknameInput.focus();
+              } catch (error) {
+                console.error("Unable to clear stored guest nickname", error);
+                showError("We couldn't clear the saved nickname. Please try again.");
+              }
+            });
+          }
+        };
+
         const openAuthModal = (view) => {
           if (!authModal || !authModalContent || !authModalDialog) {
             return;
@@ -2376,6 +2562,10 @@
           authModalContent.scrollTop = 0;
           configureMonitorCardLayout(authModalContent);
           wireAuthModalLinks();
+
+          if (view === "guest") {
+            wireGuestForm();
+          }
 
           const modalLabels = {
             login: "Log in to Dusty Nova",
