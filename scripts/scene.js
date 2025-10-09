@@ -113,11 +113,15 @@ export const initScene = (
     }
   });
 
-  canvas.addEventListener("click", () => {
+  const attemptPointerLock = () => {
     if (!controls.isLocked) {
+      canvas.focus();
       controls.lock();
     }
-  });
+  };
+
+  canvas.addEventListener("click", attemptPointerLock);
+  canvas.addEventListener("pointerdown", attemptPointerLock);
 
   const movementState = {
     forward: false,
@@ -155,6 +159,24 @@ export const initScene = (
 
   const onKeyDown = (event) => {
     updateMovementState(event.code, true);
+
+    if (
+      !controls.isLocked &&
+      [
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "KeyW",
+        "KeyA",
+        "KeyS",
+        "KeyD",
+        "Space",
+        "Enter",
+      ].includes(event.code)
+    ) {
+      attemptPointerLock();
+    }
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
       event.preventDefault();
     }
@@ -227,6 +249,8 @@ export const initScene = (
     controls,
     dispose: () => {
       window.removeEventListener("resize", handleResize);
+      canvas.removeEventListener("click", attemptPointerLock);
+      canvas.removeEventListener("pointerdown", attemptPointerLock);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
     },
