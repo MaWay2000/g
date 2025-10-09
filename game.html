@@ -180,6 +180,12 @@
       </div>
     </div>
 
+    <script
+      async
+      src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"
+      crossorigin="anonymous"
+    ></script>
+
     <script type="importmap">
       {
         "imports": {
@@ -189,68 +195,16 @@
       }
     </script>
 
-    <script type="module">
-      import { logout } from "./scripts/auth.js";
-      import { initScene } from "./scripts/scene.js";
-
-      const canvas = document.getElementById("gameCanvas");
-      const instructions = document.querySelector("[data-instructions]");
-      const logoutButton = document.querySelector("[data-logout-button]");
-      const errorMessage = document.getElementById("logoutError");
-
-      if (canvas instanceof HTMLCanvasElement) {
-        initScene(canvas, {
-          onControlsLocked() {
-            instructions?.setAttribute("hidden", "");
-          },
-          onControlsUnlocked() {
-            instructions?.removeAttribute("hidden");
-          },
-        });
-      }
-
-      const setErrorMessage = (message) => {
-        if (errorMessage instanceof HTMLElement) {
-          errorMessage.textContent = message;
-          errorMessage.hidden = !message;
+    <script type="importmap-shim">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+          "three/examples/jsm/": "https://unpkg.com/three@0.161.0/examples/jsm/"
         }
-      };
-
-      const setButtonBusyState = (isBusy) => {
-        if (!(logoutButton instanceof HTMLButtonElement)) {
-          return;
-        }
-
-        logoutButton.disabled = isBusy;
-        logoutButton.setAttribute("aria-busy", String(isBusy));
-      };
-
-      async function handleLogout(event) {
-        if (event) {
-          event.preventDefault();
-        }
-
-        setErrorMessage("");
-        setButtonBusyState(true);
-
-        try {
-          await logout();
-          window.location.href = "index.html";
-        } catch (error) {
-          console.error("Logout failed", error);
-          const message =
-            error instanceof Error && error.message
-              ? error.message
-              : "We couldn't log you out. Please try again.";
-          setErrorMessage(message);
-        } finally {
-          setButtonBusyState(false);
-        }
-      }
-
-      if (logoutButton instanceof HTMLButtonElement) {
-        logoutButton.addEventListener("click", handleLogout);
       }
     </script>
+
+    <script type="module" src="./scripts/game.js"></script>
+    <script type="module-shim" src="./scripts/game.js"></script>
   </body>
 </html>
