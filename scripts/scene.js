@@ -34,6 +34,15 @@ export const initScene = (
     return texture;
   };
 
+  const loadClampedTexture = (path) => {
+    const texture = textureLoader.load(new URL(path, import.meta.url).href);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return texture;
+  };
+
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(ambientLight);
 
@@ -96,6 +105,151 @@ export const initScene = (
   const roomGeometry = new THREE.BoxGeometry(roomWidth, roomHeight, roomDepth);
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   scene.add(roomMesh);
+
+  const createComputerSetup = () => {
+    const group = new THREE.Group();
+
+    const deskHeight = 0.75;
+    const deskTopThickness = 0.08;
+    const deskWidth = 2.8;
+    const deskDepth = 1.2;
+
+    const deskMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1f2937,
+      roughness: 0.7,
+      metalness: 0.15,
+    });
+
+    const deskTop = new THREE.Mesh(
+      new THREE.BoxGeometry(deskWidth, deskTopThickness, deskDepth),
+      deskMaterial
+    );
+    deskTop.position.set(0, deskHeight + deskTopThickness / 2, 0);
+    group.add(deskTop);
+
+    const legGeometry = new THREE.BoxGeometry(0.12, deskHeight, 0.12);
+    const legPositions = [
+      [-deskWidth / 2 + 0.2, deskHeight / 2, -deskDepth / 2 + 0.2],
+      [deskWidth / 2 - 0.2, deskHeight / 2, -deskDepth / 2 + 0.2],
+      [-deskWidth / 2 + 0.2, deskHeight / 2, deskDepth / 2 - 0.2],
+      [deskWidth / 2 - 0.2, deskHeight / 2, deskDepth / 2 - 0.2],
+    ];
+
+    legPositions.forEach(([x, y, z]) => {
+      const leg = new THREE.Mesh(legGeometry, deskMaterial);
+      leg.position.set(x, y, z);
+      group.add(leg);
+    });
+
+    const monitorGroup = new THREE.Group();
+    monitorGroup.position.set(0, deskHeight + deskTopThickness, -0.1);
+
+    const monitorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      metalness: 0.35,
+      roughness: 0.35,
+    });
+
+    const monitorBack = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.75, 0.08),
+      monitorMaterial
+    );
+    monitorBack.position.y = 0.45;
+    monitorGroup.add(monitorBack);
+
+    const screenTexture = loadClampedTexture("../images/index/monitor2.png");
+    const monitorScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.05, 0.6),
+      new THREE.MeshBasicMaterial({ map: screenTexture, transparent: true })
+    );
+    monitorScreen.position.set(0, 0.45, 0.045);
+    monitorGroup.add(monitorScreen);
+
+    const monitorStand = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.4, 0.12),
+      monitorMaterial
+    );
+    monitorStand.position.set(0, 0.2, 0.01);
+    monitorGroup.add(monitorStand);
+
+    const monitorBase = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.05, 0.4),
+      monitorMaterial
+    );
+    monitorBase.position.set(0, 0.025, 0.05);
+    monitorGroup.add(monitorBase);
+
+    group.add(monitorGroup);
+
+    const keyboard = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 0.05, 0.35),
+      new THREE.MeshStandardMaterial({
+        color: 0x111827,
+        metalness: 0.2,
+        roughness: 0.6,
+      })
+    );
+    keyboard.position.set(0, deskHeight + deskTopThickness + 0.03, 0.2);
+    group.add(keyboard);
+
+    const mouse = new THREE.Mesh(
+      new THREE.BoxGeometry(0.15, 0.05, 0.25),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 })
+    );
+    mouse.position.set(0.8, deskHeight + deskTopThickness + 0.025, 0.25);
+    mouse.rotation.y = Math.PI / 10;
+    group.add(mouse);
+
+    const tower = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.8, 0.55),
+      new THREE.MeshStandardMaterial({
+        color: 0x0b1120,
+        roughness: 0.5,
+        metalness: 0.25,
+      })
+    );
+    tower.position.set(-deskWidth / 2 + 0.4, 0.4, 0.15);
+    group.add(tower);
+
+    const frontPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.38, 0.6),
+      new THREE.MeshStandardMaterial({
+        color: 0x1f2937,
+        emissive: new THREE.Color(0x1f2937),
+        metalness: 0.1,
+        roughness: 0.7,
+        side: THREE.DoubleSide,
+      })
+    );
+    frontPanel.position.set(tower.position.x, 0.45, 0.4);
+    group.add(frontPanel);
+
+    const ventGeometry = new THREE.BoxGeometry(0.34, 0.02, 0.02);
+    const ventMaterial = new THREE.MeshStandardMaterial({
+      color: 0x111827,
+      roughness: 0.5,
+      metalness: 0.2,
+    });
+
+    for (let i = 0; i < 4; i += 1) {
+      const vent = new THREE.Mesh(ventGeometry, ventMaterial);
+      vent.position.set(tower.position.x, 0.2 + i * 0.08, 0.44);
+      group.add(vent);
+    }
+
+    const powerLight = new THREE.Mesh(
+      new THREE.CircleGeometry(0.035, 24),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+    );
+    powerLight.position.set(tower.position.x + 0.12, 0.58, 0.48);
+    group.add(powerLight);
+
+    return group;
+  };
+
+  const computerSetup = createComputerSetup();
+  computerSetup.position.set(3, -roomHeight / 2, -6);
+  scene.add(computerSetup);
 
   const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
     const vertices = [];
