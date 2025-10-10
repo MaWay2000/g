@@ -143,6 +143,28 @@
       .instructions[hidden] {
         display: none;
       }
+
+      .instructions p {
+        margin: 0 0 0.75rem;
+      }
+
+      .instructions__heading {
+        margin: 0;
+        font-size: 0.85rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #38bdf8;
+      }
+
+      .instructions__list {
+        margin: 0.65rem 0 0;
+        padding-left: 1.2rem;
+        text-align: left;
+      }
+
+      .instructions__list li {
+        margin-bottom: 0.35rem;
+      }
     </style>
   </head>
   <body>
@@ -175,8 +197,14 @@
         role="status"
         aria-live="polite"
       >
-        Click or tap to enter the room. Use WASD or arrow keys to move and your mouse to
-        look around.
+        <p>
+          Click or tap to enter the room. Use WASD or arrow keys to move and your mouse to
+          look around.
+        </p>
+        <h2 class="instructions__heading">Rules</h2>
+        <ol class="instructions__list">
+          <li>Keep the wall timestamp accurate after every update or deployment.</li>
+        </ol>
       </div>
     </div>
 
