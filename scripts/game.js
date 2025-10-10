@@ -6,7 +6,11 @@ const instructions = document.querySelector("[data-instructions]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const errorMessage = document.getElementById("logoutError");
 
-if (canvas instanceof HTMLCanvasElement) {
+const bootstrapScene = () => {
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    return;
+  }
+
   initScene(canvas, {
     onControlsLocked() {
       instructions?.setAttribute("hidden", "");
@@ -15,6 +19,15 @@ if (canvas instanceof HTMLCanvasElement) {
       instructions?.removeAttribute("hidden");
     },
   });
+};
+
+if (document.readyState === "complete") {
+  window.requestAnimationFrame(bootstrapScene);
+} else {
+  const handleLoad = () => {
+    window.requestAnimationFrame(bootstrapScene);
+  };
+  window.addEventListener("load", handleLoad, { once: true });
 }
 
 const setErrorMessage = (message) => {
