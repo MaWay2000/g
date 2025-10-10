@@ -109,7 +109,7 @@ export const initScene = (
   const createComputerSetup = () => {
     const group = new THREE.Group();
 
-    const deskHeight = 0.78;
+    const deskHeight = 0.78 * 1.3;
     const deskTopThickness = 0.08;
     const deskWidth = 3.2;
     const deskDepth = 1.4;
