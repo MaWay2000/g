@@ -106,33 +106,6 @@ export const initScene = (
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   scene.add(roomMesh);
 
-  const createCutCornerGeometry = (width, height, depth, cornerSize) => {
-    const halfWidth = width / 2;
-    const halfHeight = height / 2;
-    const cut = Math.min(cornerSize, halfWidth, halfHeight);
-
-    const shape = new THREE.Shape();
-    shape.moveTo(-halfWidth + cut, -halfHeight);
-    shape.lineTo(halfWidth - cut, -halfHeight);
-    shape.lineTo(halfWidth, -halfHeight + cut);
-    shape.lineTo(halfWidth, halfHeight - cut);
-    shape.lineTo(halfWidth - cut, halfHeight);
-    shape.lineTo(-halfWidth + cut, halfHeight);
-    shape.lineTo(-halfWidth, halfHeight - cut);
-    shape.lineTo(-halfWidth, -halfHeight + cut);
-    shape.closePath();
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth,
-      bevelEnabled: false,
-    });
-
-    geometry.translate(0, 0, -depth / 2);
-    geometry.computeVertexNormals();
-
-    return geometry;
-  };
-
   const createComputerSetup = () => {
     const group = new THREE.Group();
 
@@ -188,11 +161,8 @@ export const initScene = (
     const housingWidth = bezelWidth + housingBorder * 2;
     const housingHeight = bezelHeight + housingBorder * 2;
     const housingDepth = 0.12;
-    const housingCornerSize = 0.16;
-    const bezelCornerSize = 0.12;
-
     const monitorHousing = new THREE.Mesh(
-      createCutCornerGeometry(housingWidth, housingHeight, housingDepth, housingCornerSize),
+      new THREE.BoxGeometry(housingWidth, housingHeight, housingDepth),
       monitorMaterial
     );
     monitorHousing.position.y = 0.52;
@@ -200,7 +170,7 @@ export const initScene = (
     monitorGroup.add(monitorHousing);
 
     const monitorBezel = new THREE.Mesh(
-      createCutCornerGeometry(bezelWidth, bezelHeight, bezelDepth, bezelCornerSize),
+      new THREE.BoxGeometry(bezelWidth, bezelHeight, bezelDepth),
       new THREE.MeshStandardMaterial({
         color: 0x111c2b,
         metalness: 0.25,
@@ -220,7 +190,7 @@ export const initScene = (
     });
 
     const monitorScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(housingWidth, housingHeight),
+      new THREE.PlaneGeometry(screenWidth, screenHeight),
       monitorScreenMaterial
     );
     monitorScreen.position.set(
