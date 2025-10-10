@@ -2346,6 +2346,19 @@
           document.body.classList.toggle("has-modal-open", Boolean(isOpen));
         };
 
+        const isFocusableElementVisible = (element) => {
+          if (!(element instanceof HTMLElement)) {
+            return false;
+          }
+
+          if (element.hidden || element.getAttribute("aria-hidden") === "true") {
+            return false;
+          }
+
+          const hiddenAncestor = element.closest('[hidden], [aria-hidden="true"]');
+          return hiddenAncestor === null;
+        };
+
         const trapFocusWithinModal = (event) => {
           if (!authModalDialog) {
             return;
@@ -2359,7 +2372,7 @@
               !element.hasAttribute("disabled") &&
               element.getAttribute("aria-hidden") !== "true" &&
               element.tabIndex !== -1 &&
-              element.offsetParent !== null
+              isFocusableElementVisible(element)
           );
 
           if (focusableElements.length === 0) {
