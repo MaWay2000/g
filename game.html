@@ -202,12 +202,20 @@
           look around.
         </p>
         <h2 class="instructions__heading">Rules</h2>
-        <ol class="instructions__list">
+        <ol class="instructions__list" data-rules-list>
           <li>Keep the wall timestamp accurate after every update or deployment.</li>
         </ol>
       </div>
     </div>
 
+    <script type="application/json" id="gameRulesConfig">
+      {
+        "version": 1,
+        "rules": [
+          "Keep the wall timestamp accurate after every update or deployment."
+        ]
+      }
+    </script>
     <script type="module" src="./scripts/game.js"></script>
   </body>
 </html>
