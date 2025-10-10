@@ -172,7 +172,7 @@ export const initScene = (
 
     const screenTexture = loadClampedTexture("../images/index/monitor2.png");
     const monitorScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.36, 0.82),
+      new THREE.PlaneGeometry(1.44, 0.88),
       new THREE.MeshBasicMaterial({ map: screenTexture, transparent: true })
     );
     monitorScreen.position.set(0, 0.52, 0.185);
