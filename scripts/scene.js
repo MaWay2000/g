@@ -25,7 +25,8 @@ export const initScene = (
   const textureLoader = new THREE.TextureLoader();
 
   const loadTexture = (path, repeatX = 1, repeatY = 1) => {
-    const texture = textureLoader.load(new URL(path, import.meta.url).href);
+    const url = new URL(path, import.meta.url).href;
+    const texture = textureLoader.load(url);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
@@ -34,13 +35,156 @@ export const initScene = (
     return texture;
   };
 
-  const loadClampedTexture = (path) => {
-    const texture = textureLoader.load(new URL(path, import.meta.url).href);
+  const loadClampedTexture = (path, { onLoad } = {}) => {
+    const url = new URL(path, import.meta.url).href;
+    const texture = textureLoader.load(
+      url,
+      (loadedTexture) => {
+        loadedTexture.colorSpace = THREE.SRGBColorSpace;
+        loadedTexture.wrapS = THREE.ClampToEdgeWrapping;
+        loadedTexture.wrapT = THREE.ClampToEdgeWrapping;
+        loadedTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        if (typeof onLoad === "function") {
+          onLoad(loadedTexture);
+        }
+      }
+    );
+
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
     return texture;
+  };
+
+  const detectMonitorFrameBounds = (image) => {
+    if (!(image instanceof HTMLImageElement)) {
+      return null;
+    }
+
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+
+    if (!width || !height) {
+      return null;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      return null;
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+    const { data } = context.getImageData(0, 0, width, height);
+
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    let pixelMatches = 0;
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 4;
+        const red = data[offset];
+        const green = data[offset + 1];
+        const blue = data[offset + 2];
+        const alpha = data[offset + 3];
+
+        if (alpha >= 80) {
+          const maxOther = Math.max(green, blue);
+          if (red > 170 && red - maxOther > 60 && green < 200 && blue < 200) {
+            if (x < minX) {
+              minX = x;
+            }
+            if (x > maxX) {
+              maxX = x;
+            }
+            if (y < minY) {
+              minY = y;
+            }
+            if (y > maxY) {
+              maxY = y;
+            }
+            pixelMatches += 1;
+          }
+        }
+      }
+    }
+
+    if (maxX < minX || maxY < minY) {
+      return null;
+    }
+
+    const boundsWidth = maxX - minX + 1;
+    const boundsHeight = maxY - minY + 1;
+
+    if (boundsWidth < width * 0.1 || boundsHeight < height * 0.1) {
+      return null;
+    }
+
+    const minimumPixelMatches = Math.max(400, Math.floor(width * height * 0.002));
+    if (pixelMatches < minimumPixelMatches) {
+      return null;
+    }
+
+    return {
+      top: minY / height,
+      left: minX / width,
+      right: (width - (maxX + 1)) / width,
+      bottom: (height - (maxY + 1)) / height,
+      imageWidth: width,
+      imageHeight: height,
+    };
+  };
+
+  const applyMonitorBoundsToTexture = (
+    texture,
+    bounds,
+    { insetPixels = 0, targetMesh = null, targetHeight = 1 } = {}
+  ) => {
+    if (!(texture instanceof THREE.Texture) || !bounds) {
+      return;
+    }
+
+    const { imageWidth, imageHeight } = bounds;
+    if (!imageWidth || !imageHeight) {
+      return;
+    }
+
+    const insetX = insetPixels > 0 ? insetPixels / imageWidth : 0;
+    const insetY = insetPixels > 0 ? insetPixels / imageHeight : 0;
+
+    const left = Math.min(1, Math.max(0, bounds.left + insetX));
+    const right = Math.min(1, Math.max(0, bounds.right + insetX));
+    const top = Math.min(1, Math.max(0, bounds.top + insetY));
+    const bottom = Math.min(1, Math.max(0, bounds.bottom + insetY));
+
+    const repeatX = Math.max(0, 1 - left - right);
+    const repeatY = Math.max(0, 1 - top - bottom);
+
+    if (repeatX <= 0 || repeatY <= 0) {
+      return;
+    }
+
+    texture.offset.set(left, bottom);
+    texture.repeat.set(repeatX, repeatY);
+    texture.needsUpdate = true;
+
+    if (targetMesh instanceof THREE.Mesh) {
+      const visiblePixelWidth = imageWidth * repeatX;
+      const visiblePixelHeight = imageHeight * repeatY;
+      if (visiblePixelWidth > 0 && visiblePixelHeight > 0 && targetHeight > 0) {
+        const aspect = visiblePixelWidth / visiblePixelHeight;
+        targetMesh.scale.x = targetHeight * aspect;
+        targetMesh.scale.y = targetHeight;
+      }
+    }
   };
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
@@ -177,8 +321,9 @@ export const initScene = (
       roughness: 0.35,
     });
 
-    const screenWidth = 0.88 * (1024 / 800);
     const screenHeight = 0.88;
+    const baseScreenAspect = 1024 / 800;
+    const screenWidth = screenHeight * baseScreenAspect;
     const bezelWidth = screenWidth + 0.08;
     const bezelHeight = screenHeight + 0.08;
     const bezelDepth = 0.04;
@@ -208,7 +353,19 @@ export const initScene = (
     monitorBezel.position.z = 0.14;
     monitorGroup.add(monitorBezel);
 
-    const screenTexture = loadClampedTexture("../images/index/monitor2.png");
+    let monitorScreenMesh = null;
+    const screenTexture = loadClampedTexture("../images/index/monitor2.png", {
+      onLoad(loadedTexture) {
+        const bounds = detectMonitorFrameBounds(loadedTexture.image);
+        if (bounds) {
+          applyMonitorBoundsToTexture(loadedTexture, bounds, {
+            insetPixels: 6,
+            targetMesh: monitorScreenMesh,
+            targetHeight: screenHeight,
+          });
+        }
+      },
+    });
     const monitorScreenMaterial = new THREE.MeshBasicMaterial({
       map: screenTexture,
       // Prevent tone mapping from dimming the UI colours rendered on the
@@ -217,15 +374,27 @@ export const initScene = (
     });
 
     const monitorScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(screenWidth, screenHeight),
+      new THREE.PlaneGeometry(1, 1),
       monitorScreenMaterial
     );
+    monitorScreen.scale.set(screenWidth, screenHeight, 1);
     monitorScreen.position.set(
       0,
       0.52,
       monitorHousing.position.z + housingDepth / 2 + 0.005
     );
     monitorScreen.renderOrder = 1;
+    monitorScreenMesh = monitorScreen;
+    if (screenTexture.image instanceof HTMLImageElement && screenTexture.image.complete) {
+      const bounds = detectMonitorFrameBounds(screenTexture.image);
+      if (bounds) {
+        applyMonitorBoundsToTexture(screenTexture, bounds, {
+          insetPixels: 6,
+          targetMesh: monitorScreenMesh,
+          targetHeight: screenHeight,
+        });
+      }
+    }
     monitorGroup.add(monitorScreen);
 
     const monitorStandColumn = new THREE.Mesh(
