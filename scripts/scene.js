@@ -155,6 +155,7 @@ export const initScene = (
       monitorMaterial
     );
     monitorHousing.position.y = 0.52;
+    monitorHousing.position.z = 0.12;
     monitorGroup.add(monitorHousing);
 
     const monitorBezel = new THREE.Mesh(
@@ -166,7 +167,7 @@ export const initScene = (
       })
     );
     monitorBezel.position.y = 0.52;
-    monitorBezel.position.z = 0.02;
+    monitorBezel.position.z = 0.14;
     monitorGroup.add(monitorBezel);
 
     const screenTexture = loadClampedTexture("../images/index/monitor2.png");
@@ -174,7 +175,7 @@ export const initScene = (
       new THREE.PlaneGeometry(1.25, 0.72),
       new THREE.MeshBasicMaterial({ map: screenTexture, transparent: true })
     );
-    monitorScreen.position.set(0, 0.52, 0.065);
+    monitorScreen.position.set(0, 0.52, 0.185);
     monitorGroup.add(monitorScreen);
 
     const monitorStandColumn = new THREE.Mesh(
@@ -185,25 +186,25 @@ export const initScene = (
         roughness: 0.35,
       })
     );
-    monitorStandColumn.position.set(0, 0.25, 0.03);
+    monitorStandColumn.position.set(0, 0.25, 0);
     monitorGroup.add(monitorStandColumn);
 
     const monitorStandNeck = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, 0.1, 0.26),
+      new THREE.BoxGeometry(0.22, 0.1, 0.32),
       monitorMaterial
     );
-    monitorStandNeck.position.set(0, 0.44, 0.04);
+    monitorStandNeck.position.set(0, 0.44, 0.08);
     monitorGroup.add(monitorStandNeck);
 
     const monitorBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.45, 0.55, 0.05, 32),
+      new THREE.CylinderGeometry(0.15, 0.18, 0.02, 32),
       new THREE.MeshStandardMaterial({
         color: 0x0f172a,
         metalness: 0.35,
         roughness: 0.4,
       })
     );
-    monitorBase.position.set(0, 0.05, 0.03);
+    monitorBase.position.set(0, 0.01, 0);
     monitorGroup.add(monitorBase);
 
     const monitorPowerButton = new THREE.Mesh(
