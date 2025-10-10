@@ -253,19 +253,24 @@ export const initScene = (
     mousePad.position.set(0.9, deskHeight + deskTopThickness + 0.035, 0.28);
     group.add(mousePad);
 
+    const towerWidth = 0.5;
+    const towerHeight = 0.82;
+    const towerDepth = 0.56;
     const tower = new THREE.Mesh(
-      new THREE.BoxGeometry(0.55, 0.92, 0.6),
+      new THREE.BoxGeometry(towerWidth, towerHeight, towerDepth),
       new THREE.MeshStandardMaterial({
         color: 0x0b1120,
         roughness: 0.5,
         metalness: 0.25,
       })
     );
-    tower.position.set(-deskWidth / 2 + 0.45, 0.46, 0.18);
+    const towerX = -deskWidth / 2 + 0.45;
+    const towerZ = 0.18;
+    tower.position.set(towerX, towerHeight / 2, towerZ);
     group.add(tower);
 
     const frontPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.48, 0.72),
+      new THREE.PlaneGeometry(towerWidth - 0.08, towerHeight - 0.18),
       new THREE.MeshStandardMaterial({
         color: 0x1f2937,
         emissive: new THREE.Color(0x1f2937),
@@ -274,10 +279,10 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    frontPanel.position.set(tower.position.x + 0.02, 0.52, 0.48);
+    frontPanel.position.set(towerX + 0.02, tower.position.y + 0.06, towerZ + 0.3);
     group.add(frontPanel);
 
-    const ventGeometry = new THREE.BoxGeometry(0.42, 0.02, 0.02);
+    const ventGeometry = new THREE.BoxGeometry(towerWidth - 0.12, 0.02, 0.02);
     const ventMaterial = new THREE.MeshStandardMaterial({
       color: 0x111827,
       roughness: 0.5,
@@ -286,7 +291,7 @@ export const initScene = (
 
     for (let i = 0; i < 5; i += 1) {
       const vent = new THREE.Mesh(ventGeometry, ventMaterial);
-      vent.position.set(tower.position.x + 0.02, 0.22 + i * 0.085, 0.52);
+      vent.position.set(towerX + 0.02, 0.16 + i * 0.075, towerZ + 0.34);
       group.add(vent);
     }
 
@@ -294,7 +299,7 @@ export const initScene = (
       new THREE.CircleGeometry(0.035, 24),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
     );
-    powerLight.position.set(tower.position.x + 0.18, 0.68, 0.56);
+    powerLight.position.set(towerX + 0.16, tower.position.y + 0.22, towerZ + 0.38);
     group.add(powerLight);
 
     const leftSpeaker = new THREE.Mesh(
