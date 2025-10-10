@@ -34,8 +34,15 @@ export const initScene = (
     return texture;
   };
 
-  const loadClampedTexture = (path) => {
-    const texture = textureLoader.load(new URL(path, import.meta.url).href);
+  const loadClampedTexture = (path, onLoad) => {
+    const texture = textureLoader.load(
+      new URL(path, import.meta.url).href,
+      (loadedTexture) => {
+        if (typeof onLoad === "function") {
+          onLoad(loadedTexture);
+        }
+      }
+    );
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -151,8 +158,8 @@ export const initScene = (
     });
 
     const screenSize = 0.98;
-    const screenWidth = screenSize;
     const screenHeight = screenSize;
+    const screenWidth = screenSize;
     const bezelPadding = 0.02;
     const bezelWidth = screenWidth + bezelPadding * 2;
     const bezelHeight = screenHeight + bezelPadding * 2;
@@ -181,7 +188,23 @@ export const initScene = (
     monitorBezel.position.z = 0.14;
     monitorGroup.add(monitorBezel);
 
-    const screenTexture = loadClampedTexture("../images/index/monitor2.png");
+    let pendingScreenAspectRatio;
+    let applyMonitorAspectRatio;
+
+    const screenTexture = loadClampedTexture(
+      "../images/index/monitor2.png",
+      (loadedTexture) => {
+        const { image } = loadedTexture;
+        if (image && image.width && image.height) {
+          const aspectRatio = image.width / image.height;
+          if (typeof applyMonitorAspectRatio === "function") {
+            applyMonitorAspectRatio(aspectRatio);
+          } else {
+            pendingScreenAspectRatio = aspectRatio;
+          }
+        }
+      }
+    );
     const monitorScreenMaterial = new THREE.MeshBasicMaterial({
       map: screenTexture,
       // Prevent tone mapping from dimming the UI colours rendered on the
@@ -200,6 +223,27 @@ export const initScene = (
     );
     monitorScreen.renderOrder = 1;
     monitorGroup.add(monitorScreen);
+
+    const originalScreenWidth = screenWidth;
+    const originalBezelWidth = bezelWidth;
+    const originalHousingWidth = housingWidth;
+    const powerButtonEdgeOffset = 0.22;
+
+    const updateMonitorLayout = (aspectRatio) => {
+      if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+        return;
+      }
+
+      const adjustedScreenWidth = screenHeight * aspectRatio;
+      const adjustedBezelWidth = adjustedScreenWidth + bezelPadding * 2;
+      const adjustedHousingWidth = adjustedBezelWidth + housingBorder * 2;
+
+      monitorScreen.scale.x = adjustedScreenWidth / originalScreenWidth;
+      monitorBezel.scale.x = adjustedBezelWidth / originalBezelWidth;
+      monitorHousing.scale.x = adjustedHousingWidth / originalHousingWidth;
+      monitorPowerButton.position.x =
+        adjustedHousingWidth / 2 - powerButtonEdgeOffset;
+    };
 
     const monitorStandColumn = new THREE.Mesh(
       new THREE.CylinderGeometry(0.07, 0.09, 0.45, 24),
@@ -234,8 +278,27 @@ export const initScene = (
       new THREE.CircleGeometry(0.04, 24),
       new THREE.MeshBasicMaterial({ color: 0x22d3ee })
     );
-    monitorPowerButton.position.set(housingWidth / 2 - 0.22, 0.16, monitorHousing.position.z + housingDepth / 2 - 0.02);
+    monitorPowerButton.position.set(
+      housingWidth / 2 - powerButtonEdgeOffset,
+      0.16,
+      monitorHousing.position.z + housingDepth / 2 - 0.02
+    );
     monitorGroup.add(monitorPowerButton);
+
+    applyMonitorAspectRatio = updateMonitorLayout;
+
+    if (
+      screenTexture.image &&
+      screenTexture.image.width &&
+      screenTexture.image.height
+    ) {
+      applyMonitorAspectRatio(
+        screenTexture.image.width / screenTexture.image.height
+      );
+    } else if (pendingScreenAspectRatio) {
+      applyMonitorAspectRatio(pendingScreenAspectRatio);
+      pendingScreenAspectRatio = undefined;
+    }
 
     group.add(monitorGroup);
 
