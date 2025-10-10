@@ -209,9 +209,18 @@ export const initScene = (
     monitorGroup.add(monitorBezel);
 
     const screenTexture = loadClampedTexture("../images/index/monitor2.png");
+    const monitorScreenMaterial = new THREE.MeshBasicMaterial({
+      map: screenTexture,
+      // The monitor texture relies on semi-transparent pixels for subtle glow
+      // effects, but blending it with the dark housing made the screen appear
+      // almost invisible. Rendering it as an opaque surface keeps the intended
+      // colors visible inside the 3D scene.
+      transparent: false,
+    });
+
     const monitorScreen = new THREE.Mesh(
       new THREE.PlaneGeometry(screenWidth, screenHeight),
-      new THREE.MeshBasicMaterial({ map: screenTexture, transparent: true })
+      monitorScreenMaterial
     );
     monitorScreen.position.set(0, 0.52, monitorBezel.position.z + bezelDepth / 2 + 0.005);
     monitorGroup.add(monitorScreen);
