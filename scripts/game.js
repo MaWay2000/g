@@ -3,54 +3,13 @@ import { initScene } from "./scene.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
-const rulesList = document.querySelector("[data-rules-list]");
-const rulesConfigElement = document.getElementById("gameRulesConfig");
 const logoutButton = document.querySelector("[data-logout-button]");
 const errorMessage = document.getElementById("logoutError");
-
-const populateRulesList = () => {
-  if (!(rulesList instanceof HTMLOListElement)) {
-    return;
-  }
-
-  const listItems = rulesList.querySelectorAll("li");
-  if (listItems.length > 1) {
-    return;
-  }
-
-  let rules = [];
-
-  if (rulesConfigElement instanceof HTMLScriptElement) {
-    try {
-      const parsedConfig = JSON.parse(rulesConfigElement.textContent || "{}");
-      if (Array.isArray(parsedConfig?.rules)) {
-        rules = parsedConfig.rules
-          .map((rule) => (typeof rule === "string" ? rule.trim() : ""))
-          .filter(Boolean);
-      }
-    } catch (error) {
-      console.error("Failed to parse game rules config", error);
-    }
-  }
-
-  if (!rules.length) {
-    return;
-  }
-
-  rulesList.textContent = "";
-  rules.forEach((rule) => {
-    const item = document.createElement("li");
-    item.textContent = rule;
-    rulesList.append(item);
-  });
-};
 
 const bootstrapScene = () => {
   if (!(canvas instanceof HTMLCanvasElement)) {
     return;
   }
-
-  populateRulesList();
 
   initScene(canvas, {
     onControlsLocked() {
