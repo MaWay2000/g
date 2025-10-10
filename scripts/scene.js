@@ -517,45 +517,6 @@ export const initScene = (
         cursorY += 74;
       }
 
-      context.fillStyle = "#38bdf8";
-      context.font = "600 56px 'Segoe UI', 'Inter', sans-serif";
-      context.fillText("Rule Reminder", marginX, cursorY);
-      cursorY += 82;
-
-      context.fillStyle = "#f8fafc";
-      context.font = "400 48px 'Segoe UI', 'Inter', sans-serif";
-      const maxWidth = canvas.width - marginX * 2;
-      const drawParagraph = (text, startY, lineHeight) => {
-        let line = "";
-        let paragraphY = startY;
-        const words = text.split(/\s+/u);
-
-        words.forEach((word) => {
-          const testLine = line ? `${line} ${word}` : word;
-          const { width } = context.measureText(testLine);
-          if (width > maxWidth && line) {
-            context.fillText(line, marginX, paragraphY);
-            line = word;
-            paragraphY += lineHeight;
-          } else {
-            line = testLine;
-          }
-        });
-
-        if (line) {
-          context.fillText(line, marginX, paragraphY);
-          paragraphY += lineHeight;
-        }
-
-        return paragraphY;
-      };
-
-      cursorY = drawParagraph(
-        "Keep this wall display accurate by updating it after every deployment or content change.",
-        cursorY,
-        64
-      );
-
       texture.needsUpdate = true;
     };
 
