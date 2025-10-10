@@ -208,7 +208,7 @@ export const initScene = (
     monitorBezel.position.z = 0.14;
     monitorGroup.add(monitorBezel);
 
-    const screenTexture = loadClampedTexture("../images/index/monitor2.png");
+    const screenTexture = loadClampedTexture("../images/index/monitor.png");
     const monitorScreenMaterial = new THREE.MeshBasicMaterial({
       map: screenTexture,
       // The monitor texture relies on semi-transparent pixels for subtle glow
