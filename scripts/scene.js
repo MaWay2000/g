@@ -325,6 +325,8 @@ export const initScene = (
     speakerGrillRight.position.x = 1.1;
     group.add(speakerGrillRight);
 
+    group.scale.setScalar(2.5);
+
     return group;
   };
 
