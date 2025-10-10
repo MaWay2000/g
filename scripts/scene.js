@@ -422,9 +422,160 @@ export const initScene = (
     return group;
   };
 
+  const createLastUpdatedDisplay = () => {
+    const displayGroup = new THREE.Group();
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 512;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return displayGroup;
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+
+    const signAspect = canvas.width / canvas.height;
+    const signHeight = 2.6;
+    const signWidth = signHeight * signAspect;
+
+    const signMaterial = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      side: THREE.DoubleSide,
+    });
+
+    const signMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(signWidth, signHeight),
+      signMaterial
+    );
+    signMesh.renderOrder = 2;
+    displayGroup.add(signMesh);
+
+    const updateTexture = () => {
+      const marginX = 80;
+      const marginY = 70;
+      const frameInset = 36;
+
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+      gradient.addColorStop(0, "rgba(15, 23, 42, 0.94)");
+      gradient.addColorStop(1, "rgba(30, 41, 59, 0.92)");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      context.strokeStyle = "rgba(56, 189, 248, 0.55)";
+      context.lineWidth = 12;
+      context.strokeRect(
+        frameInset,
+        frameInset,
+        canvas.width - frameInset * 2,
+        canvas.height - frameInset * 2
+      );
+
+      context.textBaseline = "top";
+
+      const rawLastModified = document.lastModified;
+      const parsedTimestamp = new Date(rawLastModified);
+      const lastModifiedDate = Number.isNaN(parsedTimestamp.getTime())
+        ? new Date()
+        : parsedTimestamp;
+
+      const dateFormatter = new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      const formattedDate = dateFormatter.format(lastModifiedDate);
+
+      const timeZonePart = new Intl.DateTimeFormat(undefined, {
+        timeZoneName: "short",
+      })
+        .formatToParts(lastModifiedDate)
+        .find((part) => part.type === "timeZoneName")?.value;
+
+      let cursorY = marginY;
+
+      context.fillStyle = "#38bdf8";
+      context.font = "700 86px 'Segoe UI', 'Inter', sans-serif";
+      context.fillText("Last Update Log", marginX, cursorY);
+      cursorY += 118;
+
+      context.fillStyle = "#e2e8f0";
+      context.font = "600 72px 'Segoe UI', 'Inter', sans-serif";
+      context.fillText(formattedDate, marginX, cursorY);
+      cursorY += 96;
+
+      if (timeZonePart) {
+        context.fillStyle = "rgba(148, 163, 184, 0.85)";
+        context.font = "500 50px 'Segoe UI', 'Inter', sans-serif";
+        context.fillText(`Timezone: ${timeZonePart}`, marginX, cursorY);
+        cursorY += 74;
+      }
+
+      context.fillStyle = "#38bdf8";
+      context.font = "600 56px 'Segoe UI', 'Inter', sans-serif";
+      context.fillText("Rule Reminder", marginX, cursorY);
+      cursorY += 82;
+
+      context.fillStyle = "#f8fafc";
+      context.font = "400 48px 'Segoe UI', 'Inter', sans-serif";
+      const maxWidth = canvas.width - marginX * 2;
+      const drawParagraph = (text, startY, lineHeight) => {
+        let line = "";
+        let paragraphY = startY;
+        const words = text.split(/\s+/u);
+
+        words.forEach((word) => {
+          const testLine = line ? `${line} ${word}` : word;
+          const { width } = context.measureText(testLine);
+          if (width > maxWidth && line) {
+            context.fillText(line, marginX, paragraphY);
+            line = word;
+            paragraphY += lineHeight;
+          } else {
+            line = testLine;
+          }
+        });
+
+        if (line) {
+          context.fillText(line, marginX, paragraphY);
+          paragraphY += lineHeight;
+        }
+
+        return paragraphY;
+      };
+
+      cursorY = drawParagraph(
+        "Keep this wall display accurate by updating it after every deployment or content change.",
+        cursorY,
+        64
+      );
+
+      texture.needsUpdate = true;
+    };
+
+    updateTexture();
+
+    const intervalId = window.setInterval(updateTexture, 60_000);
+    displayGroup.userData.dispose = () => {
+      window.clearInterval(intervalId);
+    };
+
+    return displayGroup;
+  };
+
   const computerSetup = createComputerSetup();
   computerSetup.position.set(3, -roomHeight / 2, -6);
   scene.add(computerSetup);
+
+  const lastUpdatedDisplay = createLastUpdatedDisplay();
+  lastUpdatedDisplay.position.set(3.2, 3.2, -roomDepth / 2 + 0.12);
+  scene.add(lastUpdatedDisplay);
 
   const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
     const vertices = [];
@@ -636,6 +787,9 @@ export const initScene = (
       canvas.removeEventListener("pointerdown", attemptPointerLock);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
+      if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
+        lastUpdatedDisplay.userData.dispose();
+      }
     },
   };
 };
