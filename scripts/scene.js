@@ -106,6 +106,33 @@ export const initScene = (
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   scene.add(roomMesh);
 
+  const createCutCornerGeometry = (width, height, depth, cornerSize) => {
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const cut = Math.min(cornerSize, halfWidth, halfHeight);
+
+    const shape = new THREE.Shape();
+    shape.moveTo(-halfWidth + cut, -halfHeight);
+    shape.lineTo(halfWidth - cut, -halfHeight);
+    shape.lineTo(halfWidth, -halfHeight + cut);
+    shape.lineTo(halfWidth, halfHeight - cut);
+    shape.lineTo(halfWidth - cut, halfHeight);
+    shape.lineTo(-halfWidth + cut, halfHeight);
+    shape.lineTo(-halfWidth, halfHeight - cut);
+    shape.lineTo(-halfWidth, -halfHeight + cut);
+    shape.closePath();
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth,
+      bevelEnabled: false,
+    });
+
+    geometry.translate(0, 0, -depth / 2);
+    geometry.computeVertexNormals();
+
+    return geometry;
+  };
+
   const createComputerSetup = () => {
     const group = new THREE.Group();
 
@@ -150,8 +177,19 @@ export const initScene = (
       roughness: 0.35,
     });
 
+    const screenWidth = 0.88 * (1024 / 800);
+    const screenHeight = 0.88;
+    const bezelWidth = screenWidth + 0.08;
+    const bezelHeight = screenHeight + 0.08;
+    const bezelDepth = 0.04;
+    const housingWidth = bezelWidth + 0.12;
+    const housingHeight = bezelHeight + 0.12;
+    const housingDepth = 0.12;
+    const housingCornerSize = 0.16;
+    const bezelCornerSize = 0.12;
+
     const monitorHousing = new THREE.Mesh(
-      new THREE.BoxGeometry(1.45, 0.9, 0.1),
+      createCutCornerGeometry(housingWidth, housingHeight, housingDepth, housingCornerSize),
       monitorMaterial
     );
     monitorHousing.position.y = 0.52;
@@ -159,7 +197,7 @@ export const initScene = (
     monitorGroup.add(monitorHousing);
 
     const monitorBezel = new THREE.Mesh(
-      new THREE.BoxGeometry(1.47, 0.92, 0.03),
+      createCutCornerGeometry(bezelWidth, bezelHeight, bezelDepth, bezelCornerSize),
       new THREE.MeshStandardMaterial({
         color: 0x111c2b,
         metalness: 0.25,
@@ -172,10 +210,10 @@ export const initScene = (
 
     const screenTexture = loadClampedTexture("../images/index/monitor2.png");
     const monitorScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.44, 0.88),
+      new THREE.PlaneGeometry(screenWidth, screenHeight),
       new THREE.MeshBasicMaterial({ map: screenTexture, transparent: true })
     );
-    monitorScreen.position.set(0, 0.52, 0.185);
+    monitorScreen.position.set(0, 0.52, monitorBezel.position.z + bezelDepth / 2 + 0.005);
     monitorGroup.add(monitorScreen);
 
     const monitorStandColumn = new THREE.Mesh(
@@ -211,7 +249,7 @@ export const initScene = (
       new THREE.CircleGeometry(0.04, 24),
       new THREE.MeshBasicMaterial({ color: 0x22d3ee })
     );
-    monitorPowerButton.position.set(0.62, 0.16, 0.08);
+    monitorPowerButton.position.set(housingWidth / 2 - 0.22, 0.16, monitorHousing.position.z + housingDepth / 2 - 0.02);
     monitorGroup.add(monitorPowerButton);
 
     group.add(monitorGroup);
