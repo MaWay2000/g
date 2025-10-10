@@ -191,9 +191,51 @@ export const initScene = (
     let pendingScreenAspectRatio;
     let applyMonitorAspectRatio;
 
+    const ensureOpaqueTexture = (texture, fillStyle = "#0f172a") => {
+      const { image } = texture;
+      if (!image || texture.userData?.hasOpaqueBackground) {
+        return;
+      }
+
+      const width =
+        image.width ||
+        image.naturalWidth ||
+        image.videoWidth ||
+        (typeof image.getWidth === "function" ? image.getWidth() : 0);
+      const height =
+        image.height ||
+        image.naturalHeight ||
+        image.videoHeight ||
+        (typeof image.getHeight === "function" ? image.getHeight() : 0);
+
+      if (!width || !height) {
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return;
+      }
+
+      context.fillStyle = fillStyle;
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+
+      texture.image = canvas;
+      texture.needsUpdate = true;
+      texture.userData = {
+        ...texture.userData,
+        hasOpaqueBackground: true,
+      };
+    };
+
     const screenTexture = loadClampedTexture(
       "../images/index/monitor2.png",
       (loadedTexture) => {
+        ensureOpaqueTexture(loadedTexture);
         const { image } = loadedTexture;
         if (image && image.width && image.height) {
           const aspectRatio = image.width / image.height;
@@ -292,6 +334,7 @@ export const initScene = (
       screenTexture.image.width &&
       screenTexture.image.height
     ) {
+      ensureOpaqueTexture(screenTexture);
       applyMonitorAspectRatio(
         screenTexture.image.width / screenTexture.image.height
       );
