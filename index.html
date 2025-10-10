@@ -1487,8 +1487,9 @@
     <noscript>This page requires JavaScript to choose a random wallpaper.</noscript>
 
     <script>
-      (function () {
-        const imageDirectory = "images/wallpapers/";
+      (() => {
+        const bootstrap = () => {
+          const imageDirectory = "images/wallpapers/";
         const frameElement = document.getElementById("wallpaperFrame");
         const imageElement = document.getElementById("wallpaperImage");
         const supportedExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
@@ -2002,7 +2003,7 @@
           showNextWallpaper();
         };
 
-        const initialise = async () => {
+        const initialiseWallpapers = async () => {
           try {
             const wallpaperFiles = dedupe(await fetchWallpaperFiles());
             startSlideshow(wallpaperFiles);
@@ -2012,7 +2013,7 @@
           }
         };
 
-        initialise();
+        initialiseWallpapers();
 
         const monitorStationElement = document.querySelector(".monitor-station");
         const monitorDecorationImage = monitorStationElement?.querySelector(
@@ -2774,6 +2775,14 @@
               goToIndex(activeIndex - 1);
             }
           });
+        }
+        };
+        const runBootstrap = () => window.requestAnimationFrame(bootstrap);
+
+        if (document.readyState === "complete") {
+          runBootstrap();
+        } else {
+          window.addEventListener("load", runBootstrap, { once: true });
         }
       })();
     </script>
