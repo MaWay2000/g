@@ -190,10 +190,10 @@ export const initScene = (
     monitorGroup.add(monitorStandColumn);
 
     const monitorStandNeck = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, 0.1, 0.32),
+      new THREE.BoxGeometry(0.22, 0.1, 0.18),
       monitorMaterial
     );
-    monitorStandNeck.position.set(0, 0.44, 0.08);
+    monitorStandNeck.position.set(0, 0.44, 0.09);
     monitorGroup.add(monitorStandNeck);
 
     const monitorBase = new THREE.Mesh(
