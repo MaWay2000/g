@@ -109,10 +109,10 @@ export const initScene = (
   const createComputerSetup = () => {
     const group = new THREE.Group();
 
-    const deskHeight = 0.75;
+    const deskHeight = 0.78;
     const deskTopThickness = 0.08;
-    const deskWidth = 2.8;
-    const deskDepth = 1.2;
+    const deskWidth = 3.2;
+    const deskDepth = 1.4;
 
     const deskMaterial = new THREE.MeshStandardMaterial({
       color: 0x1f2937,
@@ -127,12 +127,12 @@ export const initScene = (
     deskTop.position.set(0, deskHeight + deskTopThickness / 2, 0);
     group.add(deskTop);
 
-    const legGeometry = new THREE.BoxGeometry(0.12, deskHeight, 0.12);
+    const legGeometry = new THREE.BoxGeometry(0.14, deskHeight, 0.14);
     const legPositions = [
-      [-deskWidth / 2 + 0.2, deskHeight / 2, -deskDepth / 2 + 0.2],
-      [deskWidth / 2 - 0.2, deskHeight / 2, -deskDepth / 2 + 0.2],
-      [-deskWidth / 2 + 0.2, deskHeight / 2, deskDepth / 2 - 0.2],
-      [deskWidth / 2 - 0.2, deskHeight / 2, deskDepth / 2 - 0.2],
+      [-deskWidth / 2 + 0.22, deskHeight / 2, -deskDepth / 2 + 0.22],
+      [deskWidth / 2 - 0.22, deskHeight / 2, -deskDepth / 2 + 0.22],
+      [-deskWidth / 2 + 0.22, deskHeight / 2, deskDepth / 2 - 0.22],
+      [deskWidth / 2 - 0.22, deskHeight / 2, deskDepth / 2 - 0.22],
     ];
 
     legPositions.forEach(([x, y, z]) => {
@@ -142,7 +142,7 @@ export const initScene = (
     });
 
     const monitorGroup = new THREE.Group();
-    monitorGroup.position.set(0, deskHeight + deskTopThickness, -0.1);
+    monitorGroup.position.set(0.08, deskHeight + deskTopThickness + 0.02, -0.12);
 
     const monitorMaterial = new THREE.MeshStandardMaterial({
       color: 0x0f172a,
@@ -150,69 +150,121 @@ export const initScene = (
       roughness: 0.35,
     });
 
-    const monitorBack = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.75, 0.08),
+    const monitorHousing = new THREE.Mesh(
+      new THREE.BoxGeometry(1.45, 0.9, 0.1),
       monitorMaterial
     );
-    monitorBack.position.y = 0.45;
-    monitorGroup.add(monitorBack);
+    monitorHousing.position.y = 0.52;
+    monitorGroup.add(monitorHousing);
+
+    const monitorBezel = new THREE.Mesh(
+      new THREE.BoxGeometry(1.47, 0.92, 0.03),
+      new THREE.MeshStandardMaterial({
+        color: 0x111c2b,
+        metalness: 0.25,
+        roughness: 0.45,
+      })
+    );
+    monitorBezel.position.y = 0.52;
+    monitorBezel.position.z = 0.02;
+    monitorGroup.add(monitorBezel);
 
     const screenTexture = loadClampedTexture("../images/index/monitor2.png");
     const monitorScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.05, 0.6),
+      new THREE.PlaneGeometry(1.25, 0.72),
       new THREE.MeshBasicMaterial({ map: screenTexture, transparent: true })
     );
-    monitorScreen.position.set(0, 0.45, 0.045);
+    monitorScreen.position.set(0, 0.52, 0.065);
     monitorGroup.add(monitorScreen);
 
-    const monitorStand = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.4, 0.12),
+    const monitorStandColumn = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07, 0.09, 0.45, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0x1f2937,
+        metalness: 0.4,
+        roughness: 0.35,
+      })
+    );
+    monitorStandColumn.position.set(0, 0.25, 0.03);
+    monitorGroup.add(monitorStandColumn);
+
+    const monitorStandNeck = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.1, 0.26),
       monitorMaterial
     );
-    monitorStand.position.set(0, 0.2, 0.01);
-    monitorGroup.add(monitorStand);
+    monitorStandNeck.position.set(0, 0.44, 0.04);
+    monitorGroup.add(monitorStandNeck);
 
     const monitorBase = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, 0.05, 0.4),
-      monitorMaterial
+      new THREE.CylinderGeometry(0.45, 0.55, 0.05, 32),
+      new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        metalness: 0.35,
+        roughness: 0.4,
+      })
     );
-    monitorBase.position.set(0, 0.025, 0.05);
+    monitorBase.position.set(0, 0.05, 0.03);
     monitorGroup.add(monitorBase);
+
+    const monitorPowerButton = new THREE.Mesh(
+      new THREE.CircleGeometry(0.04, 24),
+      new THREE.MeshBasicMaterial({ color: 0x22d3ee })
+    );
+    monitorPowerButton.position.set(0.62, 0.16, 0.08);
+    monitorGroup.add(monitorPowerButton);
 
     group.add(monitorGroup);
 
     const keyboard = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 0.05, 0.35),
+      new THREE.BoxGeometry(1.25, 0.05, 0.4),
       new THREE.MeshStandardMaterial({
         color: 0x111827,
         metalness: 0.2,
         roughness: 0.6,
       })
     );
-    keyboard.position.set(0, deskHeight + deskTopThickness + 0.03, 0.2);
+    keyboard.position.set(-0.08, deskHeight + deskTopThickness + 0.04, 0.28);
     group.add(keyboard);
 
+    const keyboardFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(1.27, 0.02, 0.42),
+      new THREE.MeshStandardMaterial({
+        color: 0x0b1220,
+        roughness: 0.5,
+        metalness: 0.25,
+      })
+    );
+    keyboardFrame.position.set(-0.08, deskHeight + deskTopThickness + 0.05, 0.28);
+    group.add(keyboardFrame);
+
     const mouse = new THREE.Mesh(
-      new THREE.BoxGeometry(0.15, 0.05, 0.25),
+      new THREE.BoxGeometry(0.18, 0.06, 0.3),
       new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 })
     );
-    mouse.position.set(0.8, deskHeight + deskTopThickness + 0.025, 0.25);
-    mouse.rotation.y = Math.PI / 10;
+    mouse.position.set(0.95, deskHeight + deskTopThickness + 0.05, 0.3);
+    mouse.rotation.y = Math.PI / 8;
     group.add(mouse);
 
+    const mousePad = new THREE.Mesh(
+      new THREE.BoxGeometry(0.32, 0.01, 0.38),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.75 })
+    );
+    mousePad.position.set(0.9, deskHeight + deskTopThickness + 0.035, 0.28);
+    group.add(mousePad);
+
     const tower = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45, 0.8, 0.55),
+      new THREE.BoxGeometry(0.55, 0.92, 0.6),
       new THREE.MeshStandardMaterial({
         color: 0x0b1120,
         roughness: 0.5,
         metalness: 0.25,
       })
     );
-    tower.position.set(-deskWidth / 2 + 0.4, 0.4, 0.15);
+    tower.position.set(-deskWidth / 2 + 0.45, 0.46, 0.18);
     group.add(tower);
 
     const frontPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.38, 0.6),
+      new THREE.PlaneGeometry(0.48, 0.72),
       new THREE.MeshStandardMaterial({
         color: 0x1f2937,
         emissive: new THREE.Color(0x1f2937),
@@ -221,19 +273,19 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    frontPanel.position.set(tower.position.x, 0.45, 0.4);
+    frontPanel.position.set(tower.position.x + 0.02, 0.52, 0.48);
     group.add(frontPanel);
 
-    const ventGeometry = new THREE.BoxGeometry(0.34, 0.02, 0.02);
+    const ventGeometry = new THREE.BoxGeometry(0.42, 0.02, 0.02);
     const ventMaterial = new THREE.MeshStandardMaterial({
       color: 0x111827,
       roughness: 0.5,
       metalness: 0.2,
     });
 
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 5; i += 1) {
       const vent = new THREE.Mesh(ventGeometry, ventMaterial);
-      vent.position.set(tower.position.x, 0.2 + i * 0.08, 0.44);
+      vent.position.set(tower.position.x + 0.02, 0.22 + i * 0.085, 0.52);
       group.add(vent);
     }
 
@@ -241,8 +293,37 @@ export const initScene = (
       new THREE.CircleGeometry(0.035, 24),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
     );
-    powerLight.position.set(tower.position.x + 0.12, 0.58, 0.48);
+    powerLight.position.set(tower.position.x + 0.18, 0.68, 0.56);
     group.add(powerLight);
+
+    const leftSpeaker = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.14, 0.36, 32),
+      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 })
+    );
+    leftSpeaker.rotation.x = Math.PI / 2;
+    leftSpeaker.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.28);
+    group.add(leftSpeaker);
+
+    const rightSpeaker = leftSpeaker.clone();
+    rightSpeaker.position.x = 1.1;
+    group.add(rightSpeaker);
+
+    const speakerGrillMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.6,
+      metalness: 0.15,
+    });
+
+    const speakerGrill = new THREE.Mesh(
+      new THREE.CircleGeometry(0.12, 24),
+      speakerGrillMaterial
+    );
+    speakerGrill.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.1);
+    group.add(speakerGrill);
+
+    const speakerGrillRight = speakerGrill.clone();
+    speakerGrillRight.position.x = 1.1;
+    group.add(speakerGrillRight);
 
     return group;
   };
