@@ -177,13 +177,16 @@ export const initScene = (
       roughness: 0.35,
     });
 
-    const screenWidth = 0.88 * (1024 / 800);
-    const screenHeight = 0.88;
-    const bezelWidth = screenWidth + 0.08;
-    const bezelHeight = screenHeight + 0.08;
+    const screenSize = 0.98;
+    const screenWidth = screenSize;
+    const screenHeight = screenSize;
+    const bezelPadding = 0.02;
+    const bezelWidth = screenWidth + bezelPadding * 2;
+    const bezelHeight = screenHeight + bezelPadding * 2;
     const bezelDepth = 0.04;
-    const housingWidth = bezelWidth + 0.12;
-    const housingHeight = bezelHeight + 0.12;
+    const housingBorder = 0.05;
+    const housingWidth = bezelWidth + housingBorder * 2;
+    const housingHeight = bezelHeight + housingBorder * 2;
     const housingDepth = 0.12;
     const housingCornerSize = 0.16;
     const bezelCornerSize = 0.12;
@@ -217,7 +220,7 @@ export const initScene = (
     });
 
     const monitorScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(screenWidth, screenHeight),
+      new THREE.PlaneGeometry(housingWidth, housingHeight),
       monitorScreenMaterial
     );
     monitorScreen.position.set(
