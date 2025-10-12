@@ -29,16 +29,6 @@ export const initScene = (
 
   const textureLoader = new THREE.TextureLoader();
 
-  const loadTexture = (path, repeatX = 1, repeatY = 1) => {
-    const texture = textureLoader.load(new URL(path, import.meta.url).href);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(repeatX, repeatY);
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    return texture;
-  };
-
   const createQuickAccessFallbackTexture = () => {
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
@@ -128,53 +118,205 @@ export const initScene = (
   const roomHeight = 10;
   const roomDepth = 20;
 
-  const wallTexture = loadTexture("../images/wallpapers/4.png", 2, 1);
-  const oppositeWallTexture = loadTexture("../images/wallpapers/5.png", 2, 1);
-  const floorTexture = loadTexture("../images/wallpapers/6.png", 4, 4);
-  const ceilingTexture = loadTexture("../images/wallpapers/7.png", 2, 2);
+  const createWallMaterial = (hexColor) =>
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(hexColor),
+      side: THREE.BackSide,
+      roughness: 0.72,
+      metalness: 0.12,
+      emissive: new THREE.Color(0x0b1414),
+      emissiveIntensity: 0.25,
+    });
+
+  const ceilingMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x314140),
+    side: THREE.BackSide,
+    roughness: 0.82,
+    metalness: 0.08,
+  });
+
+  const floorMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x161f1f),
+    side: THREE.BackSide,
+    roughness: 0.92,
+    metalness: 0.06,
+  });
 
   const roomMaterials = [
-    new THREE.MeshStandardMaterial({
-      map: wallTexture,
-      side: THREE.BackSide,
-      roughness: 0.6,
-      metalness: 0.1,
-    }),
-    new THREE.MeshStandardMaterial({
-      map: oppositeWallTexture,
-      side: THREE.BackSide,
-      roughness: 0.65,
-      metalness: 0.15,
-    }),
-    new THREE.MeshStandardMaterial({
-      map: ceilingTexture,
-      side: THREE.BackSide,
-      roughness: 0.8,
-      metalness: 0.05,
-    }),
-    new THREE.MeshStandardMaterial({
-      map: floorTexture,
-      side: THREE.BackSide,
-      roughness: 0.9,
-      metalness: 0.1,
-    }),
-    new THREE.MeshStandardMaterial({
-      map: wallTexture,
-      side: THREE.BackSide,
-      roughness: 0.6,
-      metalness: 0.1,
-    }),
-    new THREE.MeshStandardMaterial({
-      map: oppositeWallTexture,
-      side: THREE.BackSide,
-      roughness: 0.65,
-      metalness: 0.15,
-    }),
+    createWallMaterial(0x213331),
+    createWallMaterial(0x273c39),
+    ceilingMaterial,
+    floorMaterial,
+    createWallMaterial(0x213331),
+    createWallMaterial(0x273c39),
   ];
 
   const roomGeometry = new THREE.BoxGeometry(roomWidth, roomHeight, roomDepth);
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   scene.add(roomMesh);
+
+  const createHangarDoor = () => {
+    const group = new THREE.Group();
+
+    const doorWidth = 6.8;
+    const doorHeight = 6.4;
+    const panelDepth = 0.2;
+    const frameDepth = 0.42;
+    const frameWidth = 0.48;
+    const lintelHeight = 0.42;
+    const thresholdHeight = 0.28;
+    const seamGap = 0.22;
+
+    const frameMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0c1516),
+      roughness: 0.4,
+      metalness: 0.55,
+    });
+
+    const topFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(doorWidth + frameWidth * 2, lintelHeight, frameDepth),
+      frameMaterial
+    );
+    topFrame.position.y = doorHeight / 2 + lintelHeight / 2;
+    group.add(topFrame);
+
+    const bottomFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(doorWidth + frameWidth * 2, thresholdHeight, frameDepth),
+      frameMaterial
+    );
+    bottomFrame.position.y = -doorHeight / 2 - thresholdHeight / 2 + 0.12;
+    group.add(bottomFrame);
+
+    const sideFrameGeometry = new THREE.BoxGeometry(frameWidth, doorHeight, frameDepth);
+    const leftFrame = new THREE.Mesh(sideFrameGeometry, frameMaterial);
+    leftFrame.position.x = -doorWidth / 2 - frameWidth / 2;
+    group.add(leftFrame);
+
+    const rightFrame = leftFrame.clone();
+    rightFrame.position.x = doorWidth / 2 + frameWidth / 2;
+    group.add(rightFrame);
+
+    const panelMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x152123),
+      roughness: 0.56,
+      metalness: 0.32,
+      emissive: new THREE.Color(0x071011),
+      emissiveIntensity: 0.35,
+    });
+
+    const panelWidth = (doorWidth - seamGap) / 2;
+    const panelGeometry = new THREE.BoxGeometry(panelWidth, doorHeight, panelDepth);
+
+    const leftPanel = new THREE.Mesh(panelGeometry, panelMaterial);
+    leftPanel.position.x = -(panelWidth / 2 + seamGap / 2);
+    group.add(leftPanel);
+
+    const rightPanel = leftPanel.clone();
+    rightPanel.position.x = panelWidth / 2 + seamGap / 2;
+    group.add(rightPanel);
+
+    const seamMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f1c1d),
+      roughness: 0.42,
+      metalness: 0.38,
+    });
+    const seam = new THREE.Mesh(
+      new THREE.BoxGeometry(seamGap * 0.35, doorHeight, panelDepth * 0.6),
+      seamMaterial
+    );
+    group.add(seam);
+
+    const accentMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffa94d,
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide,
+    });
+
+    const accentHeight = doorHeight * 0.88;
+    const accentWidth = 0.38;
+
+    const addAccentPair = (x, baseRotation) => {
+      const accentGeometry = new THREE.PlaneGeometry(accentWidth, accentHeight);
+      const accentA = new THREE.Mesh(accentGeometry, accentMaterial);
+      accentA.position.set(x, 0, panelDepth / 2 + 0.06);
+      accentA.rotation.z = baseRotation;
+      group.add(accentA);
+
+      const accentB = accentA.clone();
+      accentB.rotation.z = -baseRotation;
+      group.add(accentB);
+    };
+
+    const accentOffsetX = panelWidth / 2 + seamGap / 2;
+    addAccentPair(-accentOffsetX, Math.PI / 5);
+    addAccentPair(accentOffsetX, Math.PI / 5);
+
+    const horizontalAccentGeometry = new THREE.PlaneGeometry(panelWidth * 0.78, accentWidth * 0.72);
+    const upperAccent = new THREE.Mesh(horizontalAccentGeometry, accentMaterial);
+    upperAccent.position.set(0, doorHeight * 0.24, panelDepth / 2 + 0.05);
+    group.add(upperAccent);
+
+    const lowerAccent = upperAccent.clone();
+    lowerAccent.position.y = -doorHeight * 0.24;
+    group.add(lowerAccent);
+
+    const doorLight = new THREE.PointLight(0xffa94d, 0.6, 9, 2);
+    doorLight.position.set(0, doorHeight / 2 - 0.2, 0.3);
+    group.add(doorLight);
+
+    const controlPanel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 1.4, 0.18),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0a1213),
+        roughness: 0.48,
+        metalness: 0.4,
+        emissive: new THREE.Color(0x040d0d),
+        emissiveIntensity: 0.25,
+      })
+    );
+    controlPanel.position.set(doorWidth / 2 + frameWidth * 0.95, 0.1, 0.12);
+    group.add(controlPanel);
+
+    const controlScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.34, 0.48),
+      new THREE.MeshBasicMaterial({
+        color: 0x34d399,
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide,
+      })
+    );
+    controlScreen.position.set(0, 0.28, 0.11);
+    controlPanel.add(controlScreen);
+
+    const controlButton = new THREE.Mesh(
+      new THREE.CircleGeometry(0.08, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x22c55e,
+        side: THREE.DoubleSide,
+      })
+    );
+    controlButton.position.set(0, -0.3, 0.1);
+    controlPanel.add(controlButton);
+
+    const panelLight = new THREE.PointLight(0x22c55e, 0.35, 4.5, 2);
+    panelLight.position.set(controlPanel.position.x, controlPanel.position.y + 0.3, 0.4);
+    group.add(panelLight);
+
+    group.userData.height = doorHeight;
+    group.userData.width = doorWidth;
+
+    return group;
+  };
+
+  const hangarDoor = createHangarDoor();
+  hangarDoor.position.set(
+    0,
+    -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
+    roomDepth / 2 - 0.32
+  );
+  scene.add(hangarDoor);
 
   const createComputerSetup = () => {
     const group = new THREE.Group();
