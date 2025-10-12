@@ -1016,6 +1016,9 @@ export const initScene = (
     }
 
     if (typeof onTerminalOptionSelected === "function") {
+      if (controls.isLocked) {
+        controls.unlock();
+      }
       onTerminalOptionSelected({
         id: matchedZone.id,
         title: matchedZone.title,

@@ -35,6 +35,10 @@
         position: relative;
       }
 
+      body.has-modal-open {
+        cursor: default;
+      }
+
       canvas#gameCanvas {
         display: block;
         width: 100vw;
@@ -224,6 +228,281 @@
         margin: 0 0 0.75rem;
       }
 
+      .quick-access-modal {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(1rem, 2vw, 1.75rem);
+        z-index: 20;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 260ms ease;
+      }
+
+      .quick-access-modal[hidden] {
+        display: none;
+      }
+
+      .quick-access-modal.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .quick-access-modal__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.78);
+        backdrop-filter: blur(6px);
+      }
+
+      .quick-access-modal__matrix {
+        position: absolute;
+        inset: 4%;
+        border-radius: 1.5rem;
+        overflow: hidden;
+        opacity: 0;
+        transform: scale(0.94);
+        background:
+          linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(59, 130, 246, 0.12)),
+          radial-gradient(circle at 30% 20%, rgba(56, 189, 248, 0.18), transparent 60%),
+          rgba(15, 23, 42, 0.92);
+        transition: opacity 320ms ease 60ms, transform 320ms ease 60ms;
+      }
+
+      .quick-access-modal.is-open .quick-access-modal__matrix {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      .quick-access-modal__matrix::before,
+      .quick-access-modal__matrix::after {
+        content: "";
+        position: absolute;
+        inset: -120% -40%;
+        background: repeating-linear-gradient(
+          0deg,
+          rgba(96, 165, 250, 0.18),
+          rgba(96, 165, 250, 0.18) 2px,
+          transparent 2px,
+          transparent 4px
+        );
+        opacity: 0.4;
+        mix-blend-mode: screen;
+        animation: quick-access-modal-matrix-scroll 16s linear infinite;
+      }
+
+      .quick-access-modal__matrix::after {
+        animation-duration: 24s;
+        animation-direction: reverse;
+        opacity: 0.3;
+      }
+
+      .quick-access-modal__dialog {
+        position: relative;
+        width: min(720px, 92vw);
+        max-height: min(88vh, 680px);
+        border-radius: clamp(1.25rem, 2vw, 1.75rem);
+        background: rgba(15, 23, 42, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        box-shadow: 0 40px 120px rgba(15, 23, 42, 0.6);
+        overflow: hidden;
+        transform: translateY(12px) scale(0.96);
+        transition: transform 320ms ease 60ms, opacity 320ms ease 60ms;
+        opacity: 0;
+      }
+
+      .quick-access-modal.is-open .quick-access-modal__dialog {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+
+      .quick-access-modal__content {
+        position: relative;
+        padding: clamp(1.6rem, 3vw, 2.6rem) clamp(1.5rem, 2.8vw, 2.75rem)
+          clamp(1.8rem, 3.2vw, 3rem);
+        overflow-y: auto;
+        max-height: inherit;
+        color: #e2e8f0;
+      }
+
+      .quick-access-modal__close {
+        position: absolute;
+        top: clamp(1rem, 1.8vw, 1.35rem);
+        right: clamp(1rem, 1.8vw, 1.35rem);
+        width: 46px;
+        height: 46px;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.85);
+        color: inherit;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        font-size: 1.35rem;
+        font-weight: 600;
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      }
+
+      .quick-access-modal__close:hover,
+      .quick-access-modal__close:focus-visible {
+        background: rgba(59, 130, 246, 0.18);
+        box-shadow: 0 18px 36px rgba(59, 130, 246, 0.35);
+        transform: translateY(-2px);
+        outline: none;
+      }
+
+      .quick-access-modal__header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        margin-bottom: clamp(1.6rem, 3vw, 2.4rem);
+      }
+
+      .quick-access-modal__eyebrow {
+        font-size: 0.85rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.75);
+        margin: 0;
+      }
+
+      .quick-access-modal__title {
+        font-size: clamp(1.75rem, 3.5vw, 2.6rem);
+        letter-spacing: 0.02em;
+        margin: 0;
+        font-weight: 700;
+        color: #f8fafc;
+      }
+
+      .quick-access-modal__subtitle {
+        margin: 0;
+        font-size: 1.05rem;
+        color: rgba(148, 163, 184, 0.8);
+      }
+
+      .quick-access-modal__section + .quick-access-modal__section {
+        margin-top: clamp(1.4rem, 2.8vw, 2.2rem);
+      }
+
+      .quick-access-modal__section-title {
+        font-size: 1.05rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.85);
+        margin: 0 0 0.85rem;
+      }
+
+      .quick-access-modal__list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 0.85rem;
+      }
+
+      .quick-access-modal__list-item {
+        position: relative;
+        padding-left: 1.45rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: rgba(226, 232, 240, 0.9);
+      }
+
+      .quick-access-modal__list-item::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.65rem;
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #38bdf8, #818cf8);
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+      }
+
+      .quick-access-modal__card-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      }
+
+      .quick-access-modal__card {
+        padding: 1rem 1.1rem;
+        border-radius: 1rem;
+        background: rgba(15, 23, 42, 0.78);
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.4);
+      }
+
+      .quick-access-modal__card h3 {
+        margin: 0 0 0.45rem;
+        font-size: 1.05rem;
+        color: #f8fafc;
+      }
+
+      .quick-access-modal__card p {
+        margin: 0;
+        font-size: 0.95rem;
+        color: rgba(226, 232, 240, 0.78);
+      }
+
+      .quick-access-modal__status-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.18);
+        color: #bbf7d0;
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .quick-access-modal__status-tag[data-status="critical"] {
+        background: rgba(248, 113, 113, 0.18);
+        color: #fecaca;
+      }
+
+      .quick-access-modal__divider {
+        margin: 1.6rem 0;
+        height: 1px;
+        border: none;
+        background: linear-gradient(
+          90deg,
+          rgba(56, 189, 248, 0),
+          rgba(56, 189, 248, 0.5) 50%,
+          rgba(56, 189, 248, 0)
+        );
+      }
+
+      @keyframes quick-access-modal-matrix-scroll {
+        from {
+          transform: translateY(0);
+        }
+
+        to {
+          transform: translateY(-50%);
+        }
+      }
+
+      @media (max-width: 600px) {
+        .quick-access-modal__dialog {
+          width: min(96vw, 520px);
+        }
+
+        .quick-access-modal__close {
+          width: 42px;
+          height: 42px;
+        }
+
+        .quick-access-modal__matrix {
+          inset: 6% 4%;
+        }
+      }
+
     </style>
   </head>
   <body>
@@ -272,6 +551,212 @@
         </p>
       </div>
     </div>
+
+    <div class="quick-access-modal" hidden aria-hidden="true">
+      <div class="quick-access-modal__backdrop" data-quick-access-modal-close></div>
+      <div class="quick-access-modal__matrix" aria-hidden="true"></div>
+      <div
+        class="quick-access-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Terminal information panel"
+      >
+        <div class="quick-access-modal__content" role="document"></div>
+      </div>
+    </div>
+
+    <template id="quick-access-modal-default">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header">
+        <p class="quick-access-modal__eyebrow">Terminal quick access</p>
+        <h2 class="quick-access-modal__title">Mission control update</h2>
+        <p class="quick-access-modal__subtitle">
+          Incoming data stream from Dusty Nova command. Review the latest intel before
+          returning to the field.
+        </p>
+      </header>
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Highlights</h3>
+        <ul class="quick-access-modal__list">
+          <li class="quick-access-modal__list-item">
+            Synchronizing feeds… Expect a fully personalized briefing momentarily.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Please stand by while we compile your requested dossier.
+          </li>
+        </ul>
+      </section>
+    </template>
+
+    <template id="quick-access-modal-news">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header">
+        <p class="quick-access-modal__eyebrow">Terminal quick access</p>
+        <h2 class="quick-access-modal__title">Frontier Dispatch</h2>
+        <p class="quick-access-modal__subtitle">
+          Latest intelligence packets pulled from the Dusty Nova relay network.
+        </p>
+      </header>
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Top stories</h3>
+        <ul class="quick-access-modal__list">
+          <li class="quick-access-modal__list-item">
+            Recon Team Aegis recovered the lost Helios convoy and secured its quantum cores.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Outpost Vela reports renewed aurora storms—navigation corridors rerouted for
+            civilian craft.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Black market chatter hints at a rival faction auctioning Nova-grade shielding.
+          </li>
+        </ul>
+      </section>
+      <hr class="quick-access-modal__divider" />
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Field brief</h3>
+        <div class="quick-access-modal__card-grid">
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag">Stabilized</p>
+            <h3>Helios convoy</h3>
+            <p>The convoy is back online. Escort routes are open for allied pilots.</p>
+          </article>
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag" data-status="critical">Watchlist</p>
+            <h3>Nova shield leak</h3>
+            <p>
+              Scramble intelligence teams. All units should flag unusual shield signatures.
+            </p>
+          </article>
+        </div>
+      </section>
+    </template>
+
+    <template id="quick-access-modal-weather">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header">
+        <p class="quick-access-modal__eyebrow">Terminal quick access</p>
+        <h2 class="quick-access-modal__title">Atmospheric Watch</h2>
+        <p class="quick-access-modal__subtitle">
+          Sector-wide forecasts synthesized from orbital telemetry and ground stations.
+        </p>
+      </header>
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Regional outlook</h3>
+        <div class="quick-access-modal__card-grid">
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag">Clear</p>
+            <h3>Vesta Basin</h3>
+            <p>
+              Ideal flight corridor. Microgravity gusts under 2 knots; solar sails recommended.
+            </p>
+          </article>
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag" data-status="critical">Caution</p>
+            <h3>Arcus Ridge</h3>
+            <p>
+              Ion squalls forming every 42 minutes. Deploy hardened plating before entry.
+            </p>
+          </article>
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag">Stable</p>
+            <h3>Orbital Lanes</h3>
+            <p>
+              Traffic flowing smoothly. Expect a slight increase in radiation near dusk cycle.
+            </p>
+          </article>
+        </div>
+      </section>
+      <hr class="quick-access-modal__divider" />
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Pilot guidance</h3>
+        <ul class="quick-access-modal__list">
+          <li class="quick-access-modal__list-item">
+            Keep thermal shielding engaged within 12 km of Arcus Ridge—ionized hail detected.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Recharge atmospheric samplers at Vesta Basin relay before long-haul sorties.
+          </li>
+        </ul>
+      </section>
+    </template>
+
+    <template id="quick-access-modal-missions">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header">
+        <p class="quick-access-modal__eyebrow">Terminal quick access</p>
+        <h2 class="quick-access-modal__title">Mission Roster</h2>
+        <p class="quick-access-modal__subtitle">
+          Active Dusty Nova assignments awaiting specialist deployment.
+        </p>
+      </header>
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Priority ops</h3>
+        <div class="quick-access-modal__card-grid">
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag" data-status="critical">Alpha</p>
+            <h3>Silent Relay</h3>
+            <p>
+              Reboot the dormant subspace beacon before the next eclipse to restore comms.
+            </p>
+          </article>
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag">Bravo</p>
+            <h3>Drift Cleanup</h3>
+            <p>
+              Collect volatile debris near the old mining rigs; expect low-grav turbulence.
+            </p>
+          </article>
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag">Charlie</p>
+            <h3>Archive Escort</h3>
+            <p>
+              Protect archivists transporting recovered AI cores to the secure vault.
+            </p>
+          </article>
+        </div>
+      </section>
+      <hr class="quick-access-modal__divider" />
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Squad updates</h3>
+        <ul class="quick-access-modal__list">
+          <li class="quick-access-modal__list-item">
+            Echo squad rerouted to Silent Relay—requesting additional engineers on standby.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Logistics will auto-sync mission telemetry once you clear the command terminal.
+          </li>
+        </ul>
+      </section>
+    </template>
 
     <script type="module" src="./scripts/game.js"></script>
   </body>
