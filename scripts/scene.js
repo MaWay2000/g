@@ -160,6 +160,7 @@ export const initScene = (
     const screenSize = 0.98;
     const screenHeight = screenSize;
     const screenWidth = screenSize;
+    const screenFillScale = 1.08;
     const bezelPadding = 0.02;
     const bezelWidth = screenWidth + bezelPadding * 2;
     const bezelHeight = screenHeight + bezelPadding * 2;
@@ -221,6 +222,7 @@ export const initScene = (
       0.52,
       monitorHousing.position.z + housingDepth / 2 + 0.005
     );
+    monitorScreen.scale.y = screenFillScale;
     monitorScreen.renderOrder = 1;
     monitorGroup.add(monitorScreen);
 
@@ -238,7 +240,9 @@ export const initScene = (
       const adjustedBezelWidth = adjustedScreenWidth + bezelPadding * 2;
       const adjustedHousingWidth = adjustedBezelWidth + housingBorder * 2;
 
-      monitorScreen.scale.x = adjustedScreenWidth / originalScreenWidth;
+      monitorScreen.scale.x =
+        (adjustedScreenWidth / originalScreenWidth) * screenFillScale;
+      monitorScreen.scale.y = screenFillScale;
       monitorBezel.scale.x = adjustedBezelWidth / originalBezelWidth;
       monitorHousing.scale.x = adjustedHousingWidth / originalHousingWidth;
       monitorPowerButton.position.x =
