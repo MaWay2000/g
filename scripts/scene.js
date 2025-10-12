@@ -251,6 +251,18 @@ export const initScene = (
       const optionHeight = 132;
       const optionSpacing = 28;
 
+      const getDevicePixelRatio = () => {
+        if (typeof window === "undefined") {
+          return 1;
+        }
+
+        const ratio = Number(window.devicePixelRatio);
+        return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+      };
+
+      const snapToDevicePixel = (value, pixelRatio = getDevicePixelRatio()) =>
+        Math.round(value * pixelRatio) / pixelRatio;
+
       const computeQuickAccessZones = () => {
         const optionX = bezelInset + 40;
         const optionWidth = width - optionX * 2;
@@ -374,6 +386,9 @@ export const initScene = (
         let needsRedraw = true;
 
         const renderMatrixOverlay = () => {
+          const pixelRatio = getDevicePixelRatio();
+          const snap = (value) => snapToDevicePixel(value, pixelRatio);
+
           context.save();
           drawRoundedRect(innerInset, innerInset, innerWidth, innerHeight, 28);
           context.clip();
@@ -389,11 +404,15 @@ export const initScene = (
           const totalRows = Math.ceil(innerHeight / matrixLineHeight) + 4;
 
           for (let column = 0; column < matrixColumnCount; column += 1) {
-            const x = innerInset + column * columnSpacing - 24;
+            const x = snap(innerInset + column * columnSpacing - 24);
             const columnHueShift = (column % 4) * 0.04;
             for (let row = -2; row < totalRows; row += 1) {
-              const y =
-                innerInset + row * matrixLineHeight + matrixOffset - matrixLineHeight;
+              const y = snap(
+                innerInset +
+                  row * matrixLineHeight +
+                  matrixOffset -
+                  matrixLineHeight
+              );
               const sequence = matrixStrings[(column + row + matrixStrings.length) % matrixStrings.length];
               const brightness = 0.12 + columnHueShift + ((row + column) % 3) * 0.03;
               context.fillStyle = `rgba(45, 212, 191, ${Math.min(brightness, 0.35).toFixed(
@@ -581,7 +600,10 @@ export const initScene = (
           update: (delta = 0, elapsedTime = 0) => {
             const previousOffset = matrixOffset;
             matrixOffset = (matrixOffset + delta * matrixSpeed) % matrixLineHeight;
-            if (Math.abs(previousOffset - matrixOffset) > 0.001) {
+            const pixelRatio = getDevicePixelRatio();
+            const snappedPrevious = snapToDevicePixel(previousOffset, pixelRatio);
+            const snappedCurrent = snapToDevicePixel(matrixOffset, pixelRatio);
+            if (Math.abs(snappedPrevious - snappedCurrent) > 0.001) {
               needsRedraw = true;
             }
 
