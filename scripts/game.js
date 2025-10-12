@@ -6,6 +6,7 @@ const instructions = document.querySelector("[data-instructions]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
+const crosshair = document.querySelector(".crosshair");
 
 let terminalToastHideTimeoutId;
 let terminalToastFinalizeTimeoutId;
@@ -41,6 +42,18 @@ const showTerminalToast = ({ title, description }) => {
   }, 4000);
 };
 
+const setCrosshairInteractableState = (canInteract) => {
+  if (!(crosshair instanceof HTMLElement)) {
+    return;
+  }
+
+  if (canInteract) {
+    crosshair.dataset.interactable = "true";
+  } else {
+    delete crosshair.dataset.interactable;
+  }
+};
+
 const bootstrapScene = () => {
   if (!(canvas instanceof HTMLCanvasElement)) {
     return;
@@ -52,11 +65,13 @@ const bootstrapScene = () => {
     },
     onControlsUnlocked() {
       instructions?.removeAttribute("hidden");
+      setCrosshairInteractableState(false);
       hideTerminalToast();
     },
     onTerminalOptionSelected(option) {
       showTerminalToast(option);
     },
+    onTerminalInteractableChange: setCrosshairInteractableState,
   });
 };
 

@@ -3,7 +3,12 @@ import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const initScene = (
   canvas,
-  { onControlsLocked, onControlsUnlocked, onTerminalOptionSelected } = {}
+  {
+    onControlsLocked,
+    onControlsUnlocked,
+    onTerminalOptionSelected,
+    onTerminalInteractableChange,
+  } = {}
 ) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -886,6 +891,20 @@ export const initScene = (
   const quickAccessInteractables = [];
   const MAX_TERMINAL_INTERACTION_DISTANCE = 6.8;
 
+  let terminalInteractable = false;
+
+  const updateTerminalInteractableState = (canInteract) => {
+    if (terminalInteractable === canInteract) {
+      return;
+    }
+
+    terminalInteractable = canInteract;
+
+    if (typeof onTerminalInteractableChange === "function") {
+      onTerminalInteractableChange(canInteract);
+    }
+  };
+
   const monitorScreen = computerSetup.userData?.monitorScreen;
   if (monitorScreen) {
     quickAccessInteractables.push(monitorScreen);
@@ -905,6 +924,8 @@ export const initScene = (
     if (typeof onControlsUnlocked === "function") {
       onControlsUnlocked();
     }
+
+    updateTerminalInteractableState(false);
   });
 
   const attemptPointerLock = () => {
@@ -917,9 +938,9 @@ export const initScene = (
   canvas.addEventListener("click", attemptPointerLock);
   canvas.addEventListener("pointerdown", attemptPointerLock);
 
-  const handleCanvasClick = () => {
-    if (!controls.isLocked || quickAccessInteractables.length === 0) {
-      return;
+  const getTargetedTerminalZone = () => {
+    if (quickAccessInteractables.length === 0) {
+      return null;
     }
 
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
@@ -929,7 +950,7 @@ export const initScene = (
     );
 
     if (intersections.length === 0) {
-      return;
+      return null;
     }
 
     const intersection = intersections.find((candidate) => {
@@ -949,7 +970,7 @@ export const initScene = (
       intersection.distance > MAX_TERMINAL_INTERACTION_DISTANCE ||
       !intersection.uv
     ) {
-      return;
+      return null;
     }
 
     const zones = intersection.object.userData.getQuickAccessZones();
@@ -962,7 +983,7 @@ export const initScene = (
       !Number.isFinite(textureSize.width) ||
       !Number.isFinite(textureSize.height)
     ) {
-      return;
+      return null;
     }
 
     const pixelX = intersection.uv.x * textureSize.width;
@@ -975,6 +996,20 @@ export const initScene = (
         pixelY >= zone.minY &&
         pixelY <= zone.maxY
     );
+
+    if (!matchedZone) {
+      return null;
+    }
+
+    return matchedZone;
+  };
+
+  const handleCanvasClick = () => {
+    if (!controls.isLocked || quickAccessInteractables.length === 0) {
+      return;
+    }
+
+    const matchedZone = getTargetedTerminalZone();
 
     if (!matchedZone) {
       return;
@@ -1095,6 +1130,13 @@ export const initScene = (
       clampWithinRoom();
     }
 
+    if (controls.isLocked) {
+      const matchedZone = getTargetedTerminalZone();
+      updateTerminalInteractableState(Boolean(matchedZone));
+    } else {
+      updateTerminalInteractableState(false);
+    }
+
     renderer.render(scene, camera);
   };
 
@@ -1122,6 +1164,7 @@ export const initScene = (
       canvas.removeEventListener("pointerdown", attemptPointerLock);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
+      updateTerminalInteractableState(false);
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
