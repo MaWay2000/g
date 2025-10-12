@@ -102,6 +102,20 @@ let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let sceneController = null;
 
+const attemptToRestorePointerLock = () => {
+  const controls = sceneController?.controls;
+
+  if (!controls || controls.isLocked) {
+    return;
+  }
+
+  if (canvas instanceof HTMLCanvasElement) {
+    canvas.focus({ preventScroll: true });
+  }
+
+  controls.lock();
+};
+
 const MATRIX_CHARACTER_SET =
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\u30A2\u30AB\u30B5\u30BF\u30CA\u30CF\u30DE\u30E4\u30E9";
 
@@ -417,6 +431,8 @@ const closeQuickAccessModal = () => {
   }
 
   playTerminalInteractionSound();
+
+  attemptToRestorePointerLock();
 
   quickAccessModal.classList.remove("is-open");
   quickAccessModal.setAttribute("aria-hidden", "true");
