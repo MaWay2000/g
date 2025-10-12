@@ -567,7 +567,8 @@ export const initScene = (
   scene.add(computerSetup);
 
   const lastUpdatedDisplay = createLastUpdatedDisplay();
-  lastUpdatedDisplay.position.set(-3.4, 3.2, -roomDepth / 2 + 0.12);
+  lastUpdatedDisplay.position.set(-roomWidth / 2 + 0.12, 3.2, 0);
+  lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
 
   const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
