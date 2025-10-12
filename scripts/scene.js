@@ -176,7 +176,6 @@ export const initScene = (
 
     let quickAccessTextureSize = { width: 1024, height: 768 };
     let quickAccessZones = [];
-    let hoveredQuickAccessId = null;
 
     const deskHeight = 0.78 * 1.3;
     const deskTopThickness = 0.08;
@@ -276,8 +275,7 @@ export const initScene = (
 
       const context = canvas.getContext("2d");
       if (!context) {
-        const fallbackTexture = createQuickAccessFallbackTexture();
-        return { texture: fallbackTexture, setHoveredOption: () => {} };
+        return createQuickAccessFallbackTexture();
       }
 
       const drawRoundedRect = (x, y, rectWidth, rectHeight, radius) => {
@@ -384,7 +382,6 @@ export const initScene = (
             const optionX = zone.minX;
             const optionY = zone.minY;
             const optionWidth = zone.maxX - zone.minX;
-            const isHovered = zone.id === hoveredQuickAccessId;
 
             const optionGradient = context.createLinearGradient(
               optionX,
@@ -392,37 +389,22 @@ export const initScene = (
               optionX + optionWidth,
               optionY + optionHeight
             );
-            if (isHovered) {
-              optionGradient.addColorStop(0, "rgba(59, 130, 246, 0.5)");
-              optionGradient.addColorStop(1, "rgba(56, 189, 248, 0.24)");
-            } else {
-              optionGradient.addColorStop(0, "rgba(15, 118, 210, 0.28)");
-              optionGradient.addColorStop(1, "rgba(56, 189, 248, 0.12)");
-            }
+            optionGradient.addColorStop(0, "rgba(15, 118, 210, 0.28)");
+            optionGradient.addColorStop(1, "rgba(56, 189, 248, 0.12)");
 
-            context.save();
-            if (isHovered) {
-              context.shadowColor = "rgba(56, 189, 248, 0.45)";
-              context.shadowBlur = 26;
-            }
             drawRoundedRect(optionX, optionY, optionWidth, optionHeight, 32);
             context.fillStyle = optionGradient;
             context.fill();
 
             context.lineWidth = 3;
-            context.strokeStyle = isHovered
-              ? "rgba(148, 163, 184, 0.6)"
-              : "rgba(148, 163, 184, 0.35)";
+            context.strokeStyle = "rgba(148, 163, 184, 0.35)";
             context.stroke();
-            context.restore();
 
-            context.fillStyle = isHovered ? "#f8fafc" : "#e2e8f0";
+            context.fillStyle = "#e2e8f0";
             context.font = "700 64px 'Segoe UI', 'Inter', sans-serif";
             context.fillText(zone.title, optionX + 48, optionY + 54);
 
-            context.fillStyle = isHovered
-              ? "rgba(191, 219, 254, 0.95)"
-              : "rgba(148, 163, 184, 0.85)";
+            context.fillStyle = "rgba(148, 163, 184, 0.85)";
             context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
             context.fillText(zone.description, optionX + 48, optionY + 94);
           });
@@ -433,22 +415,9 @@ export const initScene = (
           context.moveTo(bezelInset + 32, bezelInset + 160);
           context.lineTo(width - (bezelInset + 32), bezelInset + 160);
           context.stroke();
-
-          texture.needsUpdate = true;
         };
 
         render();
-
-        const setHoveredOption = (optionId) => {
-          const normalizedOptionId = optionId ?? null;
-
-          if (hoveredQuickAccessId === normalizedOptionId) {
-            return;
-          }
-
-          hoveredQuickAccessId = normalizedOptionId;
-          render();
-        };
 
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
@@ -456,11 +425,10 @@ export const initScene = (
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         texture.needsUpdate = true;
-        return { texture, setHoveredOption };
+        return texture;
       } catch (error) {
         console.warn("Falling back to SVG quick access texture", error);
-        const fallbackTexture = createQuickAccessFallbackTexture();
-        return { texture: fallbackTexture, setHoveredOption: () => {} };
+        return createQuickAccessFallbackTexture();
       }
     };
 
@@ -506,7 +474,7 @@ export const initScene = (
 
     const monitorDisplayTexture = createMonitorDisplayTexture();
     const screenTexture =
-      monitorDisplayTexture?.texture ??
+      monitorDisplayTexture ??
       loadClampedTexture("../images/index/monitor2.png", (loadedTexture) => {
         const { image } = loadedTexture;
         if (image && image.width && image.height) {
@@ -540,8 +508,6 @@ export const initScene = (
     monitorScreen.userData.getQuickAccessZones = () => quickAccessZones;
     monitorScreen.userData.getQuickAccessTextureSize = () =>
       quickAccessTextureSize;
-    monitorScreen.userData.setHoveredQuickAccessOption =
-      monitorDisplayTexture?.setHoveredOption;
     monitorGroup.add(monitorScreen);
 
     const originalScreenWidth = screenWidth;
@@ -925,105 +891,6 @@ export const initScene = (
     quickAccessInteractables.push(monitorScreen);
   }
 
-  const setHoveredTerminalOptionId = (optionId) => {
-    if (
-      monitorScreen?.userData?.setHoveredQuickAccessOption &&
-      typeof monitorScreen.userData.setHoveredQuickAccessOption === "function"
-    ) {
-      monitorScreen.userData.setHoveredQuickAccessOption(optionId);
-    }
-  };
-
-  let hoveredTerminalOptionId = null;
-
-  const resolveQuickAccessSelection = () => {
-    if (quickAccessInteractables.length === 0) {
-      return null;
-    }
-
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersections = raycaster.intersectObjects(
-      quickAccessInteractables,
-      false
-    );
-
-    const intersection = intersections.find((candidate) => {
-      const zonesProviderCandidate =
-        candidate.object.userData?.getQuickAccessZones;
-      const sizeProviderCandidate =
-        candidate.object.userData?.getQuickAccessTextureSize;
-
-      return (
-        typeof zonesProviderCandidate === "function" &&
-        typeof sizeProviderCandidate === "function"
-      );
-    });
-
-    if (
-      !intersection ||
-      intersection.distance > MAX_TERMINAL_INTERACTION_DISTANCE ||
-      !intersection.uv
-    ) {
-      return null;
-    }
-
-    const zones = intersection.object.userData.getQuickAccessZones();
-    const textureSize = intersection.object.userData.getQuickAccessTextureSize();
-
-    if (
-      !Array.isArray(zones) ||
-      !textureSize ||
-      !Number.isFinite(textureSize.width) ||
-      !Number.isFinite(textureSize.height)
-    ) {
-      return null;
-    }
-
-    const pixelX = intersection.uv.x * textureSize.width;
-    const pixelY = (1 - intersection.uv.y) * textureSize.height;
-
-    const matchedZone = zones.find(
-      (zone) =>
-        pixelX >= zone.minX &&
-        pixelX <= zone.maxX &&
-        pixelY >= zone.minY &&
-        pixelY <= zone.maxY
-    );
-
-    if (!matchedZone) {
-      return null;
-    }
-
-    return { matchedZone, intersection };
-  };
-
-  const updateHoveredTerminalOption = () => {
-    if (!controls.isLocked) {
-      if (hoveredTerminalOptionId !== null) {
-        hoveredTerminalOptionId = null;
-        setHoveredTerminalOptionId(null);
-      }
-      return;
-    }
-
-    const selection = resolveQuickAccessSelection();
-
-    if (!selection) {
-      if (hoveredTerminalOptionId !== null) {
-        hoveredTerminalOptionId = null;
-        setHoveredTerminalOptionId(null);
-      }
-      return;
-    }
-
-    const matchedOptionId = selection.matchedZone?.id ?? null;
-
-    if (hoveredTerminalOptionId !== matchedOptionId) {
-      hoveredTerminalOptionId = matchedOptionId;
-      setHoveredTerminalOptionId(matchedOptionId);
-    }
-  };
-
   const controls = new PointerLockControls(camera, canvas);
   scene.add(controls.getObject());
   controls.getObject().position.set(0, 1.6, 8);
@@ -1032,16 +899,11 @@ export const initScene = (
     if (typeof onControlsLocked === "function") {
       onControlsLocked();
     }
-    updateHoveredTerminalOption();
   });
 
   controls.addEventListener("unlock", () => {
     if (typeof onControlsUnlocked === "function") {
       onControlsUnlocked();
-    }
-    if (hoveredTerminalOptionId !== null) {
-      hoveredTerminalOptionId = null;
-      setHoveredTerminalOptionId(null);
     }
   });
 
@@ -1060,17 +922,69 @@ export const initScene = (
       return;
     }
 
-    const selection = resolveQuickAccessSelection();
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(
+      quickAccessInteractables,
+      false
+    );
 
-    if (!selection) {
+    if (intersections.length === 0) {
+      return;
+    }
+
+    const intersection = intersections.find((candidate) => {
+      const zonesProviderCandidate =
+        candidate.object.userData?.getQuickAccessZones;
+      const sizeProviderCandidate =
+        candidate.object.userData?.getQuickAccessTextureSize;
+
+      return (
+        typeof zonesProviderCandidate === "function" &&
+        typeof sizeProviderCandidate === "function"
+      );
+    });
+
+    if (
+      !intersection ||
+      intersection.distance > MAX_TERMINAL_INTERACTION_DISTANCE ||
+      !intersection.uv
+    ) {
+      return;
+    }
+
+    const zones = intersection.object.userData.getQuickAccessZones();
+    const textureSize =
+      intersection.object.userData.getQuickAccessTextureSize();
+
+    if (
+      !Array.isArray(zones) ||
+      !textureSize ||
+      !Number.isFinite(textureSize.width) ||
+      !Number.isFinite(textureSize.height)
+    ) {
+      return;
+    }
+
+    const pixelX = intersection.uv.x * textureSize.width;
+    const pixelY = (1 - intersection.uv.y) * textureSize.height;
+
+    const matchedZone = zones.find(
+      (zone) =>
+        pixelX >= zone.minX &&
+        pixelX <= zone.maxX &&
+        pixelY >= zone.minY &&
+        pixelY <= zone.maxY
+    );
+
+    if (!matchedZone) {
       return;
     }
 
     if (typeof onTerminalOptionSelected === "function") {
       onTerminalOptionSelected({
-        id: selection.matchedZone.id,
-        title: selection.matchedZone.title,
-        description: selection.matchedZone.description,
+        id: matchedZone.id,
+        title: matchedZone.title,
+        description: matchedZone.description,
       });
     }
   };
@@ -1174,8 +1088,6 @@ export const initScene = (
     if (movementState.left || movementState.right) {
       velocity.x -= direction.x * 40 * delta;
     }
-
-    updateHoveredTerminalOption();
 
     if (controls.isLocked) {
       controls.moveRight(-velocity.x * delta);
