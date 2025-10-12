@@ -24,6 +24,74 @@ const quickAccessModalTemplates = {
 
 const modalFocusableSelectors =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const terminalInteractionSoundSource = "images/index/button_hower.mp3";
+const terminalInteractionSound = new Audio();
+terminalInteractionSound.preload = "auto";
+terminalInteractionSound.src = terminalInteractionSoundSource;
+terminalInteractionSound.load();
+
+const playTerminalInteractionSound = () => {
+  try {
+    terminalInteractionSound.currentTime = 0;
+    const playPromise = terminalInteractionSound.play();
+    if (playPromise instanceof Promise) {
+      playPromise.catch(() => {});
+    }
+  } catch (error) {
+    console.error("Unable to play terminal interaction sound", error);
+  }
+};
+
+let terminalInteractionSoundUnlockTriggered = false;
+const terminalInteractionUnlockEvents = [
+  "pointerdown",
+  "keydown",
+  "touchstart",
+  "click",
+];
+
+const handleTerminalSoundUnlock = () => {
+  if (terminalInteractionSoundUnlockTriggered) {
+    return;
+  }
+
+  terminalInteractionSoundUnlockTriggered = true;
+
+  terminalInteractionUnlockEvents.forEach((eventName) => {
+    document.removeEventListener(eventName, handleTerminalSoundUnlock);
+  });
+
+  const previousMutedState = terminalInteractionSound.muted;
+  terminalInteractionSound.muted = true;
+
+  const resetSound = () => {
+    terminalInteractionSound.pause();
+    terminalInteractionSound.currentTime = 0;
+    terminalInteractionSound.muted = previousMutedState;
+  };
+
+  try {
+    const unlockPromise = terminalInteractionSound.play();
+    if (unlockPromise instanceof Promise) {
+      unlockPromise.then(resetSound).catch(() => {
+        terminalInteractionSound.muted = previousMutedState;
+      });
+    } else {
+      resetSound();
+    }
+  } catch (error) {
+    console.error("Unable to unlock terminal interaction sound", error);
+    terminalInteractionSound.muted = previousMutedState;
+  }
+};
+
+terminalInteractionUnlockEvents.forEach((eventName) => {
+  document.addEventListener(eventName, handleTerminalSoundUnlock, {
+    once: false,
+    passive: true,
+  });
+});
 let quickAccessModalClose = null;
 let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
@@ -280,6 +348,7 @@ const bootstrapScene = () => {
       hideTerminalToast();
     },
     onTerminalOptionSelected(option) {
+      playTerminalInteractionSound();
       openQuickAccessModal(option);
       showTerminalToast(option);
     },
