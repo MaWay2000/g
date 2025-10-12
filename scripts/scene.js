@@ -884,7 +884,7 @@ export const initScene = (
 
   const raycaster = new THREE.Raycaster();
   const quickAccessInteractables = [];
-  const MAX_TERMINAL_INTERACTION_DISTANCE = 3.4;
+  const MAX_TERMINAL_INTERACTION_DISTANCE = 6.8;
 
   const monitorScreen = computerSetup.userData?.monitorScreen;
   if (monitorScreen) {
