@@ -86,6 +86,43 @@
         justify-content: space-between;
       }
 
+      .screen-links {
+        position: absolute;
+        top: 50%;
+        left: clamp(1.5rem, 4vw, 3.5rem);
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        pointer-events: auto;
+        z-index: 2;
+      }
+
+      .screen-link {
+        pointer-events: auto;
+        font: inherit;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #e2e8f0;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.55);
+        padding: 0.75rem 1.4rem;
+        border-radius: 999px;
+        text-decoration: none;
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.55);
+        transition: transform 150ms ease, box-shadow 150ms ease,
+          background 150ms ease, border-color 150ms ease;
+      }
+
+      .screen-link:focus-visible,
+      .screen-link:hover {
+        transform: translateX(4px);
+        background: rgba(30, 41, 59, 0.85);
+        border-color: rgba(148, 163, 184, 0.85);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.65);
+      }
+
       .top-bar {
         display: flex;
         align-items: center;
@@ -197,6 +234,11 @@
     <div class="crosshair" aria-hidden="true"></div>
 
     <div class="ui-overlay">
+      <nav class="screen-links" aria-label="Monitor quick links">
+        <a class="screen-link" href="#news">News</a>
+        <a class="screen-link" href="#weather">Weather</a>
+        <a class="screen-link" href="#missions">Missions</a>
+      </nav>
       <div class="top-bar">
         <a class="cta" href="index.html">Return to Lobby</a>
         <button class="logout" type="button" data-logout-button>Log out</button>
