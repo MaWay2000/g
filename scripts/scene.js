@@ -280,7 +280,12 @@ export const initScene = (
 
       const context = canvas.getContext("2d");
       if (!context) {
-        return createQuickAccessFallbackTexture();
+        const fallbackTexture = createQuickAccessFallbackTexture();
+        return {
+          texture: fallbackTexture,
+          setHoveredZone: () => {},
+          update: () => {},
+        };
       }
 
       const drawRoundedRect = (x, y, rectWidth, rectHeight, radius) => {
@@ -314,7 +319,99 @@ export const initScene = (
       };
 
       try {
-        const render = () => {
+        const baseStartColor = { r: 15, g: 118, b: 210, a: 0.28 };
+        const baseEndColor = { r: 56, g: 189, b: 248, a: 0.12 };
+        const highlightStartColor = { r: 34, g: 197, b: 94, a: 0.85 };
+        const highlightEndColor = { r: 14, g: 184, b: 166, a: 0.78 };
+        const baseTitleColor = { r: 226, g: 232, b: 240, a: 1 };
+        const highlightTitleColor = { r: 2, g: 44, b: 34, a: 1 };
+        const baseDescriptionColor = { r: 148, g: 163, b: 184, a: 0.85 };
+        const highlightDescriptionColor = { r: 12, g: 84, b: 73, a: 0.88 };
+
+        const lerp = (start, end, t) => start + (end - start) * t;
+        const clamp01 = (value) => Math.min(Math.max(value, 0), 1);
+        const mixColor = (startColor, endColor, t) => ({
+          r: lerp(startColor.r, endColor.r, t),
+          g: lerp(startColor.g, endColor.g, t),
+          b: lerp(startColor.b, endColor.b, t),
+          a: lerp(startColor.a, endColor.a, t),
+        });
+        const toRgba = ({ r, g, b, a }) =>
+          `rgba(${Math.round(Math.min(Math.max(r, 0), 255))}, ${Math.round(
+            Math.min(Math.max(g, 0), 255)
+          )}, ${Math.round(Math.min(Math.max(b, 0), 255))}, ${clamp01(a).toFixed(
+            3
+          )})`;
+
+        const innerInset = bezelInset + 24;
+        const innerWidth = width - innerInset * 2;
+        const innerHeight = height - innerInset * 2;
+
+        const matrixLineHeight = 44;
+        const matrixColumnCount = 18;
+        const matrixSpeed = 48;
+        const matrixStrings = [
+          "1010010110010110",
+          "0010110100100101",
+          "1101001011010010",
+          "0101100101100101",
+          "1010010110100101",
+          "0101101001011010",
+          "1001011010010110",
+          "0010110100101101",
+        ];
+
+        const zoneStates = quickAccessZones.map((zone, index) => ({
+          id: zone.id,
+          progress: 0,
+          target: 0,
+          pulseOffset: index * 0.75,
+        }));
+        const zoneStateMap = new Map(zoneStates.map((state) => [state.id, state]));
+
+        let hoveredZoneId = null;
+        let matrixOffset = 0;
+        let needsRedraw = true;
+
+        const renderMatrixOverlay = () => {
+          context.save();
+          drawRoundedRect(innerInset, innerInset, innerWidth, innerHeight, 28);
+          context.clip();
+
+          context.globalAlpha = 1;
+          context.fillStyle = "rgba(6, 182, 212, 0.06)";
+          context.fillRect(innerInset, innerInset, innerWidth, innerHeight);
+
+          const columnSpacing = innerWidth / Math.max(matrixColumnCount - 1, 1);
+          context.font = "600 32px 'Share Tech Mono', 'Consolas', 'Courier New', monospace";
+          context.textBaseline = "top";
+
+          const totalRows = Math.ceil(innerHeight / matrixLineHeight) + 4;
+
+          for (let column = 0; column < matrixColumnCount; column += 1) {
+            const x = innerInset + column * columnSpacing - 24;
+            const columnHueShift = (column % 4) * 0.04;
+            for (let row = -2; row < totalRows; row += 1) {
+              const y =
+                innerInset + row * matrixLineHeight + matrixOffset - matrixLineHeight;
+              const sequence = matrixStrings[(column + row + matrixStrings.length) % matrixStrings.length];
+              const brightness = 0.12 + columnHueShift + ((row + column) % 3) * 0.03;
+              context.fillStyle = `rgba(45, 212, 191, ${Math.min(brightness, 0.35).toFixed(
+                3
+              )})`;
+              context.fillText(sequence, x, y);
+            }
+          }
+
+          context.globalAlpha = 1;
+          context.fillStyle = "rgba(2, 6, 23, 0.45)";
+          context.fillRect(innerInset, innerInset, innerWidth, innerHeight);
+          context.restore();
+        };
+
+        const render = (elapsedTime = 0) => {
+          context.clearRect(0, 0, width, height);
+
           const backgroundGradient = context.createLinearGradient(0, 0, width, height);
           backgroundGradient.addColorStop(0, "#071122");
           backgroundGradient.addColorStop(1, "#041320");
@@ -336,14 +433,6 @@ export const initScene = (
           context.fillStyle = vignetteGradient;
           context.fillRect(0, 0, width, height);
 
-          context.save();
-          context.globalAlpha = 0.16;
-          context.fillStyle = "#38bdf8";
-          for (let y = 0; y < height; y += 6) {
-            context.fillRect(0, y, width, 2);
-          }
-          context.restore();
-
           drawRoundedRect(
             bezelInset,
             bezelInset,
@@ -351,28 +440,35 @@ export const initScene = (
             height - bezelInset * 2,
             36
           );
-          context.fillStyle = "rgba(14, 20, 34, 0.85)";
+          context.fillStyle = "rgba(14, 20, 34, 0.88)";
           context.fill();
           context.lineWidth = 3;
           context.strokeStyle = "rgba(148, 163, 184, 0.35)";
           context.stroke();
 
-          context.shadowColor = "rgba(56, 189, 248, 0.45)";
-          context.shadowBlur = 22;
+          context.save();
+          context.shadowColor = "rgba(56, 189, 248, 0.35)";
+          context.shadowBlur = 26;
           context.shadowOffsetX = 0;
           context.shadowOffsetY = 0;
           context.fillStyle = "rgba(56, 189, 248, 0.08)";
-          drawRoundedRect(
-            bezelInset + 24,
-            bezelInset + 24,
-            width - (bezelInset + 24) * 2,
-            height - (bezelInset + 24) * 2,
-            28
-          );
+          drawRoundedRect(innerInset, innerInset, innerWidth, innerHeight, 28);
           context.fill();
-          context.shadowColor = "transparent";
+          context.restore();
 
-          context.fillStyle = "rgba(148, 163, 184, 0.65)";
+          renderMatrixOverlay();
+
+          context.save();
+          context.strokeStyle = "rgba(56, 189, 248, 0.18)";
+          context.lineWidth = 2;
+          context.setLineDash([12, 10]);
+          context.beginPath();
+          context.moveTo(bezelInset + 32, bezelInset + 160);
+          context.lineTo(width - (bezelInset + 32), bezelInset + 160);
+          context.stroke();
+          context.restore();
+
+          context.fillStyle = "rgba(148, 163, 184, 0.7)";
           context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
           context.textBaseline = "middle";
           context.fillText("TERMINAL", bezelInset + 36, bezelInset + 48);
@@ -387,6 +483,13 @@ export const initScene = (
             const optionX = zone.minX;
             const optionY = zone.minY;
             const optionWidth = zone.maxX - zone.minX;
+            const zoneState = zoneStateMap.get(zone.id);
+            const progress = zoneState ? zoneState.progress : 0;
+            const pulse = 0.6 + 0.4 * Math.sin(elapsedTime * 3 + (zoneState?.pulseOffset ?? 0));
+            const highlight = progress * pulse;
+
+            const gradientStart = mixColor(baseStartColor, highlightStartColor, progress);
+            const gradientEnd = mixColor(baseEndColor, highlightEndColor, progress);
 
             const optionGradient = context.createLinearGradient(
               optionX,
@@ -394,35 +497,65 @@ export const initScene = (
               optionX + optionWidth,
               optionY + optionHeight
             );
-            optionGradient.addColorStop(0, "rgba(15, 118, 210, 0.28)");
-            optionGradient.addColorStop(1, "rgba(56, 189, 248, 0.12)");
+            optionGradient.addColorStop(0, toRgba(gradientStart));
+            optionGradient.addColorStop(1, toRgba(gradientEnd));
+
+            context.save();
+            context.shadowColor = `rgba(34, 197, 94, ${(0.25 + highlight * 0.45).toFixed(3)})`;
+            context.shadowBlur = 24 * highlight;
+            context.shadowOffsetX = 0;
+            context.shadowOffsetY = 0;
 
             drawRoundedRect(optionX, optionY, optionWidth, optionHeight, 32);
             context.fillStyle = optionGradient;
             context.fill();
 
-            context.lineWidth = 3;
-            context.strokeStyle = "rgba(148, 163, 184, 0.35)";
+            context.shadowColor = "transparent";
+            context.lineWidth = 3 + progress;
+            context.strokeStyle = `rgba(148, 163, 184, ${(0.35 + progress * 0.35).toFixed(3)})`;
             context.stroke();
 
-            context.fillStyle = "#e2e8f0";
+            if (progress > 0.01) {
+              const innerGlow = context.createLinearGradient(
+                optionX,
+                optionY,
+                optionX + optionWidth,
+                optionY + optionHeight
+              );
+              innerGlow.addColorStop(0, `rgba(16, 185, 129, ${(0.12 + highlight * 0.2).toFixed(3)})`);
+              innerGlow.addColorStop(1, `rgba(6, 182, 212, ${(0.08 + highlight * 0.15).toFixed(3)})`);
+              drawRoundedRect(
+                optionX + 6,
+                optionY + 6,
+                optionWidth - 12,
+                optionHeight - 12,
+                28
+              );
+              context.strokeStyle = `rgba(94, 234, 212, ${(0.18 + highlight * 0.22).toFixed(3)})`;
+              context.lineWidth = 2;
+              context.stroke();
+            }
+
+            context.restore();
+
+            const titleColor = mixColor(baseTitleColor, highlightTitleColor, progress);
+            context.fillStyle = toRgba(titleColor);
             context.font = "700 64px 'Segoe UI', 'Inter', sans-serif";
             context.fillText(zone.title, optionX + 48, optionY + 54);
 
-            context.fillStyle = "rgba(148, 163, 184, 0.85)";
+            const descriptionColor = mixColor(
+              baseDescriptionColor,
+              highlightDescriptionColor,
+              progress
+            );
+            context.fillStyle = toRgba(descriptionColor);
             context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
             context.fillText(zone.description, optionX + 48, optionY + 94);
           });
-
-          context.strokeStyle = "rgba(51, 65, 85, 0.55)";
-          context.lineWidth = 2;
-          context.beginPath();
-          context.moveTo(bezelInset + 32, bezelInset + 160);
-          context.lineTo(width - (bezelInset + 32), bezelInset + 160);
-          context.stroke();
         };
 
         render();
+        needsRedraw = false;
 
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
@@ -430,10 +563,57 @@ export const initScene = (
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         texture.needsUpdate = true;
-        return texture;
+
+        return {
+          texture,
+          setHoveredZone: (zoneId) => {
+            if (hoveredZoneId === zoneId) {
+              return;
+            }
+
+            hoveredZoneId = zoneId ?? null;
+
+            zoneStates.forEach((state) => {
+              state.target = state.id === hoveredZoneId ? 1 : 0;
+            });
+            needsRedraw = true;
+          },
+          update: (delta = 0, elapsedTime = 0) => {
+            const previousOffset = matrixOffset;
+            matrixOffset = (matrixOffset + delta * matrixSpeed) % matrixLineHeight;
+            if (Math.abs(previousOffset - matrixOffset) > 0.001) {
+              needsRedraw = true;
+            }
+
+            zoneStates.forEach((state) => {
+              const previousProgress = state.progress;
+              if (Math.abs(state.target - state.progress) > 0.001) {
+                const step = clamp01(delta * 8);
+                state.progress = lerp(state.progress, state.target, step);
+              }
+
+              if (Math.abs(previousProgress - state.progress) > 0.001) {
+                needsRedraw = true;
+              }
+            });
+
+            if (!needsRedraw) {
+              return;
+            }
+
+            render(elapsedTime);
+            texture.needsUpdate = true;
+            needsRedraw = false;
+          },
+        };
       } catch (error) {
         console.warn("Falling back to SVG quick access texture", error);
-        return createQuickAccessFallbackTexture();
+        const fallbackTexture = createQuickAccessFallbackTexture();
+        return {
+          texture: fallbackTexture,
+          setHoveredZone: () => {},
+          update: () => {},
+        };
       }
     };
 
@@ -477,9 +657,9 @@ export const initScene = (
     let pendingScreenAspectRatio;
     let applyMonitorAspectRatio;
 
-    const monitorDisplayTexture = createMonitorDisplayTexture();
+    const monitorDisplay = createMonitorDisplayTexture();
     const screenTexture =
-      monitorDisplayTexture ??
+      monitorDisplay?.texture ??
       loadClampedTexture("../images/index/monitor2.png", (loadedTexture) => {
         const { image } = loadedTexture;
         if (image && image.width && image.height) {
@@ -513,6 +693,8 @@ export const initScene = (
     monitorScreen.userData.getQuickAccessZones = () => quickAccessZones;
     monitorScreen.userData.getQuickAccessTextureSize = () =>
       quickAccessTextureSize;
+    monitorScreen.userData.setHoveredZone = monitorDisplay?.setHoveredZone;
+    monitorScreen.userData.updateDisplayTexture = monitorDisplay?.update;
     monitorGroup.add(monitorScreen);
 
     const originalScreenWidth = screenWidth;
@@ -906,6 +1088,7 @@ export const initScene = (
   };
 
   const monitorScreen = computerSetup.userData?.monitorScreen;
+  let currentMonitorHoveredZoneId = null;
   if (monitorScreen) {
     quickAccessInteractables.push(monitorScreen);
   }
@@ -1160,11 +1343,27 @@ export const initScene = (
       velocity.set(0, 0, 0);
     }
 
+    let matchedZone = null;
+
     if (controls.isLocked) {
-      const matchedZone = getTargetedTerminalZone();
+      matchedZone = getTargetedTerminalZone();
       updateTerminalInteractableState(Boolean(matchedZone));
     } else {
       updateTerminalInteractableState(false);
+    }
+
+    const hoveredZoneId = matchedZone?.id ?? null;
+    if (hoveredZoneId !== currentMonitorHoveredZoneId) {
+      currentMonitorHoveredZoneId = hoveredZoneId;
+      const setHoveredZone = monitorScreen?.userData?.setHoveredZone;
+      if (typeof setHoveredZone === "function") {
+        setHoveredZone(currentMonitorHoveredZoneId);
+      }
+    }
+
+    const updateDisplayTexture = monitorScreen?.userData?.updateDisplayTexture;
+    if (typeof updateDisplayTexture === "function") {
+      updateDisplayTexture(delta, clock.elapsedTime);
     }
 
     renderer.render(scene, camera);
