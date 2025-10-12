@@ -26,9 +26,6 @@
       body {
         margin: 0;
         min-height: 100vh;
-        display: flex;
-        align-items: stretch;
-        justify-content: center;
         background: radial-gradient(circle at top, #1e293b, #0f172a 65%);
         color: inherit;
         overflow: hidden;
@@ -47,107 +44,369 @@
         pointer-events: none;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
+        justify-content: flex-end;
+        align-items: flex-start;
+        padding: clamp(1.5rem, 4vw, 2.75rem);
+        gap: clamp(1.5rem, 3vw, 2.5rem);
       }
 
-      .top-bar {
+      .game-monitor-station {
+        position: relative;
+        width: min(27rem, 42vw);
+        max-width: 440px;
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .game-monitor-station__frame {
+        display: block;
+        width: 100%;
+        height: auto;
+        pointer-events: none;
+      }
+
+      .game-terminal {
+        position: absolute;
+        top: 18%;
+        left: 11%;
+        right: 11%;
+        bottom: 43%;
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: center;
+        pointer-events: none;
+        transform: translateY(-4px);
+      }
+
+      .game-terminal__content {
+        position: relative;
+        display: flex;
+        flex-direction: column;
         gap: 1rem;
-        padding: 1.5rem;
+        width: 100%;
+        height: 100%;
+        padding: clamp(1.65rem, 3vw, 2.35rem) clamp(1.4rem, 2.4vw, 2rem);
+        border-radius: 1.35rem;
+        background: rgba(3, 7, 18, 0.82);
+        border: 1px solid rgba(52, 211, 153, 0.35);
+        box-shadow: 0 24px 48px rgba(6, 15, 11, 0.6);
+        overflow: hidden;
+        isolation: isolate;
         pointer-events: auto;
+        transition: transform 300ms ease, opacity 300ms ease;
+        backdrop-filter: blur(3px);
       }
 
-      a,
-      button {
-        font: inherit;
-        cursor: pointer;
-        border: none;
-        border-radius: 999px;
-        padding: 0.75rem 1.6rem;
-        transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
-        text-decoration: none;
+      .game-terminal__content::before {
+        content: "";
+        position: absolute;
+        inset: -15% -10% -15%;
+        background-image:
+          linear-gradient(180deg, rgba(1, 11, 8, 0.92) 0%, rgba(1, 24, 18, 0.78) 100%),
+          url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27160%27%20height%3D%27320%27%3E%0A%20%20%3Crect%20width%3D%27160%27%20height%3D%27320%27%20fill%3D%27none%27%2F%3E%0A%20%20%3Cg%20fill%3D%27%2316f89d%27%20font-family%3D%27monospace%27%20font-size%3D%2718%27%20opacity%3D%270.45%27%3E%0A%20%20%20%20%3Ctext%20x%3D%274%27%20y%3D%2720%27%3E1010010110010110%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%2720%27%20y%3D%2752%27%3E0010110100100101%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%278%27%20y%3D%2792%27%3E1101001011010010%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%2730%27%20y%3D%27132%27%3E0101100101100101%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%27-6%27%20y%3D%27172%27%3E1010010110100101%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%2716%27%20y%3D%27212%27%3E0101101001011010%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%272%27%20y%3D%27252%27%3E1001011010010110%3C%2Ftext%3E%0A%20%20%20%20%3Ctext%20x%3D%2726%27%20y%3D%27292%27%3E0010110100101101%3C%2Ftext%3E%0A%20%20%3C%2Fg%3E%0A%3C%2Fsvg%3E");
+        background-repeat: no-repeat, repeat;
+        background-size: cover, 140px 280px;
+        background-position: center, 0 0;
+        opacity: 0.95;
+        mix-blend-mode: screen;
+        animation: game-matrix-scroll 12s linear infinite;
+        pointer-events: none;
+        z-index: 0;
       }
 
-      a.cta {
-        background: linear-gradient(135deg, #38bdf8, #818cf8);
-        color: #0f172a;
-        font-weight: 700;
-        box-shadow: 0 12px 24px rgba(56, 189, 248, 0.25);
+      .game-terminal__content::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        box-shadow:
+          inset 0 0 24px rgba(16, 185, 129, 0.22),
+          inset 0 0 4px rgba(59, 130, 246, 0.1);
+        pointer-events: none;
+        z-index: 1;
       }
 
-      button.logout {
-        background: rgba(15, 23, 42, 0.55);
-        border: 2px solid rgba(148, 163, 184, 0.65);
-        color: inherit;
+      .game-terminal__content.is-hidden {
+        opacity: 0;
+        transform: translateY(12px);
+        pointer-events: none;
+      }
+
+      .game-screen-saver,
+      .game-terminal__menu,
+      .game-terminal__instructions,
+      .game-terminal__error {
+        position: relative;
+        z-index: 2;
+      }
+
+      .game-screen-saver {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 1.5rem;
+        border-radius: inherit;
+        background: radial-gradient(
+            circle at 50% 30%,
+            rgba(16, 185, 129, 0.2) 0%,
+            rgba(4, 12, 20, 0.85) 60%,
+            rgba(2, 6, 12, 0.92) 100%
+          ),
+          rgba(2, 6, 12, 0.88);
+        text-align: center;
+        pointer-events: none;
+        overflow: hidden;
+        color: rgba(226, 232, 240, 0.92);
+        letter-spacing: 0.08em;
+        transition: opacity 320ms ease, transform 320ms ease;
+      }
+
+      .game-screen-saver::before {
+        content: "";
+        position: absolute;
+        inset: -45% -35% -45% -35%;
+        background:
+          radial-gradient(
+            120% 120% at 50% 50%,
+            rgba(59, 130, 246, 0.16) 0%,
+            rgba(8, 47, 73, 0.05) 40%,
+            rgba(2, 6, 23, 0) 65%
+          ),
+          repeating-linear-gradient(
+            0deg,
+            rgba(20, 83, 45, 0.22),
+            rgba(20, 83, 45, 0.22) 2px,
+            transparent 2px,
+            transparent 4px
+          );
+        mix-blend-mode: screen;
+        opacity: 0.85;
+        animation: game-screen-saver-pan 7.5s linear infinite;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .game-screen-saver::after {
+        content: "";
+        position: absolute;
+        inset: -150% -45%;
+        background: linear-gradient(
+          0deg,
+          transparent 0%,
+          rgba(16, 185, 129, 0) 30%,
+          rgba(16, 185, 129, 0.45) 48%,
+          rgba(52, 211, 153, 0.75) 50%,
+          rgba(16, 185, 129, 0.45) 52%,
+          rgba(16, 185, 129, 0) 70%,
+          transparent 100%
+        );
+        opacity: 0.6;
+        animation: game-screen-saver-scan 3.2s linear infinite;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .game-screen-saver__label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.85);
+        letter-spacing: 0.26em;
+      }
+
+      .game-screen-saver__divider {
+        width: min(140px, 70%);
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          rgba(16, 185, 129, 0),
+          rgba(16, 185, 129, 0.65) 50%,
+          rgba(16, 185, 129, 0)
+        );
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+      }
+
+      .game-screen-saver__hint {
+        font-size: 0.9rem;
         font-weight: 600;
-        backdrop-filter: blur(8px);
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: rgba(110, 231, 183, 0.95);
+        animation: game-screen-saver-hint 2.4s ease-in-out infinite;
       }
 
-      a.cta:focus-visible,
-      a.cta:hover {
+      .game-screen-saver.is-dismissed {
+        opacity: 0;
+        transform: scale(1.02);
+      }
+
+      .game-screen-saver.is-dismissed::before,
+      .game-screen-saver.is-dismissed::after {
+        opacity: 0;
+      }
+
+      .game-terminal__menu {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        transition: opacity 260ms ease;
+      }
+
+      .game-terminal__button {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        font: inherit;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.85rem 1.4rem;
+        border-radius: 999px;
+        border: none;
+        background: linear-gradient(135deg, rgba(45, 212, 191, 0.92), rgba(34, 211, 238, 0.92));
+        color: #052e16;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        box-shadow: 0 16px 34px rgba(45, 212, 191, 0.2);
+      }
+
+      .game-terminal__button:hover,
+      .game-terminal__button:focus-visible {
         transform: translateY(-2px);
-        box-shadow: 0 16px 32px rgba(56, 189, 248, 0.35);
+        box-shadow: 0 22px 40px rgba(34, 211, 238, 0.35);
+        outline: none;
       }
 
-      button.logout:focus-visible,
-      button.logout:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 24px rgba(148, 163, 184, 0.25);
-        background: rgba(30, 41, 59, 0.7);
+      .game-terminal__button:focus-visible {
+        box-shadow:
+          0 0 0 3px rgba(15, 118, 110, 0.45),
+          0 22px 40px rgba(34, 211, 238, 0.35);
       }
 
-      button.logout[disabled] {
+      .game-terminal__button--ghost {
+        background: rgba(15, 23, 42, 0.65);
+        color: rgba(226, 232, 240, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.45);
+      }
+
+      .game-terminal__button--ghost:hover,
+      .game-terminal__button--ghost:focus-visible {
+        background: rgba(30, 41, 59, 0.75);
+        box-shadow:
+          0 0 0 3px rgba(148, 163, 184, 0.3),
+          0 18px 32px rgba(15, 23, 42, 0.45);
+      }
+
+      .game-terminal__button[disabled] {
         opacity: 0.7;
         cursor: progress;
       }
 
-      .status-region {
-        display: flex;
-        justify-content: center;
-        padding: 0 1.5rem 2rem;
-        pointer-events: none;
-      }
-
-      .logout-error {
+      .game-terminal__error {
         margin: 0;
-        color: #fca5a5;
         font-weight: 600;
         letter-spacing: 0.03em;
         min-height: 1.25rem;
-        padding: 0.75rem 1.25rem;
-        border-radius: 12px;
+        padding: 0.65rem 1rem;
+        border-radius: 0.85rem;
         background: rgba(15, 23, 42, 0.75);
-        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.55);
+        box-shadow: 0 16px 34px rgba(15, 23, 42, 0.55);
+        color: #fca5a5;
       }
 
-      .logout-error[hidden] {
+      .game-terminal__error[hidden] {
         display: none;
       }
 
-      .instructions {
-        align-self: center;
-        margin-bottom: 3rem;
-        padding: 0.9rem 1.4rem;
-        border-radius: 16px;
-        background: rgba(15, 23, 42, 0.75);
-        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.6);
+      .game-terminal__instructions {
         font-size: 0.95rem;
-        line-height: 1.5;
+        line-height: 1.6;
         text-align: center;
-        max-width: min(90vw, 420px);
+        color: rgba(226, 232, 240, 0.85);
+      }
+
+      .game-terminal__instructions[hidden] {
+        display: none;
+      }
+
+      .game-terminal__instructions p {
+        margin: 0;
+      }
+
+      .game-terminal__content.is-screen-saver-active .game-terminal__menu,
+      .game-terminal__content.is-screen-saver-active .game-terminal__instructions,
+      .game-terminal__content.is-screen-saver-active .game-terminal__error {
+        opacity: 0;
+        visibility: hidden;
         pointer-events: none;
       }
 
-      .instructions[hidden] {
-        display: none;
+      .game-terminal__content.is-screen-saver-active .game-terminal__menu {
+        transform: translateY(10px);
       }
 
-      .instructions p {
-        margin: 0 0 0.75rem;
+      @keyframes game-matrix-scroll {
+        0% {
+          transform: translateY(0);
+        }
+        100% {
+          transform: translateY(140px);
+        }
       }
 
+      @keyframes game-screen-saver-pan {
+        0% {
+          transform: translate3d(0, 0, 0) rotate(0deg);
+        }
+        50% {
+          transform: translate3d(3%, -2%, 0) rotate(0.4deg);
+        }
+        100% {
+          transform: translate3d(0, 0, 0) rotate(0deg);
+        }
+      }
+
+      @keyframes game-screen-saver-scan {
+        0% {
+          transform: translateY(-100%);
+        }
+        100% {
+          transform: translateY(100%);
+        }
+      }
+
+      @keyframes game-screen-saver-hint {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .ui-overlay {
+          align-items: center;
+        }
+
+        .game-monitor-station {
+          width: min(30rem, 90vw);
+        }
+
+        .game-terminal {
+          top: 18%;
+          left: 9%;
+          right: 9%;
+          bottom: 40%;
+        }
+      }
     </style>
   </head>
   <body>
@@ -159,31 +418,39 @@
     ></canvas>
 
     <div class="ui-overlay">
-      <div class="top-bar">
-        <a class="cta" href="index.html">Return to Lobby</a>
-        <button class="logout" type="button" data-logout-button>Log out</button>
-      </div>
-
-      <div class="status-region">
-        <p
-          class="logout-error"
-          id="logoutError"
-          role="status"
-          aria-live="polite"
-          hidden
-        ></p>
-      </div>
-
-      <div
-        class="instructions"
-        data-instructions
-        role="status"
-        aria-live="polite"
-      >
-        <p>
-          Click or tap to enter the room. Use WASD or arrow keys to move and your mouse to
-          look around.
-        </p>
+      <div class="game-monitor-station">
+        <img
+          class="game-monitor-station__frame"
+          src="images/index/monitor.png"
+          alt="Decorative mission monitor"
+          width="960"
+          height="640"
+          loading="lazy"
+          decoding="async"
+        />
+        <aside class="game-terminal" aria-label="Game console">
+          <div class="game-terminal__content is-screen-saver-active" data-game-panel>
+            <div class="game-screen-saver" data-game-screen-saver aria-hidden="false">
+              <span class="game-screen-saver__label">Standby Mode</span>
+              <span class="game-screen-saver__divider" aria-hidden="true"></span>
+              <span class="game-screen-saver__hint">Tap or click to activate</span>
+            </div>
+            <div class="game-terminal__menu" data-game-menu role="group" aria-label="Game actions">
+              <button class="game-terminal__button" type="button" data-enter-room>Enter room</button>
+              <a class="game-terminal__button" href="index.html">Return to Lobby</a>
+              <button class="game-terminal__button game-terminal__button--ghost" type="button" data-logout-button>
+                Log out
+              </button>
+            </div>
+            <p class="game-terminal__error" id="logoutError" role="status" aria-live="polite" hidden></p>
+            <div class="game-terminal__instructions" data-instructions role="status" aria-live="polite">
+              <p>
+                Click or tap to enter the room. Use WASD or arrow keys to move and your mouse to
+                look around.
+              </p>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
 
