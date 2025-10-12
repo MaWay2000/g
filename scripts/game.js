@@ -16,6 +16,9 @@ const quickAccessModalDialog = quickAccessModal?.querySelector(
 const quickAccessModalContent = quickAccessModal?.querySelector(
   ".quick-access-modal__content"
 );
+const quickAccessModalMatrix = quickAccessModal?.querySelector(
+  ".quick-access-modal__matrix"
+);
 
 const quickAccessModalTemplates = {
   default: document.getElementById("quick-access-modal-default"),
@@ -98,6 +101,202 @@ let quickAccessModalClose = null;
 let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let sceneController = null;
+
+const MATRIX_CHARACTER_SET =
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\u30A2\u30AB\u30B5\u30BF\u30CA\u30CF\u30DE\u30E4\u30E9";
+
+const quickAccessMatrixState = {
+  container:
+    quickAccessModalMatrix instanceof HTMLElement ? quickAccessModalMatrix : null,
+  canvas: null,
+  context: null,
+  animationFrameId: 0,
+  pendingStartFrameId: 0,
+  width: 0,
+  height: 0,
+  fontSize: 16,
+  columns: 0,
+  drops: [],
+  running: false,
+  dpr: window.devicePixelRatio || 1,
+};
+
+const ensureQuickAccessMatrixCanvas = () => {
+  if (!quickAccessMatrixState.container) {
+    return false;
+  }
+
+  if (!(quickAccessMatrixState.canvas instanceof HTMLCanvasElement)) {
+    const canvas = document.createElement("canvas");
+    canvas.className = "quick-access-modal__matrix-canvas";
+    canvas.setAttribute("aria-hidden", "true");
+    quickAccessMatrixState.container.appendChild(canvas);
+    quickAccessMatrixState.canvas = canvas;
+  }
+
+  const context = quickAccessMatrixState.canvas.getContext("2d");
+  if (!context) {
+    return false;
+  }
+
+  quickAccessMatrixState.context = context;
+  return true;
+};
+
+const updateQuickAccessMatrixMetrics = () => {
+  if (!ensureQuickAccessMatrixCanvas()) {
+    return false;
+  }
+
+  const { container, canvas, context } = quickAccessMatrixState;
+  if (
+    !(container instanceof HTMLElement) ||
+    !(canvas instanceof HTMLCanvasElement) ||
+    !context
+  ) {
+    return false;
+  }
+
+  const rect = container.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width));
+  const height = Math.max(1, Math.round(rect.height));
+
+  if (width === 0 || height === 0) {
+    return false;
+  }
+
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  quickAccessMatrixState.dpr = devicePixelRatio;
+  quickAccessMatrixState.width = width;
+  quickAccessMatrixState.height = height;
+
+  canvas.width = width * devicePixelRatio;
+  canvas.height = height * devicePixelRatio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  context.textBaseline = "top";
+  context.textAlign = "left";
+
+  const fontSize = Math.max(14, Math.floor(width / 48));
+  quickAccessMatrixState.fontSize = fontSize;
+  quickAccessMatrixState.columns = Math.max(1, Math.floor(width / fontSize));
+  quickAccessMatrixState.drops = Array.from(
+    { length: quickAccessMatrixState.columns },
+    () => Math.random() * (-height / fontSize)
+  );
+
+  return true;
+};
+
+const drawQuickAccessMatrixFrame = () => {
+  if (!quickAccessMatrixState.running) {
+    return;
+  }
+
+  const { context, width, height, fontSize, drops } = quickAccessMatrixState;
+  if (!context) {
+    return;
+  }
+
+  context.fillStyle = "rgba(2, 6, 23, 0.28)";
+  context.fillRect(0, 0, width, height);
+
+  context.fillStyle = "rgba(56, 189, 248, 0.85)";
+  context.shadowColor = "rgba(56, 189, 248, 0.35)";
+  context.shadowBlur = fontSize * 0.45;
+  context.font = `${fontSize}px 'Share Tech Mono', 'IBM Plex Mono', 'Courier New', monospace`;
+
+  for (let columnIndex = 0; columnIndex < drops.length; columnIndex += 1) {
+    const dropValue = drops[columnIndex];
+    const glyphIndex = Math.floor(Math.random() * MATRIX_CHARACTER_SET.length);
+    const glyph = MATRIX_CHARACTER_SET.charAt(glyphIndex);
+    const x = columnIndex * fontSize;
+    const y = dropValue * fontSize;
+
+    context.fillText(glyph, x, y);
+
+    if (y > height && Math.random() > 0.975) {
+      drops[columnIndex] = Math.random() * (-height / fontSize);
+    } else {
+      drops[columnIndex] = dropValue + 1;
+    }
+  }
+
+  context.shadowBlur = 0;
+  context.shadowColor = "transparent";
+
+  quickAccessMatrixState.animationFrameId = window.requestAnimationFrame(
+    drawQuickAccessMatrixFrame
+  );
+};
+
+const handleQuickAccessMatrixResize = () => {
+  if (!quickAccessMatrixState.running) {
+    return;
+  }
+
+  if (updateQuickAccessMatrixMetrics() && quickAccessMatrixState.context) {
+    quickAccessMatrixState.context.fillStyle = "rgba(2, 6, 23, 0.3)";
+    quickAccessMatrixState.context.fillRect(
+      0,
+      0,
+      quickAccessMatrixState.width,
+      quickAccessMatrixState.height
+    );
+  }
+};
+
+const startQuickAccessMatrix = () => {
+  if (
+    quickAccessMatrixState.running ||
+    quickAccessMatrixState.pendingStartFrameId ||
+    !quickAccessMatrixState.container ||
+    quickAccessModal?.hidden
+  ) {
+    return;
+  }
+
+  if (!updateQuickAccessMatrixMetrics()) {
+    quickAccessMatrixState.pendingStartFrameId = window.requestAnimationFrame(() => {
+      quickAccessMatrixState.pendingStartFrameId = 0;
+      startQuickAccessMatrix();
+    });
+    return;
+  }
+
+  quickAccessMatrixState.running = true;
+  window.addEventListener("resize", handleQuickAccessMatrixResize);
+  drawQuickAccessMatrixFrame();
+};
+
+const stopQuickAccessMatrix = () => {
+  if (quickAccessMatrixState.pendingStartFrameId) {
+    window.cancelAnimationFrame(quickAccessMatrixState.pendingStartFrameId);
+    quickAccessMatrixState.pendingStartFrameId = 0;
+  }
+
+  if (!quickAccessMatrixState.running) {
+    return;
+  }
+
+  quickAccessMatrixState.running = false;
+  window.cancelAnimationFrame(quickAccessMatrixState.animationFrameId);
+  quickAccessMatrixState.animationFrameId = 0;
+  window.removeEventListener("resize", handleQuickAccessMatrixResize);
+
+  const { context, canvas } = quickAccessMatrixState;
+  if (context && canvas instanceof HTMLCanvasElement) {
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  quickAccessMatrixState.drops = [];
+  quickAccessMatrixState.columns = 0;
+};
 
 let terminalToastHideTimeoutId;
 let terminalToastFinalizeTimeoutId;
@@ -182,6 +381,7 @@ const finishClosingQuickAccessModal = () => {
 
   quickAccessModal.hidden = true;
   quickAccessModalContent.innerHTML = "";
+  stopQuickAccessMatrix();
   quickAccessModalClose = null;
   updateBodyModalState(false);
   document.removeEventListener("keydown", handleQuickAccessModalKeydown, true);
@@ -270,6 +470,9 @@ const openQuickAccessModal = (option) => {
 
   requestAnimationFrame(() => {
     quickAccessModal.classList.add("is-open");
+    requestAnimationFrame(() => {
+      startQuickAccessMatrix();
+    });
   });
 
   updateBodyModalState(true);
