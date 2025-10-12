@@ -122,7 +122,17 @@ const quickAccessMatrixState = {
 };
 
 const ensureQuickAccessMatrixCanvas = () => {
-  if (!quickAccessMatrixState.container) {
+  if (!(quickAccessMatrixState.container instanceof HTMLElement)) {
+    const container = quickAccessModal?.querySelector(
+      ".quick-access-modal__matrix"
+    );
+
+    if (container instanceof HTMLElement) {
+      quickAccessMatrixState.container = container;
+    }
+  }
+
+  if (!(quickAccessMatrixState.container instanceof HTMLElement)) {
     return false;
   }
 
