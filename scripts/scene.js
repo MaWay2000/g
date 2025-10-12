@@ -34,6 +34,64 @@ export const initScene = (
     return texture;
   };
 
+  const createQuickAccessFallbackTexture = () => {
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
+  <defs>
+    <linearGradient id="screen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#051120" />
+      <stop offset="100%" stop-color="#020a16" />
+    </linearGradient>
+    <radialGradient id="screen-vignette" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#1f2937" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#020610" stop-opacity="0.98" />
+    </radialGradient>
+    <linearGradient id="option-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f76d2" stop-opacity="0.42" />
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.18" />
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="768" fill="url(#screen-bg)" />
+  <rect width="1024" height="768" fill="url(#screen-vignette)" />
+  <g fill="none" stroke="#60a5fa" stroke-width="3" opacity="0.28">
+    <rect x="40" y="40" width="944" height="688" rx="36" ry="36" />
+  </g>
+  <g>
+    <text x="96" y="116" fill="#94a3b8" fill-opacity="0.82" font-size="44" font-family="'Segoe UI', 'Inter', sans-serif" font-weight="600" letter-spacing="6">TERMINAL</text>
+    <text x="96" y="220" fill="#38bdf8" font-size="102" font-family="'Segoe UI', 'Inter', sans-serif" font-weight="700">Quick Access</text>
+  </g>
+  <line x1="84" y1="256" x2="940" y2="256" stroke="#334155" stroke-opacity="0.55" stroke-width="3" />
+  <g font-family="'Segoe UI', 'Inter', sans-serif">
+    <g transform="translate(96 292)">
+      <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
+      <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">NEWS</text>
+      <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Latest mission intelligence</text>
+    </g>
+    <g transform="translate(96 472)">
+      <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
+      <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">WEATHER</text>
+      <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Atmospheric reports</text>
+    </g>
+    <g transform="translate(96 652)">
+      <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
+      <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">MISSIONS</text>
+      <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Active assignments</text>
+    </g>
+  </g>
+</svg>`;
+
+    const dataUrl = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    const texture = textureLoader.load(dataUrl);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return texture;
+  };
+
   const loadClampedTexture = (path, onLoad) => {
     const texture = textureLoader.load(
       new URL(path, import.meta.url).href,
@@ -166,7 +224,7 @@ export const initScene = (
 
       const context = canvas.getContext("2d");
       if (!context) {
-        return undefined;
+        return createQuickAccessFallbackTexture();
       }
 
       const drawRoundedRect = (x, y, rectWidth, rectHeight, radius) => {
@@ -199,131 +257,138 @@ export const initScene = (
         context.closePath();
       };
 
-      const render = () => {
-        const backgroundGradient = context.createLinearGradient(0, 0, width, height);
-        backgroundGradient.addColorStop(0, "#071122");
-        backgroundGradient.addColorStop(1, "#041320");
+      try {
+        const render = () => {
+          const backgroundGradient = context.createLinearGradient(0, 0, width, height);
+          backgroundGradient.addColorStop(0, "#071122");
+          backgroundGradient.addColorStop(1, "#041320");
 
-        context.fillStyle = backgroundGradient;
-        context.fillRect(0, 0, width, height);
+          context.fillStyle = backgroundGradient;
+          context.fillRect(0, 0, width, height);
 
-        const vignetteGradient = context.createRadialGradient(
-          width * 0.5,
-          height * 0.45,
-          Math.min(width, height) * 0.15,
-          width * 0.5,
-          height * 0.5,
-          Math.max(width, height) * 0.75
-        );
-        vignetteGradient.addColorStop(0, "rgba(30, 41, 59, 0.9)");
-        vignetteGradient.addColorStop(1, "rgba(2, 6, 14, 0.95)");
-
-        context.fillStyle = vignetteGradient;
-        context.fillRect(0, 0, width, height);
-
-        context.save();
-        context.globalAlpha = 0.16;
-        context.fillStyle = "#38bdf8";
-        for (let y = 0; y < height; y += 6) {
-          context.fillRect(0, y, width, 2);
-        }
-        context.restore();
-
-        const bezelInset = 48;
-        drawRoundedRect(
-          bezelInset,
-          bezelInset,
-          width - bezelInset * 2,
-          height - bezelInset * 2,
-          36
-        );
-        context.fillStyle = "rgba(14, 20, 34, 0.85)";
-        context.fill();
-        context.lineWidth = 3;
-        context.strokeStyle = "rgba(148, 163, 184, 0.35)";
-        context.stroke();
-
-        context.shadowColor = "rgba(56, 189, 248, 0.45)";
-        context.shadowBlur = 22;
-        context.shadowOffsetX = 0;
-        context.shadowOffsetY = 0;
-        context.fillStyle = "rgba(56, 189, 248, 0.08)";
-        drawRoundedRect(
-          bezelInset + 24,
-          bezelInset + 24,
-          width - (bezelInset + 24) * 2,
-          height - (bezelInset + 24) * 2,
-          28
-        );
-        context.fill();
-        context.shadowColor = "transparent";
-
-        context.fillStyle = "rgba(148, 163, 184, 0.65)";
-        context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
-        context.textBaseline = "middle";
-        context.fillText("TERMINAL", bezelInset + 36, bezelInset + 48);
-
-        context.fillStyle = "#38bdf8";
-        context.font = "700 70px 'Segoe UI', 'Inter', sans-serif";
-        context.fillText("Quick Access", bezelInset + 36, bezelInset + 132);
-
-        const options = [
-          { title: "NEWS", description: "Latest mission intelligence" },
-          { title: "WEATHER", description: "Atmospheric reports" },
-          { title: "MISSIONS", description: "Active assignments" },
-        ];
-
-        const optionHeight = 132;
-        const optionSpacing = 28;
-        let optionY = bezelInset + 184;
-
-        options.forEach((option) => {
-          const optionX = bezelInset + 40;
-          const optionWidth = width - optionX * 2;
-
-          const optionGradient = context.createLinearGradient(
-            optionX,
-            optionY,
-            optionX + optionWidth,
-            optionY + optionHeight
+          const vignetteGradient = context.createRadialGradient(
+            width * 0.5,
+            height * 0.45,
+            Math.min(width, height) * 0.15,
+            width * 0.5,
+            height * 0.5,
+            Math.max(width, height) * 0.75
           );
-          optionGradient.addColorStop(0, "rgba(15, 118, 210, 0.28)");
-          optionGradient.addColorStop(1, "rgba(56, 189, 248, 0.12)");
+          vignetteGradient.addColorStop(0, "rgba(30, 41, 59, 0.9)");
+          vignetteGradient.addColorStop(1, "rgba(2, 6, 14, 0.95)");
 
-          drawRoundedRect(optionX, optionY, optionWidth, optionHeight, 32);
-          context.fillStyle = optionGradient;
+          context.fillStyle = vignetteGradient;
+          context.fillRect(0, 0, width, height);
+
+          context.save();
+          context.globalAlpha = 0.16;
+          context.fillStyle = "#38bdf8";
+          for (let y = 0; y < height; y += 6) {
+            context.fillRect(0, y, width, 2);
+          }
+          context.restore();
+
+          const bezelInset = 48;
+          drawRoundedRect(
+            bezelInset,
+            bezelInset,
+            width - bezelInset * 2,
+            height - bezelInset * 2,
+            36
+          );
+          context.fillStyle = "rgba(14, 20, 34, 0.85)";
           context.fill();
-
           context.lineWidth = 3;
           context.strokeStyle = "rgba(148, 163, 184, 0.35)";
           context.stroke();
 
-          context.fillStyle = "#e2e8f0";
-          context.font = "700 64px 'Segoe UI', 'Inter', sans-serif";
-          context.fillText(option.title, optionX + 48, optionY + 54);
+          context.shadowColor = "rgba(56, 189, 248, 0.45)";
+          context.shadowBlur = 22;
+          context.shadowOffsetX = 0;
+          context.shadowOffsetY = 0;
+          context.fillStyle = "rgba(56, 189, 248, 0.08)";
+          drawRoundedRect(
+            bezelInset + 24,
+            bezelInset + 24,
+            width - (bezelInset + 24) * 2,
+            height - (bezelInset + 24) * 2,
+            28
+          );
+          context.fill();
+          context.shadowColor = "transparent";
 
-          context.fillStyle = "rgba(148, 163, 184, 0.85)";
-          context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
-          context.fillText(option.description, optionX + 48, optionY + 94);
+          context.fillStyle = "rgba(148, 163, 184, 0.65)";
+          context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
+          context.textBaseline = "middle";
+          context.fillText("TERMINAL", bezelInset + 36, bezelInset + 48);
 
-          optionY += optionHeight + optionSpacing;
-        });
+          context.fillStyle = "#38bdf8";
+          context.font = "700 70px 'Segoe UI', 'Inter', sans-serif";
+          context.fillText("Quick Access", bezelInset + 36, bezelInset + 132);
 
-        context.strokeStyle = "rgba(51, 65, 85, 0.55)";
-        context.lineWidth = 2;
-        context.beginPath();
-        context.moveTo(bezelInset + 32, bezelInset + 160);
-        context.lineTo(width - (bezelInset + 32), bezelInset + 160);
-        context.stroke();
-      };
+          const options = [
+            { title: "NEWS", description: "Latest mission intelligence" },
+            { title: "WEATHER", description: "Atmospheric reports" },
+            { title: "MISSIONS", description: "Active assignments" },
+          ];
 
-      render();
+          const optionHeight = 132;
+          const optionSpacing = 28;
+          let optionY = bezelInset + 184;
 
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      texture.needsUpdate = true;
-      return texture;
+          options.forEach((option) => {
+            const optionX = bezelInset + 40;
+            const optionWidth = width - optionX * 2;
+
+            const optionGradient = context.createLinearGradient(
+              optionX,
+              optionY,
+              optionX + optionWidth,
+              optionY + optionHeight
+            );
+            optionGradient.addColorStop(0, "rgba(15, 118, 210, 0.28)");
+            optionGradient.addColorStop(1, "rgba(56, 189, 248, 0.12)");
+
+            drawRoundedRect(optionX, optionY, optionWidth, optionHeight, 32);
+            context.fillStyle = optionGradient;
+            context.fill();
+
+            context.lineWidth = 3;
+            context.strokeStyle = "rgba(148, 163, 184, 0.35)";
+            context.stroke();
+
+            context.fillStyle = "#e2e8f0";
+            context.font = "700 64px 'Segoe UI', 'Inter', sans-serif";
+            context.fillText(option.title, optionX + 48, optionY + 54);
+
+            context.fillStyle = "rgba(148, 163, 184, 0.85)";
+            context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
+            context.fillText(option.description, optionX + 48, optionY + 94);
+
+            optionY += optionHeight + optionSpacing;
+          });
+
+          context.strokeStyle = "rgba(51, 65, 85, 0.55)";
+          context.lineWidth = 2;
+          context.beginPath();
+          context.moveTo(bezelInset + 32, bezelInset + 160);
+          context.lineTo(width - (bezelInset + 32), bezelInset + 160);
+          context.stroke();
+        };
+
+        render();
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
+        return texture;
+      } catch (error) {
+        console.warn("Falling back to SVG quick access texture", error);
+        return createQuickAccessFallbackTexture();
+      }
     };
 
     const screenSize = 0.98 * 2; // Double the diagonal of the square screen
