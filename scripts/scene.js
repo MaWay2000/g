@@ -157,7 +157,7 @@ export const initScene = (
       roughness: 0.35,
     });
 
-    const screenSize = 0.98;
+    const screenSize = 0.98 * 2; // Double the diagonal of the square screen
     const screenHeight = screenSize;
     const screenWidth = screenSize;
     const screenFillScale = 1.08;
