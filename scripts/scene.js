@@ -160,8 +160,34 @@ export const initScene = (
     const screenSize = 0.98;
     const screenHeight = screenSize;
     const screenWidth = screenSize;
-    const screenFillScale = 1;
-    const screenDepthOffset = 0.14;
+    const screenFillScale = 1.08;
+    const bezelPadding = 0.02;
+    const bezelWidth = screenWidth + bezelPadding * 2;
+    const bezelHeight = screenHeight + bezelPadding * 2;
+    const bezelDepth = 0.04;
+    const housingBorder = 0.05;
+    const housingWidth = bezelWidth + housingBorder * 2;
+    const housingHeight = bezelHeight + housingBorder * 2;
+    const housingDepth = 0.12;
+    const monitorHousing = new THREE.Mesh(
+      new THREE.BoxGeometry(housingWidth, housingHeight, housingDepth),
+      monitorMaterial
+    );
+    monitorHousing.position.y = 0.52;
+    monitorHousing.position.z = 0.12;
+    monitorGroup.add(monitorHousing);
+
+    const monitorBezel = new THREE.Mesh(
+      new THREE.BoxGeometry(bezelWidth, bezelHeight, bezelDepth),
+      new THREE.MeshStandardMaterial({
+        color: 0x111c2b,
+        metalness: 0.25,
+        roughness: 0.45,
+      })
+    );
+    monitorBezel.position.y = 0.52;
+    monitorBezel.position.z = 0.14;
+    monitorGroup.add(monitorBezel);
 
     let pendingScreenAspectRatio;
     let applyMonitorAspectRatio;
@@ -191,12 +217,19 @@ export const initScene = (
       new THREE.PlaneGeometry(screenWidth, screenHeight),
       monitorScreenMaterial
     );
-    monitorScreen.position.set(0, 0.52, screenDepthOffset);
+    monitorScreen.position.set(
+      0,
+      0.52,
+      monitorHousing.position.z + housingDepth / 2 + 0.005
+    );
     monitorScreen.scale.y = screenFillScale;
     monitorScreen.renderOrder = 1;
     monitorGroup.add(monitorScreen);
 
     const originalScreenWidth = screenWidth;
+    const originalBezelWidth = bezelWidth;
+    const originalHousingWidth = housingWidth;
+    const powerButtonEdgeOffset = 0.22;
 
     const updateMonitorLayout = (aspectRatio) => {
       if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
@@ -204,10 +237,16 @@ export const initScene = (
       }
 
       const adjustedScreenWidth = screenHeight * aspectRatio;
+      const adjustedBezelWidth = adjustedScreenWidth + bezelPadding * 2;
+      const adjustedHousingWidth = adjustedBezelWidth + housingBorder * 2;
 
       monitorScreen.scale.x =
         (adjustedScreenWidth / originalScreenWidth) * screenFillScale;
       monitorScreen.scale.y = screenFillScale;
+      monitorBezel.scale.x = adjustedBezelWidth / originalBezelWidth;
+      monitorHousing.scale.x = adjustedHousingWidth / originalHousingWidth;
+      monitorPowerButton.position.x =
+        adjustedHousingWidth / 2 - powerButtonEdgeOffset;
     };
 
     const monitorStandColumn = new THREE.Mesh(
@@ -238,6 +277,17 @@ export const initScene = (
     );
     monitorBase.position.set(0, 0.01, 0);
     monitorGroup.add(monitorBase);
+
+    const monitorPowerButton = new THREE.Mesh(
+      new THREE.CircleGeometry(0.04, 24),
+      new THREE.MeshBasicMaterial({ color: 0x22d3ee })
+    );
+    monitorPowerButton.position.set(
+      housingWidth / 2 - powerButtonEdgeOffset,
+      0.16,
+      monitorHousing.position.z + housingDepth / 2 - 0.02
+    );
+    monitorGroup.add(monitorPowerButton);
 
     applyMonitorAspectRatio = updateMonitorLayout;
 
