@@ -206,6 +206,8 @@ const closeQuickAccessModal = () => {
     return;
   }
 
+  playTerminalInteractionSound();
+
   quickAccessModal.classList.remove("is-open");
   quickAccessModal.setAttribute("aria-hidden", "true");
 
