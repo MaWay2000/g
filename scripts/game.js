@@ -7,6 +7,8 @@ const logoutButton = document.querySelector("[data-logout-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
 const crosshair = document.querySelector(".crosshair");
+let previousCrosshairInteractableState =
+  crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
 const quickAccessModal = document.querySelector(".quick-access-modal");
 const quickAccessModalDialog = quickAccessModal?.querySelector(
   ".quick-access-modal__dialog"
@@ -326,11 +328,21 @@ const setCrosshairInteractableState = (canInteract) => {
     return;
   }
 
-  if (canInteract) {
+  const nextCrosshairInteractableState = Boolean(canInteract);
+  if (
+    previousCrosshairInteractableState === false &&
+    nextCrosshairInteractableState === true
+  ) {
+    playTerminalInteractionSound();
+  }
+
+  if (nextCrosshairInteractableState) {
     crosshair.dataset.interactable = "true";
   } else {
     delete crosshair.dataset.interactable;
   }
+
+  previousCrosshairInteractableState = nextCrosshairInteractableState;
 };
 
 const bootstrapScene = () => {
