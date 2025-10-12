@@ -3,7 +3,7 @@ import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const initScene = (
   canvas,
-  { onControlsLocked, onControlsUnlocked } = {}
+  { onControlsLocked, onControlsUnlocked, onTerminalOptionSelected } = {}
 ) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -174,6 +174,9 @@ export const initScene = (
   const createComputerSetup = () => {
     const group = new THREE.Group();
 
+    let quickAccessTextureSize = { width: 1024, height: 768 };
+    let quickAccessZones = [];
+
     const deskHeight = 0.78 * 1.3;
     const deskTopThickness = 0.08;
     const deskWidth = 3.2;
@@ -218,6 +221,54 @@ export const initScene = (
     const createMonitorDisplayTexture = () => {
       const width = 1024;
       const height = 768;
+
+      quickAccessTextureSize = { width, height };
+
+      const quickAccessOptionDefinitions = [
+        {
+          id: "news",
+          title: "NEWS",
+          description: "Latest mission intelligence",
+        },
+        {
+          id: "weather",
+          title: "WEATHER",
+          description: "Atmospheric reports",
+        },
+        {
+          id: "missions",
+          title: "MISSIONS",
+          description: "Active assignments",
+        },
+      ];
+
+      const bezelInset = 48;
+      const optionHeight = 132;
+      const optionSpacing = 28;
+
+      const computeQuickAccessZones = () => {
+        const optionX = bezelInset + 40;
+        const optionWidth = width - optionX * 2;
+        let optionY = bezelInset + 184;
+
+        return quickAccessOptionDefinitions.map((definition) => {
+          const zone = {
+            id: definition.id,
+            title: definition.title,
+            description: definition.description,
+            minX: optionX,
+            maxX: optionX + optionWidth,
+            minY: optionY,
+            maxY: optionY + optionHeight,
+          };
+
+          optionY += optionHeight + optionSpacing;
+          return zone;
+        });
+      };
+
+      quickAccessZones = computeQuickAccessZones();
+
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -288,7 +339,6 @@ export const initScene = (
           }
           context.restore();
 
-          const bezelInset = 48;
           drawRoundedRect(
             bezelInset,
             bezelInset,
@@ -326,19 +376,12 @@ export const initScene = (
           context.font = "700 70px 'Segoe UI', 'Inter', sans-serif";
           context.fillText("Quick Access", bezelInset + 36, bezelInset + 132);
 
-          const options = [
-            { title: "NEWS", description: "Latest mission intelligence" },
-            { title: "WEATHER", description: "Atmospheric reports" },
-            { title: "MISSIONS", description: "Active assignments" },
-          ];
+          const optionZones = quickAccessZones;
 
-          const optionHeight = 132;
-          const optionSpacing = 28;
-          let optionY = bezelInset + 184;
-
-          options.forEach((option) => {
-            const optionX = bezelInset + 40;
-            const optionWidth = width - optionX * 2;
+          optionZones.forEach((zone) => {
+            const optionX = zone.minX;
+            const optionY = zone.minY;
+            const optionWidth = zone.maxX - zone.minX;
 
             const optionGradient = context.createLinearGradient(
               optionX,
@@ -359,13 +402,11 @@ export const initScene = (
 
             context.fillStyle = "#e2e8f0";
             context.font = "700 64px 'Segoe UI', 'Inter', sans-serif";
-            context.fillText(option.title, optionX + 48, optionY + 54);
+            context.fillText(zone.title, optionX + 48, optionY + 54);
 
             context.fillStyle = "rgba(148, 163, 184, 0.85)";
             context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
-            context.fillText(option.description, optionX + 48, optionY + 94);
-
-            optionY += optionHeight + optionSpacing;
+            context.fillText(zone.description, optionX + 48, optionY + 94);
           });
 
           context.strokeStyle = "rgba(51, 65, 85, 0.55)";
@@ -464,6 +505,9 @@ export const initScene = (
     );
     monitorScreen.scale.y = screenFillScale;
     monitorScreen.renderOrder = 1;
+    monitorScreen.userData.getQuickAccessZones = () => quickAccessZones;
+    monitorScreen.userData.getQuickAccessTextureSize = () =>
+      quickAccessTextureSize;
     monitorGroup.add(monitorScreen);
 
     const originalScreenWidth = screenWidth;
@@ -661,6 +705,7 @@ export const initScene = (
     speakerGrillRight.position.x = 1.1;
     group.add(speakerGrillRight);
 
+    group.userData.monitorScreen = monitorScreen;
     group.scale.setScalar(2.5);
 
     return group;
@@ -837,6 +882,15 @@ export const initScene = (
   rightWallGrid.position.x = roomWidth / 2 - 0.02;
   scene.add(rightWallGrid);
 
+  const raycaster = new THREE.Raycaster();
+  const quickAccessInteractables = [];
+  const MAX_TERMINAL_INTERACTION_DISTANCE = 3.4;
+
+  const monitorScreen = computerSetup.userData?.monitorScreen;
+  if (monitorScreen) {
+    quickAccessInteractables.push(monitorScreen);
+  }
+
   const controls = new PointerLockControls(camera, canvas);
   scene.add(controls.getObject());
   controls.getObject().position.set(0, 1.6, 8);
@@ -862,6 +916,80 @@ export const initScene = (
 
   canvas.addEventListener("click", attemptPointerLock);
   canvas.addEventListener("pointerdown", attemptPointerLock);
+
+  const handleCanvasClick = () => {
+    if (!controls.isLocked || quickAccessInteractables.length === 0) {
+      return;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(
+      quickAccessInteractables,
+      false
+    );
+
+    if (intersections.length === 0) {
+      return;
+    }
+
+    const intersection = intersections.find((candidate) => {
+      const zonesProviderCandidate =
+        candidate.object.userData?.getQuickAccessZones;
+      const sizeProviderCandidate =
+        candidate.object.userData?.getQuickAccessTextureSize;
+
+      return (
+        typeof zonesProviderCandidate === "function" &&
+        typeof sizeProviderCandidate === "function"
+      );
+    });
+
+    if (
+      !intersection ||
+      intersection.distance > MAX_TERMINAL_INTERACTION_DISTANCE ||
+      !intersection.uv
+    ) {
+      return;
+    }
+
+    const zones = intersection.object.userData.getQuickAccessZones();
+    const textureSize =
+      intersection.object.userData.getQuickAccessTextureSize();
+
+    if (
+      !Array.isArray(zones) ||
+      !textureSize ||
+      !Number.isFinite(textureSize.width) ||
+      !Number.isFinite(textureSize.height)
+    ) {
+      return;
+    }
+
+    const pixelX = intersection.uv.x * textureSize.width;
+    const pixelY = (1 - intersection.uv.y) * textureSize.height;
+
+    const matchedZone = zones.find(
+      (zone) =>
+        pixelX >= zone.minX &&
+        pixelX <= zone.maxX &&
+        pixelY >= zone.minY &&
+        pixelY <= zone.maxY
+    );
+
+    if (!matchedZone) {
+      return;
+    }
+
+    if (typeof onTerminalOptionSelected === "function") {
+      onTerminalOptionSelected({
+        id: matchedZone.id,
+        title: matchedZone.title,
+        description: matchedZone.description,
+      });
+    }
+  };
+
+  canvas.addEventListener("click", handleCanvasClick);
 
   const movementState = {
     forward: false,
@@ -990,6 +1118,7 @@ export const initScene = (
     dispose: () => {
       window.removeEventListener("resize", handleResize);
       canvas.removeEventListener("click", attemptPointerLock);
+      canvas.removeEventListener("click", handleCanvasClick);
       canvas.removeEventListener("pointerdown", attemptPointerLock);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);

@@ -5,6 +5,41 @@ const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const errorMessage = document.getElementById("logoutError");
+const terminalToast = document.getElementById("terminalToast");
+
+let terminalToastHideTimeoutId;
+let terminalToastFinalizeTimeoutId;
+
+const hideTerminalToast = () => {
+  window.clearTimeout(terminalToastHideTimeoutId);
+  window.clearTimeout(terminalToastFinalizeTimeoutId);
+
+  if (!(terminalToast instanceof HTMLElement)) {
+    return;
+  }
+
+  terminalToast.dataset.visible = "false";
+  terminalToastFinalizeTimeoutId = window.setTimeout(() => {
+    terminalToast.hidden = true;
+  }, 220);
+};
+
+const showTerminalToast = ({ title, description }) => {
+  if (!(terminalToast instanceof HTMLElement)) {
+    return;
+  }
+
+  window.clearTimeout(terminalToastHideTimeoutId);
+  window.clearTimeout(terminalToastFinalizeTimeoutId);
+
+  terminalToast.textContent = `${title}: ${description}`;
+  terminalToast.hidden = false;
+  terminalToast.dataset.visible = "true";
+
+  terminalToastHideTimeoutId = window.setTimeout(() => {
+    hideTerminalToast();
+  }, 4000);
+};
 
 const bootstrapScene = () => {
   if (!(canvas instanceof HTMLCanvasElement)) {
@@ -17,6 +52,10 @@ const bootstrapScene = () => {
     },
     onControlsUnlocked() {
       instructions?.removeAttribute("hidden");
+      hideTerminalToast();
+    },
+    onTerminalOptionSelected(option) {
+      showTerminalToast(option);
     },
   });
 };
