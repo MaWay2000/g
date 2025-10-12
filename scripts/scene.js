@@ -197,7 +197,30 @@ export const initScene = (
       (loadedTexture) => {
         const { image } = loadedTexture;
         if (image && image.width && image.height) {
-          const aspectRatio = image.width / image.height;
+          // Crop the transparent border around the UI texture so it fully
+          // covers the in-game monitor.
+          const cropInsets = { top: 4, right: 1, bottom: 0, left: 0 };
+          const croppedWidth =
+            image.width - cropInsets.left - cropInsets.right;
+          const croppedHeight =
+            image.height - cropInsets.top - cropInsets.bottom;
+
+          if (croppedWidth > 0 && croppedHeight > 0) {
+            loadedTexture.offset.set(
+              cropInsets.left / image.width,
+              cropInsets.bottom / image.height
+            );
+            loadedTexture.repeat.set(
+              croppedWidth / image.width,
+              croppedHeight / image.height
+            );
+            loadedTexture.needsUpdate = true;
+          }
+
+          const aspectRatio = croppedWidth > 0 && croppedHeight > 0
+            ? croppedWidth / croppedHeight
+            : image.width / image.height;
+
           if (typeof applyMonitorAspectRatio === "function") {
             applyMonitorAspectRatio(aspectRatio);
           } else {
