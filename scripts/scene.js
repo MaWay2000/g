@@ -359,20 +359,6 @@ export const initScene = (
         const innerWidth = width - innerInset * 2;
         const innerHeight = height - innerInset * 2;
 
-        const matrixLineHeight = 44;
-        const matrixColumnCount = 18;
-        const matrixSpeed = 48;
-        const matrixStrings = [
-          "1010010110010110",
-          "0010110100100101",
-          "1101001011010010",
-          "0101100101100101",
-          "1010010110100101",
-          "0101101001011010",
-          "1001011010010110",
-          "0010110100101101",
-        ];
-
         const zoneStates = quickAccessZones.map((zone, index) => ({
           id: zone.id,
           progress: 0,
@@ -382,48 +368,28 @@ export const initScene = (
         const zoneStateMap = new Map(zoneStates.map((state) => [state.id, state]));
 
         let hoveredZoneId = null;
-        let matrixOffset = 0;
         let needsRedraw = true;
+        let lastRenderedElapsedTime = 0;
 
         const renderMatrixOverlay = () => {
-          const pixelRatio = getDevicePixelRatio();
-          const snap = (value) => snapToDevicePixel(value, pixelRatio);
-
           context.save();
           drawRoundedRect(innerInset, innerInset, innerWidth, innerHeight, 28);
           context.clip();
 
-          context.globalAlpha = 1;
-          context.fillStyle = "rgba(6, 182, 212, 0.06)";
+          const overlayGradient = context.createLinearGradient(
+            innerInset,
+            innerInset,
+            innerInset,
+            innerInset + innerHeight
+          );
+          overlayGradient.addColorStop(0, "rgba(45, 212, 191, 0.14)");
+          overlayGradient.addColorStop(0.45, "rgba(45, 212, 191, 0.06)");
+          overlayGradient.addColorStop(1, "rgba(14, 116, 144, 0.12)");
+
+          context.fillStyle = overlayGradient;
           context.fillRect(innerInset, innerInset, innerWidth, innerHeight);
 
-          const columnSpacing = innerWidth / Math.max(matrixColumnCount - 1, 1);
-          context.font = "600 32px 'Share Tech Mono', 'Consolas', 'Courier New', monospace";
-          context.textBaseline = "top";
-
-          const totalRows = Math.ceil(innerHeight / matrixLineHeight) + 4;
-
-          for (let column = 0; column < matrixColumnCount; column += 1) {
-            const x = snap(innerInset + column * columnSpacing - 24);
-            const columnHueShift = (column % 4) * 0.04;
-            for (let row = -2; row < totalRows; row += 1) {
-              const y = snap(
-                innerInset +
-                  row * matrixLineHeight +
-                  matrixOffset -
-                  matrixLineHeight
-              );
-              const sequence = matrixStrings[(column + row + matrixStrings.length) % matrixStrings.length];
-              const brightness = 0.12 + columnHueShift + ((row + column) % 3) * 0.03;
-              context.fillStyle = `rgba(45, 212, 191, ${Math.min(brightness, 0.35).toFixed(
-                3
-              )})`;
-              context.fillText(sequence, x, y);
-            }
-          }
-
-          context.globalAlpha = 1;
-          context.fillStyle = "rgba(2, 6, 23, 0.45)";
+          context.fillStyle = "rgba(2, 6, 23, 0.4)";
           context.fillRect(innerInset, innerInset, innerWidth, innerHeight);
           context.restore();
         };
@@ -598,15 +564,6 @@ export const initScene = (
             needsRedraw = true;
           },
           update: (delta = 0, elapsedTime = 0) => {
-            const previousOffset = matrixOffset;
-            matrixOffset = (matrixOffset + delta * matrixSpeed) % matrixLineHeight;
-            const pixelRatio = getDevicePixelRatio();
-            const snappedPrevious = snapToDevicePixel(previousOffset, pixelRatio);
-            const snappedCurrent = snapToDevicePixel(matrixOffset, pixelRatio);
-            if (Math.abs(snappedPrevious - snappedCurrent) > 0.001) {
-              needsRedraw = true;
-            }
-
             zoneStates.forEach((state) => {
               const previousProgress = state.progress;
               if (Math.abs(state.target - state.progress) > 0.001) {
@@ -619,6 +576,10 @@ export const initScene = (
               }
             });
 
+            if (!needsRedraw && Math.abs(elapsedTime - lastRenderedElapsedTime) >= 1 / 30) {
+              needsRedraw = true;
+            }
+
             if (!needsRedraw) {
               return;
             }
@@ -626,6 +587,7 @@ export const initScene = (
             render(elapsedTime);
             texture.needsUpdate = true;
             needsRedraw = false;
+            lastRenderedElapsedTime = elapsedTime;
           },
         };
       } catch (error) {
