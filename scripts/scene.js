@@ -148,301 +148,200 @@ export const initScene = (
       group.add(leg);
     });
 
-    const monitorGroup = new THREE.Group();
-    monitorGroup.position.set(0.08, deskHeight + deskTopThickness + 0.02, -0.12);
+    const retroComputerGroup = new THREE.Group();
+    retroComputerGroup.position.set(0.08, deskHeight + deskTopThickness + 0.02, -0.1);
 
-    const monitorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      metalness: 0.35,
-      roughness: 0.35,
+    const retroHousingMaterial = new THREE.MeshStandardMaterial({
+      color: 0x101827,
+      roughness: 0.55,
+      metalness: 0.18,
     });
 
-    const screenSize = 0.98;
-    const screenHeight = screenSize;
-    const screenWidth = screenSize;
-    const screenFillScale = 1.08;
-    const bezelPadding = 0.02;
-    const bezelWidth = screenWidth + bezelPadding * 2;
-    const bezelHeight = screenHeight + bezelPadding * 2;
-    const bezelDepth = 0.04;
-    const housingBorder = 0.05;
-    const housingWidth = bezelWidth + housingBorder * 2;
-    const housingHeight = bezelHeight + housingBorder * 2;
-    const housingDepth = 0.12;
-    const monitorHousing = new THREE.Mesh(
-      new THREE.BoxGeometry(housingWidth, housingHeight, housingDepth),
-      monitorMaterial
-    );
-    monitorHousing.position.y = 0.52;
-    monitorHousing.position.z = 0.12;
-    monitorGroup.add(monitorHousing);
-
-    const monitorBezel = new THREE.Mesh(
-      new THREE.BoxGeometry(bezelWidth, bezelHeight, bezelDepth),
-      new THREE.MeshStandardMaterial({
-        color: 0x111c2b,
-        metalness: 0.25,
-        roughness: 0.45,
-      })
-    );
-    monitorBezel.position.y = 0.52;
-    monitorBezel.position.z = 0.14;
-    monitorGroup.add(monitorBezel);
-
-    let pendingScreenAspectRatio;
-    let applyMonitorAspectRatio;
-
-    const screenTexture = loadClampedTexture(
-      "../images/index/monitor2.png",
-      (loadedTexture) => {
-        const { image } = loadedTexture;
-        if (image && image.width && image.height) {
-          // Crop the transparent border around the UI texture so it fully
-          // covers the in-game monitor.
-          const cropInsets = { top: 4, right: 1, bottom: 0, left: 0 };
-          const croppedWidth =
-            image.width - cropInsets.left - cropInsets.right;
-          const croppedHeight =
-            image.height - cropInsets.top - cropInsets.bottom;
-
-          if (croppedWidth > 0 && croppedHeight > 0) {
-            loadedTexture.offset.set(
-              cropInsets.left / image.width,
-              cropInsets.bottom / image.height
-            );
-            loadedTexture.repeat.set(
-              croppedWidth / image.width,
-              croppedHeight / image.height
-            );
-            loadedTexture.needsUpdate = true;
-          }
-
-          const aspectRatio = croppedWidth > 0 && croppedHeight > 0
-            ? croppedWidth / croppedHeight
-            : image.width / image.height;
-
-          if (typeof applyMonitorAspectRatio === "function") {
-            applyMonitorAspectRatio(aspectRatio);
-          } else {
-            pendingScreenAspectRatio = aspectRatio;
-          }
-        }
-      }
-    );
-    const monitorScreenMaterial = new THREE.MeshBasicMaterial({
-      map: screenTexture,
-      // Prevent tone mapping from dimming the UI colours rendered on the
-      // monitor and ensure the texture isn't affected by surrounding lights.
-      toneMapped: false,
-    });
-
-    const monitorScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(screenWidth, screenHeight),
-      monitorScreenMaterial
-    );
-    monitorScreen.position.set(
-      0,
-      0.52,
-      monitorHousing.position.z + housingDepth / 2 + 0.005
-    );
-    monitorScreen.scale.y = screenFillScale;
-    monitorScreen.renderOrder = 1;
-    monitorGroup.add(monitorScreen);
-
-    const originalScreenWidth = screenWidth;
-    const originalBezelWidth = bezelWidth;
-    const originalHousingWidth = housingWidth;
-    const powerButtonEdgeOffset = 0.22;
-
-    const updateMonitorLayout = (aspectRatio) => {
-      if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
-        return;
-      }
-
-      const adjustedScreenWidth = screenHeight * aspectRatio;
-      const adjustedBezelWidth = adjustedScreenWidth + bezelPadding * 2;
-      const adjustedHousingWidth = adjustedBezelWidth + housingBorder * 2;
-
-      monitorScreen.scale.x =
-        (adjustedScreenWidth / originalScreenWidth) * screenFillScale;
-      monitorScreen.scale.y = screenFillScale;
-      monitorBezel.scale.x = adjustedBezelWidth / originalBezelWidth;
-      monitorHousing.scale.x = adjustedHousingWidth / originalHousingWidth;
-      monitorPowerButton.position.x =
-        adjustedHousingWidth / 2 - powerButtonEdgeOffset;
-    };
-
-    const monitorStandColumn = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07, 0.09, 0.45, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x1f2937,
-        metalness: 0.4,
-        roughness: 0.35,
-      })
-    );
-    monitorStandColumn.position.set(0, 0.25, 0);
-    monitorGroup.add(monitorStandColumn);
-
-    const monitorStandNeck = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, 0.1, 0.18),
-      monitorMaterial
-    );
-    monitorStandNeck.position.set(0, 0.44, 0.09);
-    monitorGroup.add(monitorStandNeck);
-
-    const monitorBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.15, 0.18, 0.02, 32),
-      new THREE.MeshStandardMaterial({
-        color: 0x0f172a,
-        metalness: 0.35,
-        roughness: 0.4,
-      })
-    );
-    monitorBase.position.set(0, 0.01, 0);
-    monitorGroup.add(monitorBase);
-
-    const monitorPowerButton = new THREE.Mesh(
-      new THREE.CircleGeometry(0.04, 24),
-      new THREE.MeshBasicMaterial({ color: 0x22d3ee })
-    );
-    monitorPowerButton.position.set(
-      housingWidth / 2 - powerButtonEdgeOffset,
-      0.16,
-      monitorHousing.position.z + housingDepth / 2 - 0.02
-    );
-    monitorGroup.add(monitorPowerButton);
-
-    applyMonitorAspectRatio = updateMonitorLayout;
-
-    if (
-      screenTexture.image &&
-      screenTexture.image.width &&
-      screenTexture.image.height
-    ) {
-      applyMonitorAspectRatio(
-        screenTexture.image.width / screenTexture.image.height
-      );
-    } else if (pendingScreenAspectRatio) {
-      applyMonitorAspectRatio(pendingScreenAspectRatio);
-      pendingScreenAspectRatio = undefined;
-    }
-
-    group.add(monitorGroup);
-
-    const keyboard = new THREE.Mesh(
-      new THREE.BoxGeometry(1.25, 0.05, 0.4),
-      new THREE.MeshStandardMaterial({
-        color: 0x111827,
-        metalness: 0.2,
-        roughness: 0.6,
-      })
-    );
-    keyboard.position.set(-0.08, deskHeight + deskTopThickness + 0.04, 0.28);
-    group.add(keyboard);
-
-    const keyboardFrame = new THREE.Mesh(
-      new THREE.BoxGeometry(1.27, 0.02, 0.42),
-      new THREE.MeshStandardMaterial({
-        color: 0x0b1220,
-        roughness: 0.5,
-        metalness: 0.25,
-      })
-    );
-    keyboardFrame.position.set(-0.08, deskHeight + deskTopThickness + 0.05, 0.28);
-    group.add(keyboardFrame);
-
-    const mouse = new THREE.Mesh(
-      new THREE.BoxGeometry(0.18, 0.06, 0.3),
-      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 })
-    );
-    mouse.position.set(0.95, deskHeight + deskTopThickness + 0.05, 0.3);
-    mouse.rotation.y = Math.PI / 8;
-    group.add(mouse);
-
-    const mousePad = new THREE.Mesh(
-      new THREE.BoxGeometry(0.32, 0.01, 0.38),
-      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.75 })
-    );
-    mousePad.position.set(0.9, deskHeight + deskTopThickness + 0.035, 0.28);
-    group.add(mousePad);
-
-    const towerWidth = 0.5;
-    const towerHeight = 0.82;
-    const towerDepth = 0.56;
-    const tower = new THREE.Mesh(
-      new THREE.BoxGeometry(towerWidth, towerHeight, towerDepth),
-      new THREE.MeshStandardMaterial({
-        color: 0x0b1120,
-        roughness: 0.5,
-        metalness: 0.25,
-      })
-    );
-    const towerX = -deskWidth / 2 + 0.45;
-    const towerZ = 0.18;
-    tower.position.set(towerX, towerHeight / 2, towerZ);
-    group.add(tower);
-
-    const frontPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(towerWidth - 0.08, towerHeight - 0.18),
-      new THREE.MeshStandardMaterial({
-        color: 0x1f2937,
-        emissive: new THREE.Color(0x1f2937),
-        metalness: 0.1,
-        roughness: 0.7,
-        side: THREE.DoubleSide,
-      })
-    );
-    frontPanel.position.set(towerX + 0.02, tower.position.y + 0.06, towerZ + 0.3);
-    group.add(frontPanel);
-
-    const ventGeometry = new THREE.BoxGeometry(towerWidth - 0.12, 0.02, 0.02);
-    const ventMaterial = new THREE.MeshStandardMaterial({
-      color: 0x111827,
-      roughness: 0.5,
+    const retroAccentMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e2a3d,
+      roughness: 0.48,
       metalness: 0.2,
     });
 
-    for (let i = 0; i < 5; i += 1) {
-      const vent = new THREE.Mesh(ventGeometry, ventMaterial);
-      vent.position.set(towerX + 0.02, 0.16 + i * 0.075, towerZ + 0.34);
-      group.add(vent);
-    }
-
-    const powerLight = new THREE.Mesh(
-      new THREE.CircleGeometry(0.035, 24),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+    const crtWidth = 1.3;
+    const crtHeight = 0.92;
+    const crtDepth = 0.9;
+    const crtBody = new THREE.Mesh(
+      new THREE.BoxGeometry(crtWidth, crtHeight, crtDepth),
+      retroHousingMaterial
     );
-    powerLight.position.set(towerX + 0.16, tower.position.y + 0.22, towerZ + 0.38);
-    group.add(powerLight);
+    crtBody.position.set(0, 0.52, 0.16);
+    retroComputerGroup.add(crtBody);
 
-    const leftSpeaker = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.14, 0.36, 32),
-      new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 })
+    const crtFrontInset = new THREE.Mesh(
+      new THREE.BoxGeometry(crtWidth * 0.88, crtHeight * 0.84, 0.16),
+      retroAccentMaterial
     );
-    leftSpeaker.rotation.x = Math.PI / 2;
-    leftSpeaker.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.28);
-    group.add(leftSpeaker);
+    crtFrontInset.position.set(0, 0.52, 0.54);
+    retroComputerGroup.add(crtFrontInset);
 
-    const rightSpeaker = leftSpeaker.clone();
-    rightSpeaker.position.x = 1.1;
-    group.add(rightSpeaker);
-
-    const speakerGrillMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      roughness: 0.6,
-      metalness: 0.15,
+    const screenWidth = crtWidth * 0.72;
+    const screenHeight = crtHeight * 0.6;
+    const screenTexture = loadClampedTexture("../images/index/monitor2 old.png");
+    const screenMaterial = new THREE.MeshBasicMaterial({
+      map: screenTexture,
+      toneMapped: false,
+      transparent: true,
     });
-
-    const speakerGrill = new THREE.Mesh(
-      new THREE.CircleGeometry(0.12, 24),
-      speakerGrillMaterial
+    const screenMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(screenWidth, screenHeight),
+      screenMaterial
     );
-    speakerGrill.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.1);
-    group.add(speakerGrill);
+    screenMesh.position.set(0, 0.54, crtBody.position.z + crtDepth / 2 + 0.01);
+    screenMesh.renderOrder = 1;
+    retroComputerGroup.add(screenMesh);
 
-    const speakerGrillRight = speakerGrill.clone();
-    speakerGrillRight.position.x = 1.1;
-    group.add(speakerGrillRight);
+    const screenFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(crtWidth * 0.9, crtHeight * 0.78, 0.06),
+      new THREE.MeshStandardMaterial({
+        color: 0x0b1220,
+        roughness: 0.65,
+        metalness: 0.12,
+      })
+    );
+    screenFrame.position.set(0, 0.53, crtBody.position.z + crtDepth / 2);
+    retroComputerGroup.add(screenFrame);
+
+    const screenGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(screenWidth * 1.05, screenHeight * 1.05),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.08,
+      })
+    );
+    screenGlow.position.copy(screenMesh.position);
+    screenGlow.position.z += 0.01;
+    retroComputerGroup.add(screenGlow);
+
+    const crtBackVent = new THREE.Mesh(
+      new THREE.BoxGeometry(crtWidth * 0.7, 0.1, 0.02),
+      new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        roughness: 0.6,
+        metalness: 0.1,
+      })
+    );
+    crtBackVent.position.set(0, 0.92, -0.12);
+    retroComputerGroup.add(crtBackVent);
+
+    const crtBase = new THREE.Mesh(
+      new THREE.BoxGeometry(1.05, 0.16, 0.72),
+      retroAccentMaterial
+    );
+    crtBase.position.set(0, 0.15, -0.12);
+    retroComputerGroup.add(crtBase);
+
+    const keyboardBase = new THREE.Mesh(
+      new THREE.BoxGeometry(1.32, 0.12, 1.1),
+      retroHousingMaterial
+    );
+    keyboardBase.position.set(-0.05, -0.05, -0.22);
+    retroComputerGroup.add(keyboardBase);
+
+    const keyboardDeck = new THREE.Mesh(
+      new THREE.BoxGeometry(1.28, 0.04, 1.02),
+      new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        roughness: 0.6,
+        metalness: 0.15,
+      })
+    );
+    keyboardDeck.position.set(-0.05, 0.01, -0.24);
+    retroComputerGroup.add(keyboardDeck);
+
+    const keyRows = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.02, 0.82),
+      new THREE.MeshStandardMaterial({
+        color: 0x1f2a3e,
+        roughness: 0.45,
+        metalness: 0.2,
+      })
+    );
+    keyRows.position.set(-0.05, 0.06, -0.3);
+    keyRows.rotation.x = -Math.PI / 12;
+    retroComputerGroup.add(keyRows);
+
+    const functionRow = new THREE.Mesh(
+      new THREE.BoxGeometry(1.15, 0.015, 0.12),
+      new THREE.MeshStandardMaterial({
+        color: 0x24334a,
+        roughness: 0.4,
+        metalness: 0.18,
+      })
+    );
+    functionRow.position.set(-0.05, 0.1, 0.02);
+    functionRow.rotation.x = -Math.PI / 18;
+    retroComputerGroup.add(functionRow);
+
+    const controlPad = new THREE.Mesh(
+      new THREE.BoxGeometry(0.32, 0.015, 0.2),
+      new THREE.MeshStandardMaterial({
+        color: 0x2dd4bf,
+        roughness: 0.35,
+        metalness: 0.25,
+        emissive: new THREE.Color(0x0d9488),
+        emissiveIntensity: 0.18,
+      })
+    );
+    controlPad.position.set(0.52, 0.08, 0.2);
+    controlPad.rotation.x = -Math.PI / 18;
+    retroComputerGroup.add(controlPad);
+
+    const floppyDrive = new THREE.Mesh(
+      new THREE.BoxGeometry(0.32, 0.04, 0.3),
+      retroAccentMaterial
+    );
+    floppyDrive.position.set(-0.48, 0.04, 0.32);
+    floppyDrive.rotation.x = -Math.PI / 14;
+    retroComputerGroup.add(floppyDrive);
+
+    const floppySlot = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.01, 0.08),
+      new THREE.MeshStandardMaterial({
+        color: 0x0b1220,
+        roughness: 0.5,
+        metalness: 0.1,
+      })
+    );
+    floppySlot.position.set(-0.48, 0.08, 0.42);
+    floppySlot.rotation.x = -Math.PI / 14;
+    retroComputerGroup.add(floppySlot);
+
+    const powerButton = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 0.02, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0x22d3ee,
+        emissive: new THREE.Color(0x0ea5e9),
+        emissiveIntensity: 0.35,
+        metalness: 0.3,
+        roughness: 0.3,
+      })
+    );
+    powerButton.rotation.x = Math.PI / 2;
+    powerButton.position.set(0.58, 0.08, 0.44);
+    retroComputerGroup.add(powerButton);
+
+    const badge = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.28, 0.12),
+      new THREE.MeshStandardMaterial({
+        color: 0x334155,
+        roughness: 0.4,
+        metalness: 0.3,
+        emissive: new THREE.Color(0x1e293b),
+        emissiveIntensity: 0.2,
+        side: THREE.DoubleSide,
+      })
+    );
+    badge.position.set(-0.02, 0.12, crtBody.position.z + crtDepth / 2 + 0.18);
+    retroComputerGroup.add(badge);
+
+    group.add(retroComputerGroup);
 
     group.scale.setScalar(2.5);
 
