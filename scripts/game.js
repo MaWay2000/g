@@ -7,9 +7,215 @@ const logoutButton = document.querySelector("[data-logout-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
 const crosshair = document.querySelector(".crosshair");
+const quickAccessModal = document.querySelector(".quick-access-modal");
+const quickAccessModalDialog = quickAccessModal?.querySelector(
+  ".quick-access-modal__dialog"
+);
+const quickAccessModalContent = quickAccessModal?.querySelector(
+  ".quick-access-modal__content"
+);
+
+const quickAccessModalTemplates = {
+  default: document.getElementById("quick-access-modal-default"),
+  news: document.getElementById("quick-access-modal-news"),
+  weather: document.getElementById("quick-access-modal-weather"),
+  missions: document.getElementById("quick-access-modal-missions"),
+};
+
+const modalFocusableSelectors =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+let quickAccessModalClose = null;
+let quickAccessModalCloseFallbackId = 0;
+let lastFocusedElement = null;
 
 let terminalToastHideTimeoutId;
 let terminalToastFinalizeTimeoutId;
+
+const isTemplateElement = (template) => template instanceof HTMLTemplateElement;
+
+const updateBodyModalState = (isOpen) => {
+  document.body.classList.toggle("has-modal-open", Boolean(isOpen));
+};
+
+const getModalTemplateForOption = (optionId) => {
+  const template = quickAccessModalTemplates[optionId];
+  if (isTemplateElement(template)) {
+    return template;
+  }
+
+  const fallbackTemplate = quickAccessModalTemplates.default;
+  return isTemplateElement(fallbackTemplate) ? fallbackTemplate : null;
+};
+
+const getModalLabelForOption = (option) => {
+  if (option?.title) {
+    return `${option.title} terminal briefing`;
+  }
+
+  return "Terminal information panel";
+};
+
+const isFocusableElementVisible = (element) => {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (element.hidden || element.getAttribute("aria-hidden") === "true") {
+    return false;
+  }
+
+  const hiddenAncestor = element.closest('[hidden], [aria-hidden="true"]');
+  return hiddenAncestor === null;
+};
+
+const trapFocusWithinModal = (event) => {
+  if (!quickAccessModalDialog) {
+    return;
+  }
+
+  const focusableElements = Array.from(
+    quickAccessModalDialog.querySelectorAll(modalFocusableSelectors)
+  ).filter(
+    (element) =>
+      element instanceof HTMLElement &&
+      !element.hasAttribute("disabled") &&
+      element.getAttribute("aria-hidden") !== "true" &&
+      element.tabIndex !== -1 &&
+      isFocusableElementVisible(element)
+  );
+
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const [firstElement] = focusableElements;
+  const lastElement = focusableElements[focusableElements.length - 1];
+  const activeElement = document.activeElement;
+
+  if (event.shiftKey) {
+    if (activeElement === firstElement || !quickAccessModalDialog.contains(activeElement)) {
+      event.preventDefault();
+      lastElement.focus({ preventScroll: true });
+    }
+  } else if (activeElement === lastElement) {
+    event.preventDefault();
+    firstElement.focus({ preventScroll: true });
+  }
+};
+
+const finishClosingQuickAccessModal = () => {
+  if (!quickAccessModal || !quickAccessModalContent || quickAccessModal.hidden) {
+    return;
+  }
+
+  quickAccessModal.hidden = true;
+  quickAccessModalContent.innerHTML = "";
+  quickAccessModalClose = null;
+  updateBodyModalState(false);
+  document.removeEventListener("keydown", handleQuickAccessModalKeydown, true);
+
+  if (quickAccessModalCloseFallbackId) {
+    window.clearTimeout(quickAccessModalCloseFallbackId);
+    quickAccessModalCloseFallbackId = 0;
+  }
+
+  const elementToRefocus = lastFocusedElement;
+  lastFocusedElement = null;
+
+  if (elementToRefocus instanceof HTMLElement) {
+    elementToRefocus.focus({ preventScroll: true });
+  }
+};
+
+const closeQuickAccessModal = () => {
+  if (!quickAccessModal || !quickAccessModalContent || quickAccessModal.hidden) {
+    return;
+  }
+
+  quickAccessModal.classList.remove("is-open");
+  quickAccessModal.setAttribute("aria-hidden", "true");
+
+  const handleTransitionEnd = (event) => {
+    if (event.target === quickAccessModal) {
+      quickAccessModal.removeEventListener("transitionend", handleTransitionEnd);
+      finishClosingQuickAccessModal();
+    }
+  };
+
+  quickAccessModal.addEventListener("transitionend", handleTransitionEnd);
+  quickAccessModalCloseFallbackId = window.setTimeout(() => {
+    quickAccessModal.removeEventListener("transitionend", handleTransitionEnd);
+    finishClosingQuickAccessModal();
+  }, 380);
+};
+
+function handleQuickAccessModalKeydown(event) {
+  if (!quickAccessModal || quickAccessModal.hidden) {
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeQuickAccessModal();
+  } else if (event.key === "Tab") {
+    trapFocusWithinModal(event);
+  }
+}
+
+const openQuickAccessModal = (option) => {
+  if (!quickAccessModal || !quickAccessModalDialog || !quickAccessModalContent) {
+    return;
+  }
+
+  const template = getModalTemplateForOption(option?.id);
+  if (!template) {
+    return;
+  }
+
+  quickAccessModalContent.innerHTML = "";
+  quickAccessModalContent.appendChild(template.content.cloneNode(true));
+  quickAccessModalContent.scrollTop = 0;
+
+  quickAccessModalClose = quickAccessModalDialog.querySelector(
+    ".quick-access-modal__close"
+  );
+
+  quickAccessModalDialog.setAttribute("aria-label", getModalLabelForOption(option));
+
+  lastFocusedElement =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  quickAccessModal.hidden = false;
+  quickAccessModal.setAttribute("aria-hidden", "false");
+  window.clearTimeout(quickAccessModalCloseFallbackId);
+  quickAccessModalCloseFallbackId = 0;
+
+  requestAnimationFrame(() => {
+    quickAccessModal.classList.add("is-open");
+  });
+
+  updateBodyModalState(true);
+  document.addEventListener("keydown", handleQuickAccessModalKeydown, true);
+
+  if (quickAccessModalClose instanceof HTMLElement) {
+    quickAccessModalClose.focus({ preventScroll: true });
+  }
+};
+
+if (quickAccessModal instanceof HTMLElement) {
+  quickAccessModal.addEventListener("click", (event) => {
+    const target =
+      event.target instanceof HTMLElement
+        ? event.target.closest("[data-quick-access-modal-close]")
+        : null;
+
+    if (target) {
+      event.preventDefault();
+      closeQuickAccessModal();
+    }
+  });
+}
 
 const hideTerminalToast = () => {
   window.clearTimeout(terminalToastHideTimeoutId);
@@ -69,6 +275,7 @@ const bootstrapScene = () => {
       hideTerminalToast();
     },
     onTerminalOptionSelected(option) {
+      openQuickAccessModal(option);
       showTerminalToast(option);
     },
     onTerminalInteractableChange: setCrosshairInteractableState,
