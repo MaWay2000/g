@@ -169,11 +169,16 @@ export const initScene = (
     const housingWidth = bezelWidth + housingBorder * 2;
     const housingHeight = bezelHeight + housingBorder * 2;
     const housingDepth = 0.12;
+    const monitorStandNeckHeight = 0.1;
+    const monitorStandNeckPositionY = 0.44;
+    const monitorAttachmentHeight =
+      monitorStandNeckPositionY + monitorStandNeckHeight / 2;
+    const monitorCenterY = monitorAttachmentHeight + housingHeight / 2;
     const monitorHousing = new THREE.Mesh(
       new THREE.BoxGeometry(housingWidth, housingHeight, housingDepth),
       monitorMaterial
     );
-    monitorHousing.position.y = 0.52;
+    monitorHousing.position.y = monitorCenterY;
     monitorHousing.position.z = 0.12;
     monitorGroup.add(monitorHousing);
 
@@ -185,7 +190,7 @@ export const initScene = (
         roughness: 0.45,
       })
     );
-    monitorBezel.position.y = 0.52;
+    monitorBezel.position.y = monitorCenterY;
     monitorBezel.position.z = 0.14;
     monitorGroup.add(monitorBezel);
 
@@ -242,7 +247,7 @@ export const initScene = (
     );
     monitorScreen.position.set(
       0,
-      0.52,
+      monitorCenterY,
       monitorHousing.position.z + housingDepth / 2 + 0.005
     );
     monitorScreen.scale.y = screenFillScale;
@@ -284,10 +289,10 @@ export const initScene = (
     monitorGroup.add(monitorStandColumn);
 
     const monitorStandNeck = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, 0.1, 0.18),
+      new THREE.BoxGeometry(0.22, monitorStandNeckHeight, 0.18),
       monitorMaterial
     );
-    monitorStandNeck.position.set(0, 0.44, 0.09);
+    monitorStandNeck.position.set(0, monitorStandNeckPositionY, 0.09);
     monitorGroup.add(monitorStandNeck);
 
     const monitorBase = new THREE.Mesh(
@@ -307,7 +312,7 @@ export const initScene = (
     );
     monitorPowerButton.position.set(
       housingWidth / 2 - powerButtonEdgeOffset,
-      0.16,
+      monitorCenterY - housingHeight / 2 + 0.2,
       monitorHousing.position.z + housingDepth / 2 - 0.02
     );
     monitorGroup.add(monitorPowerButton);
