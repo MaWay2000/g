@@ -27,6 +27,7 @@ const modalFocusableSelectors =
 let quickAccessModalClose = null;
 let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
+let sceneController = null;
 
 let terminalToastHideTimeoutId;
 let terminalToastFinalizeTimeoutId;
@@ -115,6 +116,8 @@ const finishClosingQuickAccessModal = () => {
   updateBodyModalState(false);
   document.removeEventListener("keydown", handleQuickAccessModalKeydown, true);
 
+  sceneController?.setMovementEnabled(true);
+
   if (quickAccessModalCloseFallbackId) {
     window.clearTimeout(quickAccessModalCloseFallbackId);
     quickAccessModalCloseFallbackId = 0;
@@ -172,6 +175,8 @@ const openQuickAccessModal = (option) => {
   if (!template) {
     return;
   }
+
+  sceneController?.setMovementEnabled(false);
 
   quickAccessModalContent.innerHTML = "";
   quickAccessModalContent.appendChild(template.content.cloneNode(true));
@@ -265,7 +270,7 @@ const bootstrapScene = () => {
     return;
   }
 
-  initScene(canvas, {
+  sceneController = initScene(canvas, {
     onControlsLocked() {
       instructions?.setAttribute("hidden", "");
     },
