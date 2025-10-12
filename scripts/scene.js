@@ -1036,11 +1036,29 @@ export const initScene = (
     right: false,
   };
 
+  let movementEnabled = true;
+
   const velocity = new THREE.Vector3();
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
 
+  const setMovementEnabled = (enabled) => {
+    movementEnabled = Boolean(enabled);
+
+    if (!movementEnabled) {
+      movementState.forward = false;
+      movementState.backward = false;
+      movementState.left = false;
+      movementState.right = false;
+      velocity.set(0, 0, 0);
+    }
+  };
+
   const updateMovementState = (code, value) => {
+    if (!movementEnabled && value) {
+      return;
+    }
+
     switch (code) {
       case "ArrowUp":
       case "KeyW":
@@ -1064,6 +1082,10 @@ export const initScene = (
   };
 
   const onKeyDown = (event) => {
+    if (!movementEnabled) {
+      return;
+    }
+
     updateMovementState(event.code, true);
 
     if (
@@ -1109,28 +1131,33 @@ export const initScene = (
 
     const delta = clock.getDelta();
 
-    velocity.x -= velocity.x * 8 * delta;
-    velocity.z -= velocity.z * 8 * delta;
+    if (movementEnabled) {
+      velocity.x -= velocity.x * 8 * delta;
+      velocity.z -= velocity.z * 8 * delta;
 
-    direction.z = Number(movementState.forward) - Number(movementState.backward);
-    direction.x = Number(movementState.right) - Number(movementState.left);
+      direction.z =
+        Number(movementState.forward) - Number(movementState.backward);
+      direction.x = Number(movementState.right) - Number(movementState.left);
 
-    if (direction.lengthSq() > 0) {
-      direction.normalize();
-    }
+      if (direction.lengthSq() > 0) {
+        direction.normalize();
+      }
 
-    if (movementState.forward || movementState.backward) {
-      velocity.z -= direction.z * 40 * delta;
-    }
+      if (movementState.forward || movementState.backward) {
+        velocity.z -= direction.z * 40 * delta;
+      }
 
-    if (movementState.left || movementState.right) {
-      velocity.x -= direction.x * 40 * delta;
-    }
+      if (movementState.left || movementState.right) {
+        velocity.x -= direction.x * 40 * delta;
+      }
 
-    if (controls.isLocked) {
-      controls.moveRight(-velocity.x * delta);
-      controls.moveForward(-velocity.z * delta);
-      clampWithinRoom();
+      if (controls.isLocked) {
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+        clampWithinRoom();
+      }
+    } else {
+      velocity.set(0, 0, 0);
     }
 
     if (controls.isLocked) {
@@ -1160,6 +1187,7 @@ export const initScene = (
     camera,
     renderer,
     controls,
+    setMovementEnabled,
     dispose: () => {
       window.removeEventListener("resize", handleResize);
       canvas.removeEventListener("click", attemptPointerLock);
