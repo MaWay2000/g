@@ -78,6 +78,9 @@ const loadStoredPlayerState = () => {
       return null;
     }
 
+    const pitch = data?.pitch;
+    const hasPitch = isFiniteNumber(pitch);
+
     return {
       position: new THREE.Vector3(position.x, position.y, position.z),
       quaternion: new THREE.Quaternion(
@@ -86,6 +89,7 @@ const loadStoredPlayerState = () => {
         quaternion.z,
         quaternion.w
       ),
+      pitch: hasPitch ? pitch : null,
       serialized,
     };
   } catch (error) {
@@ -1876,13 +1880,18 @@ export const initScene = (
 
   const storedPlayerState = loadStoredPlayerState();
   let lastSerializedPlayerState = storedPlayerState?.serialized ?? null;
+  const DEFAULT_THIRD_PERSON_PITCH = -0.3;
+  const storedOrientationEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const controls = new PointerLockControls(camera, canvas);
   const playerObject = controls.getObject();
+  if (playerObject?.rotation) {
+    playerObject.rotation.order = "YXZ";
+  }
   scene.add(playerObject);
 
   const playerModelGroup = new THREE.Group();
-  playerModelGroup.visible = false;
+  playerModelGroup.visible = true;
   scene.add(playerModelGroup);
 
   const playerModelState = {
@@ -1943,15 +1952,34 @@ export const initScene = (
   );
   playerObject.position.copy(defaultPlayerPosition);
 
+  let playerEyeHeight = defaultPlayerPosition.y;
+  let initialPitch = DEFAULT_THIRD_PERSON_PITCH;
+
   if (storedPlayerState) {
     playerObject.position.copy(storedPlayerState.position);
-    playerObject.quaternion.copy(storedPlayerState.quaternion);
+    storedOrientationEuler.setFromQuaternion(storedPlayerState.quaternion);
+    controls.setYaw(storedOrientationEuler.y);
+    if (typeof storedPlayerState.pitch === "number") {
+      initialPitch = storedPlayerState.pitch;
+    } else {
+      initialPitch = storedOrientationEuler.x;
+    }
+  } else {
+    controls.setYaw(playerObject.rotation.y || 0);
   }
 
+  controls.setPitch(initialPitch);
   playerObject.position.y = defaultPlayerPosition.y;
 
-  let playerEyeHeight = defaultPlayerPosition.y;
+  const thirdPersonCameraOffset = new THREE.Vector3();
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
+
+  const updateThirdPersonCameraOffset = () => {
+    const heightOffset = Math.max(0.4, playerEyeHeight * 0.4);
+    const distance = Math.max(2.8, playerEyeHeight * 2.2);
+    thirdPersonCameraOffset.set(0, heightOffset, distance);
+    controls.setCameraOffset(thirdPersonCameraOffset);
+  };
 
   const updatePlayerModelTransform = () => {
     playerModelGroup.position.set(
@@ -1963,6 +1991,7 @@ export const initScene = (
     playerModelGroup.rotation.set(0, playerModelYawEuler.y, 0);
     playerModelGroup.updateMatrixWorld(true);
   };
+  updateThirdPersonCameraOffset();
   updatePlayerModelTransform();
 
   const applyPlayerEyeHeight = (newEyeHeight) => {
@@ -1973,6 +2002,7 @@ export const initScene = (
     playerEyeHeight = newEyeHeight;
     defaultPlayerPosition.y = newEyeHeight;
     playerObject.position.y = newEyeHeight;
+    updateThirdPersonCameraOffset();
     updatePlayerModelTransform();
   };
 
@@ -2278,6 +2308,7 @@ export const initScene = (
         z: roundPlayerStateValue(playerObject.quaternion.z),
         w: roundPlayerStateValue(playerObject.quaternion.w),
       },
+      pitch: roundPlayerStateValue(controls.getPitch()),
     });
 
   const savePlayerState = (force = false) => {
