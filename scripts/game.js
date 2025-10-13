@@ -116,8 +116,7 @@ const attemptToRestorePointerLock = () => {
   controls.lock();
 };
 
-const MATRIX_CHARACTER_SET =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\u30A2\u30AB\u30B5\u30BF\u30CA\u30CF\u30DE\u30E4\u30E9";
+const MATRIX_CHARACTER_SET = "01010";
 
 const quickAccessMatrixState = {
   container:
