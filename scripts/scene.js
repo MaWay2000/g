@@ -1898,11 +1898,11 @@ export const initScene = (
       }
 
       if (movementState.forward || movementState.backward) {
-        velocity.z -= direction.z * 40 * delta;
+        velocity.z -= direction.z * 80 * delta;
       }
 
       if (movementState.left || movementState.right) {
-        velocity.x -= direction.x * 40 * delta;
+        velocity.x -= direction.x * 80 * delta;
       }
 
       if (controls.isLocked) {
