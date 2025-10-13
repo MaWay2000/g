@@ -416,13 +416,67 @@ export const initScene = (
     });
 
     const panelWidth = (doorWidth - seamGap) / 2;
-    const panelGeometry = new THREE.BoxGeometry(panelWidth, doorHeight, panelDepth);
+    const windowWidth = panelWidth * 0.36;
+    const windowHeight = doorHeight * 0.22;
+    const windowDepth = 0.16;
+    const windowY = doorHeight * 0.22;
+    const windowOpeningWidth = windowWidth * 0.92;
+    const windowOpeningHeight = windowHeight * 0.88;
+    const windowOffsetWithinPanel = panelWidth * 0.25 + seamGap / 2;
 
-    const leftPanel = new THREE.Mesh(panelGeometry, panelMaterial);
+    const createPanel = (direction = 1) => {
+      const shape = new THREE.Shape();
+      const halfWidth = panelWidth / 2;
+      const halfHeight = doorHeight / 2;
+
+      shape.moveTo(-halfWidth, -halfHeight);
+      shape.lineTo(halfWidth, -halfHeight);
+      shape.lineTo(halfWidth, halfHeight);
+      shape.lineTo(-halfWidth, halfHeight);
+      shape.lineTo(-halfWidth, -halfHeight);
+
+      const windowCenterX = windowOffsetWithinPanel * direction;
+      const windowHalfWidth = windowOpeningWidth / 2;
+      const windowHalfHeight = windowOpeningHeight / 2;
+
+      const windowPath = new THREE.Path();
+      windowPath.moveTo(
+        windowCenterX - windowHalfWidth,
+        windowY - windowHalfHeight
+      );
+      windowPath.lineTo(
+        windowCenterX - windowHalfWidth,
+        windowY + windowHalfHeight
+      );
+      windowPath.lineTo(
+        windowCenterX + windowHalfWidth,
+        windowY + windowHalfHeight
+      );
+      windowPath.lineTo(
+        windowCenterX + windowHalfWidth,
+        windowY - windowHalfHeight
+      );
+      windowPath.lineTo(
+        windowCenterX - windowHalfWidth,
+        windowY - windowHalfHeight
+      );
+
+      shape.holes.push(windowPath);
+
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: panelDepth,
+        bevelEnabled: false,
+      });
+      geometry.translate(0, 0, -panelDepth / 2);
+
+      return new THREE.Mesh(geometry, panelMaterial);
+    };
+
+    const leftPanel = createPanel(1);
     leftPanel.position.x = -(panelWidth / 2 + seamGap / 2);
     group.add(leftPanel);
 
-    const rightPanel = leftPanel.clone();
+    const rightPanel = createPanel(-1);
     rightPanel.position.x = panelWidth / 2 + seamGap / 2;
     group.add(rightPanel);
 
@@ -505,50 +559,104 @@ export const initScene = (
     const windowMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0xb7e3ff),
       emissive: new THREE.Color(0x9bdcfb),
-      emissiveIntensity: 0.85,
+      emissiveIntensity: 0.95,
       transparent: true,
-      opacity: 0.9,
-      roughness: 0.12,
-      metalness: 0.05,
+      opacity: 0.78,
+      roughness: 0.08,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
+      depthWrite: false,
     });
 
-    const windowWidth = panelWidth * 0.36;
-    const windowHeight = doorHeight * 0.22;
-    const windowDepth = 0.16;
-    const windowY = doorHeight * 0.22;
+    const createWindowFrameGeometry = () => {
+      const outerWidth = windowWidth * 1.12;
+      const outerHeight = windowHeight * 1.12;
+      const innerWidth = windowOpeningWidth * 1.02;
+      const innerHeight = windowOpeningHeight * 1.02;
+
+      const shape = new THREE.Shape();
+      shape.moveTo(-outerWidth / 2, -outerHeight / 2);
+      shape.lineTo(outerWidth / 2, -outerHeight / 2);
+      shape.lineTo(outerWidth / 2, outerHeight / 2);
+      shape.lineTo(-outerWidth / 2, outerHeight / 2);
+      shape.lineTo(-outerWidth / 2, -outerHeight / 2);
+
+      const hole = new THREE.Path();
+      hole.moveTo(-innerWidth / 2, -innerHeight / 2);
+      hole.lineTo(-innerWidth / 2, innerHeight / 2);
+      hole.lineTo(innerWidth / 2, innerHeight / 2);
+      hole.lineTo(innerWidth / 2, -innerHeight / 2);
+      hole.lineTo(-innerWidth / 2, -innerHeight / 2);
+
+      shape.holes.push(hole);
+
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: windowDepth,
+        bevelEnabled: false,
+      });
+      geometry.translate(0, 0, -windowDepth / 2);
+
+      return geometry;
+    };
+
+    const windowFrameGeometry = createWindowFrameGeometry();
+    const windowGlowMaterial = new THREE.MeshBasicMaterial({
+      color: 0x93c5fd,
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
 
     const createWindow = (centerX) => {
-      const frame = new THREE.Mesh(
-        new THREE.BoxGeometry(windowWidth * 1.12, windowHeight * 1.12, windowDepth),
+      const frontFrame = new THREE.Mesh(
+        windowFrameGeometry,
         windowFrameMaterial
       );
-      frame.position.set(centerX, windowY, panelDepth / 2 + windowDepth / 2);
-      group.add(frame);
+      frontFrame.position.set(
+        centerX,
+        windowY,
+        panelDepth / 2 - windowDepth / 2 + 0.01
+      );
+      group.add(frontFrame);
+
+      const rearFrame = frontFrame.clone();
+      rearFrame.position.z = -panelDepth / 2 + windowDepth / 2 - 0.01;
+      group.add(rearFrame);
 
       const glass = new THREE.Mesh(
-        new THREE.PlaneGeometry(windowWidth, windowHeight),
+        new THREE.PlaneGeometry(
+          windowOpeningWidth * 0.96,
+          windowOpeningHeight * 0.96
+        ),
         windowMaterial
       );
-      glass.position.set(0, 0, windowDepth / 2 + 0.01);
-      frame.add(glass);
+      glass.position.set(centerX, windowY, 0);
+      glass.renderOrder = 2;
+      group.add(glass);
 
-      const innerGlow = new THREE.Mesh(
-        new THREE.PlaneGeometry(windowWidth * 0.8, windowHeight * 0.8),
-        new THREE.MeshBasicMaterial({
-          color: 0x93c5fd,
-          transparent: true,
-          opacity: 0.6,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
+      const frontGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(
+          windowOpeningWidth * 0.76,
+          windowOpeningHeight * 0.76
+        ),
+        windowGlowMaterial
       );
-      innerGlow.position.set(0, 0, 0.02);
-      frame.add(innerGlow);
+      frontGlow.position.set(centerX, windowY, panelDepth / 2 - 0.02);
+      group.add(frontGlow);
 
-      const light = new THREE.PointLight(0x9bdcfb, 0.6, 6, 2);
-      light.position.set(centerX, windowY, 0.4);
-      group.add(light);
+      const rearGlow = frontGlow.clone();
+      rearGlow.position.z = -panelDepth / 2 + 0.02;
+      group.add(rearGlow);
+
+      const exteriorLight = new THREE.PointLight(0x9bdcfb, 0.6, 6, 2);
+      exteriorLight.position.set(centerX, windowY, 0.4);
+      group.add(exteriorLight);
+
+      const interiorLight = exteriorLight.clone();
+      interiorLight.position.z = -0.4;
+      group.add(interiorLight);
     };
 
     createWindow(-panelWidth * 0.25);
