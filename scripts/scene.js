@@ -1,6 +1,98 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
+const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
+const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
+
+const getPlayerStateStorage = (() => {
+  let resolved = false;
+  let storage = null;
+
+  return () => {
+    if (resolved) {
+      return storage;
+    }
+
+    resolved = true;
+
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    try {
+      storage = window.localStorage;
+      if (storage) {
+        const probeKey = `${PLAYER_STATE_STORAGE_KEY}.probe`;
+        storage.setItem(probeKey, "1");
+        storage.removeItem(probeKey);
+      }
+    } catch (error) {
+      console.warn("Unable to access localStorage for player state", error);
+      storage = null;
+    }
+
+    return storage;
+  };
+})();
+
+const loadStoredPlayerState = () => {
+  const storage = getPlayerStateStorage();
+
+  if (!storage) {
+    return null;
+  }
+
+  let serialized = null;
+
+  try {
+    serialized = storage.getItem(PLAYER_STATE_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Unable to read stored player state", error);
+    return null;
+  }
+
+  if (!serialized) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(serialized);
+    const position = data?.position;
+    const quaternion = data?.quaternion;
+    const isFiniteNumber = (value) =>
+      typeof value === "number" && Number.isFinite(value);
+
+    if (
+      !position ||
+      !quaternion ||
+      !isFiniteNumber(position.x) ||
+      !isFiniteNumber(position.y) ||
+      !isFiniteNumber(position.z) ||
+      !isFiniteNumber(quaternion.x) ||
+      !isFiniteNumber(quaternion.y) ||
+      !isFiniteNumber(quaternion.z) ||
+      !isFiniteNumber(quaternion.w)
+    ) {
+      return null;
+    }
+
+    return {
+      position: new THREE.Vector3(position.x, position.y, position.z),
+      quaternion: new THREE.Quaternion(
+        quaternion.x,
+        quaternion.y,
+        quaternion.z,
+        quaternion.w
+      ),
+      serialized,
+    };
+  } catch (error) {
+    console.warn("Unable to parse stored player state", error);
+  }
+
+  return null;
+};
+
 export const initScene = (
   canvas,
   {
@@ -1498,9 +1590,76 @@ export const initScene = (
     quickAccessInteractables.push(monitorScreen);
   }
 
+  const storedPlayerState = loadStoredPlayerState();
+  let lastSerializedPlayerState = storedPlayerState?.serialized ?? null;
+
   const controls = new PointerLockControls(camera, canvas);
-  scene.add(controls.getObject());
-  controls.getObject().position.set(0, 1.6, 8);
+  const playerObject = controls.getObject();
+  scene.add(playerObject);
+
+  const defaultPlayerPosition = new THREE.Vector3(0, 1.6, 8);
+  playerObject.position.copy(defaultPlayerPosition);
+
+  if (storedPlayerState) {
+    playerObject.position.copy(storedPlayerState.position);
+    playerObject.quaternion.copy(storedPlayerState.quaternion);
+  }
+
+  playerObject.position.y = defaultPlayerPosition.y;
+
+  const roundPlayerStateValue = (value) =>
+    Math.round(value * 10000) / 10000;
+
+  const serializePlayerState = () =>
+    JSON.stringify({
+      position: {
+        x: roundPlayerStateValue(playerObject.position.x),
+        y: roundPlayerStateValue(playerObject.position.y),
+        z: roundPlayerStateValue(playerObject.position.z),
+      },
+      quaternion: {
+        x: roundPlayerStateValue(playerObject.quaternion.x),
+        y: roundPlayerStateValue(playerObject.quaternion.y),
+        z: roundPlayerStateValue(playerObject.quaternion.z),
+        w: roundPlayerStateValue(playerObject.quaternion.w),
+      },
+    });
+
+  const savePlayerState = (force = false) => {
+    const storage = getPlayerStateStorage();
+
+    if (!storage) {
+      return;
+    }
+
+    const serialized = serializePlayerState();
+
+    if (!force && serialized === lastSerializedPlayerState) {
+      return;
+    }
+
+    try {
+      storage.setItem(PLAYER_STATE_STORAGE_KEY, serialized);
+      lastSerializedPlayerState = serialized;
+    } catch (error) {
+      console.warn("Unable to save player state", error);
+    }
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      savePlayerState(true);
+    }
+  };
+
+  const handleBeforeUnload = () => {
+    savePlayerState(true);
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("beforeunload", handleBeforeUnload);
+
+  let playerStateSaveAccumulator = 0;
 
   controls.addEventListener("lock", () => {
     if (typeof onControlsLocked === "function") {
@@ -1714,6 +1873,8 @@ export const initScene = (
     player.y = 1.6;
   };
 
+  clampWithinRoom();
+
   const animate = () => {
     requestAnimationFrame(animate);
 
@@ -1771,6 +1932,13 @@ export const initScene = (
       updateDisplayTexture(delta, clock.elapsedTime);
     }
 
+    playerStateSaveAccumulator += delta;
+
+    if (playerStateSaveAccumulator >= PLAYER_STATE_SAVE_INTERVAL) {
+      playerStateSaveAccumulator = 0;
+      savePlayerState();
+    }
+
     renderer.render(scene, camera);
   };
 
@@ -1799,10 +1967,13 @@ export const initScene = (
       canvas.removeEventListener("pointerdown", attemptPointerLock);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       updateTerminalInteractableState(false);
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
+      savePlayerState(true);
     },
   };
 };
