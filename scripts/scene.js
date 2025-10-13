@@ -208,7 +208,8 @@ export const initScene = (
 
   const roomWidth = 20;
   const roomHeight = 10;
-  const roomDepth = 20;
+  const roomDepth = 60;
+  const terminalBackOffset = 4;
 
   const createWallMaterial = (hexColor) =>
     new THREE.MeshStandardMaterial({
@@ -1504,7 +1505,11 @@ export const initScene = (
   };
 
   const computerSetup = createComputerSetup();
-  computerSetup.position.set(3, -roomHeight / 2, -6);
+  computerSetup.position.set(
+    3,
+    -roomHeight / 2,
+    -roomDepth / 2 + terminalBackOffset
+  );
   scene.add(computerSetup);
 
   const lastUpdatedDisplay = createLastUpdatedDisplay();
