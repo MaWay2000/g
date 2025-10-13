@@ -1,5 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
+import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
@@ -1715,6 +1716,69 @@ export const initScene = (
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
 
+  const createWallMirror = () => {
+    const group = new THREE.Group();
+
+    const mirrorWidth = 2.4;
+    const mirrorHeight = 3.6;
+    const frameInset = 0.18;
+    const pixelRatio = window.devicePixelRatio ?? 1;
+
+    const frameMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x111827),
+      metalness: 0.58,
+      roughness: 0.32,
+      emissive: new THREE.Color(0x0b1220),
+      emissiveIntensity: 0.22,
+    });
+
+    const frame = new THREE.Mesh(
+      new THREE.PlaneGeometry(
+        mirrorWidth + frameInset,
+        mirrorHeight + frameInset
+      ),
+      frameMaterial
+    );
+    frame.position.z = -0.015;
+    group.add(frame);
+
+    const reflector = new Reflector(
+      new THREE.PlaneGeometry(mirrorWidth, mirrorHeight),
+      {
+        clipBias: 0.0025,
+        color: new THREE.Color(0x9fb7cf),
+        textureWidth: window.innerWidth * pixelRatio,
+        textureHeight: window.innerHeight * pixelRatio,
+      }
+    );
+    group.add(reflector);
+
+    const accentMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1f2a37),
+      metalness: 0.35,
+      roughness: 0.55,
+    });
+
+    const accentDepth = 0.08;
+    const topAccent = new THREE.Mesh(
+      new THREE.BoxGeometry(mirrorWidth + frameInset, 0.08, accentDepth),
+      accentMaterial
+    );
+    topAccent.position.set(0, mirrorHeight / 2 + 0.02, -accentDepth / 2);
+    group.add(topAccent);
+
+    const bottomAccent = topAccent.clone();
+    bottomAccent.position.y = -mirrorHeight / 2 - 0.02;
+    group.add(bottomAccent);
+
+    group.userData.dimensions = { width: mirrorWidth, height: mirrorHeight };
+    group.userData.reflector = reflector;
+
+    return group;
+  };
+
+  const reflectiveSurfaces = [];
+
   const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
     const vertices = [];
     const halfWidth = width / 2;
@@ -1768,6 +1832,22 @@ export const initScene = (
   rightWallGrid.rotation.y = -Math.PI / 2;
   rightWallGrid.position.x = roomWidth / 2 - 0.02;
   scene.add(rightWallGrid);
+
+  const wallMirror = createWallMirror();
+  const mirrorDimensions = wallMirror.userData?.dimensions;
+  const mirrorHeight = mirrorDimensions?.height ?? 3.6;
+  wallMirror.position.set(
+    roomWidth / 2 - 0.16,
+    -roomHeight / 2 + mirrorHeight / 2 + 0.6,
+    6
+  );
+  wallMirror.rotation.y = -Math.PI / 2;
+  scene.add(wallMirror);
+
+  const wallMirrorReflector = wallMirror.userData?.reflector;
+  if (wallMirrorReflector) {
+    reflectiveSurfaces.push(wallMirrorReflector);
+  }
 
   const raycaster = new THREE.Raycaster();
   const quickAccessInteractables = [];
@@ -2298,6 +2378,13 @@ export const initScene = (
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+
+    const pixelRatio = renderer.getPixelRatio();
+    reflectiveSurfaces.forEach((reflector) => {
+      if (reflector?.renderTarget && typeof reflector.renderTarget.setSize === "function") {
+        reflector.renderTarget.setSize(width * pixelRatio, height * pixelRatio);
+      }
+    });
   };
 
   window.addEventListener("resize", handleResize);
