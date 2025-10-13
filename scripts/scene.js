@@ -167,27 +167,88 @@ export const initScene = (
     const thresholdHeight = 0.28;
     const seamGap = 0.22;
 
+    const createHazardStripeTexture = () => {
+      const size = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#0f1010";
+      ctx.fillRect(0, 0, size, size);
+      const stripeWidth = size / 3.2;
+      ctx.fillStyle = "#facc15";
+      for (let offset = -size; offset < size * 2; offset += stripeWidth * 2) {
+        ctx.beginPath();
+        ctx.moveTo(offset, 0);
+        ctx.lineTo(offset + stripeWidth, 0);
+        ctx.lineTo(offset, size);
+        ctx.lineTo(offset - stripeWidth, size);
+        ctx.closePath();
+        ctx.fill();
+      }
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(2.5, 1.2);
+      texture.rotation = -Math.PI / 5;
+      texture.center.set(0.5, 0.5);
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return texture;
+    };
+
+    const createGrungeTexture = () => {
+      const size = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const imageData = ctx.createImageData(size, size);
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const value = 32 + Math.random() * 180;
+        imageData.data[i] = value;
+        imageData.data[i + 1] = value * 0.92;
+        imageData.data[i + 2] = value * 0.85;
+        imageData.data[i + 3] = 255;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      ctx.globalCompositeOperation = "overlay";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.fillRect(0, 0, size, size);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(4, 4);
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.needsUpdate = true;
+      return texture;
+    };
+
+    const grungeTexture = createGrungeTexture();
+
     const frameMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0c1516),
-      roughness: 0.4,
-      metalness: 0.55,
+      color: new THREE.Color(0x131a1c),
+      roughness: 0.52,
+      metalness: 0.58,
+      map: grungeTexture,
+      roughnessMap: grungeTexture,
+      metalnessMap: grungeTexture,
     });
 
     const topFrame = new THREE.Mesh(
-      new THREE.BoxGeometry(doorWidth + frameWidth * 2, lintelHeight, frameDepth),
+      new THREE.BoxGeometry(doorWidth + frameWidth * 2.2, lintelHeight, frameDepth),
       frameMaterial
     );
     topFrame.position.y = doorHeight / 2 + lintelHeight / 2;
     group.add(topFrame);
 
     const bottomFrame = new THREE.Mesh(
-      new THREE.BoxGeometry(doorWidth + frameWidth * 2, thresholdHeight, frameDepth),
+      new THREE.BoxGeometry(doorWidth + frameWidth * 2.2, thresholdHeight, frameDepth),
       frameMaterial
     );
     bottomFrame.position.y = -doorHeight / 2 - thresholdHeight / 2 + 0.12;
     group.add(bottomFrame);
 
-    const sideFrameGeometry = new THREE.BoxGeometry(frameWidth, doorHeight, frameDepth);
+    const sideFrameGeometry = new THREE.BoxGeometry(frameWidth, doorHeight + lintelHeight * 0.35, frameDepth);
     const leftFrame = new THREE.Mesh(sideFrameGeometry, frameMaterial);
     leftFrame.position.x = -doorWidth / 2 - frameWidth / 2;
     group.add(leftFrame);
@@ -196,12 +257,69 @@ export const initScene = (
     rightFrame.position.x = doorWidth / 2 + frameWidth / 2;
     group.add(rightFrame);
 
+    const hazardTexture = createHazardStripeTexture();
+    const hazardMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      metalness: 0.35,
+      roughness: 0.55,
+      map: hazardTexture,
+    });
+
+    const hazardPlateThickness = 0.08;
+    const hazardTop = new THREE.Mesh(
+      new THREE.BoxGeometry(doorWidth + frameWidth * 2.8, lintelHeight * 0.72, hazardPlateThickness),
+      hazardMaterial
+    );
+    hazardTop.position.set(0, doorHeight / 2 + lintelHeight * 0.75, frameDepth / 2 + hazardPlateThickness / 2);
+    group.add(hazardTop);
+
+    const hazardSideGeometry = new THREE.BoxGeometry(frameWidth * 0.9, doorHeight * 0.95, hazardPlateThickness);
+    const hazardLeft = new THREE.Mesh(hazardSideGeometry, hazardMaterial);
+    hazardLeft.position.set(-doorWidth / 2 - frameWidth * 0.85, 0, frameDepth / 2 + hazardPlateThickness / 2);
+    group.add(hazardLeft);
+
+    const hazardRight = hazardLeft.clone();
+    hazardRight.position.x *= -1;
+    group.add(hazardRight);
+
+    const trimMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x7f1d1d),
+      metalness: 0.42,
+      roughness: 0.36,
+      emissive: new THREE.Color(0x1f0303),
+      emissiveIntensity: 0.32,
+    });
+
+    const trimWidth = 0.22;
+    const trimDepth = 0.12;
+    const verticalTrimGeometry = new THREE.BoxGeometry(trimWidth, doorHeight * 0.92, trimDepth);
+    const leftTrim = new THREE.Mesh(verticalTrimGeometry, trimMaterial);
+    leftTrim.position.set(-doorWidth / 2 + trimWidth / 2 + 0.08, 0, panelDepth / 2 + trimDepth / 2);
+    group.add(leftTrim);
+
+    const rightTrim = leftTrim.clone();
+    rightTrim.position.x *= -1;
+    group.add(rightTrim);
+
+    const horizontalTrimGeometry = new THREE.BoxGeometry(doorWidth * 0.9, trimWidth, trimDepth);
+    const topTrim = new THREE.Mesh(horizontalTrimGeometry, trimMaterial);
+    topTrim.position.set(0, doorHeight / 2 - trimWidth / 2 - 0.12, panelDepth / 2 + trimDepth / 2);
+    group.add(topTrim);
+
+    const bottomTrim = topTrim.clone();
+    bottomTrim.position.y = -doorHeight / 2 + trimWidth / 2 + 0.18;
+    group.add(bottomTrim);
+
     const panelMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x152123),
-      roughness: 0.56,
-      metalness: 0.32,
-      emissive: new THREE.Color(0x071011),
-      emissiveIntensity: 0.35,
+      color: new THREE.Color(0x202b2b),
+      roughness: 0.48,
+      metalness: 0.62,
+      map: grungeTexture,
+      roughnessMap: grungeTexture,
+      metalnessMap: grungeTexture,
+      normalScale: new THREE.Vector2(0.3, 0.3),
+      emissive: new THREE.Color(0x050d0e),
+      emissiveIntensity: 0.4,
     });
 
     const panelWidth = (doorWidth - seamGap) / 2;
@@ -216,9 +334,12 @@ export const initScene = (
     group.add(rightPanel);
 
     const seamMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0f1c1d),
-      roughness: 0.42,
-      metalness: 0.38,
+      color: new THREE.Color(0x111a1b),
+      roughness: 0.38,
+      metalness: 0.52,
+      map: grungeTexture,
+      roughnessMap: grungeTexture,
+      metalnessMap: grungeTexture,
     });
     const seam = new THREE.Mesh(
       new THREE.BoxGeometry(seamGap * 0.35, doorHeight, panelDepth * 0.6),
@@ -226,80 +347,194 @@ export const initScene = (
     );
     group.add(seam);
 
-    const accentMaterial = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.9,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+    const trimAccentMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x991b1b),
+      metalness: 0.4,
+      roughness: 0.38,
+      emissive: new THREE.Color(0x240303),
+      emissiveIntensity: 0.28,
     });
 
-    const accentHeight = doorHeight * 0.88;
-    const accentWidth = 0.38;
+    const accentPlateGeometry = new THREE.BoxGeometry(panelWidth * 0.9, 0.24, 0.1);
+    const topAccentPlate = new THREE.Mesh(accentPlateGeometry, trimAccentMaterial);
+    topAccentPlate.position.set(0, doorHeight * 0.28, panelDepth / 2 + 0.05);
+    group.add(topAccentPlate);
 
-    const addAccentPair = (x, baseRotation) => {
-      const accentGeometry = new THREE.PlaneGeometry(accentWidth, accentHeight);
-      const accentA = new THREE.Mesh(accentGeometry, accentMaterial);
-      accentA.position.set(x, 0, panelDepth / 2 + 0.06);
-      accentA.rotation.z = baseRotation;
-      group.add(accentA);
+    const midAccentPlate = topAccentPlate.clone();
+    midAccentPlate.position.y = 0;
+    midAccentPlate.scale.set(1.04, 0.9, 1);
+    group.add(midAccentPlate);
 
-      const accentB = accentA.clone();
-      accentB.rotation.z = -baseRotation;
-      group.add(accentB);
-    };
-
-    const accentOffsetX = panelWidth / 2 + seamGap / 2;
-    addAccentPair(-accentOffsetX, Math.PI / 5);
-    addAccentPair(accentOffsetX, Math.PI / 5);
-
-    const horizontalAccentGeometry = new THREE.PlaneGeometry(panelWidth * 0.78, accentWidth * 0.72);
-    const upperAccent = new THREE.Mesh(horizontalAccentGeometry, accentMaterial);
-    upperAccent.position.set(0, doorHeight * 0.28, panelDepth / 2 + 0.06);
-    group.add(upperAccent);
-
-    const middleAccent = upperAccent.clone();
-    middleAccent.position.y = 0;
-    middleAccent.scale.set(1.12, 0.64, 1);
-    group.add(middleAccent);
-
-    const lowerAccent = upperAccent.clone();
-    lowerAccent.position.y = -doorHeight * 0.28;
-    group.add(lowerAccent);
+    const lowerAccentPlate = topAccentPlate.clone();
+    lowerAccentPlate.position.y = -doorHeight * 0.28;
+    group.add(lowerAccentPlate);
 
     const seamGlowMaterial = new THREE.MeshBasicMaterial({
-      color: 0x7dd3fc,
+      color: 0xf87171,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.82,
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
 
     const seamGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(seamGap * 0.55, doorHeight * 0.9),
+      new THREE.PlaneGeometry(seamGap * 0.48, doorHeight * 0.82),
       seamGlowMaterial
     );
-    seamGlow.position.z = panelDepth / 2 + 0.08;
+    seamGlow.position.z = panelDepth / 2 + 0.06;
     group.add(seamGlow);
 
-    const panelGlowGeometry = new THREE.PlaneGeometry(panelWidth * 0.92, accentWidth * 0.45);
-    const topPanelGlow = new THREE.Mesh(panelGlowGeometry, seamGlowMaterial);
-    topPanelGlow.position.set(0, doorHeight * 0.46, panelDepth / 2 + 0.07);
+    const indicatorGlowGeometry = new THREE.PlaneGeometry(panelWidth * 0.82, 0.16);
+    const topPanelGlow = new THREE.Mesh(indicatorGlowGeometry, seamGlowMaterial);
+    topPanelGlow.position.set(0, doorHeight * 0.44, panelDepth / 2 + 0.05);
     group.add(topPanelGlow);
 
     const bottomPanelGlow = topPanelGlow.clone();
-    bottomPanelGlow.position.y = -doorHeight * 0.46;
+    bottomPanelGlow.position.y = -doorHeight * 0.44;
     group.add(bottomPanelGlow);
 
-    const doorLight = new THREE.PointLight(0x7dd3fc, 0.75, 12, 2);
-    doorLight.position.set(0, doorHeight / 2 - 0.12, 0.32);
+    const doorLight = new THREE.PointLight(0xf97316, 0.55, 9, 2);
+    doorLight.position.set(0, doorHeight / 2 - 0.2, 0.32);
     group.add(doorLight);
 
-    const overheadBeacon = new THREE.PointLight(0x38bdf8, 0.45, 10, 2);
-    overheadBeacon.position.set(0, doorHeight / 2 + lintelHeight / 2, 0.2);
+    const overheadBeacon = new THREE.PointLight(0xf97316, 0.4, 8, 2);
+    overheadBeacon.position.set(0, doorHeight / 2 + lintelHeight / 2, 0.22);
     group.add(overheadBeacon);
+
+    const windowFrameMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1c2527),
+      metalness: 0.6,
+      roughness: 0.32,
+      map: grungeTexture,
+    });
+
+    const windowMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0xb7e3ff),
+      emissive: new THREE.Color(0x9bdcfb),
+      emissiveIntensity: 0.85,
+      transparent: true,
+      opacity: 0.9,
+      roughness: 0.12,
+      metalness: 0.05,
+    });
+
+    const windowWidth = panelWidth * 0.36;
+    const windowHeight = doorHeight * 0.22;
+    const windowDepth = 0.16;
+    const windowY = doorHeight * 0.22;
+
+    const createWindow = (centerX) => {
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(windowWidth * 1.12, windowHeight * 1.12, windowDepth),
+        windowFrameMaterial
+      );
+      frame.position.set(centerX, windowY, panelDepth / 2 + windowDepth / 2);
+      group.add(frame);
+
+      const glass = new THREE.Mesh(
+        new THREE.PlaneGeometry(windowWidth, windowHeight),
+        windowMaterial
+      );
+      glass.position.set(0, 0, windowDepth / 2 + 0.01);
+      frame.add(glass);
+
+      const innerGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(windowWidth * 0.8, windowHeight * 0.8),
+        new THREE.MeshBasicMaterial({
+          color: 0x93c5fd,
+          transparent: true,
+          opacity: 0.6,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      innerGlow.position.set(0, 0, 0.02);
+      frame.add(innerGlow);
+
+      const light = new THREE.PointLight(0x9bdcfb, 0.6, 6, 2);
+      light.position.set(centerX, windowY, 0.4);
+      group.add(light);
+    };
+
+    createWindow(-panelWidth * 0.25);
+    createWindow(panelWidth * 0.25);
+
+    const ventMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x111a1a),
+      metalness: 0.4,
+      roughness: 0.55,
+      map: grungeTexture,
+    });
+
+    const ventWidth = panelWidth * 0.42;
+    const ventHeight = doorHeight * 0.22;
+    const ventDepth = 0.14;
+
+    const createVent = (centerX) => {
+      const vent = new THREE.Mesh(
+        new THREE.BoxGeometry(ventWidth, ventHeight, ventDepth),
+        ventMaterial
+      );
+      vent.position.set(centerX, -doorHeight * 0.32, panelDepth / 2 + ventDepth / 2);
+      group.add(vent);
+
+      const slatMaterial = new THREE.MeshBasicMaterial({
+        color: 0x2d3a3a,
+        side: THREE.DoubleSide,
+      });
+      const slatGeometry = new THREE.PlaneGeometry(ventWidth * 0.92, 0.04);
+      const slatCount = 5;
+      for (let i = 0; i < slatCount; i += 1) {
+        const slat = new THREE.Mesh(slatGeometry, slatMaterial);
+        slat.position.set(0, ventHeight * 0.4 - (i * ventHeight) / (slatCount - 1), ventDepth / 2 + 0.01);
+        vent.add(slat);
+      }
+    };
+
+    createVent(-panelWidth * 0.25);
+    createVent(panelWidth * 0.25);
+
+    const emblemMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x991b1b),
+      metalness: 0.45,
+      roughness: 0.35,
+      emissive: new THREE.Color(0x250404),
+      emissiveIntensity: 0.25,
+    });
+
+    const emblemGeometry = new THREE.CircleGeometry(panelWidth * 0.16, 48);
+    const leftEmblem = new THREE.Mesh(emblemGeometry, emblemMaterial);
+    leftEmblem.position.set(-panelWidth * 0.25, -doorHeight * 0.02, panelDepth / 2 + 0.045);
+    group.add(leftEmblem);
+
+    const rightEmblem = leftEmblem.clone();
+    rightEmblem.position.x *= -1;
+    group.add(rightEmblem);
+
+    const boltMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0e1516),
+      metalness: 0.6,
+      roughness: 0.3,
+    });
+
+    const boltGeometry = new THREE.CylinderGeometry(0.07, 0.07, 0.05, 12);
+    const boltPositions = [];
+    const boltOffsetX = doorWidth / 2 + frameWidth * 0.25;
+    const boltOffsetY = doorHeight / 2 - 0.35;
+    const boltSpacingY = doorHeight / 3;
+    for (let i = -1; i <= 1; i += 1) {
+      boltPositions.push([-boltOffsetX, boltOffsetY - boltSpacingY * i]);
+      boltPositions.push([boltOffsetX, boltOffsetY - boltSpacingY * i]);
+    }
+
+    boltPositions.forEach(([x, y]) => {
+      const bolt = new THREE.Mesh(boltGeometry, boltMaterial);
+      bolt.rotation.x = Math.PI / 2;
+      bolt.position.set(x, y, frameDepth / 2 + 0.02);
+      group.add(bolt);
+    });
 
     const controlPanel = new THREE.Mesh(
       new THREE.BoxGeometry(0.6, 1.4, 0.18),
@@ -317,9 +552,9 @@ export const initScene = (
     const controlScreen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.34, 0.48),
       new THREE.MeshBasicMaterial({
-        color: 0x34d399,
+        color: 0x38bdf8,
         transparent: true,
-        opacity: 0.95,
+        opacity: 0.92,
         side: THREE.DoubleSide,
       })
     );
@@ -329,14 +564,14 @@ export const initScene = (
     const controlButton = new THREE.Mesh(
       new THREE.CircleGeometry(0.08, 32),
       new THREE.MeshBasicMaterial({
-        color: 0x22c55e,
+        color: 0xf97316,
         side: THREE.DoubleSide,
       })
     );
     controlButton.position.set(0, -0.3, 0.1);
     controlPanel.add(controlButton);
 
-    const panelLight = new THREE.PointLight(0x22c55e, 0.35, 4.5, 2);
+    const panelLight = new THREE.PointLight(0xf97316, 0.35, 4.5, 2);
     panelLight.position.set(controlPanel.position.x, controlPanel.position.y + 0.3, 0.4);
     group.add(panelLight);
 
