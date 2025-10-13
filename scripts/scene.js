@@ -1,4 +1,5 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
@@ -120,6 +121,7 @@ export const initScene = (
   camera.position.set(0, 1.6, 8);
 
   const textureLoader = new THREE.TextureLoader();
+  const gltfLoader = new GLTFLoader();
 
   const colliderDescriptors = [];
 
@@ -1798,6 +1800,10 @@ export const initScene = (
   const playerObject = controls.getObject();
   scene.add(playerObject);
 
+  const playerModelGroup = new THREE.Group();
+  playerModelGroup.visible = false;
+  scene.add(playerModelGroup);
+
   const defaultPlayerPosition = new THREE.Vector3(0, 1.6, 8);
   playerObject.position.copy(defaultPlayerPosition);
 
@@ -1809,6 +1815,68 @@ export const initScene = (
   playerObject.position.y = defaultPlayerPosition.y;
 
   const playerEyeHeight = defaultPlayerPosition.y;
+  const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
+
+  const updatePlayerModelTransform = () => {
+    playerModelGroup.position.set(
+      playerObject.position.x,
+      playerObject.position.y - playerEyeHeight,
+      playerObject.position.z
+    );
+    playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
+    playerModelGroup.rotation.set(0, playerModelYawEuler.y, 0);
+  };
+  updatePlayerModelTransform();
+
+  gltfLoader.load(
+    "images/models/suit.glb",
+    (gltf) => {
+      const model = gltf?.scene || gltf?.scenes?.[0];
+
+      if (!model) {
+        return;
+      }
+
+      playerModelGroup.clear();
+      playerModelGroup.add(model);
+
+      const boundingBox = new THREE.Box3().setFromObject(model);
+
+      if (!boundingBox.isEmpty()) {
+        const size = new THREE.Vector3();
+        boundingBox.getSize(size);
+
+        if (size.y > 0) {
+          const scale = playerEyeHeight / size.y;
+          model.scale.multiplyScalar(scale);
+        }
+
+        boundingBox.setFromObject(model);
+
+        const center = new THREE.Vector3();
+        boundingBox.getCenter(center);
+
+        model.position.x -= center.x;
+        model.position.z -= center.z;
+        model.position.y -= boundingBox.min.y;
+      }
+
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = false;
+          child.receiveShadow = false;
+        }
+      });
+
+      playerModelGroup.visible = true;
+      updatePlayerModelTransform();
+    },
+    undefined,
+    (error) => {
+      console.error("Unable to load player model", error);
+    }
+  );
+
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
   const velocity = new THREE.Vector3();
@@ -2216,6 +2284,8 @@ export const initScene = (
       playerStateSaveAccumulator = 0;
       savePlayerState();
     }
+
+    updatePlayerModelTransform();
 
     renderer.render(scene, camera);
   };
