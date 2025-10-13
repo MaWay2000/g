@@ -1885,6 +1885,57 @@ export const initScene = (
   playerModelGroup.visible = false;
   scene.add(playerModelGroup);
 
+  const playerModelState = {
+    mixer: null,
+    actions: {
+      idle: null,
+      walk: null,
+    },
+    currentAction: null,
+  };
+  let currentPlayerAnimationName = null;
+
+  const transitionPlayerModelToAction = (action) => {
+    if (!playerModelState.mixer || !action) {
+      return;
+    }
+
+    if (playerModelState.currentAction === action) {
+      return;
+    }
+
+    action.reset();
+    action.fadeIn(0.2);
+    action.play();
+
+    if (playerModelState.currentAction) {
+      playerModelState.currentAction.fadeOut(0.2);
+    }
+
+    playerModelState.currentAction = action;
+  };
+
+  const updatePlayerModelAnimationState = (shouldWalk) => {
+    const desiredName = shouldWalk ? "walk" : "idle";
+    const fallbackName = shouldWalk ? "idle" : "walk";
+    const desiredAction = playerModelState.actions[desiredName];
+    const fallbackAction = playerModelState.actions[fallbackName];
+    const actionToPlay = desiredAction || fallbackAction;
+
+    if (!actionToPlay) {
+      return;
+    }
+
+    const resolvedName = desiredAction ? desiredName : fallbackName;
+
+    if (currentPlayerAnimationName === resolvedName) {
+      return;
+    }
+
+    transitionPlayerModelToAction(actionToPlay);
+    currentPlayerAnimationName = resolvedName;
+  };
+
   const defaultPlayerPosition = new THREE.Vector3(
     0,
     INITIAL_PLAYER_EYE_HEIGHT,
@@ -1910,6 +1961,7 @@ export const initScene = (
     );
     playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
     playerModelGroup.rotation.set(0, playerModelYawEuler.y, 0);
+    playerModelGroup.updateMatrixWorld(true);
   };
   updatePlayerModelTransform();
 
@@ -1972,6 +2024,22 @@ export const initScene = (
       };
 
       const fitPlayerModelToEyeHeight = () => {
+        const savedGroupPosition = playerModelGroup.position.clone();
+        const savedGroupQuaternion = playerModelGroup.quaternion.clone();
+        const savedGroupScale = playerModelGroup.scale.clone();
+
+        playerModelGroup.position.set(0, 0, 0);
+        playerModelGroup.quaternion.identity();
+        playerModelGroup.scale.set(1, 1, 1);
+        playerModelGroup.updateMatrixWorld(true);
+
+        const restorePlayerModelGroupTransform = () => {
+          playerModelGroup.position.copy(savedGroupPosition);
+          playerModelGroup.quaternion.copy(savedGroupQuaternion);
+          playerModelGroup.scale.copy(savedGroupScale);
+          playerModelGroup.updateMatrixWorld(true);
+        };
+
         model.position.copy(originalModelPosition);
         model.quaternion.copy(originalModelQuaternion);
         model.scale.copy(originalModelScale);
@@ -1980,6 +2048,7 @@ export const initScene = (
 
         if (playerModelBoundingBox.isEmpty()) {
           model.updateWorldMatrix(true, false);
+          restorePlayerModelGroupTransform();
           return;
         }
 
@@ -1995,6 +2064,7 @@ export const initScene = (
         updatePlayerModelBoundingBox();
 
         if (playerModelBoundingBox.isEmpty()) {
+          restorePlayerModelGroupTransform();
           return;
         }
 
@@ -2010,6 +2080,7 @@ export const initScene = (
         model.position.y -= playerModelLocalBoundsMin.y;
 
         model.updateWorldMatrix(true, false);
+        restorePlayerModelGroupTransform();
       };
 
       fitPlayerModelToEyeHeight();
@@ -2075,10 +2146,37 @@ export const initScene = (
         }
       }
 
-      playerModelGroup.visible = true;
-
       if (eyeHeightWasApplied) {
         fitPlayerModelToEyeHeight();
+      }
+
+      playerModelGroup.visible = true;
+
+      if (Array.isArray(gltf.animations) && gltf.animations.length > 0) {
+        playerModelState.mixer = new THREE.AnimationMixer(model);
+
+        gltf.animations.forEach((clip) => {
+          if (!clip) {
+            return;
+          }
+
+          const clipName = String(clip.name || "").toLowerCase();
+          const action = playerModelState.mixer.clipAction(clip);
+
+          if (!playerModelState.actions.walk && (clipName.includes("walk") || clipName.includes("run"))) {
+            playerModelState.actions.walk = action;
+          } else if (!playerModelState.actions.idle && (clipName.includes("idle") || clipName.includes("stand"))) {
+            playerModelState.actions.idle = action;
+          }
+        });
+
+        if (!playerModelState.actions.idle) {
+          playerModelState.actions.idle = playerModelState.mixer.clipAction(
+            gltf.animations[0]
+          );
+        }
+
+        updatePlayerModelAnimationState(false);
       }
 
       updatePlayerModelTransform();
@@ -2465,6 +2563,24 @@ export const initScene = (
       }
     } else {
       velocity.set(0, 0, 0);
+    }
+
+    if (playerModelState.mixer) {
+      playerModelState.mixer.update(delta);
+
+      const hasMovementInput =
+        movementState.forward ||
+        movementState.backward ||
+        movementState.left ||
+        movementState.right;
+
+      const isWalking =
+        movementEnabled &&
+        controls.isLocked &&
+        hasMovementInput &&
+        velocity.lengthSq() > 0.0001;
+
+      updatePlayerModelAnimationState(isWalking);
     }
 
     let matchedZone = null;
