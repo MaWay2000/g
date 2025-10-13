@@ -1002,7 +1002,11 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    frontPanel.position.set(towerX + 0.02, tower.position.y + 0.06, towerZ + 0.3);
+    frontPanel.position.set(
+      towerX + 0.02,
+      tower.position.y + 0.06,
+      towerZ + towerDepth / 2 + 0.001
+    );
     group.add(frontPanel);
 
     const ventGeometry = new THREE.BoxGeometry(towerWidth - 0.12, 0.02, 0.02);
@@ -1022,7 +1026,11 @@ export const initScene = (
       new THREE.CircleGeometry(0.035, 24),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
     );
-    powerLight.position.set(towerX + 0.16, tower.position.y + 0.22, towerZ + 0.38);
+    powerLight.position.set(
+      towerX + 0.16,
+      tower.position.y + 0.22,
+      towerZ + towerDepth / 2 + 0.006
+    );
     group.add(powerLight);
 
     const leftSpeaker = new THREE.Mesh(
