@@ -158,8 +158,8 @@ export const initScene = (
   const createHangarDoor = () => {
     const group = new THREE.Group();
 
-    const doorWidth = 6.8;
-    const doorHeight = 6.4;
+    const doorWidth = 8.5;
+    const doorHeight = 8.0;
     const panelDepth = 0.2;
     const frameDepth = 0.42;
     const frameWidth = 0.48;
