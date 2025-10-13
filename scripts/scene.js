@@ -159,7 +159,7 @@ export const initScene = (
     const group = new THREE.Group();
 
     const doorWidth = 8.5;
-    const doorHeight = 8.0;
+    const doorHeight = 9.0;
     const panelDepth = 0.2;
     const frameDepth = 0.42;
     const frameWidth = 0.48;
@@ -227,10 +227,12 @@ export const initScene = (
     group.add(seam);
 
     const accentMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffa94d,
+      color: 0x38bdf8,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.9,
       side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
 
     const accentHeight = doorHeight * 0.88;
@@ -254,16 +256,50 @@ export const initScene = (
 
     const horizontalAccentGeometry = new THREE.PlaneGeometry(panelWidth * 0.78, accentWidth * 0.72);
     const upperAccent = new THREE.Mesh(horizontalAccentGeometry, accentMaterial);
-    upperAccent.position.set(0, doorHeight * 0.24, panelDepth / 2 + 0.05);
+    upperAccent.position.set(0, doorHeight * 0.28, panelDepth / 2 + 0.06);
     group.add(upperAccent);
 
+    const middleAccent = upperAccent.clone();
+    middleAccent.position.y = 0;
+    middleAccent.scale.set(1.12, 0.64, 1);
+    group.add(middleAccent);
+
     const lowerAccent = upperAccent.clone();
-    lowerAccent.position.y = -doorHeight * 0.24;
+    lowerAccent.position.y = -doorHeight * 0.28;
     group.add(lowerAccent);
 
-    const doorLight = new THREE.PointLight(0xffa94d, 0.6, 9, 2);
-    doorLight.position.set(0, doorHeight / 2 - 0.2, 0.3);
+    const seamGlowMaterial = new THREE.MeshBasicMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const seamGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(seamGap * 0.55, doorHeight * 0.9),
+      seamGlowMaterial
+    );
+    seamGlow.position.z = panelDepth / 2 + 0.08;
+    group.add(seamGlow);
+
+    const panelGlowGeometry = new THREE.PlaneGeometry(panelWidth * 0.92, accentWidth * 0.45);
+    const topPanelGlow = new THREE.Mesh(panelGlowGeometry, seamGlowMaterial);
+    topPanelGlow.position.set(0, doorHeight * 0.46, panelDepth / 2 + 0.07);
+    group.add(topPanelGlow);
+
+    const bottomPanelGlow = topPanelGlow.clone();
+    bottomPanelGlow.position.y = -doorHeight * 0.46;
+    group.add(bottomPanelGlow);
+
+    const doorLight = new THREE.PointLight(0x7dd3fc, 0.75, 12, 2);
+    doorLight.position.set(0, doorHeight / 2 - 0.12, 0.32);
     group.add(doorLight);
+
+    const overheadBeacon = new THREE.PointLight(0x38bdf8, 0.45, 10, 2);
+    overheadBeacon.position.set(0, doorHeight / 2 + lintelHeight / 2, 0.2);
+    group.add(overheadBeacon);
 
     const controlPanel = new THREE.Mesh(
       new THREE.BoxGeometry(0.6, 1.4, 0.18),
