@@ -1940,47 +1940,74 @@ export const initScene = (
       const originalModelPosition = model.position.clone();
       const originalModelQuaternion = model.quaternion.clone();
       const playerModelBoundingBox = new THREE.Box3();
-      const playerModelSize = new THREE.Vector3();
       const playerModelCenter = new THREE.Vector3();
-      const playerModelLocalCenter = new THREE.Vector3();
-      const playerModelLocalMin = new THREE.Vector3();
+      const playerModelLocalBoundsMin = new THREE.Vector3();
+      const playerModelBoundsSize = new THREE.Vector3();
+      const localVertex = new THREE.Vector3();
+      const worldVertex = new THREE.Vector3();
+
+      const updatePlayerModelBoundingBox = () => {
+        playerModelBoundingBox.makeEmpty();
+        playerModelGroup.updateWorldMatrix(true, false);
+        model.updateWorldMatrix(true, false);
+
+        model.traverse((child) => {
+          if (!child.isMesh) {
+            return;
+          }
+
+          const geometry = child.geometry;
+          const positionAttribute = geometry?.getAttribute("position");
+
+          if (!positionAttribute || positionAttribute.itemSize < 3) {
+            return;
+          }
+
+          for (let index = 0; index < positionAttribute.count; index += 1) {
+            localVertex.fromBufferAttribute(positionAttribute, index);
+            worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
+            playerModelBoundingBox.expandByPoint(worldVertex);
+          }
+        });
+      };
 
       const fitPlayerModelToEyeHeight = () => {
         model.position.copy(originalModelPosition);
         model.quaternion.copy(originalModelQuaternion);
         model.scale.copy(originalModelScale);
 
-        playerModelGroup.updateWorldMatrix(true, false);
-        model.updateWorldMatrix(true, false);
-
-        playerModelBoundingBox.setFromObject(model);
+        updatePlayerModelBoundingBox();
 
         if (playerModelBoundingBox.isEmpty()) {
+          model.updateWorldMatrix(true, false);
           return;
         }
 
-        playerModelBoundingBox.getSize(playerModelSize);
+        playerModelBoundingBox.getSize(playerModelBoundsSize);
 
-        if (playerModelSize.y > 0) {
-          const scale = playerEyeHeight / playerModelSize.y;
+        if (playerModelBoundsSize.y > 0) {
+          const scale = playerEyeHeight / playerModelBoundsSize.y;
           model.scale.multiplyScalar(scale);
         }
 
         model.updateWorldMatrix(true, false);
 
-        playerModelBoundingBox.setFromObject(model);
+        updatePlayerModelBoundingBox();
+
+        if (playerModelBoundingBox.isEmpty()) {
+          return;
+        }
+
         playerModelBoundingBox.getCenter(playerModelCenter);
+        playerModelGroup.worldToLocal(playerModelCenter);
 
-        playerModelLocalCenter.copy(playerModelCenter);
-        playerModelGroup.worldToLocal(playerModelLocalCenter);
-
-        playerModelLocalMin.copy(playerModelBoundingBox.min);
-        playerModelGroup.worldToLocal(playerModelLocalMin);
+        playerModelLocalBoundsMin.copy(playerModelBoundingBox.min);
+        playerModelGroup.worldToLocal(playerModelLocalBoundsMin);
 
         model.position.copy(originalModelPosition);
-        model.position.x -= playerModelLocalCenter.x;
-        model.position.z -= playerModelLocalCenter.z;
-        model.position.y -= playerModelLocalMin.y;
+        model.position.x -= playerModelCenter.x;
+        model.position.z -= playerModelCenter.z;
+        model.position.y -= playerModelLocalBoundsMin.y;
 
         model.updateWorldMatrix(true, false);
       };
@@ -1995,8 +2022,6 @@ export const initScene = (
       });
 
       const worldYValues = [];
-      const localVertex = new THREE.Vector3();
-      const worldVertex = new THREE.Vector3();
 
       model.updateWorldMatrix(true, false);
 
