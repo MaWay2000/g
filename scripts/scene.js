@@ -1936,34 +1936,56 @@ export const initScene = (
       playerModelGroup.clear();
       playerModelGroup.add(model);
 
-      const boundingBox = new THREE.Box3().setFromObject(model);
+      const originalModelScale = model.scale.clone();
+      const originalModelPosition = model.position.clone();
+      const originalModelQuaternion = model.quaternion.clone();
+      const playerModelBoundingBox = new THREE.Box3();
+      const playerModelSize = new THREE.Vector3();
+      const playerModelCenter = new THREE.Vector3();
+      const playerModelLocalCenter = new THREE.Vector3();
+      const playerModelLocalMin = new THREE.Vector3();
 
-      if (!boundingBox.isEmpty()) {
-        const size = new THREE.Vector3();
-        boundingBox.getSize(size);
+      const fitPlayerModelToEyeHeight = () => {
+        model.position.copy(originalModelPosition);
+        model.quaternion.copy(originalModelQuaternion);
+        model.scale.copy(originalModelScale);
 
-        if (size.y > 0) {
-          const scale = playerEyeHeight / size.y;
+        playerModelGroup.updateWorldMatrix(true, false);
+        model.updateWorldMatrix(true, false);
+
+        playerModelBoundingBox.setFromObject(model);
+
+        if (playerModelBoundingBox.isEmpty()) {
+          return;
+        }
+
+        playerModelBoundingBox.getSize(playerModelSize);
+
+        if (playerModelSize.y > 0) {
+          const scale = playerEyeHeight / playerModelSize.y;
           model.scale.multiplyScalar(scale);
         }
 
-        boundingBox.setFromObject(model);
+        model.updateWorldMatrix(true, false);
 
-        const center = new THREE.Vector3();
-        boundingBox.getCenter(center);
+        playerModelBoundingBox.setFromObject(model);
+        playerModelBoundingBox.getCenter(playerModelCenter);
 
-        playerModelGroup.updateWorldMatrix(true, false);
+        playerModelLocalCenter.copy(playerModelCenter);
+        playerModelGroup.worldToLocal(playerModelLocalCenter);
 
-        const localCenter = center.clone();
-        playerModelGroup.worldToLocal(localCenter);
+        playerModelLocalMin.copy(playerModelBoundingBox.min);
+        playerModelGroup.worldToLocal(playerModelLocalMin);
 
-        const localMin = boundingBox.min.clone();
-        playerModelGroup.worldToLocal(localMin);
+        model.position.copy(originalModelPosition);
+        model.position.x -= playerModelLocalCenter.x;
+        model.position.z -= playerModelLocalCenter.z;
+        model.position.y -= playerModelLocalMin.y;
 
-        model.position.x -= localCenter.x;
-        model.position.z -= localCenter.z;
-        model.position.y -= localMin.y;
-      }
+        model.updateWorldMatrix(true, false);
+      };
+
+      fitPlayerModelToEyeHeight();
 
       model.traverse((child) => {
         if (child.isMesh) {
@@ -2030,9 +2052,11 @@ export const initScene = (
 
       playerModelGroup.visible = true;
 
-      if (!eyeHeightWasApplied) {
-        updatePlayerModelTransform();
+      if (eyeHeightWasApplied) {
+        fitPlayerModelToEyeHeight();
       }
+
+      updatePlayerModelTransform();
     },
     undefined,
     (error) => {
