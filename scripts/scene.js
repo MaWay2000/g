@@ -1838,7 +1838,7 @@ export const initScene = (
   const mirrorHeight = mirrorDimensions?.height ?? 3.6;
   wallMirror.position.set(
     roomWidth / 2 - 0.16,
-    -roomHeight / 2 + mirrorHeight / 2 + 0.6,
+    -roomHeight / 2 + mirrorHeight / 2 + 1.6,
     6
   );
   wallMirror.rotation.y = -Math.PI / 2;
