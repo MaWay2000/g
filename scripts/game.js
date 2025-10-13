@@ -116,6 +116,7 @@ const attemptToRestorePointerLock = () => {
   controls.lock();
 };
 
+const QUICK_ACCESS_MATRIX_ENABLED = false;
 const MATRIX_CHARACTER_SET = "01010";
 
 const quickAccessMatrixState = {
@@ -135,6 +136,10 @@ const quickAccessMatrixState = {
 };
 
 const ensureQuickAccessMatrixCanvas = () => {
+  if (!QUICK_ACCESS_MATRIX_ENABLED) {
+    return false;
+  }
+
   if (!(quickAccessMatrixState.container instanceof HTMLElement)) {
     const container = quickAccessModal?.querySelector(
       ".quick-access-modal__matrix"
@@ -258,6 +263,10 @@ const drawQuickAccessMatrixFrame = () => {
 };
 
 const handleQuickAccessMatrixResize = () => {
+  if (!QUICK_ACCESS_MATRIX_ENABLED) {
+    return;
+  }
+
   if (!quickAccessMatrixState.running) {
     return;
   }
@@ -274,6 +283,10 @@ const handleQuickAccessMatrixResize = () => {
 };
 
 const startQuickAccessMatrix = () => {
+  if (!QUICK_ACCESS_MATRIX_ENABLED) {
+    return;
+  }
+
   if (
     quickAccessMatrixState.running ||
     quickAccessMatrixState.pendingStartFrameId ||
