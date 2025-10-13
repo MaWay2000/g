@@ -119,7 +119,8 @@ export const initScene = (
     0.1,
     200
   );
-  camera.position.set(0, 1.6, 8);
+  const INITIAL_PLAYER_EYE_HEIGHT = 1.6;
+  camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
   const textureLoader = new THREE.TextureLoader();
   const gltfLoader = new GLTFLoader();
@@ -1838,7 +1839,7 @@ export const initScene = (
   const mirrorHeight = mirrorDimensions?.height ?? 7.2;
   wallMirror.position.set(
     roomWidth / 2 - 0.16,
-    -roomHeight / 2 + mirrorHeight / 2 + 1.6,
+    -roomHeight / 2 + mirrorHeight / 2 + INITIAL_PLAYER_EYE_HEIGHT,
     6
   );
   wallMirror.rotation.y = -Math.PI / 2;
@@ -1884,7 +1885,11 @@ export const initScene = (
   playerModelGroup.visible = false;
   scene.add(playerModelGroup);
 
-  const defaultPlayerPosition = new THREE.Vector3(0, 1.6, 8);
+  const defaultPlayerPosition = new THREE.Vector3(
+    0,
+    INITIAL_PLAYER_EYE_HEIGHT,
+    8
+  );
   playerObject.position.copy(defaultPlayerPosition);
 
   if (storedPlayerState) {
@@ -1894,7 +1899,7 @@ export const initScene = (
 
   playerObject.position.y = defaultPlayerPosition.y;
 
-  const playerEyeHeight = defaultPlayerPosition.y;
+  let playerEyeHeight = defaultPlayerPosition.y;
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const updatePlayerModelTransform = () => {
@@ -1907,6 +1912,17 @@ export const initScene = (
     playerModelGroup.rotation.set(0, playerModelYawEuler.y, 0);
   };
   updatePlayerModelTransform();
+
+  const applyPlayerEyeHeight = (newEyeHeight) => {
+    if (!Number.isFinite(newEyeHeight) || newEyeHeight <= 0) {
+      return;
+    }
+
+    playerEyeHeight = newEyeHeight;
+    defaultPlayerPosition.y = newEyeHeight;
+    playerObject.position.y = newEyeHeight;
+    updatePlayerModelTransform();
+  };
 
   gltfLoader.load(
     "images/models/suit.glb",
@@ -1948,8 +1964,67 @@ export const initScene = (
         }
       });
 
+      const worldYValues = [];
+      const localVertex = new THREE.Vector3();
+      const worldVertex = new THREE.Vector3();
+
+      model.updateWorldMatrix(true, false);
+
+      model.traverse((child) => {
+        if (!child.isMesh) {
+          return;
+        }
+
+        const geometry = child.geometry;
+        const positionAttribute = geometry?.getAttribute("position");
+
+        if (!positionAttribute || positionAttribute.itemSize < 3) {
+          return;
+        }
+
+        for (let index = 0; index < positionAttribute.count; index += 1) {
+          localVertex.fromBufferAttribute(positionAttribute, index);
+          worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
+          worldYValues.push(worldVertex.y);
+        }
+      });
+
+      let eyeHeightWasApplied = false;
+
+      if (worldYValues.length > 0) {
+        worldYValues.sort((a, b) => a - b);
+
+        const minY = worldYValues[0];
+        const maxY = worldYValues[worldYValues.length - 1];
+        const height = maxY - minY;
+
+        if (height > 0) {
+          const eyePercentile = 0.92;
+          const percentileIndex = Math.floor(worldYValues.length * eyePercentile);
+          const clampedIndex = THREE.MathUtils.clamp(
+            percentileIndex,
+            0,
+            worldYValues.length - 1
+          );
+          const candidateEyeHeight = worldYValues[clampedIndex] - minY;
+          const clampedEyeHeight = THREE.MathUtils.clamp(
+            candidateEyeHeight,
+            height * 0.6,
+            height * 0.99
+          );
+
+          if (Number.isFinite(clampedEyeHeight)) {
+            applyPlayerEyeHeight(clampedEyeHeight);
+            eyeHeightWasApplied = true;
+          }
+        }
+      }
+
       playerModelGroup.visible = true;
-      updatePlayerModelTransform();
+
+      if (!eyeHeightWasApplied) {
+        updatePlayerModelTransform();
+      }
     },
     undefined,
     (error) => {
