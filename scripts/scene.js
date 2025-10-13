@@ -1927,8 +1927,7 @@ export const initScene = (
         boundingBox.getSize(size);
 
         if (size.y > 0) {
-          const desiredHeight = hangarDoor?.userData?.height ?? playerEyeHeight;
-          const scale = desiredHeight / size.y;
+          const scale = playerEyeHeight / size.y;
           model.scale.multiplyScalar(scale);
         }
 
