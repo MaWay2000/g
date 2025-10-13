@@ -121,6 +121,48 @@ export const initScene = (
 
   const textureLoader = new THREE.TextureLoader();
 
+  const colliderDescriptors = [];
+
+  const registerColliderDescriptors = (descriptors) => {
+    if (!Array.isArray(descriptors)) {
+      return;
+    }
+
+    descriptors.forEach((descriptor) => {
+      if (!descriptor || !descriptor.object) {
+        return;
+      }
+
+      const padding = descriptor.padding
+        ? descriptor.padding.clone()
+        : undefined;
+
+      colliderDescriptors.push({
+        object: descriptor.object,
+        padding,
+        box: new THREE.Box3(),
+      });
+    });
+  };
+
+  const rebuildStaticColliders = () => {
+    colliderDescriptors.forEach((descriptor) => {
+      const { object, padding, box } = descriptor;
+
+      if (!object || !box) {
+        return;
+      }
+
+      object.updateWorldMatrix(true, false);
+      box.setFromObject(object);
+
+      if (padding) {
+        box.min.sub(padding);
+        box.max.add(padding);
+      }
+    });
+  };
+
   const createQuickAccessFallbackTexture = () => {
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
@@ -793,6 +835,20 @@ export const initScene = (
   const createComputerSetup = () => {
     const group = new THREE.Group();
 
+    let collidersChangedCallback = null;
+
+    const notifyCollidersChanged = () => {
+      if (typeof collidersChangedCallback === "function") {
+        collidersChangedCallback();
+      }
+    };
+
+    group.userData.setCollidersChangedCallback = (callback) => {
+      collidersChangedCallback = callback;
+    };
+
+    group.userData.notifyCollidersChanged = notifyCollidersChanged;
+
     let quickAccessTextureSize = { width: 1024, height: 768 };
     let quickAccessZones = [];
 
@@ -1316,6 +1372,8 @@ export const initScene = (
       monitorHousing.scale.x = adjustedHousingWidth / originalHousingWidth;
       monitorPowerButton.position.x =
         adjustedHousingWidth / 2 - powerButtonEdgeOffset;
+
+      notifyCollidersChanged();
     };
 
     const monitorStandColumn = new THREE.Mesh(
@@ -1498,6 +1556,21 @@ export const initScene = (
     speakerGrillRight.position.x = 1.1;
     group.add(speakerGrillRight);
 
+    group.userData.colliderDescriptors = [
+      {
+        object: deskTop,
+        padding: new THREE.Vector3(0.05, 0.3, 0.05),
+      },
+      {
+        object: monitorGroup,
+        padding: new THREE.Vector3(0.08, 0.2, 0.08),
+      },
+      {
+        object: tower,
+        padding: new THREE.Vector3(0.06, 0.1, 0.06),
+      },
+    ];
+
     group.userData.monitorScreen = monitorScreen;
     group.scale.setScalar(2.5);
 
@@ -1618,7 +1691,22 @@ export const initScene = (
     -roomHeight / 2,
     -roomDepth / 2 + terminalBackOffset
   );
+
+  registerColliderDescriptors(computerSetup.userData?.colliderDescriptors);
+
+  if (typeof computerSetup.userData?.setCollidersChangedCallback === "function") {
+    computerSetup.userData.setCollidersChangedCallback(() => {
+      computerSetup.updateMatrixWorld(true);
+      rebuildStaticColliders();
+    });
+  }
+
   scene.add(computerSetup);
+  computerSetup.updateMatrixWorld(true);
+  rebuildStaticColliders();
+  if (typeof computerSetup.userData?.notifyCollidersChanged === "function") {
+    computerSetup.userData.notifyCollidersChanged();
+  }
 
   const lastUpdatedDisplay = createLastUpdatedDisplay();
   lastUpdatedDisplay.position.set(-roomWidth / 2 + 0.12, 3.2, 0);
@@ -1719,6 +1807,82 @@ export const initScene = (
   }
 
   playerObject.position.y = defaultPlayerPosition.y;
+
+  const playerEyeHeight = defaultPlayerPosition.y;
+  const playerColliderRadius = 0.35;
+  const previousPlayerPosition = new THREE.Vector3();
+  const velocity = new THREE.Vector3();
+
+  const resolvePlayerCollisions = (previousPosition) => {
+    const playerPosition = controls.getObject().position;
+    const playerHeadY = playerPosition.y;
+    const playerFeetY = playerHeadY - playerEyeHeight;
+
+    colliderDescriptors.forEach((descriptor) => {
+      const box = descriptor.box;
+
+      if (!box || box.isEmpty()) {
+        return;
+      }
+
+      if (playerHeadY <= box.min.y || playerFeetY >= box.max.y) {
+        return;
+      }
+
+      const minX = box.min.x - playerColliderRadius;
+      const maxX = box.max.x + playerColliderRadius;
+      const minZ = box.min.z - playerColliderRadius;
+      const maxZ = box.max.z + playerColliderRadius;
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const playerX = playerPosition.x;
+        const playerZ = playerPosition.z;
+
+        if (
+          playerX < minX ||
+          playerX > maxX ||
+          playerZ < minZ ||
+          playerZ > maxZ
+        ) {
+          break;
+        }
+
+        const overlapLeft = playerX - minX;
+        const overlapRight = maxX - playerX;
+        const overlapBack = playerZ - minZ;
+        const overlapFront = maxZ - playerZ;
+
+        const minOverlapX = Math.min(overlapLeft, overlapRight);
+        const minOverlapZ = Math.min(overlapBack, overlapFront);
+
+        if (minOverlapX < minOverlapZ) {
+          if (previousPosition.x <= minX) {
+            playerPosition.x = minX;
+          } else if (previousPosition.x >= maxX) {
+            playerPosition.x = maxX;
+          } else if (overlapLeft < overlapRight) {
+            playerPosition.x = minX;
+          } else {
+            playerPosition.x = maxX;
+          }
+
+          velocity.x = 0;
+        } else {
+          if (previousPosition.z <= minZ) {
+            playerPosition.z = minZ;
+          } else if (previousPosition.z >= maxZ) {
+            playerPosition.z = maxZ;
+          } else if (overlapBack < overlapFront) {
+            playerPosition.z = minZ;
+          } else {
+            playerPosition.z = maxZ;
+          }
+
+          velocity.z = 0;
+        }
+      }
+    });
+  };
 
   const roundPlayerStateValue = (value) =>
     Math.round(value * 10000) / 10000;
@@ -1898,7 +2062,6 @@ export const initScene = (
 
   let movementEnabled = true;
 
-  const velocity = new THREE.Vector3();
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
 
@@ -1983,7 +2146,7 @@ export const initScene = (
     const halfDepth = roomDepth / 2 - 1;
     player.x = THREE.MathUtils.clamp(player.x, -halfWidth, halfWidth);
     player.z = THREE.MathUtils.clamp(player.z, -halfDepth, halfDepth);
-    player.y = 1.6;
+    player.y = playerEyeHeight;
   };
 
   clampWithinRoom();
@@ -2014,9 +2177,11 @@ export const initScene = (
       }
 
       if (controls.isLocked) {
+        previousPlayerPosition.copy(playerObject.position);
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
         clampWithinRoom();
+        resolvePlayerCollisions(previousPlayerPosition);
       }
     } else {
       velocity.set(0, 0, 0);
@@ -2087,6 +2252,7 @@ export const initScene = (
         lastUpdatedDisplay.userData.dispose();
       }
       savePlayerState(true);
+      colliderDescriptors.length = 0;
     },
   };
 };
