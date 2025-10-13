@@ -1952,9 +1952,17 @@ export const initScene = (
         const center = new THREE.Vector3();
         boundingBox.getCenter(center);
 
-        model.position.x -= center.x;
-        model.position.z -= center.z;
-        model.position.y -= boundingBox.min.y;
+        playerModelGroup.updateWorldMatrix(true, false);
+
+        const localCenter = center.clone();
+        playerModelGroup.worldToLocal(localCenter);
+
+        const localMin = boundingBox.min.clone();
+        playerModelGroup.worldToLocal(localMin);
+
+        model.position.x -= localCenter.x;
+        model.position.z -= localCenter.z;
+        model.position.y -= localMin.y;
       }
 
       model.traverse((child) => {
