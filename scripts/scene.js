@@ -1975,7 +1975,14 @@ export const initScene = (
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const updateThirdPersonCameraOffset = () => {
-    thirdPersonCameraOffset.set(0, 0, 0);
+    const thirdPersonVerticalOffset = Math.max(playerEyeHeight * 0.15, 0.2);
+    const thirdPersonBackwardOffset = Math.max(playerEyeHeight * 1.85, 2.6);
+
+    thirdPersonCameraOffset.set(
+      0,
+      thirdPersonVerticalOffset,
+      thirdPersonBackwardOffset
+    );
     controls.setCameraOffset(thirdPersonCameraOffset);
   };
 
