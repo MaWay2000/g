@@ -1880,7 +1880,7 @@ export const initScene = (
 
   const storedPlayerState = loadStoredPlayerState();
   let lastSerializedPlayerState = storedPlayerState?.serialized ?? null;
-  const DEFAULT_THIRD_PERSON_PITCH = -0.3;
+  const DEFAULT_THIRD_PERSON_PITCH = 0;
   const storedOrientationEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const controls = new PointerLockControls(camera, canvas);
@@ -1975,9 +1975,7 @@ export const initScene = (
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const updateThirdPersonCameraOffset = () => {
-    const heightOffset = Math.max(0.4, playerEyeHeight * 0.4);
-    const distance = Math.max(2.8, playerEyeHeight * 2.2);
-    thirdPersonCameraOffset.set(0, heightOffset, distance);
+    thirdPersonCameraOffset.set(0, 0, 0);
     controls.setCameraOffset(thirdPersonCameraOffset);
   };
 
