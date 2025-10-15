@@ -260,6 +260,7 @@ export const initScene = (
   const roomHeight = 10;
   const roomDepth = 60;
   const terminalBackOffset = 4;
+  const roomFloorY = -roomHeight / 2;
 
   const createWallMaterial = (hexColor) =>
     new THREE.MeshStandardMaterial({
@@ -1696,7 +1697,7 @@ export const initScene = (
   const computerSetup = createComputerSetup();
   computerSetup.position.set(
     3,
-    -roomHeight / 2,
+    roomFloorY,
     -roomDepth / 2 + terminalBackOffset
   );
 
@@ -1829,7 +1830,7 @@ export const initScene = (
 
   const floorGrid = createGridLines(roomWidth, roomDepth, 20, 20, gridColor, gridOpacity);
   floorGrid.rotation.x = -Math.PI / 2;
-  floorGrid.position.y = -roomHeight / 2 + 0.02;
+  floorGrid.position.y = roomFloorY + 0.02;
   scene.add(floorGrid);
 
   const backWallGrid = createGridLines(roomWidth, roomHeight, 20, 10, gridColor, gridOpacity);
@@ -1856,7 +1857,7 @@ export const initScene = (
   const mirrorHeight = mirrorDimensions?.height ?? 7.2;
   wallMirror.position.set(
     roomWidth / 2 - 0.16,
-    -roomHeight / 2 + mirrorHeight / 2 + INITIAL_PLAYER_EYE_HEIGHT,
+    roomFloorY + mirrorHeight / 2 + INITIAL_PLAYER_EYE_HEIGHT,
     6
   );
   wallMirror.rotation.y = -Math.PI / 2;
@@ -1990,12 +1991,12 @@ export const initScene = (
 
   const defaultPlayerPosition = new THREE.Vector3(
     0,
-    INITIAL_PLAYER_EYE_HEIGHT,
+    INITIAL_PLAYER_EYE_HEIGHT + roomFloorY,
     8
   );
   playerObject.position.copy(defaultPlayerPosition);
 
-  let playerEyeHeight = defaultPlayerPosition.y;
+  let playerEyeHeight = INITIAL_PLAYER_EYE_HEIGHT;
   let initialPitch = DEFAULT_THIRD_PERSON_PITCH;
 
   if (storedPlayerState) {
@@ -2134,7 +2135,9 @@ export const initScene = (
   const updatePlayerModelTransform = () => {
     const playerFeetY = playerObject.position.y - playerEyeHeight;
     const groundedPlayerFeetY =
-      Math.abs(playerFeetY) < PLAYER_MODEL_FLOOR_EPSILON ? 0 : playerFeetY;
+      Math.abs(playerFeetY - roomFloorY) < PLAYER_MODEL_FLOOR_EPSILON
+        ? roomFloorY
+        : playerFeetY;
     playerModelGroup.position.set(
       playerObject.position.x,
       groundedPlayerFeetY,
@@ -2157,8 +2160,8 @@ export const initScene = (
     }
 
     playerEyeHeight = newEyeHeight;
-    defaultPlayerPosition.y = newEyeHeight;
-    playerObject.position.y = newEyeHeight;
+    defaultPlayerPosition.y = roomFloorY + newEyeHeight;
+    playerObject.position.y = roomFloorY + newEyeHeight;
     refreshCameraViewMode();
     updatePlayerModelTransform();
   };
@@ -2723,7 +2726,7 @@ export const initScene = (
     const halfDepth = roomDepth / 2 - 1;
     player.x = THREE.MathUtils.clamp(player.x, -halfWidth, halfWidth);
     player.z = THREE.MathUtils.clamp(player.z, -halfDepth, halfDepth);
-    player.y = playerEyeHeight;
+    player.y = roomFloorY + playerEyeHeight;
   };
 
   clampWithinRoom();
