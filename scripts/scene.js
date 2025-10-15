@@ -1891,7 +1891,7 @@ export const initScene = (
   scene.add(playerObject);
 
   const playerModelGroup = new THREE.Group();
-  playerModelGroup.visible = true;
+  playerModelGroup.visible = false;
   scene.add(playerModelGroup);
 
   const playerModelState = {
@@ -1971,7 +1971,13 @@ export const initScene = (
   controls.setPitch(initialPitch);
   playerObject.position.y = defaultPlayerPosition.y;
 
+  const firstPersonCameraOffset = new THREE.Vector3(0, 0, 0);
   const thirdPersonCameraOffset = new THREE.Vector3();
+  const VIEW_MODES = {
+    FIRST_PERSON: "first-person",
+    THIRD_PERSON: "third-person",
+  };
+  let cameraViewMode = VIEW_MODES.FIRST_PERSON;
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const updateThirdPersonCameraOffset = () => {
@@ -1983,8 +1989,41 @@ export const initScene = (
       thirdPersonVerticalOffset,
       thirdPersonBackwardOffset
     );
-    controls.setCameraOffset(thirdPersonCameraOffset);
   };
+
+  const refreshCameraViewMode = () => {
+    if (cameraViewMode === VIEW_MODES.THIRD_PERSON) {
+      updateThirdPersonCameraOffset();
+      controls.setCameraOffset(thirdPersonCameraOffset);
+    } else {
+      controls.setCameraOffset(firstPersonCameraOffset);
+    }
+
+    playerModelGroup.visible = cameraViewMode === VIEW_MODES.THIRD_PERSON;
+  };
+
+  const setCameraViewModeInternal = (mode) => {
+    const nextMode =
+      mode === VIEW_MODES.THIRD_PERSON
+        ? VIEW_MODES.THIRD_PERSON
+        : VIEW_MODES.FIRST_PERSON;
+
+    if (nextMode === cameraViewMode) {
+      return cameraViewMode;
+    }
+
+    cameraViewMode = nextMode;
+    refreshCameraViewMode();
+    updatePlayerModelTransform();
+    return cameraViewMode;
+  };
+
+  const toggleCameraViewModeInternal = () =>
+    setCameraViewModeInternal(
+      cameraViewMode === VIEW_MODES.THIRD_PERSON
+        ? VIEW_MODES.FIRST_PERSON
+        : VIEW_MODES.THIRD_PERSON
+    );
 
   const PLAYER_MODEL_FACING_OFFSET = Math.PI;
 
@@ -2002,7 +2041,7 @@ export const initScene = (
     );
     playerModelGroup.updateMatrixWorld(true);
   };
-  updateThirdPersonCameraOffset();
+  refreshCameraViewMode();
   updatePlayerModelTransform();
 
   const applyPlayerEyeHeight = (newEyeHeight) => {
@@ -2013,7 +2052,7 @@ export const initScene = (
     playerEyeHeight = newEyeHeight;
     defaultPlayerPosition.y = newEyeHeight;
     playerObject.position.y = newEyeHeight;
-    updateThirdPersonCameraOffset();
+    refreshCameraViewMode();
     updatePlayerModelTransform();
   };
 
@@ -2191,7 +2230,7 @@ export const initScene = (
         fitPlayerModelToEyeHeight();
       }
 
-      playerModelGroup.visible = true;
+      playerModelGroup.visible = cameraViewMode === VIEW_MODES.THIRD_PERSON;
 
       if (Array.isArray(gltf.animations) && gltf.animations.length > 0) {
         playerModelState.mixer = new THREE.AnimationMixer(model);
@@ -2221,6 +2260,7 @@ export const initScene = (
       }
 
       updatePlayerModelTransform();
+      refreshCameraViewMode();
     },
     undefined,
     (error) => {
@@ -2685,6 +2725,9 @@ export const initScene = (
     renderer,
     controls,
     setMovementEnabled,
+    getCameraViewMode: () => cameraViewMode,
+    setCameraViewMode: setCameraViewModeInternal,
+    toggleCameraViewMode: toggleCameraViewModeInternal,
     dispose: () => {
       window.removeEventListener("resize", handleResize);
       canvas.removeEventListener("click", attemptPointerLock);
