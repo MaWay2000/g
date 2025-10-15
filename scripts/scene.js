@@ -1986,6 +1986,8 @@ export const initScene = (
     controls.setCameraOffset(thirdPersonCameraOffset);
   };
 
+  const PLAYER_MODEL_FACING_OFFSET = Math.PI;
+
   const updatePlayerModelTransform = () => {
     playerModelGroup.position.set(
       playerObject.position.x,
@@ -1993,7 +1995,11 @@ export const initScene = (
       playerObject.position.z
     );
     playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
-    playerModelGroup.rotation.set(0, playerModelYawEuler.y, 0);
+    playerModelGroup.rotation.set(
+      0,
+      playerModelYawEuler.y + PLAYER_MODEL_FACING_OFFSET,
+      0
+    );
     playerModelGroup.updateMatrixWorld(true);
   };
   updateThirdPersonCameraOffset();
