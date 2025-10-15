@@ -3,6 +3,11 @@ import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
+const PLAYER_MODEL_SCALE_MULTIPLIER = 4;
+const PLAYER_EYE_HEIGHT_BASE = 1.6;
+const INITIAL_PLAYER_EYE_HEIGHT =
+  PLAYER_EYE_HEIGHT_BASE * PLAYER_MODEL_SCALE_MULTIPLIER;
+
 const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 
@@ -82,6 +87,14 @@ const loadStoredPlayerState = () => {
     const hasPitch = isFiniteNumber(pitch);
     const eyeHeight = data?.eyeHeight;
     const hasEyeHeight = isFiniteNumber(eyeHeight) && eyeHeight > 0;
+    const storedScaleMultiplier = data?.modelScaleMultiplier;
+    const hasStoredScaleMultiplier =
+      isFiniteNumber(storedScaleMultiplier) && storedScaleMultiplier > 0;
+    const normalizedEyeHeight = hasEyeHeight
+      ? eyeHeight *
+        (PLAYER_MODEL_SCALE_MULTIPLIER /
+          (hasStoredScaleMultiplier ? storedScaleMultiplier : 1))
+      : null;
 
     return {
       position: new THREE.Vector3(position.x, position.y, position.z),
@@ -92,7 +105,7 @@ const loadStoredPlayerState = () => {
         quaternion.w
       ),
       pitch: hasPitch ? pitch : null,
-      eyeHeight: hasEyeHeight ? eyeHeight : null,
+      eyeHeight: normalizedEyeHeight,
       serialized,
     };
   } catch (error) {
@@ -126,8 +139,6 @@ export const initScene = (
     0.1,
     200
   );
-  const INITIAL_PLAYER_EYE_HEIGHT = 1.6;
-  const PLAYER_MODEL_SCALE_MULTIPLIER = 4;
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
   const textureLoader = new THREE.TextureLoader();
@@ -2259,9 +2270,7 @@ export const initScene = (
         playerModelBoundingBox.getSize(playerModelBoundsSize);
 
         if (playerModelBoundsSize.y > 0) {
-          const scale =
-            (playerEyeHeight / playerModelBoundsSize.y) *
-            PLAYER_MODEL_SCALE_MULTIPLIER;
+          const scale = playerEyeHeight / playerModelBoundsSize.y;
           model.scale.multiplyScalar(scale);
         }
 
@@ -2349,9 +2358,11 @@ export const initScene = (
             height * 0.6,
             height * 0.99
           );
+          const scaledEyeHeight =
+            clampedEyeHeight * PLAYER_MODEL_SCALE_MULTIPLIER;
 
-          if (Number.isFinite(clampedEyeHeight)) {
-            applyPlayerEyeHeight(clampedEyeHeight);
+          if (Number.isFinite(scaledEyeHeight) && scaledEyeHeight > 0) {
+            applyPlayerEyeHeight(scaledEyeHeight);
             eyeHeightWasApplied = true;
           }
         }
@@ -2497,6 +2508,7 @@ export const initScene = (
       },
       pitch: roundPlayerStateValue(controls.getPitch()),
       eyeHeight: roundPlayerStateValue(playerEyeHeight),
+      modelScaleMultiplier: PLAYER_MODEL_SCALE_MULTIPLIER,
     });
 
   const savePlayerState = (force = false) => {
