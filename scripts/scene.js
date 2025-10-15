@@ -7,7 +7,6 @@ const PLAYER_MODEL_SCALE_MULTIPLIER = 4;
 const PLAYER_EYE_HEIGHT_BASE = 1.6;
 const INITIAL_PLAYER_EYE_HEIGHT =
   PLAYER_EYE_HEIGHT_BASE * PLAYER_MODEL_SCALE_MULTIPLIER;
-const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
@@ -1940,14 +1939,6 @@ export const initScene = (
     radius: 0,
   };
 
-  const playerModelHeadLocalOffset = new THREE.Vector3(
-    0,
-    INITIAL_PLAYER_EYE_HEIGHT,
-    0
-  );
-  const playerModelHeadWorldOffset = new THREE.Vector3();
-  const playerModelRotationQuaternion = new THREE.Quaternion();
-
   const updateStoredPlayerModelBounds = (boundingBox, sizeTarget) => {
     if (!boundingBox || typeof boundingBox.isEmpty !== "function") {
       playerModelBounds.size.set(0, 0, 0);
@@ -2170,17 +2161,16 @@ export const initScene = (
       Math.abs(playerFeetY - roomFloorY) < PLAYER_MODEL_FLOOR_EPSILON
         ? roomFloorY
         : playerFeetY;
-    playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
-    const playerModelYaw = playerModelYawEuler.y + PLAYER_MODEL_FACING_OFFSET;
-    playerModelGroup.rotation.set(0, playerModelYaw, 0);
-    playerModelRotationQuaternion.setFromAxisAngle(Y_AXIS, playerModelYaw);
-    playerModelHeadWorldOffset
-      .copy(playerModelHeadLocalOffset)
-      .applyQuaternion(playerModelRotationQuaternion);
     playerModelGroup.position.set(
-      playerObject.position.x - playerModelHeadWorldOffset.x,
+      playerObject.position.x,
       groundedPlayerFeetY,
-      playerObject.position.z - playerModelHeadWorldOffset.z
+      playerObject.position.z
+    );
+    playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
+    playerModelGroup.rotation.set(
+      0,
+      playerModelYawEuler.y + PLAYER_MODEL_FACING_OFFSET,
+      0
     );
     playerModelGroup.updateMatrixWorld(true);
   };
@@ -2191,7 +2181,6 @@ export const initScene = (
     }
 
     playerEyeHeight = newEyeHeight;
-    playerModelHeadLocalOffset.y = newEyeHeight;
     defaultPlayerPosition.y = roomFloorY + newEyeHeight;
     playerObject.position.y = roomFloorY + newEyeHeight;
     refreshCameraViewMode();
@@ -2223,102 +2212,6 @@ export const initScene = (
       const playerModelBoundsSize = new THREE.Vector3();
       const localVertex = new THREE.Vector3();
       const worldVertex = new THREE.Vector3();
-      const groupLocalVertex = new THREE.Vector3();
-      const worldYValues = [];
-      const headSampleVertices = [];
-      let minWorldY = Infinity;
-      let maxWorldY = -Infinity;
-
-      const gatherPlayerModelMetrics = () => {
-        worldYValues.length = 0;
-        headSampleVertices.length = 0;
-        minWorldY = Infinity;
-        maxWorldY = -Infinity;
-
-        playerModelGroup.updateWorldMatrix(true, false);
-        model.updateWorldMatrix(true, false);
-
-        model.traverse((child) => {
-          if (!child.isMesh) {
-            return;
-          }
-
-          const geometry = child.geometry;
-          const positionAttribute = geometry?.getAttribute("position");
-
-          if (!positionAttribute || positionAttribute.itemSize < 3) {
-            return;
-          }
-
-          for (let index = 0; index < positionAttribute.count; index += 1) {
-            localVertex.fromBufferAttribute(positionAttribute, index);
-            worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
-
-            const worldY = worldVertex.y;
-            worldYValues.push(worldY);
-
-            if (worldY < minWorldY) {
-              minWorldY = worldY;
-            }
-
-            if (worldY > maxWorldY) {
-              maxWorldY = worldY;
-            }
-
-            groupLocalVertex.copy(worldVertex);
-            playerModelGroup.worldToLocal(groupLocalVertex);
-
-            headSampleVertices.push({
-              worldY,
-              localX: groupLocalVertex.x,
-              localZ: groupLocalVertex.z,
-            });
-          }
-        });
-      };
-
-      const updatePlayerModelHeadOffsetFromMetrics = () => {
-        if (worldYValues.length === 0) {
-          playerModelHeadLocalOffset.set(0, playerEyeHeight, 0);
-          return;
-        }
-
-        const height = maxWorldY - minWorldY;
-
-        if (!(height > 0)) {
-          playerModelHeadLocalOffset.set(0, playerEyeHeight, 0);
-          return;
-        }
-
-        const clampedEyeHeightForSamples = THREE.MathUtils.clamp(
-          playerEyeHeight,
-          0,
-          height
-        );
-        const targetWorldY = minWorldY + clampedEyeHeightForSamples;
-        const sampleThreshold = targetWorldY - height * 0.05;
-        let sumX = 0;
-        let sumZ = 0;
-        let count = 0;
-
-        headSampleVertices.forEach((vertex) => {
-          if (vertex.worldY >= sampleThreshold) {
-            sumX += vertex.localX;
-            sumZ += vertex.localZ;
-            count += 1;
-          }
-        });
-
-        if (count > 0) {
-          playerModelHeadLocalOffset.set(
-            sumX / count,
-            playerEyeHeight,
-            sumZ / count
-          );
-        } else {
-          playerModelHeadLocalOffset.set(0, playerEyeHeight, 0);
-        }
-      };
 
       const updatePlayerModelBoundingBox = () => {
         playerModelBoundingBox.makeEmpty();
@@ -2419,39 +2312,58 @@ export const initScene = (
         }
       });
 
-      gatherPlayerModelMetrics();
+      const worldYValues = [];
+
+      model.updateWorldMatrix(true, false);
+
+      model.traverse((child) => {
+        if (!child.isMesh) {
+          return;
+        }
+
+        const geometry = child.geometry;
+        const positionAttribute = geometry?.getAttribute("position");
+
+        if (!positionAttribute || positionAttribute.itemSize < 3) {
+          return;
+        }
+
+        for (let index = 0; index < positionAttribute.count; index += 1) {
+          localVertex.fromBufferAttribute(positionAttribute, index);
+          worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
+          worldYValues.push(worldVertex.y);
+        }
+      });
 
       let eyeHeightWasApplied = false;
 
       if (worldYValues.length > 0) {
-        const sortedWorldYValues = [...worldYValues].sort((a, b) => a - b);
-        const minY = minWorldY;
-        const height = maxWorldY - minWorldY;
+        worldYValues.sort((a, b) => a - b);
+
+        const minY = worldYValues[0];
+        const maxY = worldYValues[worldYValues.length - 1];
+        const height = maxY - minY;
 
         if (height > 0) {
           const eyePercentile = 0.92;
-          const percentileIndex = Math.floor(
-            sortedWorldYValues.length * eyePercentile
-          );
+          const percentileIndex = Math.floor(worldYValues.length * eyePercentile);
           const clampedIndex = THREE.MathUtils.clamp(
             percentileIndex,
             0,
-            sortedWorldYValues.length - 1
+            worldYValues.length - 1
           );
-          const candidateEyeHeight = sortedWorldYValues[clampedIndex] - minY;
+          const candidateEyeHeight = worldYValues[clampedIndex] - minY;
           const clampedEyeHeight = THREE.MathUtils.clamp(
             candidateEyeHeight,
             height * 0.6,
             height * 0.99
           );
-          if (Number.isFinite(clampedEyeHeight) && clampedEyeHeight > 0) {
-            const scaledEyeHeight =
-              clampedEyeHeight * PLAYER_MODEL_SCALE_MULTIPLIER;
+          const scaledEyeHeight =
+            clampedEyeHeight * PLAYER_MODEL_SCALE_MULTIPLIER;
 
-            if (Number.isFinite(scaledEyeHeight) && scaledEyeHeight > 0) {
-              applyPlayerEyeHeight(scaledEyeHeight);
-              eyeHeightWasApplied = true;
-            }
+          if (Number.isFinite(scaledEyeHeight) && scaledEyeHeight > 0) {
+            applyPlayerEyeHeight(scaledEyeHeight);
+            eyeHeightWasApplied = true;
           }
         }
       }
@@ -2463,10 +2375,7 @@ export const initScene = (
           playerModelBoundingBox,
           playerModelBoundsSize
         );
-        gatherPlayerModelMetrics();
       }
-
-      updatePlayerModelHeadOffsetFromMetrics();
 
       playerModelGroup.visible = cameraViewMode === VIEW_MODES.THIRD_PERSON;
 
