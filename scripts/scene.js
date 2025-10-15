@@ -127,6 +127,7 @@ export const initScene = (
     200
   );
   const INITIAL_PLAYER_EYE_HEIGHT = 1.6;
+  const PLAYER_MODEL_SCALE_MULTIPLIER = 4;
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
   const textureLoader = new THREE.TextureLoader();
@@ -2258,7 +2259,9 @@ export const initScene = (
         playerModelBoundingBox.getSize(playerModelBoundsSize);
 
         if (playerModelBoundsSize.y > 0) {
-          const scale = playerEyeHeight / playerModelBoundsSize.y;
+          const scale =
+            (playerEyeHeight / playerModelBoundsSize.y) *
+            PLAYER_MODEL_SCALE_MULTIPLIER;
           model.scale.multiplyScalar(scale);
         }
 
