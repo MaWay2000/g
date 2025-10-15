@@ -730,6 +730,11 @@ function handleReset(event) {
   setButtonBusyState(resetButton, true);
 
   let shouldReload = false;
+  const persistenceSetter = sceneController?.setPlayerStatePersistenceEnabled;
+  const previousPersistenceEnabled =
+    typeof persistenceSetter === "function"
+      ? persistenceSetter(false)
+      : undefined;
 
   try {
     const cleared = clearStoredPlayerState();
@@ -744,6 +749,12 @@ function handleReset(event) {
     console.error("Reset failed", error);
     setErrorMessage("We couldn't reset your progress. Please try again.");
   } finally {
+    if (!shouldReload && typeof previousPersistenceEnabled === "boolean") {
+      sceneController?.setPlayerStatePersistenceEnabled?.(
+        previousPersistenceEnabled
+      );
+    }
+
     if (!shouldReload) {
       setButtonBusyState(resetButton, false);
     }

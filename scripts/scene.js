@@ -1933,6 +1933,7 @@ export const initScene = (
 
   const storedPlayerState = loadStoredPlayerState();
   let lastSerializedPlayerState = storedPlayerState?.serialized ?? null;
+  let isPlayerStatePersistenceEnabled = true;
   const storedOrientationEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const controls = new PointerLockControls(camera, canvas);
@@ -2550,6 +2551,10 @@ export const initScene = (
   };
 
   const savePlayerState = (force = false) => {
+    if (!isPlayerStatePersistenceEnabled) {
+      return;
+    }
+
     const storage = getPlayerStateStorage();
 
     if (!storage) {
@@ -2571,12 +2576,20 @@ export const initScene = (
   };
 
   const handleVisibilityChange = () => {
+    if (!isPlayerStatePersistenceEnabled) {
+      return;
+    }
+
     if (document.visibilityState === "hidden") {
       savePlayerState(true);
     }
   };
 
   const handleBeforeUnload = () => {
+    if (!isPlayerStatePersistenceEnabled) {
+      return;
+    }
+
     savePlayerState(true);
   };
 
@@ -2915,6 +2928,18 @@ export const initScene = (
     getCameraViewMode: () => cameraViewMode,
     setCameraViewMode: setCameraViewModeInternal,
     toggleCameraViewMode: toggleCameraViewModeInternal,
+    setPlayerStatePersistenceEnabled: (enabled = true) => {
+      const nextEnabled = Boolean(enabled);
+      const previousEnabled = isPlayerStatePersistenceEnabled;
+
+      if (nextEnabled === isPlayerStatePersistenceEnabled) {
+        return previousEnabled;
+      }
+
+      isPlayerStatePersistenceEnabled = nextEnabled;
+      lastSerializedPlayerState = null;
+      return previousEnabled;
+    },
     dispose: () => {
       window.removeEventListener("resize", handleResize);
       canvas.removeEventListener("click", attemptPointerLock);
