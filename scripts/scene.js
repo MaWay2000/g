@@ -1846,7 +1846,7 @@ export const initScene = (
     -roomHeight / 2 + mirrorHeight / 2 + INITIAL_PLAYER_EYE_HEIGHT,
     6
   );
-  wallMirror.rotation.y = Math.PI / 2;
+  wallMirror.rotation.y = -Math.PI / 2;
   scene.add(wallMirror);
 
   const wallMirrorReflector = wallMirror.userData?.reflector;
