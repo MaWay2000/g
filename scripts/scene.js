@@ -1904,6 +1904,36 @@ export const initScene = (
   };
   let currentPlayerAnimationName = null;
 
+  const playerModelBounds = {
+    size: new THREE.Vector3(),
+    depth: 0,
+    radius: 0,
+  };
+
+  const updateStoredPlayerModelBounds = (boundingBox, sizeTarget) => {
+    if (!boundingBox || typeof boundingBox.isEmpty !== "function") {
+      playerModelBounds.size.set(0, 0, 0);
+      playerModelBounds.depth = 0;
+      playerModelBounds.radius = 0;
+      return;
+    }
+
+    if (boundingBox.isEmpty()) {
+      playerModelBounds.size.set(0, 0, 0);
+      playerModelBounds.depth = 0;
+      playerModelBounds.radius = 0;
+      return;
+    }
+
+    const targetVector =
+      sizeTarget instanceof THREE.Vector3 ? sizeTarget : new THREE.Vector3();
+    boundingBox.getSize(targetVector);
+
+    playerModelBounds.size.copy(targetVector);
+    playerModelBounds.depth = targetVector.z;
+    playerModelBounds.radius = targetVector.length() * 0.5;
+  };
+
   const transitionPlayerModelToAction = (action) => {
     if (!playerModelState.mixer || !action) {
       return;
@@ -1981,8 +2011,27 @@ export const initScene = (
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const updateThirdPersonCameraOffset = () => {
-    const thirdPersonVerticalOffset = Math.max(playerEyeHeight * 0.15, 0.2);
-    const thirdPersonBackwardOffset = Math.max(playerEyeHeight * 1.85, 2.6);
+    const modelDepth = Number.isFinite(playerModelBounds.depth)
+      ? playerModelBounds.depth
+      : 0;
+    const modelRadius = Number.isFinite(playerModelBounds.radius)
+      ? playerModelBounds.radius
+      : 0;
+    const modelHeight = Number.isFinite(playerModelBounds.size.y)
+      ? playerModelBounds.size.y
+      : 0;
+
+    const thirdPersonVerticalOffset = Math.max(
+      playerEyeHeight * 0.2,
+      modelHeight * 0.25,
+      0.3
+    );
+    const thirdPersonBackwardOffset = Math.max(
+      playerEyeHeight * 1.85,
+      modelDepth * 1.4,
+      modelRadius * 1.1,
+      2.8
+    );
 
     thirdPersonCameraOffset.set(
       0,
@@ -2164,6 +2213,11 @@ export const initScene = (
       };
 
       fitPlayerModelToEyeHeight();
+      updatePlayerModelBoundingBox();
+      updateStoredPlayerModelBounds(
+        playerModelBoundingBox,
+        playerModelBoundsSize
+      );
 
       model.traverse((child) => {
         if (child.isMesh) {
@@ -2228,6 +2282,11 @@ export const initScene = (
 
       if (eyeHeightWasApplied) {
         fitPlayerModelToEyeHeight();
+        updatePlayerModelBoundingBox();
+        updateStoredPlayerModelBounds(
+          playerModelBoundingBox,
+          playerModelBoundsSize
+        );
       }
 
       playerModelGroup.visible = cameraViewMode === VIEW_MODES.THIRD_PERSON;
