@@ -2191,9 +2191,9 @@ export const initScene = (
   const updatePlayerModelTransform = () => {
     const playerFeetY = playerObject.position.y - playerEyeHeight;
     const groundedPlayerFeetY =
-      Math.abs(playerFeetY - roomFloorY) < PLAYER_MODEL_FLOOR_EPSILON
+      playerFeetY >= roomFloorY - PLAYER_MODEL_FLOOR_EPSILON
         ? roomFloorY
-        : playerFeetY;
+        : Math.max(playerFeetY, roomFloorY);
     playerModelGroup.position.set(
       playerObject.position.x,
       groundedPlayerFeetY,
