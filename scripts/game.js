@@ -1,9 +1,10 @@
 import { logout } from "./auth.js";
-import { initScene } from "./scene.js";
+import { clearStoredPlayerState, initScene } from "./scene.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
 const logoutButton = document.querySelector("[data-logout-button]");
+const resetButton = document.querySelector("[data-reset-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
 const crosshair = document.querySelector(".crosshair");
@@ -672,13 +673,13 @@ const setErrorMessage = (message) => {
   }
 };
 
-const setButtonBusyState = (isBusy) => {
-  if (!(logoutButton instanceof HTMLButtonElement)) {
+const setButtonBusyState = (button, isBusy) => {
+  if (!(button instanceof HTMLButtonElement)) {
     return;
   }
 
-  logoutButton.disabled = isBusy;
-  logoutButton.setAttribute("aria-busy", String(isBusy));
+  button.disabled = isBusy;
+  button.setAttribute("aria-busy", String(isBusy));
 };
 
 async function handleLogout(event) {
@@ -687,7 +688,7 @@ async function handleLogout(event) {
   }
 
   setErrorMessage("");
-  setButtonBusyState(true);
+  setButtonBusyState(logoutButton, true);
 
   try {
     await logout();
@@ -700,10 +701,55 @@ async function handleLogout(event) {
         : "We couldn't log you out. Please try again.";
     setErrorMessage(message);
   } finally {
-    setButtonBusyState(false);
+    setButtonBusyState(logoutButton, false);
   }
 }
 
 if (logoutButton instanceof HTMLButtonElement) {
   logoutButton.addEventListener("click", handleLogout);
+}
+
+function handleReset(event) {
+  if (event) {
+    event.preventDefault();
+  }
+
+  if (!(resetButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const shouldReset = window.confirm(
+    "Reset your saved position and view settings? This cannot be undone."
+  );
+
+  if (!shouldReset) {
+    return;
+  }
+
+  setErrorMessage("");
+  setButtonBusyState(resetButton, true);
+
+  let shouldReload = false;
+
+  try {
+    const cleared = clearStoredPlayerState();
+
+    if (!cleared) {
+      throw new Error("Unable to access saved data");
+    }
+
+    shouldReload = true;
+    window.location.reload();
+  } catch (error) {
+    console.error("Reset failed", error);
+    setErrorMessage("We couldn't reset your progress. Please try again.");
+  } finally {
+    if (!shouldReload) {
+      setButtonBusyState(resetButton, false);
+    }
+  }
+}
+
+if (resetButton instanceof HTMLButtonElement) {
+  resetButton.addEventListener("click", handleReset);
 }

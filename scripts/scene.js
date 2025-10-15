@@ -3,7 +3,7 @@ import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
-const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
+export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 
 const getPlayerStateStorage = (() => {
@@ -36,6 +36,23 @@ const getPlayerStateStorage = (() => {
     return storage;
   };
 })();
+
+export const clearStoredPlayerState = () => {
+  const storage = getPlayerStateStorage();
+
+  if (!storage) {
+    return false;
+  }
+
+  try {
+    storage.removeItem(PLAYER_STATE_STORAGE_KEY);
+    return true;
+  } catch (error) {
+    console.warn("Unable to clear stored player state", error);
+  }
+
+  return false;
+};
 
 const loadStoredPlayerState = () => {
   const storage = getPlayerStateStorage();

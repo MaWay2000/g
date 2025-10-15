@@ -132,6 +132,14 @@
         box-shadow: 0 12px 24px rgba(56, 189, 248, 0.25);
       }
 
+      button.reset {
+        background: rgba(250, 204, 21, 0.1);
+        border: 2px solid rgba(250, 204, 21, 0.65);
+        color: rgba(250, 204, 21, 0.95);
+        font-weight: 600;
+        backdrop-filter: blur(8px);
+      }
+
       button.logout {
         background: rgba(15, 23, 42, 0.55);
         border: 2px solid rgba(148, 163, 184, 0.65);
@@ -146,6 +154,13 @@
         box-shadow: 0 16px 32px rgba(56, 189, 248, 0.35);
       }
 
+      button.reset:focus-visible,
+      button.reset:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(250, 204, 21, 0.25);
+        background: rgba(250, 204, 21, 0.18);
+      }
+
       button.logout:focus-visible,
       button.logout:hover {
         transform: translateY(-2px);
@@ -153,6 +168,7 @@
         background: rgba(30, 41, 59, 0.7);
       }
 
+      button.reset[disabled],
       button.logout[disabled] {
         opacity: 0.7;
         cursor: progress;
@@ -537,6 +553,9 @@
     <div class="ui-overlay">
       <div class="top-bar">
         <a class="cta" href="index.html">Return to Lobby</a>
+        <button class="reset" type="button" data-reset-button>
+          Reset Progress
+        </button>
         <button class="logout" type="button" data-logout-button>Log out</button>
       </div>
 
