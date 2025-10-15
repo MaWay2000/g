@@ -1783,6 +1783,19 @@ export const initScene = (
   };
 
   const reflectiveSurfaces = [];
+  let attachPlayerModelVisibilityToReflector = null;
+
+  const registerReflectiveSurface = (reflector) => {
+    if (!reflector) {
+      return;
+    }
+
+    reflectiveSurfaces.push(reflector);
+
+    if (typeof attachPlayerModelVisibilityToReflector === "function") {
+      attachPlayerModelVisibilityToReflector(reflector);
+    }
+  };
 
   const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
     const vertices = [];
@@ -1851,7 +1864,7 @@ export const initScene = (
 
   const wallMirrorReflector = wallMirror.userData?.reflector;
   if (wallMirrorReflector) {
-    reflectiveSurfaces.push(wallMirrorReflector);
+    registerReflectiveSurface(wallMirrorReflector);
   }
 
   const raycaster = new THREE.Raycaster();
@@ -2008,6 +2021,65 @@ export const initScene = (
     THIRD_PERSON: "third-person",
   };
   let cameraViewMode = VIEW_MODES.FIRST_PERSON;
+
+  attachPlayerModelVisibilityToReflector = (reflector) => {
+    if (!reflector || typeof reflector !== "object") {
+      return;
+    }
+
+    reflector.userData = reflector.userData || {};
+
+    if (reflector.userData.__playerModelVisibilityHookAttached) {
+      return;
+    }
+
+    reflector.userData.__playerModelVisibilityHookAttached = true;
+
+    const visibilityState = {
+      depth: 0,
+      previousVisibility: null,
+    };
+
+    const originalOnBeforeRender = reflector.onBeforeRender;
+    const originalOnAfterRender = reflector.onAfterRender;
+
+    reflector.onBeforeRender = function onBeforeRender(...args) {
+      if (cameraViewMode !== VIEW_MODES.THIRD_PERSON) {
+        if (visibilityState.depth === 0) {
+          visibilityState.previousVisibility = playerModelGroup.visible;
+          playerModelGroup.visible = true;
+        }
+
+        visibilityState.depth += 1;
+      }
+
+      if (typeof originalOnBeforeRender === "function") {
+        originalOnBeforeRender.apply(this, args);
+      }
+    };
+
+    reflector.onAfterRender = function onAfterRender(...args) {
+      if (cameraViewMode !== VIEW_MODES.THIRD_PERSON) {
+        visibilityState.depth = Math.max(visibilityState.depth - 1, 0);
+
+        if (
+          visibilityState.depth === 0 &&
+          visibilityState.previousVisibility !== null
+        ) {
+          playerModelGroup.visible = visibilityState.previousVisibility;
+          visibilityState.previousVisibility = null;
+        }
+      }
+
+      if (typeof originalOnAfterRender === "function") {
+        originalOnAfterRender.apply(this, args);
+      }
+    };
+  };
+
+  reflectiveSurfaces.forEach((reflector) =>
+    attachPlayerModelVisibilityToReflector(reflector)
+  );
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const THIRD_PERSON_CAMERA_BACK_OFFSET = 2;
