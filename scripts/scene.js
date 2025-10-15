@@ -2347,6 +2347,7 @@ export const initScene = (
         if (child.isMesh) {
           child.castShadow = false;
           child.receiveShadow = false;
+          child.frustumCulled = false;
         }
       });
 
