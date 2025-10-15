@@ -2190,10 +2190,11 @@ export const initScene = (
 
   const updatePlayerModelTransform = () => {
     const playerFeetY = playerObject.position.y - playerEyeHeight;
-    const groundedPlayerFeetY =
-      playerFeetY >= roomFloorY - PLAYER_MODEL_FLOOR_EPSILON
-        ? roomFloorY
-        : Math.max(playerFeetY, roomFloorY);
+    const isNearFloor =
+      Math.abs(playerFeetY - roomFloorY) <= PLAYER_MODEL_FLOOR_EPSILON;
+    const groundedPlayerFeetY = isNearFloor
+      ? roomFloorY
+      : Math.max(playerFeetY, roomFloorY);
     playerModelGroup.position.set(
       playerObject.position.x,
       groundedPlayerFeetY,
