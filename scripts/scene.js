@@ -80,6 +80,8 @@ const loadStoredPlayerState = () => {
 
     const pitch = data?.pitch;
     const hasPitch = isFiniteNumber(pitch);
+    const eyeHeight = data?.eyeHeight;
+    const hasEyeHeight = isFiniteNumber(eyeHeight) && eyeHeight > 0;
 
     return {
       position: new THREE.Vector3(position.x, position.y, position.z),
@@ -90,6 +92,7 @@ const loadStoredPlayerState = () => {
         quaternion.w
       ),
       pitch: hasPitch ? pitch : null,
+      eyeHeight: hasEyeHeight ? eyeHeight : null,
       serialized,
     };
   } catch (error) {
@@ -1998,6 +2001,7 @@ export const initScene = (
 
   let playerEyeHeight = INITIAL_PLAYER_EYE_HEIGHT;
   let initialPitch = DEFAULT_THIRD_PERSON_PITCH;
+  let storedPlayerEyeHeight = null;
 
   if (storedPlayerState) {
     playerObject.position.copy(storedPlayerState.position);
@@ -2008,12 +2012,19 @@ export const initScene = (
     } else {
       initialPitch = storedOrientationEuler.x;
     }
+
+    if (
+      typeof storedPlayerState.eyeHeight === "number" &&
+      Number.isFinite(storedPlayerState.eyeHeight) &&
+      storedPlayerState.eyeHeight > 0
+    ) {
+      storedPlayerEyeHeight = storedPlayerState.eyeHeight;
+    }
   } else {
     controls.setYaw(playerObject.rotation.y || 0);
   }
 
   controls.setPitch(initialPitch);
-  playerObject.position.y = defaultPlayerPosition.y;
 
   const firstPersonCameraOffset = new THREE.Vector3(0, 0, 0);
   const thirdPersonCameraOffset = new THREE.Vector3();
@@ -2151,8 +2162,6 @@ export const initScene = (
     );
     playerModelGroup.updateMatrixWorld(true);
   };
-  refreshCameraViewMode();
-  updatePlayerModelTransform();
 
   const applyPlayerEyeHeight = (newEyeHeight) => {
     if (!Number.isFinite(newEyeHeight) || newEyeHeight <= 0) {
@@ -2165,6 +2174,10 @@ export const initScene = (
     refreshCameraViewMode();
     updatePlayerModelTransform();
   };
+
+  const initialEyeHeight =
+    storedPlayerEyeHeight ?? INITIAL_PLAYER_EYE_HEIGHT;
+  applyPlayerEyeHeight(initialEyeHeight);
 
   gltfLoader.load(
     "images/models/suit.glb",
@@ -2480,6 +2493,7 @@ export const initScene = (
         w: roundPlayerStateValue(playerObject.quaternion.w),
       },
       pitch: roundPlayerStateValue(controls.getPitch()),
+      eyeHeight: roundPlayerStateValue(playerEyeHeight),
     });
 
   const savePlayerState = (force = false) => {
