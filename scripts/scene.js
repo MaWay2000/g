@@ -2010,33 +2010,14 @@ export const initScene = (
   let cameraViewMode = VIEW_MODES.FIRST_PERSON;
   const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
+  const THIRD_PERSON_CAMERA_BACK_OFFSET = 2;
+  const THIRD_PERSON_CAMERA_HEAD_CLEARANCE = 0.2;
+
   const updateThirdPersonCameraOffset = () => {
-    const modelDepth = Number.isFinite(playerModelBounds.depth)
-      ? playerModelBounds.depth
-      : 0;
-    const modelRadius = Number.isFinite(playerModelBounds.radius)
-      ? playerModelBounds.radius
-      : 0;
-    const modelHeight = Number.isFinite(playerModelBounds.size.y)
-      ? playerModelBounds.size.y
-      : 0;
-
-    const thirdPersonVerticalOffset = Math.max(
-      playerEyeHeight * 0.2,
-      modelHeight * 0.25,
-      0.3
-    );
-    const thirdPersonBackwardOffset = Math.max(
-      playerEyeHeight * 1.85,
-      modelDepth * 1.4,
-      modelRadius * 1.1,
-      2.8
-    );
-
     thirdPersonCameraOffset.set(
       0,
-      thirdPersonVerticalOffset,
-      thirdPersonBackwardOffset
+      THIRD_PERSON_CAMERA_HEAD_CLEARANCE,
+      THIRD_PERSON_CAMERA_BACK_OFFSET
     );
   };
 
@@ -2076,10 +2057,15 @@ export const initScene = (
 
   const PLAYER_MODEL_FACING_OFFSET = Math.PI;
 
+  const PLAYER_MODEL_FLOOR_EPSILON = 1e-4;
+
   const updatePlayerModelTransform = () => {
+    const playerFeetY = playerObject.position.y - playerEyeHeight;
+    const groundedPlayerFeetY =
+      Math.abs(playerFeetY) < PLAYER_MODEL_FLOOR_EPSILON ? 0 : playerFeetY;
     playerModelGroup.position.set(
       playerObject.position.x,
-      playerObject.position.y - playerEyeHeight,
+      groundedPlayerFeetY,
       playerObject.position.z
     );
     playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
