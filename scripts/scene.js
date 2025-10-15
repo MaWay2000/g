@@ -5,6 +5,24 @@ import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
+const DEFAULT_THIRD_PERSON_PITCH = 0;
+const MAX_RESTORABLE_PITCH =
+  Math.PI / 2 - THREE.MathUtils.degToRad(1);
+
+const normalizePitchForPersistence = (pitch) => {
+  if (!Number.isFinite(pitch)) {
+    return null;
+  }
+
+  const normalized =
+    THREE.MathUtils.euclideanModulo(pitch + Math.PI, Math.PI * 2) - Math.PI;
+
+  if (Math.abs(normalized) >= MAX_RESTORABLE_PITCH) {
+    return null;
+  }
+
+  return normalized;
+};
 
 const getPlayerStateStorage = (() => {
   let resolved = false;
@@ -95,8 +113,8 @@ const loadStoredPlayerState = () => {
       return null;
     }
 
-    const pitch = data?.pitch;
-    const hasPitch = isFiniteNumber(pitch);
+    const pitch = normalizePitchForPersistence(data?.pitch);
+    const hasPitch = pitch !== null;
     const eyeHeight = data?.eyeHeight;
     const hasEyeHeight = isFiniteNumber(eyeHeight) && eyeHeight > 0;
 
@@ -1915,7 +1933,6 @@ export const initScene = (
 
   const storedPlayerState = loadStoredPlayerState();
   let lastSerializedPlayerState = storedPlayerState?.serialized ?? null;
-  const DEFAULT_THIRD_PERSON_PITCH = 0;
   const storedOrientationEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
   const controls = new PointerLockControls(camera, canvas);
@@ -2025,10 +2042,19 @@ export const initScene = (
     playerObject.position.copy(storedPlayerState.position);
     storedOrientationEuler.setFromQuaternion(storedPlayerState.quaternion);
     controls.setYaw(storedOrientationEuler.y);
-    if (typeof storedPlayerState.pitch === "number") {
-      initialPitch = storedPlayerState.pitch;
+
+    const storedPitch = normalizePitchForPersistence(
+      storedPlayerState.pitch
+    );
+    if (storedPitch !== null) {
+      initialPitch = storedPitch;
     } else {
-      initialPitch = storedOrientationEuler.x;
+      const fallbackPitch = normalizePitchForPersistence(
+        storedOrientationEuler.x
+      );
+      if (fallbackPitch !== null) {
+        initialPitch = fallbackPitch;
+      }
     }
 
     if (
@@ -2499,8 +2525,10 @@ export const initScene = (
   const roundPlayerStateValue = (value) =>
     Math.round(value * 10000) / 10000;
 
-  const serializePlayerState = () =>
-    JSON.stringify({
+  const serializePlayerState = () => {
+    const pitch = normalizePitchForPersistence(controls.getPitch());
+
+    return JSON.stringify({
       position: {
         x: roundPlayerStateValue(playerObject.position.x),
         y: roundPlayerStateValue(playerObject.position.y),
@@ -2512,9 +2540,12 @@ export const initScene = (
         z: roundPlayerStateValue(playerObject.quaternion.z),
         w: roundPlayerStateValue(playerObject.quaternion.w),
       },
-      pitch: roundPlayerStateValue(controls.getPitch()),
+      pitch: roundPlayerStateValue(
+        pitch !== null ? pitch : DEFAULT_THIRD_PERSON_PITCH
+      ),
       eyeHeight: roundPlayerStateValue(playerEyeHeight),
     });
+  };
 
   const savePlayerState = (force = false) => {
     const storage = getPlayerStateStorage();
