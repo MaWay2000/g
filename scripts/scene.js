@@ -2223,6 +2223,8 @@ export const initScene = (
     storedPlayerEyeHeight ?? INITIAL_PLAYER_EYE_HEIGHT;
   applyPlayerEyeHeight(initialEyeHeight);
 
+  const shouldInferEyeHeightFromModel = storedPlayerEyeHeight === null;
+
   gltfLoader.load(
     "images/models/suit.glb",
     (gltf) => {
@@ -2371,7 +2373,7 @@ export const initScene = (
 
       let eyeHeightWasApplied = false;
 
-      if (worldYValues.length > 0) {
+      if (shouldInferEyeHeightFromModel && worldYValues.length > 0) {
         worldYValues.sort((a, b) => a - b);
 
         const minY = worldYValues[0];
