@@ -1781,7 +1781,7 @@ export const initScene = (
     const group = new THREE.Group();
 
     const mirrorWidth = 12;
-    const mirrorHeight = 9.2;
+    const mirrorHeight = 9;
     const frameInset = 0.18;
     const pixelRatio = window.devicePixelRatio ?? 1;
 
@@ -1909,10 +1909,10 @@ export const initScene = (
 
   const wallMirror = createWallMirror();
   const mirrorDimensions = wallMirror.userData?.dimensions;
-  const mirrorHeight = mirrorDimensions?.height ?? 9.2;
+  const mirrorHeight = mirrorDimensions?.height ?? 9;
   wallMirror.position.set(
     roomWidth / 2 - 0.16,
-    roomFloorY + 8 - mirrorHeight / 2,
+    roomFloorY + 0.5 + mirrorHeight / 2,
     6
   );
   wallMirror.rotation.y = -Math.PI / 2;
