@@ -1964,8 +1964,6 @@ export const initScene = (
   playerModelGroup.layers.set(PLAYER_MODEL_LAYER);
   playerObject.add(playerModelGroup);
 
-  let playerModelVerticalOriginOffset = 0;
-
   const playerModelState = {
     mixer: null,
     actions: {
@@ -2265,26 +2263,9 @@ export const initScene = (
         : VIEW_MODES.THIRD_PERSON
     );
 
-  const PLAYER_MODEL_FACING_OFFSET = Math.PI;
-
-  const PLAYER_MODEL_FLOOR_EPSILON = 1e-4;
-
   const updatePlayerModelTransform = () => {
-    const playerFeetY = playerObject.position.y - playerEyeHeight;
-    const isNearFloor =
-      Math.abs(playerFeetY - roomFloorY) <= PLAYER_MODEL_FLOOR_EPSILON;
-    const groundedPlayerFeetY = isNearFloor
-      ? roomFloorY
-      : Math.max(playerFeetY, roomFloorY);
-    const adjustedFeetY = Number.isFinite(playerModelVerticalOriginOffset)
-      ? groundedPlayerFeetY - playerModelVerticalOriginOffset
-      : groundedPlayerFeetY;
-
-    const worldModelY = adjustedFeetY;
-    const localModelY = worldModelY - playerObject.position.y;
-
-    playerModelGroup.position.set(0, localModelY, 0);
-    playerModelGroup.rotation.set(0, PLAYER_MODEL_FACING_OFFSET, 0);
+    playerModelGroup.position.set(0, 0, 0);
+    playerModelGroup.rotation.set(0, 0, 0);
     playerModelGroup.updateMatrixWorld(true);
   };
 
@@ -2319,8 +2300,6 @@ export const initScene = (
     const originalModelQuaternion = model.quaternion.clone();
     const playerModelBoundingBox = new THREE.Box3();
     const playerModelBoundingBoxFallback = new THREE.Box3();
-    const playerModelCenter = new THREE.Vector3();
-    const playerModelLocalBoundsMin = new THREE.Vector3();
     const playerModelBoundsSize = new THREE.Vector3();
     const localVertex = new THREE.Vector3();
     const worldVertex = new THREE.Vector3();
@@ -2372,17 +2351,6 @@ export const initScene = (
           playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
         }
       }
-    };
-
-    const updatePlayerModelVerticalOriginOffset = () => {
-      if (playerModelBoundingBox.isEmpty()) {
-        playerModelVerticalOriginOffset = 0;
-        return;
-      }
-
-      const playerFeetWorldY = playerObject.position.y - playerEyeHeight;
-      playerModelVerticalOriginOffset =
-        playerModelBoundingBox.min.y - playerFeetWorldY;
     };
 
     const fitPlayerModelToEyeHeight = () => {
@@ -2461,17 +2429,8 @@ export const initScene = (
         return;
       }
 
-      playerModelBoundingBox.getCenter(playerModelCenter);
-      playerModelGroup.worldToLocal(playerModelCenter);
-
-      playerModelLocalBoundsMin.copy(playerModelBoundingBox.min);
-      playerModelGroup.worldToLocal(playerModelLocalBoundsMin);
-
       model.position.copy(originalModelPosition);
-      model.position.x -= playerModelCenter.x;
-      model.position.z -= playerModelCenter.z;
-      model.position.y -= playerModelLocalBoundsMin.y;
-
+      model.quaternion.copy(originalModelQuaternion);
       model.updateWorldMatrix(true, false);
       restorePlayerModelGroupTransform();
     };
@@ -2602,8 +2561,6 @@ export const initScene = (
 
     updatePlayerModelTransform();
     updatePlayerModelBoundingBox();
-    updatePlayerModelVerticalOriginOffset();
-    updatePlayerModelTransform();
     refreshCameraViewMode();
   };
 
