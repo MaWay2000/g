@@ -8,6 +8,7 @@ const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_THIRD_PERSON_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
   Math.PI / 2 - THREE.MathUtils.degToRad(1);
+const PLAYER_MODEL_LAYER = 1;
 
 const normalizePitchForPersistence = (pitch) => {
   if (!Number.isFinite(pitch)) {
@@ -1945,6 +1946,7 @@ export const initScene = (
 
   const playerModelGroup = new THREE.Group();
   playerModelGroup.visible = false;
+  playerModelGroup.layers.set(PLAYER_MODEL_LAYER);
   scene.add(playerModelGroup);
 
   const playerModelState = {
@@ -2094,7 +2096,7 @@ export const initScene = (
 
     const visibilityState = {
       depth: 0,
-      previousVisibility: null,
+      previousLayerMask: null,
     };
 
     const originalOnBeforeRender = reflector.onBeforeRender;
@@ -2103,8 +2105,15 @@ export const initScene = (
     reflector.onBeforeRender = function onBeforeRender(...args) {
       if (cameraViewMode !== VIEW_MODES.THIRD_PERSON) {
         if (visibilityState.depth === 0) {
-          visibilityState.previousVisibility = playerModelGroup.visible;
-          playerModelGroup.visible = true;
+          const cameraArg = args?.[2];
+          const layers = cameraArg?.layers;
+
+          if (layers && typeof layers.enable === "function") {
+            visibilityState.previousLayerMask = layers.mask;
+            layers.enable(PLAYER_MODEL_LAYER);
+          } else {
+            visibilityState.previousLayerMask = null;
+          }
         }
 
         visibilityState.depth += 1;
@@ -2121,10 +2130,16 @@ export const initScene = (
 
         if (
           visibilityState.depth === 0 &&
-          visibilityState.previousVisibility !== null
+          visibilityState.previousLayerMask !== null
         ) {
-          playerModelGroup.visible = visibilityState.previousVisibility;
-          visibilityState.previousVisibility = null;
+          const cameraArg = args?.[2];
+          const layers = cameraArg?.layers;
+
+          if (layers && typeof layers.enable === "function") {
+            layers.mask = visibilityState.previousLayerMask;
+          }
+
+          visibilityState.previousLayerMask = null;
         }
       }
 
@@ -2150,6 +2165,20 @@ export const initScene = (
     );
   };
 
+  const applyPlayerModelLayerVisibilityForCamera = () => {
+    if (!camera?.layers) {
+      return;
+    }
+
+    if (cameraViewMode === VIEW_MODES.THIRD_PERSON) {
+      camera.layers.enable(PLAYER_MODEL_LAYER);
+    } else {
+      camera.layers.disable(PLAYER_MODEL_LAYER);
+    }
+  };
+
+  applyPlayerModelLayerVisibilityForCamera();
+
   const refreshCameraViewMode = () => {
     if (cameraViewMode === VIEW_MODES.THIRD_PERSON) {
       updateThirdPersonCameraOffset();
@@ -2158,7 +2187,7 @@ export const initScene = (
       controls.setCameraOffset(firstPersonCameraOffset);
     }
 
-    playerModelGroup.visible = cameraViewMode === VIEW_MODES.THIRD_PERSON;
+    applyPlayerModelLayerVisibilityForCamera();
   };
 
   const setCameraViewModeInternal = (mode) => {
@@ -2414,7 +2443,7 @@ export const initScene = (
         );
       }
 
-      playerModelGroup.visible = cameraViewMode === VIEW_MODES.THIRD_PERSON;
+      playerModelGroup.visible = true;
 
       if (Array.isArray(gltf.animations) && gltf.animations.length > 0) {
         playerModelState.mixer = new THREE.AnimationMixer(model);
