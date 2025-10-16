@@ -657,13 +657,20 @@ const bootstrapScene = () => {
   document.addEventListener("keydown", handleViewToggleKeydown);
 };
 
+const scheduleBootstrapScene = () => {
+  const start = () => window.requestAnimationFrame(bootstrapScene);
+
+  if (typeof document.fonts?.ready?.then === "function") {
+    document.fonts.ready.then(start).catch(start);
+  } else {
+    start();
+  }
+};
+
 if (document.readyState === "complete") {
-  window.requestAnimationFrame(bootstrapScene);
+  scheduleBootstrapScene();
 } else {
-  const handleLoad = () => {
-    window.requestAnimationFrame(bootstrapScene);
-  };
-  window.addEventListener("load", handleLoad, { once: true });
+  window.addEventListener("load", scheduleBootstrapScene, { once: true });
 }
 
 const setErrorMessage = (message) => {

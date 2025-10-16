@@ -2790,12 +2790,20 @@
           });
         }
         };
-        const runBootstrap = () => window.requestAnimationFrame(bootstrap);
+        const scheduleBootstrap = () => {
+          const start = () => window.requestAnimationFrame(bootstrap);
+
+          if (typeof document.fonts?.ready?.then === "function") {
+            document.fonts.ready.then(start).catch(start);
+          } else {
+            start();
+          }
+        };
 
         if (document.readyState === "complete") {
-          runBootstrap();
+          scheduleBootstrap();
         } else {
-          window.addEventListener("load", runBootstrap, { once: true });
+          window.addEventListener("load", scheduleBootstrap, { once: true });
         }
       })();
     </script>
