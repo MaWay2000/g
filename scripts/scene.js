@@ -165,12 +165,6 @@ export const initScene = (
   const PLAYER_HEIGHT_METERS = 1.73;
   const INITIAL_PLAYER_EYE_HEIGHT = 1.63;
   const PLAYER_MODEL_SCALE_MULTIPLIER =
-
-  // --- robust model scaling settings ---
-  // If set to a number (e.g., 1.73), forces the player model height to this exact value.
-  const PLAYER_MODEL_HEIGHT_OVERRIDE_METERS = null;
-  // Trim top/bottom percent of vertices when measuring model height to ignore spikes/heels.
-  const PLAYER_MODEL_TRIM_PERCENT = 0.05;
     PLAYER_HEIGHT_METERS / INITIAL_PLAYER_EYE_HEIGHT;
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
@@ -2349,41 +2343,7 @@ export const initScene = (
         }
       };
 
-      
-      // Returns a robust height measurement by trimming extremes of world-space Y vertices
-      const computeTrimmedModelHeight = (object, trim = PLAYER_MODEL_TRIM_PERCENT) => {
-        if (!object) return null;
-        const yVals = [];
-        object.updateWorldMatrix(true, false);
-        object.traverse((child) => {
-          if (!child.isMesh) return;
-          const posAttr = child.geometry?.getAttribute("position");
-          if (!posAttr || posAttr.itemSize < 3) return;
-          const worldPos = new THREE.Vector3();
-          const local = new THREE.Vector3();
-          const m = child.matrixWorld;
-          for (let i = 0; i < posAttr.count; i++) {
-            local.fromBufferAttribute(posAttr, i);
-            worldPos.copy(local).applyMatrix4(m);
-            yVals.push(worldPos.y);
-          }
-        });
-        if (!yVals.length) {
-          // fallback to Box3 height
-          const box = new THREE.Box3().setFromObject(object);
-          if (box.isEmpty()) return null;
-          return { height: box.max.y - box.min.y, minY: box.min.y, maxY: box.max.y };
-        }
-        yVals.sort((a,b)=>a-b);
-        const n = yVals.length;
-        const t = Math.max(0, Math.min(0.49, Number.isFinite(trim) ? trim : 0));
-        const lo = Math.floor(n * t);
-        const hi = Math.max(lo, Math.min(n-1, Math.ceil(n * (1 - t)) - 1));
-        const minY = yVals[lo];
-        const maxY = yVals[hi];
-        return { height: maxY - minY, minY, maxY };
-      };
-const fitPlayerModelToEyeHeight = () => {
+      const fitPlayerModelToEyeHeight = () => {
         const savedGroupPosition = playerModelGroup.position.clone();
         const savedGroupQuaternion = playerModelGroup.quaternion.clone();
         const savedGroupScale = playerModelGroup.scale.clone();
@@ -2414,27 +2374,19 @@ const fitPlayerModelToEyeHeight = () => {
 
         playerModelBoundingBox.getSize(playerModelBoundsSize);
 
-        
         let targetModelHeight = null;
 
-        // Measure current model height robustly
-        const trimmed = computeTrimmedModelHeight(model, PLAYER_MODEL_TRIM_PERCENT);
-        const measuredHeight = trimmed && Number.isFinite(trimmed.height) && trimmed.height > 0
-          ? trimmed.height
-          : (playerModelBoundsSize.y > 0 ? playerModelBoundsSize.y : null);
-
-        if (measuredHeight) {
-          // Decide the target height
-          targetModelHeight = Number.isFinite(PLAYER_MODEL_HEIGHT_OVERRIDE_METERS) && PLAYER_MODEL_HEIGHT_OVERRIDE_METERS > 0
-            ? PLAYER_MODEL_HEIGHT_OVERRIDE_METERS
-            : playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
+        if (playerModelBoundsSize.y > 0) {
+          targetModelHeight =
+            playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
 
           if (targetModelHeight > 0) {
-            const scale = targetModelHeight / measuredHeight;
+            const scale = targetModelHeight / playerModelBoundsSize.y;
             model.scale.multiplyScalar(scale);
           }
         }
-model.updateWorldMatrix(true, false);
+
+        model.updateWorldMatrix(true, false);
 
         updatePlayerModelBoundingBox();
 
@@ -2445,11 +2397,17 @@ model.updateWorldMatrix(true, false);
         ) {
           playerModelBoundingBox.getSize(playerModelBoundsSize);
 
-          
-          // Recompute robust height after scaling
-          const trimmed2 = computeTrimmedModelHeight(model, PLAYER_MODEL_TRIM_PERCENT);
-          const currentModelHeight = trimmed2 && Number.isFinite(trimmed2.height) ? trimmed2.height : playerModelBoundsSize.y;
-}
+          const currentModelHeight = playerModelBoundsSize.y;
+
+          if (
+            Number.isFinite(currentModelHeight) &&
+            currentModelHeight > targetModelHeight
+          ) {
+            const correctionScale = targetModelHeight / currentModelHeight;
+            model.scale.multiplyScalar(correctionScale);
+            model.updateWorldMatrix(true, false);
+            updatePlayerModelBoundingBox();
+          }
         }
 
         if (!playerModelBoundingBox.isEmpty()) {
@@ -2519,13 +2477,9 @@ model.updateWorldMatrix(true, false);
       if (shouldInferEyeHeightFromModel && worldYValues.length > 0) {
         worldYValues.sort((a, b) => a - b);
 
-        const n = worldYValues.length;
-const t = Math.max(0, Math.min(0.49, PLAYER_MODEL_TRIM_PERCENT));
-const lo = Math.floor(n * t);
-const hi = Math.max(lo, Math.min(n-1, Math.ceil(n * (1 - t)) - 1));
-const minY = worldYValues[lo];
-const maxY = worldYValues[hi];
-const height = maxY - minY;
+        const minY = worldYValues[0];
+        const maxY = worldYValues[worldYValues.length - 1];
+        const height = maxY - minY;
         const scaleCorrection =
           PLAYER_MODEL_SCALE_MULTIPLIER > 0
             ? PLAYER_MODEL_SCALE_MULTIPLIER
