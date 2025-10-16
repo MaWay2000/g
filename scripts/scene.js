@@ -2300,6 +2300,7 @@ export const initScene = (
       const originalModelPosition = model.position.clone();
       const originalModelQuaternion = model.quaternion.clone();
       const playerModelBoundingBox = new THREE.Box3();
+      const playerModelBoundingBoxFallback = new THREE.Box3();
       const playerModelCenter = new THREE.Vector3();
       const playerModelLocalBoundsMin = new THREE.Vector3();
       const playerModelBoundsSize = new THREE.Vector3();
@@ -2307,6 +2308,7 @@ export const initScene = (
       const worldVertex = new THREE.Vector3();
 
       const updatePlayerModelBoundingBox = () => {
+        let expandedFromVertices = false;
         playerModelBoundingBox.makeEmpty();
         playerModelGroup.updateWorldMatrix(true, false);
         model.updateWorldMatrix(true, false);
@@ -2327,8 +2329,18 @@ export const initScene = (
             localVertex.fromBufferAttribute(positionAttribute, index);
             worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
             playerModelBoundingBox.expandByPoint(worldVertex);
+            expandedFromVertices = true;
           }
         });
+
+        if (!expandedFromVertices || playerModelBoundingBox.isEmpty()) {
+          playerModelBoundingBoxFallback.makeEmpty();
+          playerModelBoundingBoxFallback.setFromObject(model);
+
+          if (!playerModelBoundingBoxFallback.isEmpty()) {
+            playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
+          }
+        }
       };
 
       const fitPlayerModelToEyeHeight = () => {
