@@ -2575,11 +2575,64 @@ export const initScene = (
       metalness: 0.05,
       roughness: 0.8,
     });
-    const bodyGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-    const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    bodyMesh.name = "PlayerCube";
-    bodyMesh.position.y = cubeSize / 2;
-    simpleModel.add(bodyMesh);
+
+    const headSize = cubeSize * 0.8;
+    const bodyWidth = cubeSize * 0.7;
+    const bodyDepth = cubeSize * 0.5;
+    const bodyHeight = cubeSize * 1.4;
+    const legWidth = cubeSize * 0.35;
+    const legDepth = cubeSize * 0.35;
+    const legHeight = cubeSize * 1.2;
+    const armWidth = cubeSize * 0.3;
+    const armDepth = cubeSize * 0.3;
+    const armHeight = cubeSize * 1.1;
+
+    const headGeometry = new THREE.BoxGeometry(headSize, headSize, headSize);
+    const headMesh = new THREE.Mesh(headGeometry, bodyMaterial);
+    headMesh.name = "PlayerHead";
+    headMesh.position.y = legHeight + bodyHeight + headSize * 0.5;
+    simpleModel.add(headMesh);
+
+    const torsoGeometry = new THREE.BoxGeometry(
+      bodyWidth,
+      bodyHeight,
+      bodyDepth
+    );
+    const torsoMesh = new THREE.Mesh(torsoGeometry, bodyMaterial);
+    torsoMesh.name = "PlayerTorso";
+    torsoMesh.position.y = legHeight + bodyHeight * 0.5;
+    simpleModel.add(torsoMesh);
+
+    const createLimb = (name, xOffset) => {
+      const limbGeometry = new THREE.BoxGeometry(
+        legWidth,
+        legHeight,
+        legDepth
+      );
+      const limbMesh = new THREE.Mesh(limbGeometry, bodyMaterial);
+      limbMesh.name = name;
+      limbMesh.position.set(xOffset, legHeight * 0.5, 0);
+      simpleModel.add(limbMesh);
+    };
+
+    createLimb("PlayerLegLeft", -bodyWidth * 0.25);
+    createLimb("PlayerLegRight", bodyWidth * 0.25);
+
+    const createArm = (name, xOffset) => {
+      const armGeometry = new THREE.BoxGeometry(armWidth, armHeight, armDepth);
+      const armMesh = new THREE.Mesh(armGeometry, bodyMaterial);
+      armMesh.name = name;
+      armMesh.position.set(
+        xOffset,
+        legHeight + bodyHeight * 0.75,
+        0
+      );
+      simpleModel.add(armMesh);
+    };
+
+    const armOffset = bodyWidth * 0.5 + armWidth * 0.5;
+    createArm("PlayerArmLeft", -armOffset);
+    createArm("PlayerArmRight", armOffset);
 
     initializePlayerModel(simpleModel, []);
   };
