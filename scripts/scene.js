@@ -2326,6 +2326,8 @@ export const initScene = (
           }
 
           const isSkinnedMesh = child.isSkinnedMesh && child.skeleton;
+          const canApplyBoneTransform =
+            isSkinnedMesh && typeof child.boneTransform === "function";
 
           if (isSkinnedMesh) {
             child.skeleton.update();
@@ -2334,7 +2336,7 @@ export const initScene = (
           for (let index = 0; index < positionAttribute.count; index += 1) {
             localVertex.fromBufferAttribute(positionAttribute, index);
 
-            if (isSkinnedMesh) {
+            if (canApplyBoneTransform) {
               child.boneTransform(index, localVertex);
             }
 
