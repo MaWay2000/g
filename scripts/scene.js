@@ -165,7 +165,7 @@ export const initScene = (
     200
   );
   const PLAYER_HEIGHT_UNITS = 8;
-  const INITIAL_PLAYER_EYE_HEIGHT = 7.5375722543352595;
+  const INITIAL_PLAYER_EYE_HEIGHT = PLAYER_HEIGHT_UNITS;
   const PLAYER_MODEL_SCALE_MULTIPLIER =
     PLAYER_HEIGHT_UNITS / INITIAL_PLAYER_EYE_HEIGHT;
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
@@ -2285,7 +2285,7 @@ export const initScene = (
     storedPlayerEyeHeight ?? INITIAL_PLAYER_EYE_HEIGHT;
   applyPlayerEyeHeight(initialEyeHeight);
 
-  const shouldInferEyeHeightFromModel = storedPlayerEyeHeight === null;
+  const shouldInferEyeHeightFromModel = true;
 
   const initializePlayerModel = (model, animations = []) => {
     if (!model) {
@@ -2478,41 +2478,19 @@ export const initScene = (
     if (shouldInferEyeHeightFromModel && worldYValues.length > 0) {
       worldYValues.sort((a, b) => a - b);
 
-      const minY = worldYValues[0];
-      const maxY = worldYValues[worldYValues.length - 1];
-      const height = maxY - minY;
+      const height =
+        worldYValues[worldYValues.length - 1] - worldYValues[0];
       const scaleCorrection =
         PLAYER_MODEL_SCALE_MULTIPLIER > 0
           ? PLAYER_MODEL_SCALE_MULTIPLIER
           : 1;
 
       if (height > 0) {
-        const eyePercentile = 0.92;
-        const percentileIndex = Math.floor(worldYValues.length * eyePercentile);
-        const clampedIndex = THREE.MathUtils.clamp(
-          percentileIndex,
-          0,
-          worldYValues.length - 1
-        );
         const normalizedHeight = height / scaleCorrection;
-        const candidateEyeHeight =
-          (worldYValues[clampedIndex] - minY) / scaleCorrection;
-        const minEyeHeight = Math.max(
-          normalizedHeight * 0.6,
-          playerEyeHeight * 0.95
-        );
-        const maxEyeHeight = Math.max(
-          minEyeHeight,
-          Math.min(normalizedHeight * 0.99, playerEyeHeight * 1.05)
-        );
-        const clampedEyeHeight = THREE.MathUtils.clamp(
-          candidateEyeHeight,
-          minEyeHeight,
-          maxEyeHeight
-        );
+        const candidateEyeHeight = normalizedHeight;
 
-        if (Number.isFinite(clampedEyeHeight)) {
-          applyPlayerEyeHeight(clampedEyeHeight);
+        if (Number.isFinite(candidateEyeHeight)) {
+          applyPlayerEyeHeight(candidateEyeHeight);
           eyeHeightWasApplied = true;
         }
       }
