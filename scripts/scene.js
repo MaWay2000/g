@@ -2106,8 +2106,8 @@ export const initScene = (
     reflector.onBeforeRender = function onBeforeRender(...args) {
       if (cameraViewMode !== VIEW_MODES.THIRD_PERSON) {
         if (visibilityState.depth === 0) {
-          const cameraArg = args?.[2];
-          const layers = cameraArg?.layers;
+          const renderCamera = this._virtualCamera ?? this.camera ?? null;
+          const layers = renderCamera?.layers;
 
           if (layers && typeof layers.enable === "function") {
             visibilityState.previousLayerMask = layers.mask;
@@ -2139,8 +2139,8 @@ export const initScene = (
 
         if (visibilityState.depth === 0) {
           if (visibilityState.previousLayerMask !== null) {
-            const cameraArg = args?.[2];
-            const layers = cameraArg?.layers;
+            const renderCamera = this._virtualCamera ?? this.camera ?? null;
+            const layers = renderCamera?.layers;
 
             if (layers && typeof layers.enable === "function") {
               layers.mask = visibilityState.previousLayerMask;
