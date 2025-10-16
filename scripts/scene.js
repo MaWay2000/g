@@ -2097,6 +2097,7 @@ export const initScene = (
     const visibilityState = {
       depth: 0,
       previousLayerMask: null,
+      previousPlayerLayerMask: null,
     };
 
     const originalOnBeforeRender = reflector.onBeforeRender;
@@ -2114,6 +2115,14 @@ export const initScene = (
           } else {
             visibilityState.previousLayerMask = null;
           }
+
+          const playerLayers = playerModelGroup?.layers;
+          if (playerLayers) {
+            visibilityState.previousPlayerLayerMask = playerLayers.mask;
+            playerLayers.enable(0);
+          } else {
+            visibilityState.previousPlayerLayerMask = null;
+          }
         }
 
         visibilityState.depth += 1;
@@ -2128,18 +2137,27 @@ export const initScene = (
       if (cameraViewMode !== VIEW_MODES.THIRD_PERSON) {
         visibilityState.depth = Math.max(visibilityState.depth - 1, 0);
 
-        if (
-          visibilityState.depth === 0 &&
-          visibilityState.previousLayerMask !== null
-        ) {
-          const cameraArg = args?.[2];
-          const layers = cameraArg?.layers;
+        if (visibilityState.depth === 0) {
+          if (visibilityState.previousLayerMask !== null) {
+            const cameraArg = args?.[2];
+            const layers = cameraArg?.layers;
 
-          if (layers && typeof layers.enable === "function") {
-            layers.mask = visibilityState.previousLayerMask;
+            if (layers && typeof layers.enable === "function") {
+              layers.mask = visibilityState.previousLayerMask;
+            }
+
+            visibilityState.previousLayerMask = null;
           }
 
-          visibilityState.previousLayerMask = null;
+          if (visibilityState.previousPlayerLayerMask !== null) {
+            const playerLayers = playerModelGroup?.layers;
+
+            if (playerLayers) {
+              playerLayers.mask = visibilityState.previousPlayerLayerMask;
+            }
+
+            visibilityState.previousPlayerLayerMask = null;
+          }
         }
       }
 
