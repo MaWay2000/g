@@ -8,6 +8,9 @@ const DEFAULT_THIRD_PERSON_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
   Math.PI / 2 - THREE.MathUtils.degToRad(1);
 const PLAYER_MODEL_LAYER = 1;
+const PLAYER_MODEL_FORWARD_CLEARANCE_RATIO = 0.1;
+const PLAYER_MODEL_FORWARD_CLEARANCE_MIN = 0.05;
+const PLAYER_MODEL_FORWARD_CLEARANCE_MAX = 0.35;
 
 const normalizePitchForPersistence = (pitch) => {
   if (!Number.isFinite(pitch)) {
@@ -1978,12 +1981,16 @@ export const initScene = (
     depth: 0,
     radius: 0,
   };
+  const playerModelForwardOffsetState = {
+    value: 0,
+  };
 
   const updateStoredPlayerModelBounds = (boundingBox, sizeTarget) => {
     if (!boundingBox || typeof boundingBox.isEmpty !== "function") {
       playerModelBounds.size.set(0, 0, 0);
       playerModelBounds.depth = 0;
       playerModelBounds.radius = 0;
+      playerModelForwardOffsetState.value = 0;
       return;
     }
 
@@ -1991,6 +1998,7 @@ export const initScene = (
       playerModelBounds.size.set(0, 0, 0);
       playerModelBounds.depth = 0;
       playerModelBounds.radius = 0;
+      playerModelForwardOffsetState.value = 0;
       return;
     }
 
@@ -2001,6 +2009,19 @@ export const initScene = (
     playerModelBounds.size.copy(targetVector);
     playerModelBounds.depth = targetVector.z;
     playerModelBounds.radius = targetVector.length() * 0.5;
+    const clearanceFromDepth =
+      playerModelBounds.depth * PLAYER_MODEL_FORWARD_CLEARANCE_RATIO;
+    const forwardClearance = THREE.MathUtils.clamp(
+      clearanceFromDepth,
+      PLAYER_MODEL_FORWARD_CLEARANCE_MIN,
+      PLAYER_MODEL_FORWARD_CLEARANCE_MAX
+    );
+    if (playerModelBounds.depth > 0) {
+      playerModelForwardOffsetState.value =
+        playerModelBounds.depth * 0.5 + forwardClearance;
+    } else {
+      playerModelForwardOffsetState.value = 0;
+    }
   };
 
   const transitionPlayerModelToAction = (action) => {
@@ -2262,7 +2283,13 @@ export const initScene = (
     const worldModelY = adjustedFeetY;
     const localModelY = worldModelY - playerObject.position.y;
 
-    playerModelGroup.position.set(0, localModelY, 0);
+    const forwardOffset = Number.isFinite(
+      playerModelForwardOffsetState.value
+    )
+      ? Math.max(playerModelForwardOffsetState.value, 0)
+      : 0;
+
+    playerModelGroup.position.set(0, localModelY, forwardOffset);
     playerModelGroup.rotation.set(0, PLAYER_MODEL_FACING_OFFSET, 0);
     playerModelGroup.updateMatrixWorld(true);
   };
