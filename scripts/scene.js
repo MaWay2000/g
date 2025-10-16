@@ -171,6 +171,188 @@ export const initScene = (
   const textureLoader = new THREE.TextureLoader();
   const gltfLoader = new GLTFLoader();
 
+  const composeNodeMatrix = (
+    nodeDefinition,
+    targetMatrix,
+    translationTarget,
+    rotationTarget,
+    scaleTarget
+  ) => {
+    if (!targetMatrix) {
+      targetMatrix = new THREE.Matrix4();
+    }
+
+    if (
+      nodeDefinition &&
+      Array.isArray(nodeDefinition.matrix) &&
+      nodeDefinition.matrix.length === 16
+    ) {
+      targetMatrix.fromArray(nodeDefinition.matrix);
+      return targetMatrix;
+    }
+
+    const translationArray =
+      nodeDefinition && Array.isArray(nodeDefinition.translation)
+        ? nodeDefinition.translation
+        : [0, 0, 0];
+    const rotationArray =
+      nodeDefinition && Array.isArray(nodeDefinition.rotation)
+        ? nodeDefinition.rotation
+        : [0, 0, 0, 1];
+    const scaleArray =
+      nodeDefinition && Array.isArray(nodeDefinition.scale)
+        ? nodeDefinition.scale
+        : [1, 1, 1];
+
+    if (!translationTarget) {
+      translationTarget = new THREE.Vector3();
+    }
+
+    if (!rotationTarget) {
+      rotationTarget = new THREE.Quaternion();
+    }
+
+    if (!scaleTarget) {
+      scaleTarget = new THREE.Vector3();
+    }
+
+    translationTarget.set(
+      Number(translationArray[0]) || 0,
+      Number(translationArray[1]) || 0,
+      Number(translationArray[2]) || 0
+    );
+    rotationTarget.set(
+      Number(rotationArray[0]) || 0,
+      Number(rotationArray[1]) || 0,
+      Number(rotationArray[2]) || 0,
+      Number(rotationArray[3]) || 1
+    );
+    scaleTarget.set(
+      Number(scaleArray[0]) || 1,
+      Number(scaleArray[1]) || 1,
+      Number(scaleArray[2]) || 1
+    );
+
+    targetMatrix.compose(translationTarget, rotationTarget, scaleTarget);
+    return targetMatrix;
+  };
+
+  const computeGltfSceneBoundingBox = (gltf) => {
+    const parser = gltf?.parser;
+    const json = parser?.json;
+
+    if (!json) {
+      return null;
+    }
+
+    const accessors = Array.isArray(json.accessors) ? json.accessors : [];
+    const meshes = Array.isArray(json.meshes) ? json.meshes : [];
+    const nodes = Array.isArray(json.nodes) ? json.nodes : [];
+    const scenes = Array.isArray(json.scenes) ? json.scenes : [];
+    const defaultSceneIndex =
+      typeof json.scene === "number" &&
+      json.scene >= 0 &&
+      json.scene < scenes.length
+        ? json.scene
+        : 0;
+    const sceneDefinition = scenes[defaultSceneIndex];
+    const rootNodeIndices = Array.isArray(sceneDefinition?.nodes)
+      ? sceneDefinition.nodes
+      : [];
+
+    const boundingBox = new THREE.Box3();
+    const tempBox = new THREE.Box3();
+    const translation = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
+    const traverseNode = (nodeIndex, parentMatrix) => {
+      if (typeof nodeIndex !== "number" || nodeIndex < 0) {
+        return;
+      }
+
+      const nodeDefinition = nodes[nodeIndex];
+
+      if (!nodeDefinition) {
+        return;
+      }
+
+      const nodeMatrix = composeNodeMatrix(
+        nodeDefinition,
+        new THREE.Matrix4(),
+        translation,
+        rotation,
+        scale
+      );
+
+      const worldMatrix = new THREE.Matrix4()
+        .copy(parentMatrix)
+        .multiply(nodeMatrix);
+
+      if (typeof nodeDefinition.mesh === "number") {
+        const meshDefinition = meshes[nodeDefinition.mesh];
+
+        if (meshDefinition && Array.isArray(meshDefinition.primitives)) {
+          meshDefinition.primitives.forEach((primitive) => {
+            const accessorIndex = primitive?.attributes?.POSITION;
+
+            if (typeof accessorIndex !== "number") {
+              return;
+            }
+
+            const accessor = accessors[accessorIndex];
+            const minArray = accessor?.min;
+            const maxArray = accessor?.max;
+
+            if (
+              !Array.isArray(minArray) ||
+              minArray.length < 3 ||
+              !Array.isArray(maxArray) ||
+              maxArray.length < 3
+            ) {
+              return;
+            }
+
+            tempBox.min.set(
+              Number(minArray[0]) || 0,
+              Number(minArray[1]) || 0,
+              Number(minArray[2]) || 0
+            );
+            tempBox.max.set(
+              Number(maxArray[0]) || 0,
+              Number(maxArray[1]) || 0,
+              Number(maxArray[2]) || 0
+            );
+            tempBox.applyMatrix4(worldMatrix);
+            boundingBox.union(tempBox);
+          });
+        }
+      }
+
+      const children = nodeDefinition.children;
+
+      if (Array.isArray(children)) {
+        children.forEach((childIndex) => {
+          traverseNode(childIndex, worldMatrix);
+        });
+      }
+    };
+
+    const identityMatrix = new THREE.Matrix4();
+
+    if (rootNodeIndices.length > 0) {
+      rootNodeIndices.forEach((nodeIndex) => {
+        traverseNode(nodeIndex, identityMatrix);
+      });
+    } else {
+      nodes.forEach((_, nodeIndex) => {
+        traverseNode(nodeIndex, identityMatrix);
+      });
+    }
+
+    return boundingBox.isEmpty() ? null : boundingBox;
+  };
+
   const colliderDescriptors = [];
 
   const registerColliderDescriptors = (descriptors) => {
@@ -2288,6 +2470,7 @@ export const initScene = (
     "images/models/suit.glb",
     (gltf) => {
       const model = gltf?.scene || gltf?.scenes?.[0];
+      const gltfSceneBoundingBox = computeGltfSceneBoundingBox(gltf);
 
       if (!model) {
         return;
@@ -2334,11 +2517,25 @@ export const initScene = (
         });
 
         if (!expandedFromVertices || playerModelBoundingBox.isEmpty()) {
-          playerModelBoundingBoxFallback.makeEmpty();
-          playerModelBoundingBoxFallback.setFromObject(model);
+          let fallbackBoundingBoxApplied = false;
 
-          if (!playerModelBoundingBoxFallback.isEmpty()) {
-            playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
+          if (gltfSceneBoundingBox && !gltfSceneBoundingBox.isEmpty()) {
+            const transformedBoundingBox = gltfSceneBoundingBox.clone();
+            transformedBoundingBox.applyMatrix4(model.matrixWorld);
+
+            if (!transformedBoundingBox.isEmpty()) {
+              playerModelBoundingBox.copy(transformedBoundingBox);
+              fallbackBoundingBoxApplied = true;
+            }
+          }
+
+          if (!fallbackBoundingBoxApplied) {
+            playerModelBoundingBoxFallback.makeEmpty();
+            playerModelBoundingBoxFallback.setFromObject(model);
+
+            if (!playerModelBoundingBoxFallback.isEmpty()) {
+              playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
+            }
           }
         }
       };
