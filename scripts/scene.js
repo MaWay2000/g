@@ -2589,6 +2589,12 @@ export const initScene = (
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
   const velocity = new THREE.Vector3();
+  let verticalVelocity = 0;
+  let isGrounded = true;
+  let jumpRequested = false;
+  const GRAVITY = -48;
+  const JUMP_VELOCITY = 13;
+  const CEILING_CLEARANCE = 0.5;
 
   const resolvePlayerCollisions = (previousPosition) => {
     const playerPosition = controls.getObject().position;
@@ -2870,6 +2876,13 @@ export const initScene = (
       movementState.left = false;
       movementState.right = false;
       velocity.set(0, 0, 0);
+      verticalVelocity = 0;
+      jumpRequested = false;
+      const groundY = roomFloorY + playerEyeHeight;
+      if (playerObject.position.y <= groundY) {
+        playerObject.position.y = groundY;
+        isGrounded = true;
+      }
     }
   };
 
@@ -2907,6 +2920,10 @@ export const initScene = (
 
     updateMovementState(event.code, true);
 
+    if (event.code === "Space" && !event.repeat && controls.isLocked) {
+      jumpRequested = true;
+    }
+
     if (
       !controls.isLocked &&
       [
@@ -2942,7 +2959,21 @@ export const initScene = (
     const halfDepth = roomDepth / 2 - 1;
     player.x = THREE.MathUtils.clamp(player.x, -halfWidth, halfWidth);
     player.z = THREE.MathUtils.clamp(player.z, -halfDepth, halfDepth);
-    player.y = roomFloorY + playerEyeHeight;
+    const minY = roomFloorY + playerEyeHeight;
+    const maxY = Math.max(minY, roomFloorY + roomHeight - CEILING_CLEARANCE);
+
+    if (player.y < minY) {
+      player.y = minY;
+      if (verticalVelocity < 0) {
+        verticalVelocity = 0;
+      }
+      isGrounded = true;
+    } else if (player.y > maxY) {
+      player.y = maxY;
+      if (verticalVelocity > 0) {
+        verticalVelocity = 0;
+      }
+    }
   };
 
   clampWithinRoom();
@@ -2951,6 +2982,7 @@ export const initScene = (
     requestAnimationFrame(animate);
 
     const delta = clock.getDelta();
+    let shouldResolveCollisions = false;
 
     if (movementEnabled) {
       velocity.x -= velocity.x * 8 * delta;
@@ -2976,11 +3008,32 @@ export const initScene = (
         previousPlayerPosition.copy(playerObject.position);
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
-        clampWithinRoom();
-        resolvePlayerCollisions(previousPlayerPosition);
+        shouldResolveCollisions = true;
       }
     } else {
       velocity.set(0, 0, 0);
+    }
+
+    if (
+      movementEnabled &&
+      controls.isLocked &&
+      jumpRequested &&
+      isGrounded
+    ) {
+      verticalVelocity = JUMP_VELOCITY;
+      isGrounded = false;
+    }
+
+    jumpRequested = false;
+    isGrounded = false;
+
+    verticalVelocity += GRAVITY * delta;
+    playerObject.position.y += verticalVelocity * delta;
+
+    clampWithinRoom();
+
+    if (shouldResolveCollisions) {
+      resolvePlayerCollisions(previousPlayerPosition);
     }
 
     if (playerModelState.mixer) {
