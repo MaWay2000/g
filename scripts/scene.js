@@ -165,193 +165,17 @@ export const initScene = (
   const PLAYER_HEIGHT_METERS = 1.73;
   const INITIAL_PLAYER_EYE_HEIGHT = 1.63;
   const PLAYER_MODEL_SCALE_MULTIPLIER =
+
+  // --- robust model scaling settings ---
+  // If set to a number (e.g., 1.73), forces the player model height to this exact value.
+  const PLAYER_MODEL_HEIGHT_OVERRIDE_METERS = null;
+  // Trim top/bottom percent of vertices when measuring model height to ignore spikes/heels.
+  const PLAYER_MODEL_TRIM_PERCENT = 0.05;
     PLAYER_HEIGHT_METERS / INITIAL_PLAYER_EYE_HEIGHT;
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
   const textureLoader = new THREE.TextureLoader();
   const gltfLoader = new GLTFLoader();
-
-  const composeNodeMatrix = (
-    nodeDefinition,
-    targetMatrix,
-    translationTarget,
-    rotationTarget,
-    scaleTarget
-  ) => {
-    if (!targetMatrix) {
-      targetMatrix = new THREE.Matrix4();
-    }
-
-    if (
-      nodeDefinition &&
-      Array.isArray(nodeDefinition.matrix) &&
-      nodeDefinition.matrix.length === 16
-    ) {
-      targetMatrix.fromArray(nodeDefinition.matrix);
-      return targetMatrix;
-    }
-
-    const translationArray =
-      nodeDefinition && Array.isArray(nodeDefinition.translation)
-        ? nodeDefinition.translation
-        : [0, 0, 0];
-    const rotationArray =
-      nodeDefinition && Array.isArray(nodeDefinition.rotation)
-        ? nodeDefinition.rotation
-        : [0, 0, 0, 1];
-    const scaleArray =
-      nodeDefinition && Array.isArray(nodeDefinition.scale)
-        ? nodeDefinition.scale
-        : [1, 1, 1];
-
-    if (!translationTarget) {
-      translationTarget = new THREE.Vector3();
-    }
-
-    if (!rotationTarget) {
-      rotationTarget = new THREE.Quaternion();
-    }
-
-    if (!scaleTarget) {
-      scaleTarget = new THREE.Vector3();
-    }
-
-    translationTarget.set(
-      Number(translationArray[0]) || 0,
-      Number(translationArray[1]) || 0,
-      Number(translationArray[2]) || 0
-    );
-    rotationTarget.set(
-      Number(rotationArray[0]) || 0,
-      Number(rotationArray[1]) || 0,
-      Number(rotationArray[2]) || 0,
-      Number(rotationArray[3]) || 1
-    );
-    scaleTarget.set(
-      Number(scaleArray[0]) || 1,
-      Number(scaleArray[1]) || 1,
-      Number(scaleArray[2]) || 1
-    );
-
-    targetMatrix.compose(translationTarget, rotationTarget, scaleTarget);
-    return targetMatrix;
-  };
-
-  const computeGltfSceneBoundingBox = (gltf) => {
-    const parser = gltf?.parser;
-    const json = parser?.json;
-
-    if (!json) {
-      return null;
-    }
-
-    const accessors = Array.isArray(json.accessors) ? json.accessors : [];
-    const meshes = Array.isArray(json.meshes) ? json.meshes : [];
-    const nodes = Array.isArray(json.nodes) ? json.nodes : [];
-    const scenes = Array.isArray(json.scenes) ? json.scenes : [];
-    const defaultSceneIndex =
-      typeof json.scene === "number" &&
-      json.scene >= 0 &&
-      json.scene < scenes.length
-        ? json.scene
-        : 0;
-    const sceneDefinition = scenes[defaultSceneIndex];
-    const rootNodeIndices = Array.isArray(sceneDefinition?.nodes)
-      ? sceneDefinition.nodes
-      : [];
-
-    const boundingBox = new THREE.Box3();
-    const tempBox = new THREE.Box3();
-    const translation = new THREE.Vector3();
-    const rotation = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-
-    const traverseNode = (nodeIndex, parentMatrix) => {
-      if (typeof nodeIndex !== "number" || nodeIndex < 0) {
-        return;
-      }
-
-      const nodeDefinition = nodes[nodeIndex];
-
-      if (!nodeDefinition) {
-        return;
-      }
-
-      const nodeMatrix = composeNodeMatrix(
-        nodeDefinition,
-        new THREE.Matrix4(),
-        translation,
-        rotation,
-        scale
-      );
-
-      const worldMatrix = new THREE.Matrix4()
-        .copy(parentMatrix)
-        .multiply(nodeMatrix);
-
-      if (typeof nodeDefinition.mesh === "number") {
-        const meshDefinition = meshes[nodeDefinition.mesh];
-
-        if (meshDefinition && Array.isArray(meshDefinition.primitives)) {
-          meshDefinition.primitives.forEach((primitive) => {
-            const accessorIndex = primitive?.attributes?.POSITION;
-
-            if (typeof accessorIndex !== "number") {
-              return;
-            }
-
-            const accessor = accessors[accessorIndex];
-            const minArray = accessor?.min;
-            const maxArray = accessor?.max;
-
-            if (
-              !Array.isArray(minArray) ||
-              minArray.length < 3 ||
-              !Array.isArray(maxArray) ||
-              maxArray.length < 3
-            ) {
-              return;
-            }
-
-            tempBox.min.set(
-              Number(minArray[0]) || 0,
-              Number(minArray[1]) || 0,
-              Number(minArray[2]) || 0
-            );
-            tempBox.max.set(
-              Number(maxArray[0]) || 0,
-              Number(maxArray[1]) || 0,
-              Number(maxArray[2]) || 0
-            );
-            tempBox.applyMatrix4(worldMatrix);
-            boundingBox.union(tempBox);
-          });
-        }
-      }
-
-      const children = nodeDefinition.children;
-
-      if (Array.isArray(children)) {
-        children.forEach((childIndex) => {
-          traverseNode(childIndex, worldMatrix);
-        });
-      }
-    };
-
-    const identityMatrix = new THREE.Matrix4();
-
-    if (rootNodeIndices.length > 0) {
-      rootNodeIndices.forEach((nodeIndex) => {
-        traverseNode(nodeIndex, identityMatrix);
-      });
-    } else {
-      nodes.forEach((_, nodeIndex) => {
-        traverseNode(nodeIndex, identityMatrix);
-      });
-    }
-
-    return boundingBox.isEmpty() ? null : boundingBox;
-  };
 
   const colliderDescriptors = [];
 
@@ -2470,7 +2294,6 @@ export const initScene = (
     "images/models/suit.glb",
     (gltf) => {
       const model = gltf?.scene || gltf?.scenes?.[0];
-      const gltfSceneBoundingBox = computeGltfSceneBoundingBox(gltf);
 
       if (!model) {
         return;
@@ -2517,30 +2340,50 @@ export const initScene = (
         });
 
         if (!expandedFromVertices || playerModelBoundingBox.isEmpty()) {
-          let fallbackBoundingBoxApplied = false;
+          playerModelBoundingBoxFallback.makeEmpty();
+          playerModelBoundingBoxFallback.setFromObject(model);
 
-          if (gltfSceneBoundingBox && !gltfSceneBoundingBox.isEmpty()) {
-            const transformedBoundingBox = gltfSceneBoundingBox.clone();
-            transformedBoundingBox.applyMatrix4(model.matrixWorld);
-
-            if (!transformedBoundingBox.isEmpty()) {
-              playerModelBoundingBox.copy(transformedBoundingBox);
-              fallbackBoundingBoxApplied = true;
-            }
-          }
-
-          if (!fallbackBoundingBoxApplied) {
-            playerModelBoundingBoxFallback.makeEmpty();
-            playerModelBoundingBoxFallback.setFromObject(model);
-
-            if (!playerModelBoundingBoxFallback.isEmpty()) {
-              playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
-            }
+          if (!playerModelBoundingBoxFallback.isEmpty()) {
+            playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
           }
         }
       };
 
-      const fitPlayerModelToEyeHeight = () => {
+      
+      // Returns a robust height measurement by trimming extremes of world-space Y vertices
+      const computeTrimmedModelHeight = (object, trim = PLAYER_MODEL_TRIM_PERCENT) => {
+        if (!object) return null;
+        const yVals = [];
+        object.updateWorldMatrix(true, false);
+        object.traverse((child) => {
+          if (!child.isMesh) return;
+          const posAttr = child.geometry?.getAttribute("position");
+          if (!posAttr || posAttr.itemSize < 3) return;
+          const worldPos = new THREE.Vector3();
+          const local = new THREE.Vector3();
+          const m = child.matrixWorld;
+          for (let i = 0; i < posAttr.count; i++) {
+            local.fromBufferAttribute(posAttr, i);
+            worldPos.copy(local).applyMatrix4(m);
+            yVals.push(worldPos.y);
+          }
+        });
+        if (!yVals.length) {
+          // fallback to Box3 height
+          const box = new THREE.Box3().setFromObject(object);
+          if (box.isEmpty()) return null;
+          return { height: box.max.y - box.min.y, minY: box.min.y, maxY: box.max.y };
+        }
+        yVals.sort((a,b)=>a-b);
+        const n = yVals.length;
+        const t = Math.max(0, Math.min(0.49, Number.isFinite(trim) ? trim : 0));
+        const lo = Math.floor(n * t);
+        const hi = Math.max(lo, Math.min(n-1, Math.ceil(n * (1 - t)) - 1));
+        const minY = yVals[lo];
+        const maxY = yVals[hi];
+        return { height: maxY - minY, minY, maxY };
+      };
+const fitPlayerModelToEyeHeight = () => {
         const savedGroupPosition = playerModelGroup.position.clone();
         const savedGroupQuaternion = playerModelGroup.quaternion.clone();
         const savedGroupScale = playerModelGroup.scale.clone();
@@ -2571,19 +2414,27 @@ export const initScene = (
 
         playerModelBoundingBox.getSize(playerModelBoundsSize);
 
+        
         let targetModelHeight = null;
 
-        if (playerModelBoundsSize.y > 0) {
-          targetModelHeight =
-            playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
+        // Measure current model height robustly
+        const trimmed = computeTrimmedModelHeight(model, PLAYER_MODEL_TRIM_PERCENT);
+        const measuredHeight = trimmed && Number.isFinite(trimmed.height) && trimmed.height > 0
+          ? trimmed.height
+          : (playerModelBoundsSize.y > 0 ? playerModelBoundsSize.y : null);
+
+        if (measuredHeight) {
+          // Decide the target height
+          targetModelHeight = Number.isFinite(PLAYER_MODEL_HEIGHT_OVERRIDE_METERS) && PLAYER_MODEL_HEIGHT_OVERRIDE_METERS > 0
+            ? PLAYER_MODEL_HEIGHT_OVERRIDE_METERS
+            : playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
 
           if (targetModelHeight > 0) {
-            const scale = targetModelHeight / playerModelBoundsSize.y;
+            const scale = targetModelHeight / measuredHeight;
             model.scale.multiplyScalar(scale);
           }
         }
-
-        model.updateWorldMatrix(true, false);
+model.updateWorldMatrix(true, false);
 
         updatePlayerModelBoundingBox();
 
@@ -2594,17 +2445,11 @@ export const initScene = (
         ) {
           playerModelBoundingBox.getSize(playerModelBoundsSize);
 
-          const currentModelHeight = playerModelBoundsSize.y;
-
-          if (
-            Number.isFinite(currentModelHeight) &&
-            currentModelHeight > targetModelHeight
-          ) {
-            const correctionScale = targetModelHeight / currentModelHeight;
-            model.scale.multiplyScalar(correctionScale);
-            model.updateWorldMatrix(true, false);
-            updatePlayerModelBoundingBox();
-          }
+          
+          // Recompute robust height after scaling
+          const trimmed2 = computeTrimmedModelHeight(model, PLAYER_MODEL_TRIM_PERCENT);
+          const currentModelHeight = trimmed2 && Number.isFinite(trimmed2.height) ? trimmed2.height : playerModelBoundsSize.y;
+}
         }
 
         if (!playerModelBoundingBox.isEmpty()) {
@@ -2674,9 +2519,13 @@ export const initScene = (
       if (shouldInferEyeHeightFromModel && worldYValues.length > 0) {
         worldYValues.sort((a, b) => a - b);
 
-        const minY = worldYValues[0];
-        const maxY = worldYValues[worldYValues.length - 1];
-        const height = maxY - minY;
+        const n = worldYValues.length;
+const t = Math.max(0, Math.min(0.49, PLAYER_MODEL_TRIM_PERCENT));
+const lo = Math.floor(n * t);
+const hi = Math.max(lo, Math.min(n-1, Math.ceil(n * (1 - t)) - 1));
+const minY = worldYValues[lo];
+const maxY = worldYValues[hi];
+const height = maxY - minY;
         const scaleCorrection =
           PLAYER_MODEL_SCALE_MULTIPLIER > 0
             ? PLAYER_MODEL_SCALE_MULTIPLIER
