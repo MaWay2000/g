@@ -1963,6 +1963,8 @@ export const initScene = (
   playerModelGroup.layers.set(PLAYER_MODEL_LAYER);
   scene.add(playerModelGroup);
 
+  let playerModelVerticalOriginOffset = 0;
+
   const playerModelState = {
     mixer: null,
     actions: {
@@ -2252,9 +2254,13 @@ export const initScene = (
     const groundedPlayerFeetY = isNearFloor
       ? roomFloorY
       : Math.max(playerFeetY, roomFloorY);
+    const adjustedFeetY = Number.isFinite(playerModelVerticalOriginOffset)
+      ? groundedPlayerFeetY - playerModelVerticalOriginOffset
+      : groundedPlayerFeetY;
+
     playerModelGroup.position.set(
       playerObject.position.x,
-      groundedPlayerFeetY,
+      adjustedFeetY,
       playerObject.position.z
     );
     playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
@@ -2354,6 +2360,17 @@ export const initScene = (
             playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
           }
         }
+      };
+
+      const updatePlayerModelVerticalOriginOffset = () => {
+        if (playerModelBoundingBox.isEmpty()) {
+          playerModelVerticalOriginOffset = 0;
+          return;
+        }
+
+        const playerFeetWorldY = playerObject.position.y - playerEyeHeight;
+        playerModelVerticalOriginOffset =
+          playerModelBoundingBox.min.y - playerFeetWorldY;
       };
 
       const fitPlayerModelToEyeHeight = () => {
@@ -2568,6 +2585,9 @@ export const initScene = (
         updatePlayerModelAnimationState(false);
       }
 
+      updatePlayerModelTransform();
+      updatePlayerModelBoundingBox();
+      updatePlayerModelVerticalOriginOffset();
       updatePlayerModelTransform();
       refreshCameraViewMode();
     },
