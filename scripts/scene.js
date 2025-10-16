@@ -1961,7 +1961,7 @@ export const initScene = (
   const playerModelGroup = new THREE.Group();
   playerModelGroup.visible = false;
   playerModelGroup.layers.set(PLAYER_MODEL_LAYER);
-  scene.add(playerModelGroup);
+  playerObject.add(playerModelGroup);
 
   let playerModelVerticalOriginOffset = 0;
 
@@ -2186,17 +2186,20 @@ export const initScene = (
   reflectiveSurfaces.forEach((reflector) =>
     attachPlayerModelVisibilityToReflector(reflector)
   );
-  const playerModelYawEuler = new THREE.Euler(0, 0, 0, "YXZ");
-
   const THIRD_PERSON_CAMERA_BACK_OFFSET = 2;
   const THIRD_PERSON_CAMERA_HEAD_CLEARANCE = 0.2;
 
   const updateThirdPersonCameraOffset = () => {
-    thirdPersonCameraOffset.set(
-      0,
-      THIRD_PERSON_CAMERA_HEAD_CLEARANCE,
-      THIRD_PERSON_CAMERA_BACK_OFFSET
+    const backOffset = Math.max(
+      THIRD_PERSON_CAMERA_BACK_OFFSET,
+      playerModelBounds.radius > 0 ? playerModelBounds.radius * 0.9 : 0
     );
+    const headClearance = Math.max(
+      THIRD_PERSON_CAMERA_HEAD_CLEARANCE,
+      playerEyeHeight > 0 ? playerEyeHeight * 0.15 : 0
+    );
+
+    thirdPersonCameraOffset.set(0, headClearance, backOffset);
   };
 
   const applyPlayerModelLayerVisibilityForCamera = () => {
@@ -2258,17 +2261,11 @@ export const initScene = (
       ? groundedPlayerFeetY - playerModelVerticalOriginOffset
       : groundedPlayerFeetY;
 
-    playerModelGroup.position.set(
-      playerObject.position.x,
-      adjustedFeetY,
-      playerObject.position.z
-    );
-    playerModelYawEuler.setFromQuaternion(playerObject.quaternion);
-    playerModelGroup.rotation.set(
-      0,
-      playerModelYawEuler.y + PLAYER_MODEL_FACING_OFFSET,
-      0
-    );
+    const worldModelY = adjustedFeetY;
+    const localModelY = worldModelY - playerObject.position.y;
+
+    playerModelGroup.position.set(0, localModelY, 0);
+    playerModelGroup.rotation.set(0, PLAYER_MODEL_FACING_OFFSET, 0);
     playerModelGroup.updateMatrixWorld(true);
   };
 
