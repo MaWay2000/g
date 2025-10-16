@@ -163,7 +163,7 @@ export const initScene = (
     200
   );
   const INITIAL_PLAYER_EYE_HEIGHT = 1.6;
-  const PLAYER_MODEL_SCALE_MULTIPLIER = 4;
+  const PLAYER_MODEL_SCALE_MULTIPLIER = 1;
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
   const textureLoader = new THREE.TextureLoader();
@@ -2425,6 +2425,10 @@ export const initScene = (
         const minY = worldYValues[0];
         const maxY = worldYValues[worldYValues.length - 1];
         const height = maxY - minY;
+        const scaleCorrection =
+          PLAYER_MODEL_SCALE_MULTIPLIER > 0
+            ? PLAYER_MODEL_SCALE_MULTIPLIER
+            : 1;
 
         if (height > 0) {
           const eyePercentile = 0.92;
@@ -2434,11 +2438,21 @@ export const initScene = (
             0,
             worldYValues.length - 1
           );
-          const candidateEyeHeight = worldYValues[clampedIndex] - minY;
+          const normalizedHeight = height / scaleCorrection;
+          const candidateEyeHeight =
+            (worldYValues[clampedIndex] - minY) / scaleCorrection;
+          const minEyeHeight = Math.max(
+            normalizedHeight * 0.6,
+            playerEyeHeight * 0.95
+          );
+          const maxEyeHeight = Math.max(
+            minEyeHeight,
+            Math.min(normalizedHeight * 0.99, playerEyeHeight * 1.05)
+          );
           const clampedEyeHeight = THREE.MathUtils.clamp(
             candidateEyeHeight,
-            height * 0.6,
-            height * 0.99
+            minEyeHeight,
+            maxEyeHeight
           );
 
           if (Number.isFinite(clampedEyeHeight)) {
