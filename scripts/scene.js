@@ -2360,16 +2360,45 @@ export const initScene = (
 
         playerModelBoundingBox.getSize(playerModelBoundsSize);
 
+        let targetModelHeight = null;
+
         if (playerModelBoundsSize.y > 0) {
-          const scale =
-            (playerEyeHeight / playerModelBoundsSize.y) *
-            PLAYER_MODEL_SCALE_MULTIPLIER;
-          model.scale.multiplyScalar(scale);
+          targetModelHeight =
+            playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
+
+          if (targetModelHeight > 0) {
+            const scale = targetModelHeight / playerModelBoundsSize.y;
+            model.scale.multiplyScalar(scale);
+          }
         }
 
         model.updateWorldMatrix(true, false);
 
         updatePlayerModelBoundingBox();
+
+        if (
+          targetModelHeight !== null &&
+          targetModelHeight > 0 &&
+          !playerModelBoundingBox.isEmpty()
+        ) {
+          playerModelBoundingBox.getSize(playerModelBoundsSize);
+
+          const currentModelHeight = playerModelBoundsSize.y;
+
+          if (
+            Number.isFinite(currentModelHeight) &&
+            currentModelHeight > targetModelHeight
+          ) {
+            const correctionScale = targetModelHeight / currentModelHeight;
+            model.scale.multiplyScalar(correctionScale);
+            model.updateWorldMatrix(true, false);
+            updatePlayerModelBoundingBox();
+          }
+        }
+
+        if (!playerModelBoundingBox.isEmpty()) {
+          playerModelBoundingBox.getSize(playerModelBoundsSize);
+        }
 
         if (playerModelBoundingBox.isEmpty()) {
           restorePlayerModelGroupTransform();
