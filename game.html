@@ -49,22 +49,35 @@
         position: fixed;
         top: 50%;
         left: 50%;
-        width: 24px;
-        height: 24px;
         transform: translate(-50%, -50%);
         pointer-events: none;
         opacity: 0.85;
-        transition: opacity 160ms ease, transform 160ms ease;
+        transition: opacity 160ms ease;
       }
 
-      .crosshair::before,
-      .crosshair::after {
+      .crosshair__reticle,
+      .crosshair__pointer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+      }
+
+      .crosshair__reticle {
+        width: 24px;
+        height: 24px;
+        transform: translate(-50%, -50%);
+        transition: opacity 160ms ease;
+      }
+
+      .crosshair__reticle::before,
+      .crosshair__reticle::after {
         content: "";
         position: absolute;
         background: rgba(226, 232, 240, 0.9);
       }
 
-      .crosshair::before {
+      .crosshair__reticle::before {
         width: 2px;
         height: 100%;
         left: 50%;
@@ -73,7 +86,7 @@
         border-radius: 999px;
       }
 
-      .crosshair::after {
+      .crosshair__reticle::after {
         width: 100%;
         height: 2px;
         top: 50%;
@@ -82,18 +95,23 @@
         border-radius: 999px;
       }
 
-      .crosshair[data-interactable="true"] {
+      .crosshair__pointer {
         width: 72px;
         height: 72px;
-        transform: translate(-50%, -58%);
+        transform: translate(-50%, 0);
+        opacity: 0;
         background: url("images/game/finger_pointer.png") center / contain
           no-repeat;
         filter: drop-shadow(0 12px 28px rgba(15, 23, 42, 0.45));
+        transition: opacity 160ms ease;
       }
 
-      .crosshair[data-interactable="true"]::before,
-      .crosshair[data-interactable="true"]::after {
-        display: none;
+      .crosshair[data-interactable="true"] .crosshair__pointer {
+        opacity: 1;
+      }
+
+      .crosshair[data-interactable="true"] .crosshair__reticle {
+        opacity: 0;
       }
 
       .ui-overlay {
@@ -548,7 +566,10 @@
       tabindex="0"
     ></canvas>
 
-    <div class="crosshair" aria-hidden="true"></div>
+    <div class="crosshair" aria-hidden="true">
+      <div class="crosshair__reticle" aria-hidden="true"></div>
+      <div class="crosshair__pointer" aria-hidden="true"></div>
+    </div>
 
     <div class="ui-overlay">
       <div class="top-bar">
