@@ -2325,8 +2325,19 @@ export const initScene = (
             return;
           }
 
+          const isSkinnedMesh = child.isSkinnedMesh && child.skeleton;
+
+          if (isSkinnedMesh) {
+            child.skeleton.update();
+          }
+
           for (let index = 0; index < positionAttribute.count; index += 1) {
             localVertex.fromBufferAttribute(positionAttribute, index);
+
+            if (isSkinnedMesh) {
+              child.boneTransform(index, localVertex);
+            }
+
             worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
             playerModelBoundingBox.expandByPoint(worldVertex);
             expandedFromVertices = true;
