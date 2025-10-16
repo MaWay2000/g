@@ -2188,11 +2188,7 @@ export const initScene = (
       return;
     }
 
-    if (cameraViewMode === VIEW_MODES.THIRD_PERSON) {
-      camera.layers.enable(PLAYER_MODEL_LAYER);
-    } else {
-      camera.layers.disable(PLAYER_MODEL_LAYER);
-    }
+    camera.layers.enable(PLAYER_MODEL_LAYER);
   };
 
   applyPlayerModelLayerVisibilityForCamera();
