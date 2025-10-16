@@ -166,7 +166,8 @@ export const initScene = (
   const INITIAL_PLAYER_EYE_HEIGHT = 7.5375722543352595;
   const PLAYER_MODEL_SCALE_MULTIPLIER =
     PLAYER_HEIGHT_UNITS / INITIAL_PLAYER_EYE_HEIGHT;
-  camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
+  const DEFAULT_PLAYER_POSITION_Z = 8;
+  camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, DEFAULT_PLAYER_POSITION_Z);
 
   const textureLoader = new THREE.TextureLoader();
   const gltfLoader = new GLTFLoader();
@@ -301,7 +302,6 @@ export const initScene = (
   const roomWidth = 20;
   const roomHeight = 10;
   const roomDepth = 60;
-  const terminalBackOffset = 4;
   const roomFloorY = -roomHeight / 2;
 
   const createWallMaterial = (hexColor) =>
@@ -1749,10 +1749,13 @@ export const initScene = (
   };
 
   const computerSetup = createComputerSetup();
+  const TERMINAL_MODULE_SCALE = 1.35;
+  const TERMINAL_MODULE_OFFSET_Z = -1.2;
+  computerSetup.scale.setScalar(TERMINAL_MODULE_SCALE);
   computerSetup.position.set(
-    3,
+    0,
     roomFloorY,
-    -roomDepth / 2 + terminalBackOffset
+    DEFAULT_PLAYER_POSITION_Z + TERMINAL_MODULE_OFFSET_Z
   );
 
   registerColliderDescriptors(computerSetup.userData?.colliderDescriptors);
@@ -2049,7 +2052,7 @@ export const initScene = (
   const defaultPlayerPosition = new THREE.Vector3(
     0,
     INITIAL_PLAYER_EYE_HEIGHT + roomFloorY,
-    8
+    DEFAULT_PLAYER_POSITION_Z
   );
   playerObject.position.copy(defaultPlayerPosition);
 
