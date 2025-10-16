@@ -2283,13 +2283,7 @@ export const initScene = (
     const worldModelY = adjustedFeetY;
     const localModelY = worldModelY - playerObject.position.y;
 
-    const forwardOffset = Number.isFinite(
-      playerModelForwardOffsetState.value
-    )
-      ? Math.max(playerModelForwardOffsetState.value, 0)
-      : 0;
-
-    playerModelGroup.position.set(0, localModelY, forwardOffset);
+    playerModelGroup.position.set(0, localModelY, 0);
     playerModelGroup.rotation.set(0, PLAYER_MODEL_FACING_OFFSET, 0);
     playerModelGroup.updateMatrixWorld(true);
   };
