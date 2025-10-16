@@ -2544,7 +2544,10 @@ export const initScene = (
         }
       }
 
-      if (eyeHeightWasApplied) {
+      const shouldFitPlayerModel =
+        eyeHeightWasApplied || storedPlayerEyeHeight !== null;
+
+      if (shouldFitPlayerModel) {
         fitPlayerModelToEyeHeight();
         updatePlayerModelBoundingBox();
         updateStoredPlayerModelBounds(
