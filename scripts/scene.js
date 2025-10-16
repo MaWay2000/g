@@ -1,5 +1,4 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
-import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
@@ -169,7 +168,6 @@ export const initScene = (
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
   const textureLoader = new THREE.TextureLoader();
-  const gltfLoader = new GLTFLoader();
 
   const colliderDescriptors = [];
 
@@ -2287,197 +2285,29 @@ export const initScene = (
 
   const shouldInferEyeHeightFromModel = storedPlayerEyeHeight === null;
 
-  gltfLoader.load(
-    "images/models/suit.glb",
-    (gltf) => {
-      const model = gltf?.scene || gltf?.scenes?.[0];
+  const initializePlayerModel = (model, animations = []) => {
+    if (!model) {
+      return;
+    }
 
-      if (!model) {
-        return;
-      }
+    playerModelGroup.clear();
+    playerModelGroup.add(model);
 
-      playerModelGroup.clear();
-      playerModelGroup.add(model);
+    const originalModelScale = model.scale.clone();
+    const originalModelPosition = model.position.clone();
+    const originalModelQuaternion = model.quaternion.clone();
+    const playerModelBoundingBox = new THREE.Box3();
+    const playerModelBoundingBoxFallback = new THREE.Box3();
+    const playerModelCenter = new THREE.Vector3();
+    const playerModelLocalBoundsMin = new THREE.Vector3();
+    const playerModelBoundsSize = new THREE.Vector3();
+    const localVertex = new THREE.Vector3();
+    const worldVertex = new THREE.Vector3();
 
-      const originalModelScale = model.scale.clone();
-      const originalModelPosition = model.position.clone();
-      const originalModelQuaternion = model.quaternion.clone();
-      const playerModelBoundingBox = new THREE.Box3();
-      const playerModelBoundingBoxFallback = new THREE.Box3();
-      const playerModelCenter = new THREE.Vector3();
-      const playerModelLocalBoundsMin = new THREE.Vector3();
-      const playerModelBoundsSize = new THREE.Vector3();
-      const localVertex = new THREE.Vector3();
-      const worldVertex = new THREE.Vector3();
-
-      const updatePlayerModelBoundingBox = () => {
-        let expandedFromVertices = false;
-        playerModelBoundingBox.makeEmpty();
-        playerModelGroup.updateWorldMatrix(true, false);
-        model.updateWorldMatrix(true, false);
-
-        model.traverse((child) => {
-          if (!child.isMesh) {
-            return;
-          }
-
-          const geometry = child.geometry;
-          const positionAttribute = geometry?.getAttribute("position");
-
-          if (!positionAttribute || positionAttribute.itemSize < 3) {
-            return;
-          }
-
-          const isSkinnedMesh = child.isSkinnedMesh && child.skeleton;
-          const canApplyBoneTransform =
-            isSkinnedMesh && typeof child.boneTransform === "function";
-
-          if (isSkinnedMesh) {
-            child.skeleton.update();
-          }
-
-          for (let index = 0; index < positionAttribute.count; index += 1) {
-            localVertex.fromBufferAttribute(positionAttribute, index);
-
-            if (canApplyBoneTransform) {
-              child.boneTransform(index, localVertex);
-            }
-
-            worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
-            playerModelBoundingBox.expandByPoint(worldVertex);
-            expandedFromVertices = true;
-          }
-        });
-
-        if (!expandedFromVertices || playerModelBoundingBox.isEmpty()) {
-          playerModelBoundingBoxFallback.makeEmpty();
-          playerModelBoundingBoxFallback.setFromObject(model);
-
-          if (!playerModelBoundingBoxFallback.isEmpty()) {
-            playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
-          }
-        }
-      };
-
-      const updatePlayerModelVerticalOriginOffset = () => {
-        if (playerModelBoundingBox.isEmpty()) {
-          playerModelVerticalOriginOffset = 0;
-          return;
-        }
-
-        const playerFeetWorldY = playerObject.position.y - playerEyeHeight;
-        playerModelVerticalOriginOffset =
-          playerModelBoundingBox.min.y - playerFeetWorldY;
-      };
-
-      const fitPlayerModelToEyeHeight = () => {
-        const savedGroupPosition = playerModelGroup.position.clone();
-        const savedGroupQuaternion = playerModelGroup.quaternion.clone();
-        const savedGroupScale = playerModelGroup.scale.clone();
-
-        playerModelGroup.position.set(0, 0, 0);
-        playerModelGroup.quaternion.identity();
-        playerModelGroup.scale.set(1, 1, 1);
-        playerModelGroup.updateMatrixWorld(true);
-
-        const restorePlayerModelGroupTransform = () => {
-          playerModelGroup.position.copy(savedGroupPosition);
-          playerModelGroup.quaternion.copy(savedGroupQuaternion);
-          playerModelGroup.scale.copy(savedGroupScale);
-          playerModelGroup.updateMatrixWorld(true);
-        };
-
-        model.position.copy(originalModelPosition);
-        model.quaternion.copy(originalModelQuaternion);
-        model.scale.copy(originalModelScale);
-
-        updatePlayerModelBoundingBox();
-
-        if (playerModelBoundingBox.isEmpty()) {
-          model.updateWorldMatrix(true, false);
-          restorePlayerModelGroupTransform();
-          return;
-        }
-
-        playerModelBoundingBox.getSize(playerModelBoundsSize);
-
-        let targetModelHeight = null;
-
-        if (playerModelBoundsSize.y > 0) {
-          targetModelHeight =
-            playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
-
-          if (targetModelHeight > 0) {
-            const scale = targetModelHeight / playerModelBoundsSize.y;
-            model.scale.multiplyScalar(scale);
-          }
-        }
-
-        model.updateWorldMatrix(true, false);
-
-        updatePlayerModelBoundingBox();
-
-        if (
-          targetModelHeight !== null &&
-          targetModelHeight > 0 &&
-          !playerModelBoundingBox.isEmpty()
-        ) {
-          playerModelBoundingBox.getSize(playerModelBoundsSize);
-
-          const currentModelHeight = playerModelBoundsSize.y;
-
-          if (
-            Number.isFinite(currentModelHeight) &&
-            currentModelHeight > targetModelHeight
-          ) {
-            const correctionScale = targetModelHeight / currentModelHeight;
-            model.scale.multiplyScalar(correctionScale);
-            model.updateWorldMatrix(true, false);
-            updatePlayerModelBoundingBox();
-          }
-        }
-
-        if (!playerModelBoundingBox.isEmpty()) {
-          playerModelBoundingBox.getSize(playerModelBoundsSize);
-        }
-
-        if (playerModelBoundingBox.isEmpty()) {
-          restorePlayerModelGroupTransform();
-          return;
-        }
-
-        playerModelBoundingBox.getCenter(playerModelCenter);
-        playerModelGroup.worldToLocal(playerModelCenter);
-
-        playerModelLocalBoundsMin.copy(playerModelBoundingBox.min);
-        playerModelGroup.worldToLocal(playerModelLocalBoundsMin);
-
-        model.position.copy(originalModelPosition);
-        model.position.x -= playerModelCenter.x;
-        model.position.z -= playerModelCenter.z;
-        model.position.y -= playerModelLocalBoundsMin.y;
-
-        model.updateWorldMatrix(true, false);
-        restorePlayerModelGroupTransform();
-      };
-
-      fitPlayerModelToEyeHeight();
-      updatePlayerModelBoundingBox();
-      updateStoredPlayerModelBounds(
-        playerModelBoundingBox,
-        playerModelBoundsSize
-      );
-
-      model.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = false;
-          child.receiveShadow = false;
-          child.frustumCulled = false;
-        }
-      });
-
-      const worldYValues = [];
-
+    const updatePlayerModelBoundingBox = () => {
+      let expandedFromVertices = false;
+      playerModelBoundingBox.makeEmpty();
+      playerModelGroup.updateWorldMatrix(true, false);
       model.updateWorldMatrix(true, false);
 
       model.traverse((child) => {
@@ -2492,110 +2322,291 @@ export const initScene = (
           return;
         }
 
+        const isSkinnedMesh = child.isSkinnedMesh && child.skeleton;
+        const canApplyBoneTransform =
+          isSkinnedMesh && typeof child.boneTransform === "function";
+
+        if (isSkinnedMesh) {
+          child.skeleton.update();
+        }
+
         for (let index = 0; index < positionAttribute.count; index += 1) {
           localVertex.fromBufferAttribute(positionAttribute, index);
+
+          if (canApplyBoneTransform) {
+            child.boneTransform(index, localVertex);
+          }
+
           worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
-          worldYValues.push(worldVertex.y);
+          playerModelBoundingBox.expandByPoint(worldVertex);
+          expandedFromVertices = true;
         }
       });
 
-      let eyeHeightWasApplied = false;
+      if (!expandedFromVertices || playerModelBoundingBox.isEmpty()) {
+        playerModelBoundingBoxFallback.makeEmpty();
+        playerModelBoundingBoxFallback.setFromObject(model);
 
-      if (shouldInferEyeHeightFromModel && worldYValues.length > 0) {
-        worldYValues.sort((a, b) => a - b);
+        if (!playerModelBoundingBoxFallback.isEmpty()) {
+          playerModelBoundingBox.copy(playerModelBoundingBoxFallback);
+        }
+      }
+    };
 
-        const minY = worldYValues[0];
-        const maxY = worldYValues[worldYValues.length - 1];
-        const height = maxY - minY;
-        const scaleCorrection =
-          PLAYER_MODEL_SCALE_MULTIPLIER > 0
-            ? PLAYER_MODEL_SCALE_MULTIPLIER
-            : 1;
+    const updatePlayerModelVerticalOriginOffset = () => {
+      if (playerModelBoundingBox.isEmpty()) {
+        playerModelVerticalOriginOffset = 0;
+        return;
+      }
 
-        if (height > 0) {
-          const eyePercentile = 0.92;
-          const percentileIndex = Math.floor(worldYValues.length * eyePercentile);
-          const clampedIndex = THREE.MathUtils.clamp(
-            percentileIndex,
-            0,
-            worldYValues.length - 1
-          );
-          const normalizedHeight = height / scaleCorrection;
-          const candidateEyeHeight =
-            (worldYValues[clampedIndex] - minY) / scaleCorrection;
-          const minEyeHeight = Math.max(
-            normalizedHeight * 0.6,
-            playerEyeHeight * 0.95
-          );
-          const maxEyeHeight = Math.max(
-            minEyeHeight,
-            Math.min(normalizedHeight * 0.99, playerEyeHeight * 1.05)
-          );
-          const clampedEyeHeight = THREE.MathUtils.clamp(
-            candidateEyeHeight,
-            minEyeHeight,
-            maxEyeHeight
-          );
+      const playerFeetWorldY = playerObject.position.y - playerEyeHeight;
+      playerModelVerticalOriginOffset =
+        playerModelBoundingBox.min.y - playerFeetWorldY;
+    };
 
-          if (Number.isFinite(clampedEyeHeight)) {
-            applyPlayerEyeHeight(clampedEyeHeight);
-            eyeHeightWasApplied = true;
-          }
+    const fitPlayerModelToEyeHeight = () => {
+      const savedGroupPosition = playerModelGroup.position.clone();
+      const savedGroupQuaternion = playerModelGroup.quaternion.clone();
+      const savedGroupScale = playerModelGroup.scale.clone();
+
+      playerModelGroup.position.set(0, 0, 0);
+      playerModelGroup.quaternion.identity();
+      playerModelGroup.scale.set(1, 1, 1);
+      playerModelGroup.updateMatrixWorld(true);
+
+      const restorePlayerModelGroupTransform = () => {
+        playerModelGroup.position.copy(savedGroupPosition);
+        playerModelGroup.quaternion.copy(savedGroupQuaternion);
+        playerModelGroup.scale.copy(savedGroupScale);
+        playerModelGroup.updateMatrixWorld(true);
+      };
+
+      model.position.copy(originalModelPosition);
+      model.quaternion.copy(originalModelQuaternion);
+      model.scale.copy(originalModelScale);
+
+      updatePlayerModelBoundingBox();
+
+      if (playerModelBoundingBox.isEmpty()) {
+        model.updateWorldMatrix(true, false);
+        restorePlayerModelGroupTransform();
+        return;
+      }
+
+      playerModelBoundingBox.getSize(playerModelBoundsSize);
+
+      let targetModelHeight = null;
+
+      if (playerModelBoundsSize.y > 0) {
+        targetModelHeight =
+          playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
+
+        if (targetModelHeight > 0) {
+          const scale = targetModelHeight / playerModelBoundsSize.y;
+          model.scale.multiplyScalar(scale);
         }
       }
 
-      const shouldFitPlayerModel =
-        eyeHeightWasApplied || storedPlayerEyeHeight !== null;
+      model.updateWorldMatrix(true, false);
 
-      if (shouldFitPlayerModel) {
-        fitPlayerModelToEyeHeight();
-        updatePlayerModelBoundingBox();
-        updateStoredPlayerModelBounds(
-          playerModelBoundingBox,
-          playerModelBoundsSize
+      updatePlayerModelBoundingBox();
+
+      if (
+        targetModelHeight !== null &&
+        targetModelHeight > 0 &&
+        !playerModelBoundingBox.isEmpty()
+      ) {
+        playerModelBoundingBox.getSize(playerModelBoundsSize);
+
+        const currentModelHeight = playerModelBoundsSize.y;
+
+        if (
+          Number.isFinite(currentModelHeight) &&
+          currentModelHeight > targetModelHeight
+        ) {
+          const correctionScale = targetModelHeight / currentModelHeight;
+          model.scale.multiplyScalar(correctionScale);
+          model.updateWorldMatrix(true, false);
+          updatePlayerModelBoundingBox();
+        }
+      }
+
+      if (!playerModelBoundingBox.isEmpty()) {
+        playerModelBoundingBox.getSize(playerModelBoundsSize);
+      }
+
+      if (playerModelBoundingBox.isEmpty()) {
+        restorePlayerModelGroupTransform();
+        return;
+      }
+
+      playerModelBoundingBox.getCenter(playerModelCenter);
+      playerModelGroup.worldToLocal(playerModelCenter);
+
+      playerModelLocalBoundsMin.copy(playerModelBoundingBox.min);
+      playerModelGroup.worldToLocal(playerModelLocalBoundsMin);
+
+      model.position.copy(originalModelPosition);
+      model.position.x -= playerModelCenter.x;
+      model.position.z -= playerModelCenter.z;
+      model.position.y -= playerModelLocalBoundsMin.y;
+
+      model.updateWorldMatrix(true, false);
+      restorePlayerModelGroupTransform();
+    };
+
+    fitPlayerModelToEyeHeight();
+    updatePlayerModelBoundingBox();
+    updateStoredPlayerModelBounds(
+      playerModelBoundingBox,
+      playerModelBoundsSize
+    );
+
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = false;
+        child.receiveShadow = false;
+        child.frustumCulled = false;
+      }
+    });
+
+    const worldYValues = [];
+
+    model.updateWorldMatrix(true, false);
+
+    model.traverse((child) => {
+      if (!child.isMesh) {
+        return;
+      }
+
+      const geometry = child.geometry;
+      const positionAttribute = geometry?.getAttribute("position");
+
+      if (!positionAttribute || positionAttribute.itemSize < 3) {
+        return;
+      }
+
+      for (let index = 0; index < positionAttribute.count; index += 1) {
+        localVertex.fromBufferAttribute(positionAttribute, index);
+        worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
+        worldYValues.push(worldVertex.y);
+      }
+    });
+
+    let eyeHeightWasApplied = false;
+
+    if (shouldInferEyeHeightFromModel && worldYValues.length > 0) {
+      worldYValues.sort((a, b) => a - b);
+
+      const minY = worldYValues[0];
+      const maxY = worldYValues[worldYValues.length - 1];
+      const height = maxY - minY;
+      const scaleCorrection =
+        PLAYER_MODEL_SCALE_MULTIPLIER > 0
+          ? PLAYER_MODEL_SCALE_MULTIPLIER
+          : 1;
+
+      if (height > 0) {
+        const eyePercentile = 0.92;
+        const percentileIndex = Math.floor(worldYValues.length * eyePercentile);
+        const clampedIndex = THREE.MathUtils.clamp(
+          percentileIndex,
+          0,
+          worldYValues.length - 1
+        );
+        const normalizedHeight = height / scaleCorrection;
+        const candidateEyeHeight =
+          (worldYValues[clampedIndex] - minY) / scaleCorrection;
+        const minEyeHeight = Math.max(
+          normalizedHeight * 0.6,
+          playerEyeHeight * 0.95
+        );
+        const maxEyeHeight = Math.max(
+          minEyeHeight,
+          Math.min(normalizedHeight * 0.99, playerEyeHeight * 1.05)
+        );
+        const clampedEyeHeight = THREE.MathUtils.clamp(
+          candidateEyeHeight,
+          minEyeHeight,
+          maxEyeHeight
+        );
+
+        if (Number.isFinite(clampedEyeHeight)) {
+          applyPlayerEyeHeight(clampedEyeHeight);
+          eyeHeightWasApplied = true;
+        }
+      }
+    }
+
+    const shouldFitPlayerModel =
+      eyeHeightWasApplied || storedPlayerEyeHeight !== null;
+
+    if (shouldFitPlayerModel) {
+      fitPlayerModelToEyeHeight();
+      updatePlayerModelBoundingBox();
+      updateStoredPlayerModelBounds(
+        playerModelBoundingBox,
+        playerModelBoundsSize
+      );
+    }
+
+    playerModelGroup.visible = true;
+
+    if (Array.isArray(animations) && animations.length > 0) {
+      playerModelState.mixer = new THREE.AnimationMixer(model);
+
+      animations.forEach((clip) => {
+        if (!clip) {
+          return;
+        }
+
+        const clipName = String(clip.name || "").toLowerCase();
+        const action = playerModelState.mixer.clipAction(clip);
+
+        if (!playerModelState.actions.walk && (clipName.includes("walk") || clipName.includes("run"))) {
+          playerModelState.actions.walk = action;
+        } else if (!playerModelState.actions.idle && (clipName.includes("idle") || clipName.includes("stand"))) {
+          playerModelState.actions.idle = action;
+        }
+      });
+
+      if (!playerModelState.actions.idle) {
+        playerModelState.actions.idle = playerModelState.mixer.clipAction(
+          animations[0]
         );
       }
 
-      playerModelGroup.visible = true;
-
-      if (Array.isArray(gltf.animations) && gltf.animations.length > 0) {
-        playerModelState.mixer = new THREE.AnimationMixer(model);
-
-        gltf.animations.forEach((clip) => {
-          if (!clip) {
-            return;
-          }
-
-          const clipName = String(clip.name || "").toLowerCase();
-          const action = playerModelState.mixer.clipAction(clip);
-
-          if (!playerModelState.actions.walk && (clipName.includes("walk") || clipName.includes("run"))) {
-            playerModelState.actions.walk = action;
-          } else if (!playerModelState.actions.idle && (clipName.includes("idle") || clipName.includes("stand"))) {
-            playerModelState.actions.idle = action;
-          }
-        });
-
-        if (!playerModelState.actions.idle) {
-          playerModelState.actions.idle = playerModelState.mixer.clipAction(
-            gltf.animations[0]
-          );
-        }
-
-        updatePlayerModelAnimationState(false);
-      }
-
-      updatePlayerModelTransform();
-      updatePlayerModelBoundingBox();
-      updatePlayerModelVerticalOriginOffset();
-      updatePlayerModelTransform();
-      refreshCameraViewMode();
-    },
-    undefined,
-    (error) => {
-      console.error("Unable to load player model", error);
+      updatePlayerModelAnimationState(false);
     }
-  );
+
+    updatePlayerModelTransform();
+    updatePlayerModelBoundingBox();
+    updatePlayerModelVerticalOriginOffset();
+    updatePlayerModelTransform();
+    refreshCameraViewMode();
+  };
+
+  const createSimplePlayerModel = () => {
+    const cubeSize = 1;
+    const simpleModel = new THREE.Group();
+    simpleModel.name = "SimplePlayerModel";
+
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: new THREE.Color(0x0f172a),
+      metalness: 0.05,
+      roughness: 0.8,
+    });
+    const bodyGeometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+    const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    bodyMesh.name = "PlayerCube";
+    bodyMesh.position.y = cubeSize / 2;
+    simpleModel.add(bodyMesh);
+
+    initializePlayerModel(simpleModel, []);
+  };
+
+  createSimplePlayerModel();
 
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
