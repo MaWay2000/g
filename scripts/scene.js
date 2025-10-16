@@ -312,13 +312,6 @@ export const initScene = (
       emissiveIntensity: 0.25,
     });
 
-  const ceilingMaterial = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(0x314140),
-    side: THREE.BackSide,
-    roughness: 0.82,
-    metalness: 0.08,
-  });
-
   const floorMaterial = new THREE.MeshStandardMaterial({
     color: new THREE.Color(0x161f1f),
     side: THREE.BackSide,
@@ -326,16 +319,35 @@ export const initScene = (
     metalness: 0.06,
   });
 
+  const roomGeometry = new THREE.BoxGeometry(roomWidth, roomHeight, roomDepth);
+
+  const ceilingGroupIndex = 2;
+  // Remove the ceiling faces from the room geometry so the room is open from above.
+  const roomGeometryGroupsWithoutCeiling = roomGeometry.groups.filter(
+    ({ materialIndex }) => materialIndex !== ceilingGroupIndex
+  );
+
+  roomGeometry.clearGroups();
+
+  roomGeometryGroupsWithoutCeiling.forEach(
+    ({ start, count, materialIndex }) => {
+      const adjustedMaterialIndex =
+        materialIndex > ceilingGroupIndex
+          ? materialIndex - 1
+          : materialIndex;
+
+      roomGeometry.addGroup(start, count, adjustedMaterialIndex);
+    }
+  );
+
   const roomMaterials = [
     createWallMaterial(0x213331),
     createWallMaterial(0x273c39),
-    ceilingMaterial,
     floorMaterial,
     createWallMaterial(0x213331),
     createWallMaterial(0x273c39),
   ];
 
-  const roomGeometry = new THREE.BoxGeometry(roomWidth, roomHeight, roomDepth);
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   scene.add(roomMesh);
 
