@@ -162,8 +162,10 @@ export const initScene = (
     0.1,
     200
   );
-  const INITIAL_PLAYER_EYE_HEIGHT = 1.6;
-  const PLAYER_MODEL_SCALE_MULTIPLIER = 1;
+  const PLAYER_HEIGHT_METERS = 1.73;
+  const INITIAL_PLAYER_EYE_HEIGHT = 1.63;
+  const PLAYER_MODEL_SCALE_MULTIPLIER =
+    PLAYER_HEIGHT_METERS / INITIAL_PLAYER_EYE_HEIGHT;
   camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
 
   const textureLoader = new THREE.TextureLoader();
