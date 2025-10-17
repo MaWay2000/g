@@ -4,6 +4,8 @@ import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
+export const DEFAULT_PLAYER_HEIGHT = 8;
+const PLAYER_HEIGHT_STORAGE_KEY = `${PLAYER_STATE_STORAGE_KEY}.height`;
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_THIRD_PERSON_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
@@ -71,12 +73,71 @@ export const clearStoredPlayerState = () => {
 
   try {
     storage.removeItem(PLAYER_STATE_STORAGE_KEY);
+    storage.removeItem(PLAYER_HEIGHT_STORAGE_KEY);
+    lastSerializedPlayerHeight = null;
     return true;
   } catch (error) {
     console.warn("Unable to clear stored player state", error);
   }
 
   return false;
+};
+
+let lastSerializedPlayerHeight = null;
+
+const loadStoredPlayerHeight = () => {
+  const storage = getPlayerStateStorage();
+
+  if (!storage) {
+    return null;
+  }
+
+  try {
+    const rawValue = storage.getItem(PLAYER_HEIGHT_STORAGE_KEY);
+
+    if (typeof rawValue !== "string" || rawValue.trim() === "") {
+      return null;
+    }
+
+    const normalizedValue = rawValue.trim();
+    const parsedValue = Number.parseFloat(normalizedValue);
+
+    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+      return null;
+    }
+
+    lastSerializedPlayerHeight = normalizedValue;
+    return parsedValue;
+  } catch (error) {
+    console.warn("Unable to read stored player height", error);
+  }
+
+  return null;
+};
+
+const persistPlayerHeight = (height) => {
+  if (!Number.isFinite(height) || height <= 0) {
+    return;
+  }
+
+  const storage = getPlayerStateStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  const serializedHeight = (Math.round(height * 1000) / 1000).toString();
+
+  if (serializedHeight === lastSerializedPlayerHeight) {
+    return;
+  }
+
+  try {
+    storage.setItem(PLAYER_HEIGHT_STORAGE_KEY, serializedHeight);
+    lastSerializedPlayerHeight = serializedHeight;
+  } catch (error) {
+    console.warn("Unable to persist player height", error);
+  }
 };
 
 const loadStoredPlayerState = () => {
@@ -164,7 +225,6 @@ export const initScene = (
     0.1,
     200
   );
-  const DEFAULT_PLAYER_HEIGHT = 8;
   const MIN_PLAYER_HEIGHT = 0.1;
   camera.position.set(0, 0, 8);
 
@@ -1970,6 +2030,7 @@ export const initScene = (
       walk: null,
     },
     currentAction: null,
+    recalculateBounds: null,
   };
   let currentPlayerAnimationName = null;
 
@@ -2301,34 +2362,63 @@ export const initScene = (
     playerModelGroup.updateMatrixWorld(true);
   };
 
-  const applyPlayerHeight = (newHeight) => {
+  const applyPlayerHeight = (newHeight, options = {}) => {
     if (!Number.isFinite(newHeight) || newHeight <= 0) {
-      return;
+      return playerHeight;
     }
 
+    const { persist = true } = options;
     const clampedHeight = Math.max(newHeight, MIN_PLAYER_HEIGHT);
+
+    if (Math.abs(clampedHeight - playerHeight) < 0.0001) {
+      if (persist) {
+        persistPlayerHeight(playerHeight);
+      }
+
+      return playerHeight;
+    }
 
     playerHeight = clampedHeight;
 
-    if (!Number.isFinite(playerEyeLevel)) {
-      playerEyeLevel = playerHeight;
-    } else {
-      playerEyeLevel = THREE.MathUtils.clamp(
-        playerEyeLevel,
-        MIN_PLAYER_HEIGHT,
-        Math.max(playerHeight, MIN_PLAYER_HEIGHT)
-      );
+    const hasPlayerModelRecalculation =
+      typeof playerModelState.recalculateBounds === "function";
+
+    if (!hasPlayerModelRecalculation) {
+      if (!Number.isFinite(playerEyeLevel)) {
+        playerEyeLevel = playerHeight;
+      } else {
+        playerEyeLevel = THREE.MathUtils.clamp(
+          playerEyeLevel,
+          MIN_PLAYER_HEIGHT,
+          Math.max(playerHeight, MIN_PLAYER_HEIGHT)
+        );
+      }
+
+      updateFirstPersonCameraOffset();
     }
 
-    updateFirstPersonCameraOffset();
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
     refreshCameraViewMode();
-    updatePlayerModelTransform();
+
+    if (hasPlayerModelRecalculation) {
+      playerModelState.recalculateBounds();
+    } else {
+      updatePlayerModelTransform();
+    }
+
+    if (persist) {
+      persistPlayerHeight(playerHeight);
+    }
+
+    return playerHeight;
   };
 
-  const initialHeight = DEFAULT_PLAYER_HEIGHT;
-  applyPlayerHeight(initialHeight);
+  const storedPlayerHeight = loadStoredPlayerHeight();
+  const initialHeight = Number.isFinite(storedPlayerHeight)
+    ? storedPlayerHeight
+    : DEFAULT_PLAYER_HEIGHT;
+  applyPlayerHeight(initialHeight, { persist: false });
 
   const initializePlayerModel = (model, animations = [], options = {}) => {
     const scaleMultiplier =
@@ -2348,6 +2438,7 @@ export const initScene = (
     playerModelState.actions.walk = null;
     playerModelState.currentAction = null;
     currentPlayerAnimationName = null;
+    playerModelState.recalculateBounds = null;
 
     playerModelGroup.clear();
     playerModelGroup.add(model);
@@ -2503,36 +2594,45 @@ export const initScene = (
       restorePlayerModelGroupTransform();
     };
 
-    playerModelGroup.updateWorldMatrix(true, false);
-    model.updateWorldMatrix(true, false);
-    playerModelBoundingBoxFallback.makeEmpty();
-    playerModelBoundingBoxFallback.setFromObject(model);
-
-    fitPlayerModelToHeight();
-
-    if (scaleMultiplier !== 1) {
-      model.scale.multiplyScalar(scaleMultiplier);
+    const recomputePlayerModelScaleAndBounds = () => {
+      playerModelGroup.updateWorldMatrix(true, false);
       model.updateWorldMatrix(true, false);
-    }
+      playerModelBoundingBoxFallback.makeEmpty();
+      playerModelBoundingBoxFallback.setFromObject(model);
 
-    updatePlayerModelBoundingBox();
-    updateStoredPlayerModelBounds(
-      playerModelBoundingBox,
-      playerModelBoundsSize
-    );
+      fitPlayerModelToHeight();
 
-    if (Number.isFinite(playerModelBounds.eyeLevel) && playerModelBounds.eyeLevel > 0) {
-      playerEyeLevel = playerModelBounds.eyeLevel;
-    } else if (
-      Number.isFinite(playerModelBounds.size?.y) &&
-      playerModelBounds.size.y > 0
-    ) {
-      playerEyeLevel = playerModelBounds.size.y;
-    } else {
-      playerEyeLevel = playerHeight;
-    }
+      if (scaleMultiplier !== 1) {
+        model.scale.multiplyScalar(scaleMultiplier);
+        model.updateWorldMatrix(true, false);
+      }
 
-    updateFirstPersonCameraOffset();
+      updatePlayerModelBoundingBox();
+      updateStoredPlayerModelBounds(
+        playerModelBoundingBox,
+        playerModelBoundsSize
+      );
+
+      if (
+        Number.isFinite(playerModelBounds.eyeLevel) &&
+        playerModelBounds.eyeLevel > 0
+      ) {
+        playerEyeLevel = playerModelBounds.eyeLevel;
+      } else if (
+        Number.isFinite(playerModelBounds.size?.y) &&
+        playerModelBounds.size.y > 0
+      ) {
+        playerEyeLevel = playerModelBounds.size.y;
+      } else {
+        playerEyeLevel = playerHeight;
+      }
+
+      updateFirstPersonCameraOffset();
+      updatePlayerModelTransform();
+    };
+
+    recomputePlayerModelScaleAndBounds();
+    playerModelState.recalculateBounds = recomputePlayerModelScaleAndBounds;
 
     model.traverse((child) => {
       if (child.isMesh) {
@@ -3216,6 +3316,9 @@ export const initScene = (
     getCameraViewMode: () => cameraViewMode,
     setCameraViewMode: setCameraViewModeInternal,
     toggleCameraViewMode: toggleCameraViewModeInternal,
+    getPlayerHeight: () => playerHeight,
+    setPlayerHeight: (nextHeight, options = {}) =>
+      applyPlayerHeight(nextHeight, options),
     setPlayerStatePersistenceEnabled: (enabled = true) => {
       const nextEnabled = Boolean(enabled);
       const previousEnabled = isPlayerStatePersistenceEnabled;
