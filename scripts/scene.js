@@ -1635,7 +1635,7 @@ export const initScene = (
     ];
 
     group.userData.monitorScreen = monitorScreen;
-    group.scale.setScalar(2.5);
+    group.scale.setScalar(0.25);
 
     return group;
   };
