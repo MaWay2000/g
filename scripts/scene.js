@@ -4,6 +4,7 @@ import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
+export const PLAYER_HEIGHT_UNITS = 8;
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_THIRD_PERSON_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
@@ -166,7 +167,6 @@ export const initScene = (
     0.1,
     200
   );
-  const PLAYER_HEIGHT_UNITS = 8;
   const DEFAULT_PLAYER_HEIGHT = PLAYER_HEIGHT_UNITS;
   const PLAYER_MODEL_SCALE_MULTIPLIER = 1;
   camera.position.set(0, 0, 8);
@@ -2107,6 +2107,13 @@ export const initScene = (
     ) {
       storedPlayerHeight = null;
       storedPlayerHeightSource = null;
+    }
+
+    if (storedPlayerHeight !== null) {
+      storedPlayerHeight = Math.max(
+        storedPlayerHeight,
+        PLAYER_HEIGHT_UNITS
+      );
     }
 
     if (storedPlayerHeightSource === "eyeHeight" && storedPlayerHeight !== null) {
