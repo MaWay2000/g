@@ -2352,6 +2352,11 @@ export const initScene = (
     playerModelGroup.clear();
     playerModelGroup.add(model);
 
+    if (scaleMultiplier !== 1) {
+      model.scale.multiplyScalar(scaleMultiplier);
+      model.updateMatrixWorld(true, false);
+    }
+
     const originalModelScale = model.scale.clone();
     const originalModelPosition = model.position.clone();
     const originalModelQuaternion = model.quaternion.clone();
@@ -2509,11 +2514,6 @@ export const initScene = (
     playerModelBoundingBoxFallback.setFromObject(model);
 
     fitPlayerModelToHeight();
-
-    if (scaleMultiplier !== 1) {
-      model.scale.multiplyScalar(scaleMultiplier);
-      model.updateWorldMatrix(true, false);
-    }
 
     updatePlayerModelBoundingBox();
     updateStoredPlayerModelBounds(
