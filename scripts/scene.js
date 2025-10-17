@@ -1976,6 +1976,9 @@ export const initScene = (
     size: new THREE.Vector3(),
     depth: 0,
     radius: 0,
+    minY: 0,
+    maxY: 0,
+    eyeLevel: 0,
   };
   const playerModelForwardOffsetState = {
     value: 0,
@@ -1986,6 +1989,9 @@ export const initScene = (
       playerModelBounds.size.set(0, 0, 0);
       playerModelBounds.depth = 0;
       playerModelBounds.radius = 0;
+      playerModelBounds.minY = 0;
+      playerModelBounds.maxY = 0;
+      playerModelBounds.eyeLevel = 0;
       playerModelForwardOffsetState.value = 0;
       return;
     }
@@ -1994,6 +2000,9 @@ export const initScene = (
       playerModelBounds.size.set(0, 0, 0);
       playerModelBounds.depth = 0;
       playerModelBounds.radius = 0;
+      playerModelBounds.minY = 0;
+      playerModelBounds.maxY = 0;
+      playerModelBounds.eyeLevel = 0;
       playerModelForwardOffsetState.value = 0;
       return;
     }
@@ -2005,6 +2014,21 @@ export const initScene = (
     playerModelBounds.size.copy(targetVector);
     playerModelBounds.depth = targetVector.z;
     playerModelBounds.radius = targetVector.length() * 0.5;
+    const minY = Number.isFinite(boundingBox.min?.y) ? boundingBox.min.y : 0;
+    const maxY = Number.isFinite(boundingBox.max?.y)
+      ? boundingBox.max.y
+      : minY;
+    playerModelBounds.minY = minY;
+    playerModelBounds.maxY = maxY;
+    const height = Number.isFinite(targetVector.y)
+      ? targetVector.y
+      : Math.max(maxY - minY, 0);
+    if (height > 0) {
+      const eyeOffset = THREE.MathUtils.clamp(height * 0.08, 0, height * 0.5);
+      playerModelBounds.eyeLevel = Math.max(minY, maxY - eyeOffset) - minY;
+    } else {
+      playerModelBounds.eyeLevel = Math.max(0, maxY - minY);
+    }
     const clearanceFromDepth =
       playerModelBounds.depth * PLAYER_MODEL_FORWARD_CLEARANCE_RATIO;
     const forwardClearance = THREE.MathUtils.clamp(
@@ -2065,6 +2089,7 @@ export const initScene = (
   playerObject.position.copy(defaultPlayerPosition);
 
   let playerHeight = DEFAULT_PLAYER_HEIGHT;
+  let playerEyeLevel = DEFAULT_PLAYER_HEIGHT;
   let initialPitch = DEFAULT_THIRD_PERSON_PITCH;
 
   if (storedPlayerState) {
@@ -2092,7 +2117,19 @@ export const initScene = (
 
   controls.setPitch(initialPitch);
 
-  const firstPersonCameraOffset = new THREE.Vector3(0, playerHeight, 0);
+  const firstPersonCameraOffset = new THREE.Vector3(0, playerEyeLevel, 0);
+  const updateFirstPersonCameraOffset = () => {
+    const offsetY = Number.isFinite(playerEyeLevel)
+      ? playerEyeLevel
+      : playerHeight;
+    const maxEyeLevel = Math.max(playerHeight, MIN_PLAYER_HEIGHT);
+    const clampedEyeLevel = THREE.MathUtils.clamp(
+      offsetY,
+      MIN_PLAYER_HEIGHT,
+      maxEyeLevel
+    );
+    firstPersonCameraOffset.set(0, clampedEyeLevel, 0);
+  };
   const thirdPersonCameraOffset = new THREE.Vector3();
   const VIEW_MODES = {
     FIRST_PERSON: "first-person",
@@ -2264,7 +2301,18 @@ export const initScene = (
     const clampedHeight = Math.max(newHeight, MIN_PLAYER_HEIGHT);
 
     playerHeight = clampedHeight;
-    firstPersonCameraOffset.set(0, playerHeight, 0);
+
+    if (!Number.isFinite(playerEyeLevel)) {
+      playerEyeLevel = playerHeight;
+    } else {
+      playerEyeLevel = THREE.MathUtils.clamp(
+        playerEyeLevel,
+        MIN_PLAYER_HEIGHT,
+        Math.max(playerHeight, MIN_PLAYER_HEIGHT)
+      );
+    }
+
+    updateFirstPersonCameraOffset();
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
     refreshCameraViewMode();
@@ -2446,6 +2494,19 @@ export const initScene = (
       playerModelBoundingBox,
       playerModelBoundsSize
     );
+
+    if (Number.isFinite(playerModelBounds.eyeLevel) && playerModelBounds.eyeLevel > 0) {
+      playerEyeLevel = playerModelBounds.eyeLevel;
+    } else if (
+      Number.isFinite(playerModelBounds.size?.y) &&
+      playerModelBounds.size.y > 0
+    ) {
+      playerEyeLevel = playerModelBounds.size.y;
+    } else {
+      playerEyeLevel = playerHeight;
+    }
+
+    updateFirstPersonCameraOffset();
 
     model.traverse((child) => {
       if (child.isMesh) {
