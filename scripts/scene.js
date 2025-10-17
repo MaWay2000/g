@@ -164,7 +164,6 @@ export const initScene = (
   );
   const DEFAULT_PLAYER_HEIGHT = 8;
   const MIN_PLAYER_HEIGHT = 0.1;
-  const PLAYER_MODEL_SCALE_MULTIPLIER = 1;
   camera.position.set(0, 0, 8);
 
   const textureLoader = new THREE.TextureLoader();
@@ -2383,14 +2382,11 @@ export const initScene = (
 
       let targetModelHeight = null;
 
-      if (playerModelBoundsSize.y > 0) {
-        targetModelHeight =
-          playerHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
+      if (playerModelBoundsSize.y > 0 && playerHeight > 0) {
+        targetModelHeight = playerHeight;
 
-        if (targetModelHeight > 0) {
-          const scale = targetModelHeight / playerModelBoundsSize.y;
-          model.scale.multiplyScalar(scale);
-        }
+        const scale = targetModelHeight / playerModelBoundsSize.y;
+        model.scale.multiplyScalar(scale);
       }
 
       model.updateWorldMatrix(true, false);
@@ -2436,16 +2432,6 @@ export const initScene = (
     model.updateWorldMatrix(true, false);
     playerModelBoundingBoxFallback.makeEmpty();
     playerModelBoundingBoxFallback.setFromObject(model);
-
-    if (!playerModelBoundingBoxFallback.isEmpty()) {
-      const inferredHeight =
-        playerModelBoundingBoxFallback.max.y -
-        playerModelBoundingBoxFallback.min.y;
-
-      if (Number.isFinite(inferredHeight) && inferredHeight > 0) {
-        applyPlayerHeight(inferredHeight);
-      }
-    }
 
     fitPlayerModelToHeight();
     updatePlayerModelBoundingBox();
