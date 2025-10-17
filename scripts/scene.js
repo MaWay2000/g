@@ -2287,7 +2287,9 @@ export const initScene = (
       return;
     }
 
-    playerHeight = newHeight;
+    const clampedHeight = Math.max(newHeight, PLAYER_HEIGHT_UNITS);
+
+    playerHeight = clampedHeight;
     firstPersonCameraOffset.set(0, playerHeight, 0);
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
