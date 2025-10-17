@@ -2386,11 +2386,19 @@ export const initScene = (
         for (let index = 0; index < positionAttribute.count; index += 1) {
           localVertex.fromBufferAttribute(positionAttribute, index);
 
+          let transformedWithBones = false;
+
           if (canApplyBoneTransform) {
             child.boneTransform(index, localVertex);
+            transformedWithBones = true;
           }
 
-          worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
+          if (transformedWithBones) {
+            worldVertex.copy(localVertex);
+          } else {
+            worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
+          }
+
           playerModelBoundingBox.expandByPoint(worldVertex);
           expandedFromVertices = true;
         }
