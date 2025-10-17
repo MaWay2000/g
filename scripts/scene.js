@@ -2023,10 +2023,13 @@ export const initScene = (
     const height = Number.isFinite(targetVector.y)
       ? targetVector.y
       : Math.max(maxY - minY, 0);
-    if (height > 0) {
-      playerModelBounds.eyeLevel = height;
+    const positiveMaxY = Number.isFinite(maxY) ? Math.max(0, maxY) : 0;
+    const positiveHeight = height > 0 ? height : Math.max(maxY - minY, 0);
+
+    if (positiveMaxY > 0) {
+      playerModelBounds.eyeLevel = positiveMaxY;
     } else {
-      playerModelBounds.eyeLevel = Math.max(0, maxY - minY);
+      playerModelBounds.eyeLevel = positiveHeight;
     }
     const clearanceFromDepth =
       playerModelBounds.depth * PLAYER_MODEL_FORWARD_CLEARANCE_RATIO;
