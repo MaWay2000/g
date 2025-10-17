@@ -2024,8 +2024,7 @@ export const initScene = (
       ? targetVector.y
       : Math.max(maxY - minY, 0);
     if (height > 0) {
-      const eyeOffset = THREE.MathUtils.clamp(height * 0.08, 0, height * 0.5);
-      playerModelBounds.eyeLevel = Math.max(minY, maxY - eyeOffset) - minY;
+      playerModelBounds.eyeLevel = height;
     } else {
       playerModelBounds.eyeLevel = Math.max(0, maxY - minY);
     }
