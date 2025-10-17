@@ -2458,6 +2458,26 @@ export const initScene = (
       restorePlayerModelGroupTransform();
     };
 
+    let heightWasApplied = false;
+
+    if (shouldInferHeightFromModel && storedPlayerHeight === null) {
+      playerModelGroup.updateWorldMatrix(true, false);
+      model.updateWorldMatrix(true, false);
+      playerModelBoundingBoxFallback.makeEmpty();
+      playerModelBoundingBoxFallback.setFromObject(model);
+
+      if (!playerModelBoundingBoxFallback.isEmpty()) {
+        const height =
+          playerModelBoundingBoxFallback.max.y -
+          playerModelBoundingBoxFallback.min.y;
+
+        if (Number.isFinite(height) && height > 0) {
+          applyPlayerHeight(height);
+          heightWasApplied = true;
+        }
+      }
+    }
+
     fitPlayerModelToHeight();
     updatePlayerModelBoundingBox();
     updateStoredPlayerModelBounds(
@@ -2472,52 +2492,6 @@ export const initScene = (
         child.frustumCulled = false;
       }
     });
-
-    const worldYValues = [];
-
-    model.updateWorldMatrix(true, false);
-
-    model.traverse((child) => {
-      if (!child.isMesh) {
-        return;
-      }
-
-      const geometry = child.geometry;
-      const positionAttribute = geometry?.getAttribute("position");
-
-      if (!positionAttribute || positionAttribute.itemSize < 3) {
-        return;
-      }
-
-      for (let index = 0; index < positionAttribute.count; index += 1) {
-        localVertex.fromBufferAttribute(positionAttribute, index);
-        worldVertex.copy(localVertex).applyMatrix4(child.matrixWorld);
-        worldYValues.push(worldVertex.y);
-      }
-    });
-
-    let heightWasApplied = false;
-
-    if (shouldInferHeightFromModel && worldYValues.length > 0) {
-      worldYValues.sort((a, b) => a - b);
-
-      const height =
-        worldYValues[worldYValues.length - 1] - worldYValues[0];
-      const scaleCorrection =
-        PLAYER_MODEL_SCALE_MULTIPLIER > 0
-          ? PLAYER_MODEL_SCALE_MULTIPLIER
-          : 1;
-
-      if (height > 0) {
-        const normalizedHeight = height / scaleCorrection;
-        const candidateHeight = normalizedHeight;
-
-        if (Number.isFinite(candidateHeight)) {
-          applyPlayerHeight(candidateHeight);
-          heightWasApplied = true;
-        }
-      }
-    }
 
     const shouldFitPlayerModel =
       heightWasApplied || storedPlayerHeight !== null;
