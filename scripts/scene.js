@@ -120,9 +120,6 @@ const loadStoredPlayerState = () => {
 
     const pitch = normalizePitchForPersistence(data?.pitch);
     const hasPitch = pitch !== null;
-    const height = data?.height ?? data?.eyeHeight;
-    const hasHeight = isFiniteNumber(height) && height > 0;
-
     return {
       position: new THREE.Vector3(position.x, position.y, position.z),
       quaternion: new THREE.Quaternion(
@@ -132,7 +129,6 @@ const loadStoredPlayerState = () => {
         quaternion.w
       ),
       pitch: hasPitch ? pitch : null,
-      height: hasHeight ? height : null,
       serialized,
     };
   } catch (error) {
@@ -166,8 +162,8 @@ export const initScene = (
     0.1,
     200
   );
-  const PLAYER_HEIGHT_UNITS = 8;
-  const DEFAULT_PLAYER_HEIGHT = PLAYER_HEIGHT_UNITS;
+  const DEFAULT_PLAYER_HEIGHT = 8;
+  const MIN_PLAYER_HEIGHT = 0.1;
   const PLAYER_MODEL_SCALE_MULTIPLIER = 1;
   camera.position.set(0, 0, 8);
 
@@ -2070,8 +2066,6 @@ export const initScene = (
 
   let playerHeight = DEFAULT_PLAYER_HEIGHT;
   let initialPitch = DEFAULT_THIRD_PERSON_PITCH;
-  let storedPlayerHeight = null;
-  let storedPlayerHeightSource = null;
 
   if (storedPlayerState) {
     playerObject.position.copy(storedPlayerState.position);
@@ -2092,33 +2086,13 @@ export const initScene = (
       }
     }
 
-    if (typeof storedPlayerState.height === "number") {
-      storedPlayerHeight = storedPlayerState.height;
-      storedPlayerHeightSource = "height";
-    } else if (typeof storedPlayerState.eyeHeight === "number") {
-      storedPlayerHeight = storedPlayerState.eyeHeight;
-      storedPlayerHeightSource = "eyeHeight";
-    }
-
-    if (
-      typeof storedPlayerHeight !== "number" ||
-      !Number.isFinite(storedPlayerHeight) ||
-      storedPlayerHeight <= 0
-    ) {
-      storedPlayerHeight = null;
-      storedPlayerHeightSource = null;
-    }
-
-    if (storedPlayerHeightSource === "eyeHeight" && storedPlayerHeight !== null) {
-      playerObject.position.y -= storedPlayerHeight;
-    }
   } else {
     controls.setYaw(playerObject.rotation.y || 0);
   }
 
   controls.setPitch(initialPitch);
 
-  const firstPersonCameraOffset = new THREE.Vector3(0, DEFAULT_PLAYER_HEIGHT, 0);
+  const firstPersonCameraOffset = new THREE.Vector3(0, playerHeight, 0);
   const thirdPersonCameraOffset = new THREE.Vector3();
   const VIEW_MODES = {
     FIRST_PERSON: "first-person",
@@ -2287,7 +2261,7 @@ export const initScene = (
       return;
     }
 
-    const clampedHeight = Math.max(newHeight, PLAYER_HEIGHT_UNITS);
+    const clampedHeight = Math.max(newHeight, MIN_PLAYER_HEIGHT);
 
     playerHeight = clampedHeight;
     firstPersonCameraOffset.set(0, playerHeight, 0);
@@ -2297,10 +2271,8 @@ export const initScene = (
     updatePlayerModelTransform();
   };
 
-  const initialHeight = storedPlayerHeight ?? DEFAULT_PLAYER_HEIGHT;
+  const initialHeight = DEFAULT_PLAYER_HEIGHT;
   applyPlayerHeight(initialHeight);
-
-  const shouldInferHeightFromModel = true;
 
   const initializePlayerModel = (model, animations = []) => {
     if (!model) {
@@ -2460,23 +2432,18 @@ export const initScene = (
       restorePlayerModelGroupTransform();
     };
 
-    let heightWasApplied = false;
+    playerModelGroup.updateWorldMatrix(true, false);
+    model.updateWorldMatrix(true, false);
+    playerModelBoundingBoxFallback.makeEmpty();
+    playerModelBoundingBoxFallback.setFromObject(model);
 
-    if (shouldInferHeightFromModel && storedPlayerHeight === null) {
-      playerModelGroup.updateWorldMatrix(true, false);
-      model.updateWorldMatrix(true, false);
-      playerModelBoundingBoxFallback.makeEmpty();
-      playerModelBoundingBoxFallback.setFromObject(model);
+    if (!playerModelBoundingBoxFallback.isEmpty()) {
+      const inferredHeight =
+        playerModelBoundingBoxFallback.max.y -
+        playerModelBoundingBoxFallback.min.y;
 
-      if (!playerModelBoundingBoxFallback.isEmpty()) {
-        const height =
-          playerModelBoundingBoxFallback.max.y -
-          playerModelBoundingBoxFallback.min.y;
-
-        if (Number.isFinite(height) && height > 0) {
-          applyPlayerHeight(height);
-          heightWasApplied = true;
-        }
+      if (Number.isFinite(inferredHeight) && inferredHeight > 0) {
+        applyPlayerHeight(inferredHeight);
       }
     }
 
@@ -2494,18 +2461,6 @@ export const initScene = (
         child.frustumCulled = false;
       }
     });
-
-    const shouldFitPlayerModel =
-      heightWasApplied || storedPlayerHeight !== null;
-
-    if (shouldFitPlayerModel) {
-      fitPlayerModelToHeight();
-      updatePlayerModelBoundingBox();
-      updateStoredPlayerModelBounds(
-        playerModelBoundingBox,
-        playerModelBoundsSize
-      );
-    }
 
     playerModelGroup.visible = true;
 
@@ -2749,7 +2704,6 @@ export const initScene = (
       pitch: roundPlayerStateValue(
         pitch !== null ? pitch : DEFAULT_THIRD_PERSON_PITCH
       ),
-      height: roundPlayerStateValue(playerHeight),
     });
   };
 
