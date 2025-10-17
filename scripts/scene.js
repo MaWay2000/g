@@ -2298,7 +2298,7 @@ export const initScene = (
   const initialHeight = storedPlayerHeight ?? DEFAULT_PLAYER_HEIGHT;
   applyPlayerHeight(initialHeight);
 
-  const shouldInferHeightFromModel = true;
+  const shouldInferHeightFromModel = false;
 
   const initializePlayerModel = (model, animations = []) => {
     if (!model) {
