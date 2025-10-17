@@ -13,6 +13,7 @@ const ENABLE_PLAYER_MODEL_HEIGHT_SCALING = false;
 const PLAYER_MODEL_FORWARD_CLEARANCE_RATIO = 0.1;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MIN = 0.05;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MAX = 0.35;
+const PLAYER_EYE_LEVEL_OVERRIDE = 8;
 const PLAYER_MODEL_DEFAULT_ROTATION = new THREE.Euler(0, Math.PI, 0, "YXZ");
 
 const normalizePitchForPersistence = (pitch) => {
@@ -2026,10 +2027,15 @@ export const initScene = (
     const positiveMaxY = Number.isFinite(maxY) ? Math.max(0, maxY) : 0;
     const positiveHeight = height > 0 ? height : Math.max(maxY - minY, 0);
 
-    if (positiveMaxY > 0) {
-      playerModelBounds.eyeLevel = positiveMaxY;
+    const computedEyeLevel = positiveMaxY > 0 ? positiveMaxY : positiveHeight;
+
+    if (
+      Number.isFinite(PLAYER_EYE_LEVEL_OVERRIDE) &&
+      PLAYER_EYE_LEVEL_OVERRIDE > 0
+    ) {
+      playerModelBounds.eyeLevel = PLAYER_EYE_LEVEL_OVERRIDE;
     } else {
-      playerModelBounds.eyeLevel = positiveHeight;
+      playerModelBounds.eyeLevel = computedEyeLevel;
     }
     const clearanceFromDepth =
       playerModelBounds.depth * PLAYER_MODEL_FORWARD_CLEARANCE_RATIO;
