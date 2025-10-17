@@ -12,6 +12,7 @@ const PLAYER_MODEL_LAYER = 1;
 const PLAYER_MODEL_FORWARD_CLEARANCE_RATIO = 0.1;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MIN = 0.05;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MAX = 0.35;
+const PLAYER_MODEL_DEFAULT_ROTATION = new THREE.Euler(0, Math.PI, 0, "YXZ");
 
 const normalizePitchForPersistence = (pitch) => {
   if (!Number.isFinite(pitch)) {
@@ -2277,7 +2278,7 @@ export const initScene = (
 
   const updatePlayerModelTransform = () => {
     playerModelGroup.position.set(0, 0, 0);
-    playerModelGroup.rotation.set(0, 0, 0);
+    playerModelGroup.rotation.copy(PLAYER_MODEL_DEFAULT_ROTATION);
     playerModelGroup.updateMatrixWorld(true);
   };
 
