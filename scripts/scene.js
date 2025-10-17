@@ -118,8 +118,8 @@ const loadStoredPlayerState = () => {
 
     const pitch = normalizePitchForPersistence(data?.pitch);
     const hasPitch = pitch !== null;
-    const eyeHeight = data?.eyeHeight;
-    const hasEyeHeight = isFiniteNumber(eyeHeight) && eyeHeight > 0;
+    const height = data?.height ?? data?.eyeHeight;
+    const hasHeight = isFiniteNumber(height) && height > 0;
 
     return {
       position: new THREE.Vector3(position.x, position.y, position.z),
@@ -130,7 +130,7 @@ const loadStoredPlayerState = () => {
         quaternion.w
       ),
       pitch: hasPitch ? pitch : null,
-      eyeHeight: hasEyeHeight ? eyeHeight : null,
+      height: hasHeight ? height : null,
       serialized,
     };
   } catch (error) {
@@ -165,10 +165,9 @@ export const initScene = (
     200
   );
   const PLAYER_HEIGHT_UNITS = 8;
-  const INITIAL_PLAYER_EYE_HEIGHT = PLAYER_HEIGHT_UNITS;
-  const PLAYER_MODEL_SCALE_MULTIPLIER =
-    PLAYER_HEIGHT_UNITS / INITIAL_PLAYER_EYE_HEIGHT;
-  camera.position.set(0, INITIAL_PLAYER_EYE_HEIGHT, 8);
+  const DEFAULT_PLAYER_HEIGHT = PLAYER_HEIGHT_UNITS;
+  const PLAYER_MODEL_SCALE_MULTIPLIER = 1;
+  camera.position.set(0, 0, 8);
 
   const textureLoader = new THREE.TextureLoader();
 
@@ -2063,16 +2062,13 @@ export const initScene = (
     currentPlayerAnimationName = resolvedName;
   };
 
-  const defaultPlayerPosition = new THREE.Vector3(
-    0,
-    INITIAL_PLAYER_EYE_HEIGHT + roomFloorY,
-    8
-  );
+  const defaultPlayerPosition = new THREE.Vector3(0, roomFloorY, 8);
   playerObject.position.copy(defaultPlayerPosition);
 
-  let playerEyeHeight = INITIAL_PLAYER_EYE_HEIGHT;
+  let playerHeight = DEFAULT_PLAYER_HEIGHT;
   let initialPitch = DEFAULT_THIRD_PERSON_PITCH;
-  let storedPlayerEyeHeight = null;
+  let storedPlayerHeight = null;
+  let storedPlayerHeightSource = null;
 
   if (storedPlayerState) {
     playerObject.position.copy(storedPlayerState.position);
@@ -2093,12 +2089,25 @@ export const initScene = (
       }
     }
 
+    if (typeof storedPlayerState.height === "number") {
+      storedPlayerHeight = storedPlayerState.height;
+      storedPlayerHeightSource = "height";
+    } else if (typeof storedPlayerState.eyeHeight === "number") {
+      storedPlayerHeight = storedPlayerState.eyeHeight;
+      storedPlayerHeightSource = "eyeHeight";
+    }
+
     if (
-      typeof storedPlayerState.eyeHeight === "number" &&
-      Number.isFinite(storedPlayerState.eyeHeight) &&
-      storedPlayerState.eyeHeight > 0
+      typeof storedPlayerHeight !== "number" ||
+      !Number.isFinite(storedPlayerHeight) ||
+      storedPlayerHeight <= 0
     ) {
-      storedPlayerEyeHeight = storedPlayerState.eyeHeight;
+      storedPlayerHeight = null;
+      storedPlayerHeightSource = null;
+    }
+
+    if (storedPlayerHeightSource === "eyeHeight" && storedPlayerHeight !== null) {
+      playerObject.position.y -= storedPlayerHeight;
     }
   } else {
     controls.setYaw(playerObject.rotation.y || 0);
@@ -2106,7 +2115,7 @@ export const initScene = (
 
   controls.setPitch(initialPitch);
 
-  const firstPersonCameraOffset = new THREE.Vector3(0, 0, 0);
+  const firstPersonCameraOffset = new THREE.Vector3(0, DEFAULT_PLAYER_HEIGHT, 0);
   const thirdPersonCameraOffset = new THREE.Vector3();
   const VIEW_MODES = {
     FIRST_PERSON: "first-person",
@@ -2213,10 +2222,11 @@ export const initScene = (
     );
     const headClearance = Math.max(
       THIRD_PERSON_CAMERA_HEAD_CLEARANCE,
-      playerEyeHeight > 0 ? playerEyeHeight * 0.15 : 0
+      playerHeight > 0 ? playerHeight * 0.15 : 0
     );
+    const verticalOffset = playerHeight + headClearance;
 
-    thirdPersonCameraOffset.set(0, headClearance, backOffset);
+    thirdPersonCameraOffset.set(0, verticalOffset, backOffset);
   };
 
   const applyPlayerModelLayerVisibilityForCamera = () => {
@@ -2269,23 +2279,23 @@ export const initScene = (
     playerModelGroup.updateMatrixWorld(true);
   };
 
-  const applyPlayerEyeHeight = (newEyeHeight) => {
-    if (!Number.isFinite(newEyeHeight) || newEyeHeight <= 0) {
+  const applyPlayerHeight = (newHeight) => {
+    if (!Number.isFinite(newHeight) || newHeight <= 0) {
       return;
     }
 
-    playerEyeHeight = newEyeHeight;
-    defaultPlayerPosition.y = roomFloorY + newEyeHeight;
-    playerObject.position.y = roomFloorY + newEyeHeight;
+    playerHeight = newHeight;
+    firstPersonCameraOffset.set(0, playerHeight, 0);
+    defaultPlayerPosition.y = roomFloorY;
+    playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
     refreshCameraViewMode();
     updatePlayerModelTransform();
   };
 
-  const initialEyeHeight =
-    storedPlayerEyeHeight ?? INITIAL_PLAYER_EYE_HEIGHT;
-  applyPlayerEyeHeight(initialEyeHeight);
+  const initialHeight = storedPlayerHeight ?? DEFAULT_PLAYER_HEIGHT;
+  applyPlayerHeight(initialHeight);
 
-  const shouldInferEyeHeightFromModel = true;
+  const shouldInferHeightFromModel = true;
 
   const initializePlayerModel = (model, animations = []) => {
     if (!model) {
@@ -2353,7 +2363,7 @@ export const initScene = (
       }
     };
 
-    const fitPlayerModelToEyeHeight = () => {
+    const fitPlayerModelToHeight = () => {
       const savedGroupPosition = playerModelGroup.position.clone();
       const savedGroupQuaternion = playerModelGroup.quaternion.clone();
       const savedGroupScale = playerModelGroup.scale.clone();
@@ -2388,7 +2398,7 @@ export const initScene = (
 
       if (playerModelBoundsSize.y > 0) {
         targetModelHeight =
-          playerEyeHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
+          playerHeight * Math.max(PLAYER_MODEL_SCALE_MULTIPLIER, 0);
 
         if (targetModelHeight > 0) {
           const scale = targetModelHeight / playerModelBoundsSize.y;
@@ -2435,7 +2445,7 @@ export const initScene = (
       restorePlayerModelGroupTransform();
     };
 
-    fitPlayerModelToEyeHeight();
+    fitPlayerModelToHeight();
     updatePlayerModelBoundingBox();
     updateStoredPlayerModelBounds(
       playerModelBoundingBox,
@@ -2473,9 +2483,9 @@ export const initScene = (
       }
     });
 
-    let eyeHeightWasApplied = false;
+    let heightWasApplied = false;
 
-    if (shouldInferEyeHeightFromModel && worldYValues.length > 0) {
+    if (shouldInferHeightFromModel && worldYValues.length > 0) {
       worldYValues.sort((a, b) => a - b);
 
       const height =
@@ -2487,20 +2497,20 @@ export const initScene = (
 
       if (height > 0) {
         const normalizedHeight = height / scaleCorrection;
-        const candidateEyeHeight = normalizedHeight;
+        const candidateHeight = normalizedHeight;
 
-        if (Number.isFinite(candidateEyeHeight)) {
-          applyPlayerEyeHeight(candidateEyeHeight);
-          eyeHeightWasApplied = true;
+        if (Number.isFinite(candidateHeight)) {
+          applyPlayerHeight(candidateHeight);
+          heightWasApplied = true;
         }
       }
     }
 
     const shouldFitPlayerModel =
-      eyeHeightWasApplied || storedPlayerEyeHeight !== null;
+      heightWasApplied || storedPlayerHeight !== null;
 
     if (shouldFitPlayerModel) {
-      fitPlayerModelToEyeHeight();
+      fitPlayerModelToHeight();
       updatePlayerModelBoundingBox();
       updateStoredPlayerModelBounds(
         playerModelBoundingBox,
@@ -2629,8 +2639,8 @@ export const initScene = (
 
   const resolvePlayerCollisions = (previousPosition) => {
     const playerPosition = controls.getObject().position;
-    const playerHeadY = playerPosition.y;
-    const playerFeetY = playerHeadY - playerEyeHeight;
+    const playerFeetY = playerPosition.y;
+    const playerHeadY = playerFeetY + playerHeight;
 
     colliderDescriptors.forEach((descriptor) => {
       const box = descriptor.box;
@@ -2719,7 +2729,7 @@ export const initScene = (
       pitch: roundPlayerStateValue(
         pitch !== null ? pitch : DEFAULT_THIRD_PERSON_PITCH
       ),
-      eyeHeight: roundPlayerStateValue(playerEyeHeight),
+      height: roundPlayerStateValue(playerHeight),
     });
   };
 
@@ -2909,7 +2919,7 @@ export const initScene = (
       velocity.set(0, 0, 0);
       verticalVelocity = 0;
       jumpRequested = false;
-      const groundY = roomFloorY + playerEyeHeight;
+      const groundY = roomFloorY;
       if (playerObject.position.y <= groundY) {
         playerObject.position.y = groundY;
         isGrounded = true;
@@ -2990,8 +3000,9 @@ export const initScene = (
     const halfDepth = roomDepth / 2 - 1;
     player.x = THREE.MathUtils.clamp(player.x, -halfWidth, halfWidth);
     player.z = THREE.MathUtils.clamp(player.z, -halfDepth, halfDepth);
-    const minY = roomFloorY + playerEyeHeight;
-    const maxY = Math.max(minY, roomFloorY + roomHeight - CEILING_CLEARANCE);
+    const minY = roomFloorY;
+    const maxHeadY = roomFloorY + roomHeight - CEILING_CLEARANCE;
+    const maxY = Math.max(minY, maxHeadY - playerHeight);
 
     if (player.y < minY) {
       player.y = minY;
