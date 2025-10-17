@@ -1973,7 +1973,6 @@ export const initScene = (
       walk: null,
     },
     currentAction: null,
-    syncHeight: null,
   };
   let currentPlayerAnimationName = null;
 
@@ -2316,7 +2315,6 @@ export const initScene = (
     playerModelState.actions.idle = null;
     playerModelState.actions.walk = null;
     playerModelState.currentAction = null;
-    playerModelState.syncHeight = null;
     currentPlayerAnimationName = null;
 
     playerModelGroup.clear();
@@ -2482,18 +2480,12 @@ export const initScene = (
       }
     }
 
-    const synchronizePlayerModelHeight = () => {
-      fitPlayerModelToHeight();
-      updatePlayerModelBoundingBox();
-      updateStoredPlayerModelBounds(
-        playerModelBoundingBox,
-        playerModelBoundsSize
-      );
-    };
-
-    playerModelState.syncHeight = synchronizePlayerModelHeight;
-
-    synchronizePlayerModelHeight();
+    fitPlayerModelToHeight();
+    updatePlayerModelBoundingBox();
+    updateStoredPlayerModelBounds(
+      playerModelBoundingBox,
+      playerModelBoundsSize
+    );
 
     model.traverse((child) => {
       if (child.isMesh) {
@@ -2507,7 +2499,12 @@ export const initScene = (
       heightWasApplied || storedPlayerHeight !== null;
 
     if (shouldFitPlayerModel) {
-      synchronizePlayerModelHeight();
+      fitPlayerModelToHeight();
+      updatePlayerModelBoundingBox();
+      updateStoredPlayerModelBounds(
+        playerModelBoundingBox,
+        playerModelBoundsSize
+      );
     }
 
     playerModelGroup.visible = true;
@@ -2537,8 +2534,6 @@ export const initScene = (
       }
 
       updatePlayerModelAnimationState(false);
-      playerModelState.mixer.update(0);
-      synchronizePlayerModelHeight();
     }
 
     updatePlayerModelTransform();
@@ -3105,10 +3100,6 @@ export const initScene = (
 
     if (playerModelState.mixer) {
       playerModelState.mixer.update(delta);
-
-      if (typeof playerModelState.syncHeight === "function") {
-        playerModelState.syncHeight();
-      }
 
       const hasMovementInput =
         movementState.forward ||
