@@ -1,5 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
@@ -170,6 +171,7 @@ export const initScene = (
   camera.position.set(0, 0, 8);
 
   const textureLoader = new THREE.TextureLoader();
+  const gltfLoader = new GLTFLoader();
 
   const colliderDescriptors = [];
 
@@ -2302,6 +2304,16 @@ export const initScene = (
       return;
     }
 
+    if (playerModelState.mixer) {
+      playerModelState.mixer.stopAllAction();
+    }
+
+    playerModelState.mixer = null;
+    playerModelState.actions.idle = null;
+    playerModelState.actions.walk = null;
+    playerModelState.currentAction = null;
+    currentPlayerAnimationName = null;
+
     playerModelGroup.clear();
     playerModelGroup.add(model);
 
@@ -2625,7 +2637,38 @@ export const initScene = (
     initializePlayerModel(simpleModel, []);
   };
 
-  createSimplePlayerModel();
+  const loadCustomPlayerModel = () => {
+    const PLAYER_MODEL_URL = "images/models/suit.glb";
+
+    gltfLoader.load(
+      PLAYER_MODEL_URL,
+      (gltf) => {
+        const model = gltf?.scene;
+
+        if (!model) {
+          console.warn(
+            "Loaded player model is missing a scene graph",
+            gltf
+          );
+          createSimplePlayerModel();
+          return;
+        }
+
+        const animations = Array.isArray(gltf.animations)
+          ? gltf.animations
+          : [];
+
+        initializePlayerModel(model, animations);
+      },
+      undefined,
+      (error) => {
+        console.warn("Failed to load player model GLB", error);
+        createSimplePlayerModel();
+      }
+    );
+  };
+
+  loadCustomPlayerModel();
 
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
