@@ -2330,7 +2330,11 @@ export const initScene = (
   const initialHeight = DEFAULT_PLAYER_HEIGHT;
   applyPlayerHeight(initialHeight);
 
-  const initializePlayerModel = (model, animations = []) => {
+  const initializePlayerModel = (model, animations = [], options = {}) => {
+    const scaleMultiplier =
+      Number.isFinite(options.scaleMultiplier) && options.scaleMultiplier > 0
+        ? options.scaleMultiplier
+        : 1;
     if (!model) {
       return;
     }
@@ -2505,6 +2509,12 @@ export const initScene = (
     playerModelBoundingBoxFallback.setFromObject(model);
 
     fitPlayerModelToHeight();
+
+    if (scaleMultiplier !== 1) {
+      model.scale.multiplyScalar(scaleMultiplier);
+      model.updateWorldMatrix(true, false);
+    }
+
     updatePlayerModelBoundingBox();
     updateStoredPlayerModelBounds(
       playerModelBoundingBox,
@@ -2636,11 +2646,12 @@ export const initScene = (
     createArm("PlayerArmLeft", -armOffset);
     createArm("PlayerArmRight", armOffset);
 
-    initializePlayerModel(simpleModel, []);
+    initializePlayerModel(simpleModel, [], { scaleMultiplier: 1 });
   };
 
   const loadCustomPlayerModel = () => {
     const PLAYER_MODEL_URL = "images/models/suit.glb";
+    const PLAYER_MODEL_SCALE_MULTIPLIER = 0.1;
 
     gltfLoader.load(
       PLAYER_MODEL_URL,
@@ -2660,7 +2671,9 @@ export const initScene = (
           ? gltf.animations
           : [];
 
-        initializePlayerModel(model, animations);
+        initializePlayerModel(model, animations, {
+          scaleMultiplier: PLAYER_MODEL_SCALE_MULTIPLIER,
+        });
       },
       undefined,
       (error) => {
