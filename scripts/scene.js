@@ -9,6 +9,7 @@ const DEFAULT_THIRD_PERSON_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
   Math.PI / 2 - THREE.MathUtils.degToRad(1);
 const PLAYER_MODEL_LAYER = 1;
+const ENABLE_PLAYER_MODEL_HEIGHT_SCALING = false;
 const PLAYER_MODEL_FORWARD_CLEARANCE_RATIO = 0.1;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MIN = 0.05;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MAX = 0.35;
@@ -2380,9 +2381,14 @@ export const initScene = (
 
       playerModelBoundingBox.getSize(playerModelBoundsSize);
 
+      const shouldScalePlayerModel =
+        ENABLE_PLAYER_MODEL_HEIGHT_SCALING &&
+        playerModelBoundsSize.y > 0 &&
+        playerHeight > 0;
+
       let targetModelHeight = null;
 
-      if (playerModelBoundsSize.y > 0 && playerHeight > 0) {
+      if (shouldScalePlayerModel) {
         targetModelHeight = playerHeight;
 
         const scale = targetModelHeight / playerModelBoundsSize.y;
@@ -2394,6 +2400,7 @@ export const initScene = (
       updatePlayerModelBoundingBox();
 
       if (
+        shouldScalePlayerModel &&
         targetModelHeight !== null &&
         targetModelHeight > 0 &&
         !playerModelBoundingBox.isEmpty()
