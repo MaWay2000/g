@@ -4,7 +4,7 @@ import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
-export const DEFAULT_PLAYER_HEIGHT = 75.2;
+export const DEFAULT_PLAYER_HEIGHT = 8;
 const PLAYER_HEIGHT_STORAGE_KEY = `${PLAYER_STATE_STORAGE_KEY}.height`;
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_THIRD_PERSON_PITCH = 0;
@@ -15,7 +15,7 @@ const ENABLE_PLAYER_MODEL_HEIGHT_SCALING = true;
 const PLAYER_MODEL_FORWARD_CLEARANCE_RATIO = 0.1;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MIN = 0.05;
 const PLAYER_MODEL_FORWARD_CLEARANCE_MAX = 0.35;
-const PLAYER_EYE_LEVEL_OVERRIDE = 75.2;
+const PLAYER_EYE_LEVEL_OVERRIDE = 8;
 const PLAYER_MODEL_DEFAULT_ROTATION = new THREE.Euler(0, Math.PI, 0, "YXZ");
 
 const normalizePitchForPersistence = (pitch) => {
@@ -85,7 +85,35 @@ export const clearStoredPlayerState = () => {
 
 let lastSerializedPlayerHeight = null;
 
-const loadStoredPlayerHeight = () => DEFAULT_PLAYER_HEIGHT;
+const loadStoredPlayerHeight = () => {
+  const storage = getPlayerStateStorage();
+
+  if (!storage) {
+    return null;
+  }
+
+  try {
+    const rawValue = storage.getItem(PLAYER_HEIGHT_STORAGE_KEY);
+
+    if (typeof rawValue !== "string" || rawValue.trim() === "") {
+      return null;
+    }
+
+    const normalizedValue = rawValue.trim();
+    const parsedValue = Number.parseFloat(normalizedValue);
+
+    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+      return null;
+    }
+
+    lastSerializedPlayerHeight = normalizedValue;
+    return parsedValue;
+  } catch (error) {
+    console.warn("Unable to read stored player height", error);
+  }
+
+  return null;
+};
 
 const persistPlayerHeight = (height) => {
   if (!Number.isFinite(height) || height <= 0) {
