@@ -52,19 +52,19 @@ const getPlayerCamouflageTexture = (() => {
     context.imageSmoothingEnabled = false;
 
     const palette = [
-      "#111827",
+      "#1b4332",
+      "#2d6a4f",
+      "#40916c",
+      "#95d5b2",
+      "#2c5f2d",
       "#1f2937",
-      "#374151",
-      "#4b5563",
-      "#6b7280",
-      "#9ca3af",
     ];
 
-    context.fillStyle = palette[2];
+    context.fillStyle = palette[4];
     context.fillRect(0, 0, size, size);
 
-    const blockSizes = [4, 8, 12, 16, 20];
-    const blockCount = 450;
+    const blockSizes = [3, 5, 8, 13, 21];
+    const blockCount = 520;
 
     for (let index = 0; index < blockCount; index += 1) {
       const blockSize = blockSizes[Math.floor(Math.random() * blockSizes.length)];
@@ -75,14 +75,15 @@ const getPlayerCamouflageTexture = (() => {
       context.fillStyle = color;
       context.fillRect(x, y, blockSize, blockSize);
 
-      if (Math.random() > 0.6) {
-        const offsetX = Math.floor((Math.random() - 0.5) * blockSize * 0.6);
-        const offsetY = Math.floor((Math.random() - 0.5) * blockSize * 0.6);
+      if (Math.random() > 0.55) {
+        const offsetX = Math.floor((Math.random() - 0.5) * blockSize * 0.5);
+        const offsetY = Math.floor((Math.random() - 0.5) * blockSize * 0.5);
+        const overlaySize = Math.max(2, Math.floor(blockSize * 0.65));
         context.fillRect(
-          Math.max(0, x + offsetX),
-          Math.max(0, y + offsetY),
-          blockSize,
-          blockSize
+          Math.max(0, Math.min(size - overlaySize, x + offsetX)),
+          Math.max(0, Math.min(size - overlaySize, y + offsetY)),
+          overlaySize,
+          overlaySize
         );
       }
     }
@@ -2909,6 +2910,12 @@ export const initScene = (
     }
 
     const bodyMaterial = new THREE.MeshStandardMaterial(bodyMaterialOptions);
+    const gearMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x111827),
+      emissive: new THREE.Color(0x030712),
+      metalness: 0.18,
+      roughness: 0.6,
+    });
 
     let headMesh = null;
     let neckMesh = null;
@@ -2996,6 +3003,36 @@ export const initScene = (
       );
       legGroup.add(footMesh);
 
+      const bootSoleHeight = footHeight * 0.45;
+      const bootSoleGeometry = new THREE.BoxGeometry(
+        legWidth * 1.1,
+        bootSoleHeight,
+        legDepth * 1.8
+      );
+      const bootSoleMesh = new THREE.Mesh(bootSoleGeometry, gearMaterial);
+      bootSoleMesh.name = `${name}BootSole`;
+      bootSoleMesh.position.set(
+        0,
+        -(thighHeight + shinHeight + footHeight) + bootSoleHeight * 0.5,
+        legDepth * 0.5
+      );
+      legGroup.add(bootSoleMesh);
+
+      const bootCuffHeight = footHeight * 0.75;
+      const bootCuffGeometry = new THREE.BoxGeometry(
+        legWidth * 1.15,
+        bootCuffHeight,
+        legDepth * 1.35
+      );
+      const bootCuffMesh = new THREE.Mesh(bootCuffGeometry, gearMaterial);
+      bootCuffMesh.name = `${name}BootCuff`;
+      bootCuffMesh.position.set(
+        0,
+        -(thighHeight + shinHeight + footHeight * 0.6),
+        legDepth * 0.35
+      );
+      legGroup.add(bootCuffMesh);
+
       simpleModel.add(legGroup);
       return legGroup;
     };
@@ -3011,6 +3048,7 @@ export const initScene = (
       const armGroup = new THREE.Group();
       armGroup.name = name;
       armGroup.position.set(xOffset, shoulderHeight, 0);
+      const isLeftArm = xOffset < 0;
 
       const upperArmGeometry = new THREE.BoxGeometry(
         armWidth,
@@ -3032,15 +3070,60 @@ export const initScene = (
       forearmMesh.position.set(0, -upperArmLength - forearmLength * 0.5, 0);
       armGroup.add(forearmMesh);
 
-      const handGeometry = new THREE.BoxGeometry(
+      const handGroup = new THREE.Group();
+      handGroup.name = `${name}HandGroup`;
+      handGroup.position.set(0, -upperArmLength - forearmLength, 0);
+      armGroup.add(handGroup);
+
+      const palmHeight = handLength * 0.55;
+      const palmGeometry = new THREE.BoxGeometry(
         armWidth * 0.8,
-        handLength,
-        armDepth
+        palmHeight,
+        armDepth * 0.95
       );
-      const handMesh = new THREE.Mesh(handGeometry, bodyMaterial);
-      handMesh.name = `${name}Hand`;
-      handMesh.position.set(0, -upperArmLength - forearmLength - handLength * 0.5, 0);
-      armGroup.add(handMesh);
+      const palmMesh = new THREE.Mesh(palmGeometry, bodyMaterial);
+      palmMesh.name = `${name}Palm`;
+      palmMesh.position.set(0, -palmHeight * 0.5, 0);
+      handGroup.add(palmMesh);
+
+      const fingerLength = handLength - palmHeight;
+      const fingerWidth = armWidth * 0.18;
+      const fingerDepth = armDepth * 0.75;
+      const fingerSpacing = fingerWidth * 1.05;
+
+      const createFinger = (fingerIndex, fingerName) => {
+        const fingerGeometry = new THREE.BoxGeometry(
+          fingerWidth,
+          fingerLength,
+          fingerDepth
+        );
+        const fingerMesh = new THREE.Mesh(fingerGeometry, gearMaterial);
+        fingerMesh.name = `${name}${fingerName}`;
+        const offset = (fingerIndex - 1.5) * fingerSpacing;
+        fingerMesh.position.set(offset, -palmHeight - fingerLength * 0.5, fingerDepth * 0.08);
+        handGroup.add(fingerMesh);
+      };
+
+      ["Index", "Middle", "Ring", "Pinky"].forEach((fingerName, index) => {
+        createFinger(index, fingerName);
+      });
+
+      const thumbGeometry = new THREE.BoxGeometry(
+        fingerWidth * 1.1,
+        fingerLength * 0.85,
+        fingerDepth * 0.9
+      );
+      const thumbMesh = new THREE.Mesh(thumbGeometry, gearMaterial);
+      thumbMesh.name = `${name}Thumb`;
+      thumbMesh.position.set(
+        isLeftArm ? fingerSpacing * 2.2 : -fingerSpacing * 2.2,
+        -palmHeight * 0.3,
+        -fingerDepth * 0.35
+      );
+      thumbMesh.rotation.z = isLeftArm
+        ? THREE.MathUtils.degToRad(35)
+        : THREE.MathUtils.degToRad(-35);
+      handGroup.add(thumbMesh);
 
       simpleModel.add(armGroup);
       return armGroup;
@@ -3049,6 +3132,48 @@ export const initScene = (
     const armOffset = bodyWidth * 0.5 + armWidth * 0.75;
     leftArmGroup = createArm("PlayerArmLeft", -armOffset);
     rightArmGroup = createArm("PlayerArmRight", armOffset);
+
+    const helmetGroup = new THREE.Group();
+    helmetGroup.name = "PlayerHelmet";
+    helmetGroup.position.set(0, 0, 0);
+    headMesh.add(helmetGroup);
+
+    const helmetShellGeometry = new THREE.BoxGeometry(
+      headSize * 1.15,
+      headSize * 1.05,
+      headSize * 1.15
+    );
+    const helmetShellMesh = new THREE.Mesh(helmetShellGeometry, gearMaterial);
+    helmetShellMesh.name = "PlayerHelmetShell";
+    helmetShellMesh.position.set(0, headSize * 0.05, 0);
+    helmetGroup.add(helmetShellMesh);
+
+    const helmetVisorGeometry = new THREE.BoxGeometry(
+      headSize * 0.8,
+      headSize * 0.35,
+      headSize * 0.1
+    );
+    const helmetVisorMesh = new THREE.Mesh(helmetVisorGeometry, new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x93c5fd),
+      emissive: new THREE.Color(0x1e3a8a),
+      roughness: 0.2,
+      metalness: 0.5,
+      transparent: true,
+      opacity: 0.75,
+    }));
+    helmetVisorMesh.name = "PlayerHelmetVisor";
+    helmetVisorMesh.position.set(0, 0, headSize * 0.6);
+    helmetGroup.add(helmetVisorMesh);
+
+    const helmetRidgeGeometry = new THREE.BoxGeometry(
+      headSize * 1.2,
+      headSize * 0.15,
+      headSize * 0.3
+    );
+    const helmetRidgeMesh = new THREE.Mesh(helmetRidgeGeometry, gearMaterial);
+    helmetRidgeMesh.name = "PlayerHelmetRidge";
+    helmetRidgeMesh.position.set(0, headSize * 0.6, 0);
+    helmetGroup.add(helmetRidgeMesh);
 
     const createSimplePlayerModelAnimator = () => {
       const trackedNodes = [
