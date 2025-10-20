@@ -2374,7 +2374,18 @@ export const initScene = (
       MIN_PLAYER_HEIGHT,
       maxEyeLevel
     );
-    firstPersonCameraOffset.set(0, clampedEyeLevel, 0);
+    const forwardOffset = Number.isFinite(playerModelForwardOffsetState.value)
+      ? playerModelForwardOffsetState.value
+      : 0;
+    const maxForwardOffset = Number.isFinite(playerHeight) && playerHeight > 0
+      ? playerHeight * 0.35
+      : 0.35;
+    const clampedForwardOffset = THREE.MathUtils.clamp(
+      forwardOffset * 0.5,
+      0,
+      maxForwardOffset
+    );
+    firstPersonCameraOffset.set(0, clampedEyeLevel, -clampedForwardOffset);
   };
   const thirdPersonCameraOffset = new THREE.Vector3();
   const VIEW_MODES = {
@@ -2382,6 +2393,74 @@ export const initScene = (
     THIRD_PERSON: "third-person",
   };
   let cameraViewMode = VIEW_MODES.FIRST_PERSON;
+
+  const firstPersonViewOverrides = new Map();
+
+  const clearFirstPersonViewOverrides = () => {
+    firstPersonViewOverrides.forEach((entry, node) => {
+      if (!(node instanceof THREE.Object3D) || !entry) {
+        return;
+      }
+
+      if (typeof entry.baseVisible === "boolean") {
+        node.visible = entry.baseVisible;
+      }
+    });
+
+    firstPersonViewOverrides.clear();
+  };
+
+  const registerFirstPersonViewOverride = (
+    node,
+    { hideInFirstPerson = false, showInFirstPerson = false } = {}
+  ) => {
+    if (!(node instanceof THREE.Object3D)) {
+      return;
+    }
+
+    const existing = firstPersonViewOverrides.get(node);
+    const baseVisible =
+      existing && typeof existing.baseVisible === "boolean"
+        ? existing.baseVisible
+        : node.visible !== false;
+
+    const nextEntry = {
+      node,
+      baseVisible,
+      hideInFirstPerson:
+        Boolean(hideInFirstPerson) || Boolean(existing?.hideInFirstPerson),
+      showInFirstPerson:
+        Boolean(showInFirstPerson) || Boolean(existing?.showInFirstPerson),
+    };
+
+    firstPersonViewOverrides.set(node, nextEntry);
+    applyFirstPersonViewOverrides();
+  };
+
+  const applyFirstPersonViewOverrides = () => {
+    const isFirstPerson = cameraViewMode === VIEW_MODES.FIRST_PERSON;
+
+    firstPersonViewOverrides.forEach((entry, node) => {
+      if (!(node instanceof THREE.Object3D) || !entry) {
+        firstPersonViewOverrides.delete(node);
+        return;
+      }
+
+      if (!isFirstPerson) {
+        node.visible = entry.baseVisible;
+        entry.baseVisible = node.visible !== false;
+        return;
+      }
+
+      if (entry.hideInFirstPerson) {
+        node.visible = false;
+      } else if (entry.showInFirstPerson) {
+        node.visible = true;
+      } else {
+        node.visible = entry.baseVisible;
+      }
+    });
+  };
 
   attachPlayerModelVisibilityToReflector = (reflector) => {
     if (!reflector || typeof reflector !== "object") {
@@ -2508,6 +2587,7 @@ export const initScene = (
     }
 
     applyPlayerModelLayerVisibilityForCamera();
+    applyFirstPersonViewOverrides();
   };
 
   const setCameraViewModeInternal = (mode) => {
@@ -2627,6 +2707,7 @@ export const initScene = (
     playerModelState.recalculateBounds = null;
     playerModelState.manualAnimator = null;
 
+    clearFirstPersonViewOverrides();
     playerModelGroup.clear();
     playerModelGroup.add(model);
 
@@ -2821,11 +2902,25 @@ export const initScene = (
     recomputePlayerModelScaleAndBounds();
     playerModelState.recalculateBounds = recomputePlayerModelScaleAndBounds;
 
+    const autoHideNamePattern =
+      /(head|helmet|visor|mask|neck|torso|chest)/i;
+    const autoShowNamePattern = /(hand|finger|palm|arm)/i;
+
     model.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = false;
         child.receiveShadow = false;
         child.frustumCulled = false;
+      }
+
+      const nodeName = typeof child.name === "string" ? child.name : "";
+
+      if (nodeName) {
+        if (autoHideNamePattern.test(nodeName)) {
+          registerFirstPersonViewOverride(child, { hideInFirstPerson: true });
+        } else if (autoShowNamePattern.test(nodeName)) {
+          registerFirstPersonViewOverride(child, { showInFirstPerson: true });
+        }
       }
     });
 
@@ -3270,16 +3365,41 @@ export const initScene = (
         const crossSwing = Math.cos(swingPhase) * swingStrength;
         const halfSwing = Math.sin(swingPhase * 0.5) * swingStrength;
         const liftSwing = Math.abs(Math.sin(swingPhase)) * swingStrength;
+        const isFirstPersonView = cameraViewMode === VIEW_MODES.FIRST_PERSON;
+        const armSwingMultiplier = isFirstPersonView ? 0.45 : 1;
+        const firstPersonArmRaise = THREE.MathUtils.degToRad(50);
+        const firstPersonArmYaw = THREE.MathUtils.degToRad(12);
+        const firstPersonArmRoll = THREE.MathUtils.degToRad(18);
 
-        withBase(leftArmGroup, (node) => {
-          node.rotation.x += forwardSwing * 0.85;
-          node.rotation.z += crossSwing * 0.12;
-        });
+        withBase(
+          leftArmGroup,
+          (node) => {
+            node.rotation.x += forwardSwing * 0.85 * armSwingMultiplier;
+            node.rotation.z += crossSwing * 0.12 * armSwingMultiplier;
 
-        withBase(rightArmGroup, (node) => {
-          node.rotation.x -= forwardSwing * 0.85;
-          node.rotation.z -= crossSwing * 0.12;
-        });
+            if (isFirstPersonView) {
+              node.rotation.x -= firstPersonArmRaise;
+              node.rotation.y += firstPersonArmYaw;
+              node.rotation.z -= firstPersonArmRoll;
+            }
+          },
+          { copyPosition: false }
+        );
+
+        withBase(
+          rightArmGroup,
+          (node) => {
+            node.rotation.x -= forwardSwing * 0.85 * armSwingMultiplier;
+            node.rotation.z -= crossSwing * 0.12 * armSwingMultiplier;
+
+            if (isFirstPersonView) {
+              node.rotation.x -= firstPersonArmRaise;
+              node.rotation.y -= firstPersonArmYaw;
+              node.rotation.z += firstPersonArmRoll;
+            }
+          },
+          { copyPosition: false }
+        );
 
         withBase(leftLegGroup, (node) => {
           node.rotation.x -= forwardSwing * 1.2;
@@ -3324,6 +3444,18 @@ export const initScene = (
       scaleMultiplier: 1,
       manualAnimatorFactory: createSimplePlayerModelAnimator,
     });
+
+    [headMesh, neckMesh, helmetGroup, torsoMesh]
+      .filter((node) => node instanceof THREE.Object3D)
+      .forEach((node) =>
+        registerFirstPersonViewOverride(node, { hideInFirstPerson: true })
+      );
+
+    [leftArmGroup, rightArmGroup]
+      .filter((node) => node instanceof THREE.Object3D)
+      .forEach((node) =>
+        registerFirstPersonViewOverride(node, { showInFirstPerson: true })
+      );
   };
 
   const loadCustomPlayerModel = () => {
