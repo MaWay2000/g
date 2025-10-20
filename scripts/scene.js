@@ -18,6 +18,181 @@ const PLAYER_MODEL_FORWARD_CLEARANCE_MAX = 0.35;
 const PLAYER_EYE_LEVEL_OVERRIDE = 8;
 const PLAYER_MODEL_DEFAULT_ROTATION = new THREE.Euler(0, Math.PI, 0, "YXZ");
 
+const getPlayerCamouflageTexture = (() => {
+  let cachedTexture = null;
+  let attemptedCreation = false;
+
+  return () => {
+    if (cachedTexture || attemptedCreation) {
+      return cachedTexture;
+    }
+
+    attemptedCreation = true;
+
+    if (typeof document === "undefined") {
+      return null;
+    }
+
+    const canvas = document.createElement("canvas");
+    const size = 256;
+
+    if (!canvas) {
+      return null;
+    }
+
+    canvas.width = size;
+    canvas.height = size;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return null;
+    }
+
+    context.imageSmoothingEnabled = false;
+
+    const palette = [
+      "#111827",
+      "#1f2937",
+      "#374151",
+      "#4b5563",
+      "#6b7280",
+      "#9ca3af",
+    ];
+
+    context.fillStyle = palette[2];
+    context.fillRect(0, 0, size, size);
+
+    const blockSizes = [4, 8, 12, 16, 20];
+    const blockCount = 450;
+
+    for (let index = 0; index < blockCount; index += 1) {
+      const blockSize = blockSizes[Math.floor(Math.random() * blockSizes.length)];
+      const color = palette[Math.floor(Math.random() * palette.length)];
+      const x = Math.floor(Math.random() * (size - blockSize));
+      const y = Math.floor(Math.random() * (size - blockSize));
+
+      context.fillStyle = color;
+      context.fillRect(x, y, blockSize, blockSize);
+
+      if (Math.random() > 0.6) {
+        const offsetX = Math.floor((Math.random() - 0.5) * blockSize * 0.6);
+        const offsetY = Math.floor((Math.random() - 0.5) * blockSize * 0.6);
+        context.fillRect(
+          Math.max(0, x + offsetX),
+          Math.max(0, y + offsetY),
+          blockSize,
+          blockSize
+        );
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(4, 4);
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+
+    cachedTexture = texture;
+
+    return cachedTexture;
+  };
+})();
+
+const applyCamouflageToPlayerModel = (root) => {
+  const camouflageTexture = getPlayerCamouflageTexture();
+
+  if (!root || !camouflageTexture) {
+    return;
+  }
+
+  const materialCache = new Map();
+
+  const getMaterialForMesh = (mesh) => {
+    const originalMaterial = mesh.material;
+    const isSkinned = Boolean(mesh.isSkinnedMesh);
+    const side = originalMaterial?.side ?? THREE.FrontSide;
+    const transparent = Boolean(originalMaterial?.transparent);
+    const opacity =
+      typeof originalMaterial?.opacity === "number"
+        ? originalMaterial.opacity
+        : 1;
+    const alphaTest =
+      typeof originalMaterial?.alphaTest === "number"
+        ? originalMaterial.alphaTest
+        : 0;
+    const depthWrite =
+      typeof originalMaterial?.depthWrite === "boolean"
+        ? originalMaterial.depthWrite
+        : true;
+
+    const cacheKey = [
+      isSkinned ? "skinned" : "static",
+      side,
+      transparent ? "transparent" : "opaque",
+      opacity,
+      alphaTest,
+      depthWrite,
+    ].join(":");
+
+    if (materialCache.has(cacheKey)) {
+      return materialCache.get(cacheKey);
+    }
+
+    const material = new THREE.MeshStandardMaterial({
+      map: camouflageTexture,
+      color: new THREE.Color(0xffffff),
+      emissive: new THREE.Color(0x111827),
+      metalness: 0.08,
+      roughness: 0.85,
+      skinning: isSkinned,
+      transparent,
+      opacity,
+      alphaTest,
+      depthWrite,
+      side,
+    });
+
+    material.needsUpdate = true;
+    materialCache.set(cacheKey, material);
+
+    return material;
+  };
+
+  const disposeMaterial = (material) => {
+    if (!material) {
+      return;
+    }
+
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+
+    if (typeof material.dispose === "function") {
+      material.dispose();
+    }
+  };
+
+  root.traverse((child) => {
+    if (!child.isMesh) {
+      return;
+    }
+
+    const camouflageMaterial = getMaterialForMesh(child);
+
+    if (!camouflageMaterial) {
+      return;
+    }
+
+    disposeMaterial(child.material);
+    child.material = camouflageMaterial;
+  });
+};
+
 const normalizePitchForPersistence = (pitch) => {
   if (!Number.isFinite(pitch)) {
     return null;
@@ -2681,12 +2856,21 @@ export const initScene = (
     const simpleModel = new THREE.Group();
     simpleModel.name = "SimplePlayerModel";
 
-    const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
+    const camouflageTexture = getPlayerCamouflageTexture();
+    const bodyMaterialOptions = {
       emissive: new THREE.Color(0x0f172a),
       metalness: 0.05,
       roughness: 0.8,
-    });
+    };
+
+    if (camouflageTexture) {
+      bodyMaterialOptions.map = camouflageTexture;
+      bodyMaterialOptions.color = new THREE.Color(0xffffff);
+    } else {
+      bodyMaterialOptions.color = new THREE.Color(0x38bdf8);
+    }
+
+    const bodyMaterial = new THREE.MeshStandardMaterial(bodyMaterialOptions);
 
     const headSize = cubeSize * 0.8;
     const bodyWidth = cubeSize * 0.7;
@@ -2766,6 +2950,8 @@ export const initScene = (
           createSimplePlayerModel();
           return;
         }
+
+        applyCamouflageToPlayerModel(model);
 
         const animations = Array.isArray(gltf.animations)
           ? gltf.animations
