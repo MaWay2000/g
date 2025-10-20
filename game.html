@@ -133,110 +133,6 @@
         pointer-events: auto;
       }
 
-      .player-height-control {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.6rem 1rem;
-        margin-right: auto;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(148, 163, 184, 0.35);
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.4);
-        pointer-events: auto;
-        color: inherit;
-        font-size: 0.9rem;
-        line-height: 1.2;
-      }
-
-      .player-height-control[hidden] {
-        display: none;
-      }
-
-      .player-height-control__label {
-        font-weight: 600;
-        letter-spacing: 0.02em;
-        white-space: nowrap;
-      }
-
-      .player-height-control__slider {
-        -webkit-appearance: none;
-        appearance: none;
-        width: min(200px, 24vw);
-        max-width: 220px;
-        height: 6px;
-        border-radius: 999px;
-        background: rgba(148, 163, 184, 0.25);
-        outline: none;
-        transition: box-shadow 150ms ease;
-      }
-
-      .player-height-control__slider:focus-visible {
-        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.45);
-      }
-
-      .player-height-control__slider:disabled {
-        opacity: 0.45;
-      }
-
-      .player-height-control__slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #38bdf8, #818cf8);
-        cursor: pointer;
-        box-shadow: 0 6px 16px rgba(56, 189, 248, 0.35);
-        border: none;
-      }
-
-      .player-height-control__slider::-moz-range-thumb {
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #38bdf8, #818cf8);
-        cursor: pointer;
-        box-shadow: 0 6px 16px rgba(56, 189, 248, 0.35);
-        border: none;
-      }
-
-      .player-height-control__slider::-moz-range-track {
-        height: 6px;
-        border-radius: 999px;
-        background: rgba(148, 163, 184, 0.25);
-      }
-
-      .player-height-control__value {
-        font-weight: 600;
-        letter-spacing: 0.03em;
-        min-width: 3.5ch;
-        text-align: right;
-      }
-
-      .player-height-control__reset {
-        background: rgba(56, 189, 248, 0.12);
-        color: #38bdf8;
-        border: 1px solid rgba(56, 189, 248, 0.5);
-        padding: 0.35rem 0.8rem;
-        border-radius: 999px;
-        font-weight: 600;
-        transition: transform 150ms ease, box-shadow 150ms ease,
-          background 150ms ease;
-      }
-
-      .player-height-control__reset:focus-visible,
-      .player-height-control__reset:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 8px 18px rgba(56, 189, 248, 0.35);
-        background: rgba(56, 189, 248, 0.22);
-      }
-
-      .player-height-control__reset:disabled {
-        opacity: 0.65;
-        cursor: progress;
-      }
-
       a,
       button {
         font: inherit;
@@ -660,17 +556,6 @@
           inset: 0;
         }
 
-        .player-height-control {
-          width: 100%;
-          justify-content: center;
-          margin-right: 0;
-          gap: 0.6rem;
-        }
-
-        .player-height-control__slider {
-          width: 100%;
-          max-width: none;
-        }
       }
 
     </style>
@@ -690,44 +575,6 @@
 
     <div class="ui-overlay">
       <div class="top-bar">
-        <div
-          class="player-height-control"
-          data-player-height-control
-          hidden
-        >
-          <label
-            class="player-height-control__label"
-            for="playerHeightSlider"
-          >
-            Avatar height
-          </label>
-          <input
-            class="player-height-control__slider"
-            type="range"
-            id="playerHeightSlider"
-            name="playerHeightSlider"
-            min="4"
-            max="100"
-            step="0.1"
-            value="8"
-            data-player-height-slider
-            disabled
-          />
-          <span
-            class="player-height-control__value"
-            data-player-height-value
-            aria-live="polite"
-          >
-            8.0u
-          </span>
-          <button
-            type="button"
-            class="player-height-control__reset"
-            data-player-height-reset
-          >
-            Default
-          </button>
-        </div>
         <a class="cta" href="index.html">Return to Lobby</a>
         <button class="reset" type="button" data-reset-button>
           Reset Progress
