@@ -2873,21 +2873,30 @@ export const initScene = (
     const bodyMaterial = new THREE.MeshStandardMaterial(bodyMaterialOptions);
 
     const headSize = cubeSize * 0.8;
+    const neckHeight = cubeSize * 0.2;
+    const neckWidth = cubeSize * 0.35;
+    const neckDepth = cubeSize * 0.35;
     const bodyWidth = cubeSize * 0.7;
     const bodyDepth = cubeSize * 0.5;
     const bodyHeight = cubeSize * 1.4;
     const legWidth = cubeSize * 0.35;
     const legDepth = cubeSize * 0.35;
     const legHeight = cubeSize * 1.2;
-    const armWidth = cubeSize * 0.3;
-    const armDepth = cubeSize * 0.3;
-    const armHeight = cubeSize * 1.1;
+    const armWidth = cubeSize * 0.28;
+    const armDepth = cubeSize * 0.28;
+    const armHeight = cubeSize * 1.15;
 
     const headGeometry = new THREE.BoxGeometry(headSize, headSize, headSize);
     const headMesh = new THREE.Mesh(headGeometry, bodyMaterial);
     headMesh.name = "PlayerHead";
-    headMesh.position.y = legHeight + bodyHeight + headSize * 0.5;
+    headMesh.position.y = legHeight + bodyHeight + neckHeight + headSize * 0.5;
     simpleModel.add(headMesh);
+
+    const neckGeometry = new THREE.BoxGeometry(neckWidth, neckHeight, neckDepth);
+    const neckMesh = new THREE.Mesh(neckGeometry, bodyMaterial);
+    neckMesh.name = "PlayerNeck";
+    neckMesh.position.y = legHeight + bodyHeight + neckHeight * 0.5;
+    simpleModel.add(neckMesh);
 
     const torsoGeometry = new THREE.BoxGeometry(
       bodyWidth,
@@ -2899,34 +2908,93 @@ export const initScene = (
     torsoMesh.position.y = legHeight + bodyHeight * 0.5;
     simpleModel.add(torsoMesh);
 
-    const createLimb = (name, xOffset) => {
-      const limbGeometry = new THREE.BoxGeometry(
-        legWidth,
-        legHeight,
-        legDepth
+    const createLeg = (name, xOffset) => {
+      const thighHeight = legHeight * 0.5;
+      const shinHeight = legHeight * 0.38;
+      const footHeight = legHeight - thighHeight - shinHeight;
+      const legGroup = new THREE.Group();
+      legGroup.name = name;
+      legGroup.position.set(xOffset, 0, 0);
+
+      const thighGeometry = new THREE.BoxGeometry(
+        legWidth * 0.95,
+        thighHeight,
+        legDepth * 0.9
       );
-      const limbMesh = new THREE.Mesh(limbGeometry, bodyMaterial);
-      limbMesh.name = name;
-      limbMesh.position.set(xOffset, legHeight * 0.5, 0);
-      simpleModel.add(limbMesh);
+      const thighMesh = new THREE.Mesh(thighGeometry, bodyMaterial);
+      thighMesh.name = `${name}Upper`;
+      thighMesh.position.set(0, footHeight + shinHeight + thighHeight * 0.5, 0);
+      legGroup.add(thighMesh);
+
+      const shinGeometry = new THREE.BoxGeometry(
+        legWidth * 0.85,
+        shinHeight,
+        legDepth * 0.85
+      );
+      const shinMesh = new THREE.Mesh(shinGeometry, bodyMaterial);
+      shinMesh.name = `${name}Lower`;
+      shinMesh.position.set(0, footHeight + shinHeight * 0.5, 0);
+      legGroup.add(shinMesh);
+
+      const footGeometry = new THREE.BoxGeometry(
+        legWidth,
+        footHeight,
+        legDepth * 1.5
+      );
+      const footMesh = new THREE.Mesh(footGeometry, bodyMaterial);
+      footMesh.name = `${name}Foot`;
+      footMesh.position.set(0, footHeight * 0.5, legDepth * 0.4);
+      legGroup.add(footMesh);
+
+      simpleModel.add(legGroup);
     };
 
-    createLimb("PlayerLegLeft", -bodyWidth * 0.25);
-    createLimb("PlayerLegRight", bodyWidth * 0.25);
+    createLeg("PlayerLegLeft", -bodyWidth * 0.25);
+    createLeg("PlayerLegRight", bodyWidth * 0.25);
 
     const createArm = (name, xOffset) => {
-      const armGeometry = new THREE.BoxGeometry(armWidth, armHeight, armDepth);
-      const armMesh = new THREE.Mesh(armGeometry, bodyMaterial);
-      armMesh.name = name;
-      armMesh.position.set(
-        xOffset,
-        legHeight + bodyHeight * 0.75,
-        0
+      const upperArmLength = armHeight * 0.5;
+      const forearmLength = armHeight * 0.35;
+      const handLength = armHeight - upperArmLength - forearmLength;
+      const shoulderHeight = legHeight + bodyHeight - cubeSize * 0.1;
+      const armGroup = new THREE.Group();
+      armGroup.name = name;
+      armGroup.position.set(xOffset, shoulderHeight, 0);
+
+      const upperArmGeometry = new THREE.BoxGeometry(
+        armWidth,
+        upperArmLength,
+        armDepth * 0.9
       );
-      simpleModel.add(armMesh);
+      const upperArmMesh = new THREE.Mesh(upperArmGeometry, bodyMaterial);
+      upperArmMesh.name = `${name}Upper`;
+      upperArmMesh.position.set(0, -upperArmLength * 0.5, 0);
+      armGroup.add(upperArmMesh);
+
+      const forearmGeometry = new THREE.BoxGeometry(
+        armWidth * 0.9,
+        forearmLength,
+        armDepth * 0.85
+      );
+      const forearmMesh = new THREE.Mesh(forearmGeometry, bodyMaterial);
+      forearmMesh.name = `${name}Lower`;
+      forearmMesh.position.set(0, -upperArmLength - forearmLength * 0.5, 0);
+      armGroup.add(forearmMesh);
+
+      const handGeometry = new THREE.BoxGeometry(
+        armWidth * 0.8,
+        handLength,
+        armDepth
+      );
+      const handMesh = new THREE.Mesh(handGeometry, bodyMaterial);
+      handMesh.name = `${name}Hand`;
+      handMesh.position.set(0, -upperArmLength - forearmLength - handLength * 0.5, 0);
+      armGroup.add(handMesh);
+
+      simpleModel.add(armGroup);
     };
 
-    const armOffset = bodyWidth * 0.5 + armWidth * 0.5;
+    const armOffset = bodyWidth * 0.5 + armWidth * 0.75;
     createArm("PlayerArmLeft", -armOffset);
     createArm("PlayerArmRight", armOffset);
 
