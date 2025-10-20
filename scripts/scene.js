@@ -2392,7 +2392,7 @@ export const initScene = (
     FIRST_PERSON: "first-person",
     THIRD_PERSON: "third-person",
   };
-  let cameraViewMode = VIEW_MODES.FIRST_PERSON;
+  let cameraViewMode = VIEW_MODES.THIRD_PERSON;
 
   const firstPersonViewOverrides = new Map();
 
