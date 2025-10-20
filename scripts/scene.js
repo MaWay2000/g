@@ -2750,7 +2750,7 @@ export const initScene = (
   };
 
   const loadCustomPlayerModel = () => {
-    const PLAYER_MODEL_URL = "images/models/suit.glb";
+    const PLAYER_MODEL_URL = "images/models/suit.gltf";
     const PLAYER_MODEL_SCALE_MULTIPLIER = 0.1;
 
     gltfLoader.load(
@@ -2777,7 +2777,7 @@ export const initScene = (
       },
       undefined,
       (error) => {
-        console.warn("Failed to load player model GLB", error);
+        console.warn("Failed to load player model glTF", error);
         createSimplePlayerModel();
       }
     );
