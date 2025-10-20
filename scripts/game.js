@@ -1,9 +1,5 @@
 import { logout } from "./auth.js";
-import {
-  DEFAULT_PLAYER_HEIGHT,
-  clearStoredPlayerState,
-  initScene,
-} from "./scene.js";
+import { clearStoredPlayerState, initScene } from "./scene.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -106,145 +102,6 @@ let quickAccessModalClose = null;
 let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let sceneController = null;
-
-const playerHeightControl = document.querySelector(
-  "[data-player-height-control]"
-);
-const playerHeightSlider = playerHeightControl?.querySelector(
-  "[data-player-height-slider]"
-);
-const playerHeightValue = playerHeightControl?.querySelector(
-  "[data-player-height-value]"
-);
-const playerHeightResetButton = playerHeightControl?.querySelector(
-  "[data-player-height-reset]"
-);
-
-const formatPlayerHeight = (height) => {
-  if (!Number.isFinite(height)) {
-    return "";
-  }
-
-  return `${height.toFixed(1)}u`;
-};
-
-const updatePlayerHeightDisplay = (height) => {
-  if (playerHeightValue instanceof HTMLElement) {
-    playerHeightValue.textContent = formatPlayerHeight(height);
-  }
-
-  if (playerHeightSlider instanceof HTMLInputElement) {
-    playerHeightSlider.setAttribute(
-      "aria-valuetext",
-      formatPlayerHeight(height)
-    );
-  }
-
-  if (playerHeightResetButton instanceof HTMLButtonElement) {
-    const isDefault =
-      Number.isFinite(height) &&
-      Math.abs(height - DEFAULT_PLAYER_HEIGHT) < 0.0001;
-    playerHeightResetButton.disabled = Boolean(isDefault);
-  }
-};
-
-const setSliderValue = (height) => {
-  if (!(playerHeightSlider instanceof HTMLInputElement)) {
-    return;
-  }
-
-  const min = Number.parseFloat(playerHeightSlider.min);
-  const max = Number.parseFloat(playerHeightSlider.max);
-  let target = Number.isFinite(height) ? height : DEFAULT_PLAYER_HEIGHT;
-
-  if (Number.isFinite(min)) {
-    target = Math.max(min, target);
-  }
-
-  if (Number.isFinite(max)) {
-    target = Math.min(max, target);
-  }
-
-  playerHeightSlider.value = target.toFixed(1);
-};
-
-const applyPlayerHeightFromSlider = (persist) => {
-  if (!(playerHeightSlider instanceof HTMLInputElement)) {
-    return;
-  }
-
-  const rawValue = Number.parseFloat(playerHeightSlider.value);
-
-  if (!Number.isFinite(rawValue)) {
-    return;
-  }
-
-  const nextHeight = sceneController?.setPlayerHeight?.(rawValue, {
-    persist,
-  });
-
-  if (Number.isFinite(nextHeight)) {
-    setSliderValue(nextHeight);
-    updatePlayerHeightDisplay(nextHeight);
-  }
-};
-
-const handlePlayerHeightInput = () => {
-  applyPlayerHeightFromSlider(false);
-};
-
-const handlePlayerHeightChange = () => {
-  applyPlayerHeightFromSlider(true);
-};
-
-const handlePlayerHeightReset = (event) => {
-  if (event) {
-    event.preventDefault();
-  }
-
-  const nextHeight = sceneController?.setPlayerHeight?.(
-    DEFAULT_PLAYER_HEIGHT,
-    { persist: true }
-  );
-
-  if (Number.isFinite(nextHeight)) {
-    setSliderValue(nextHeight);
-    updatePlayerHeightDisplay(nextHeight);
-  }
-
-  if (playerHeightSlider instanceof HTMLInputElement) {
-    playerHeightSlider.focus();
-  }
-};
-
-const initializePlayerHeightControl = () => {
-  if (!(playerHeightSlider instanceof HTMLInputElement)) {
-    return;
-  }
-
-  const currentHeight = sceneController?.getPlayerHeight?.();
-
-  if (Number.isFinite(currentHeight)) {
-    setSliderValue(currentHeight);
-    updatePlayerHeightDisplay(currentHeight);
-  } else {
-    setSliderValue(DEFAULT_PLAYER_HEIGHT);
-    updatePlayerHeightDisplay(DEFAULT_PLAYER_HEIGHT);
-  }
-
-  playerHeightSlider.disabled = false;
-
-  if (playerHeightControl instanceof HTMLElement) {
-    playerHeightControl.hidden = false;
-  }
-
-  playerHeightSlider.addEventListener("input", handlePlayerHeightInput);
-  playerHeightSlider.addEventListener("change", handlePlayerHeightChange);
-
-  if (playerHeightResetButton instanceof HTMLButtonElement) {
-    playerHeightResetButton.addEventListener("click", handlePlayerHeightReset);
-  }
-};
 
 const attemptToRestorePointerLock = () => {
   const controls = sceneController?.controls;
@@ -796,8 +653,6 @@ const bootstrapScene = () => {
     },
     onTerminalInteractableChange: setCrosshairInteractableState,
   });
-
-  initializePlayerHeightControl();
 
   document.addEventListener("keydown", handleViewToggleKeydown);
 };
