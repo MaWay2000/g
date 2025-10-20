@@ -2206,6 +2206,7 @@ export const initScene = (
     },
     currentAction: null,
     recalculateBounds: null,
+    manualAnimator: null,
   };
   let currentPlayerAnimationName = null;
 
@@ -2600,6 +2601,15 @@ export const initScene = (
       Number.isFinite(options.scaleMultiplier) && options.scaleMultiplier > 0
         ? options.scaleMultiplier
         : 1;
+    const manualAnimatorFactory =
+      typeof options.manualAnimatorFactory === "function"
+        ? options.manualAnimatorFactory
+        : null;
+    const manualAnimatorFromOptions =
+      options.manualAnimator &&
+      typeof options.manualAnimator.update === "function"
+        ? options.manualAnimator
+        : null;
     if (!model) {
       return;
     }
@@ -2614,6 +2624,7 @@ export const initScene = (
     playerModelState.currentAction = null;
     currentPlayerAnimationName = null;
     playerModelState.recalculateBounds = null;
+    playerModelState.manualAnimator = null;
 
     playerModelGroup.clear();
     playerModelGroup.add(model);
@@ -2848,6 +2859,33 @@ export const initScene = (
 
     updatePlayerModelTransform();
     updatePlayerModelBoundingBox();
+
+    let manualAnimator = null;
+
+    if (manualAnimatorFactory) {
+      try {
+        manualAnimator = manualAnimatorFactory({
+          model,
+          group: playerModelGroup,
+        });
+      } catch (error) {
+        console.warn(
+          "Failed to create manual player model animator",
+          error
+        );
+      }
+    } else if (manualAnimatorFromOptions) {
+      manualAnimator = manualAnimatorFromOptions;
+    }
+
+    if (manualAnimator && typeof manualAnimator.update === "function") {
+      playerModelState.manualAnimator = manualAnimator;
+
+      if (typeof manualAnimator.reset === "function") {
+        manualAnimator.reset();
+      }
+    }
+
     refreshCameraViewMode();
   };
 
@@ -2872,6 +2910,14 @@ export const initScene = (
 
     const bodyMaterial = new THREE.MeshStandardMaterial(bodyMaterialOptions);
 
+    let headMesh = null;
+    let neckMesh = null;
+    let torsoMesh = null;
+    let leftArmGroup = null;
+    let rightArmGroup = null;
+    let leftLegGroup = null;
+    let rightLegGroup = null;
+
     const headSize = cubeSize * 0.8;
     const neckHeight = cubeSize * 0.2;
     const neckWidth = cubeSize * 0.35;
@@ -2887,13 +2933,13 @@ export const initScene = (
     const armHeight = cubeSize * 1.15;
 
     const headGeometry = new THREE.BoxGeometry(headSize, headSize, headSize);
-    const headMesh = new THREE.Mesh(headGeometry, bodyMaterial);
+    headMesh = new THREE.Mesh(headGeometry, bodyMaterial);
     headMesh.name = "PlayerHead";
     headMesh.position.y = legHeight + bodyHeight + neckHeight + headSize * 0.5;
     simpleModel.add(headMesh);
 
     const neckGeometry = new THREE.BoxGeometry(neckWidth, neckHeight, neckDepth);
-    const neckMesh = new THREE.Mesh(neckGeometry, bodyMaterial);
+    neckMesh = new THREE.Mesh(neckGeometry, bodyMaterial);
     neckMesh.name = "PlayerNeck";
     neckMesh.position.y = legHeight + bodyHeight + neckHeight * 0.5;
     simpleModel.add(neckMesh);
@@ -2903,7 +2949,7 @@ export const initScene = (
       bodyHeight,
       bodyDepth
     );
-    const torsoMesh = new THREE.Mesh(torsoGeometry, bodyMaterial);
+    torsoMesh = new THREE.Mesh(torsoGeometry, bodyMaterial);
     torsoMesh.name = "PlayerTorso";
     torsoMesh.position.y = legHeight + bodyHeight * 0.5;
     simpleModel.add(torsoMesh);
@@ -2914,7 +2960,7 @@ export const initScene = (
       const footHeight = legHeight - thighHeight - shinHeight;
       const legGroup = new THREE.Group();
       legGroup.name = name;
-      legGroup.position.set(xOffset, 0, 0);
+      legGroup.position.set(xOffset, legHeight, 0);
 
       const thighGeometry = new THREE.BoxGeometry(
         legWidth * 0.95,
@@ -2923,7 +2969,7 @@ export const initScene = (
       );
       const thighMesh = new THREE.Mesh(thighGeometry, bodyMaterial);
       thighMesh.name = `${name}Upper`;
-      thighMesh.position.set(0, footHeight + shinHeight + thighHeight * 0.5, 0);
+      thighMesh.position.set(0, -thighHeight * 0.5, 0);
       legGroup.add(thighMesh);
 
       const shinGeometry = new THREE.BoxGeometry(
@@ -2933,7 +2979,7 @@ export const initScene = (
       );
       const shinMesh = new THREE.Mesh(shinGeometry, bodyMaterial);
       shinMesh.name = `${name}Lower`;
-      shinMesh.position.set(0, footHeight + shinHeight * 0.5, 0);
+      shinMesh.position.set(0, -(thighHeight + shinHeight * 0.5), 0);
       legGroup.add(shinMesh);
 
       const footGeometry = new THREE.BoxGeometry(
@@ -2943,14 +2989,19 @@ export const initScene = (
       );
       const footMesh = new THREE.Mesh(footGeometry, bodyMaterial);
       footMesh.name = `${name}Foot`;
-      footMesh.position.set(0, footHeight * 0.5, legDepth * 0.4);
+      footMesh.position.set(
+        0,
+        -(thighHeight + shinHeight + footHeight * 0.5),
+        legDepth * 0.4
+      );
       legGroup.add(footMesh);
 
       simpleModel.add(legGroup);
+      return legGroup;
     };
 
-    createLeg("PlayerLegLeft", -bodyWidth * 0.25);
-    createLeg("PlayerLegRight", bodyWidth * 0.25);
+    leftLegGroup = createLeg("PlayerLegLeft", -bodyWidth * 0.25);
+    rightLegGroup = createLeg("PlayerLegRight", bodyWidth * 0.25);
 
     const createArm = (name, xOffset) => {
       const upperArmLength = armHeight * 0.5;
@@ -2992,13 +3043,162 @@ export const initScene = (
       armGroup.add(handMesh);
 
       simpleModel.add(armGroup);
+      return armGroup;
     };
 
     const armOffset = bodyWidth * 0.5 + armWidth * 0.75;
-    createArm("PlayerArmLeft", -armOffset);
-    createArm("PlayerArmRight", armOffset);
+    leftArmGroup = createArm("PlayerArmLeft", -armOffset);
+    rightArmGroup = createArm("PlayerArmRight", armOffset);
 
-    initializePlayerModel(simpleModel, [], { scaleMultiplier: 1 });
+    const createSimplePlayerModelAnimator = () => {
+      const trackedNodes = [
+        leftArmGroup,
+        rightArmGroup,
+        leftLegGroup,
+        rightLegGroup,
+        torsoMesh,
+        neckMesh,
+        headMesh,
+      ].filter((node) => node instanceof THREE.Object3D);
+
+      if (trackedNodes.length === 0) {
+        return null;
+      }
+
+      const baseTransforms = new Map();
+
+      trackedNodes.forEach((node) => {
+        baseTransforms.set(node, {
+          rotation: node.rotation.clone(),
+          position: node.position.clone(),
+        });
+      });
+
+      let swingPhase = 0;
+      let swingStrength = 0;
+
+      const reset = () => {
+        swingPhase = 0;
+        swingStrength = 0;
+
+        trackedNodes.forEach((node) => {
+          const base = baseTransforms.get(node);
+
+          if (!base) {
+            return;
+          }
+
+          node.rotation.copy(base.rotation);
+          node.position.copy(base.position);
+        });
+      };
+
+      const withBase = (node, callback, options = {}) => {
+        if (!node) {
+          return;
+        }
+
+        const base = baseTransforms.get(node);
+
+        if (!base) {
+          return;
+        }
+
+        node.rotation.copy(base.rotation);
+
+        if (options.copyPosition) {
+          node.position.copy(base.position);
+        }
+
+        callback(node, base);
+      };
+
+      const update = ({
+        delta = 0,
+        isWalking = false,
+        speed = 0,
+      } = {}) => {
+        const clampedDelta = Math.max(delta, 0);
+        const clampedSpeed = Math.max(speed, 0);
+        const normalizedSpeed = THREE.MathUtils.clamp(clampedSpeed / 8, 0, 1);
+        const targetSwing = isWalking
+          ? THREE.MathUtils.lerp(0.35, 1, normalizedSpeed)
+          : 0;
+
+        swingStrength = THREE.MathUtils.damp(
+          swingStrength,
+          targetSwing,
+          6,
+          clampedDelta
+        );
+
+        const swingFrequency = THREE.MathUtils.lerp(4.2, 7.5, normalizedSpeed);
+        swingPhase += clampedDelta * swingFrequency;
+
+        if (!Number.isFinite(swingPhase)) {
+          swingPhase = 0;
+        } else if (swingPhase > Math.PI * 2) {
+          swingPhase %= Math.PI * 2;
+        }
+
+        const forwardSwing = Math.sin(swingPhase) * swingStrength;
+        const crossSwing = Math.cos(swingPhase) * swingStrength;
+        const halfSwing = Math.sin(swingPhase * 0.5) * swingStrength;
+        const liftSwing = Math.abs(Math.sin(swingPhase)) * swingStrength;
+
+        withBase(leftArmGroup, (node) => {
+          node.rotation.x += forwardSwing * 0.85;
+          node.rotation.z += crossSwing * 0.12;
+        });
+
+        withBase(rightArmGroup, (node) => {
+          node.rotation.x -= forwardSwing * 0.85;
+          node.rotation.z -= crossSwing * 0.12;
+        });
+
+        withBase(leftLegGroup, (node) => {
+          node.rotation.x -= forwardSwing * 1.2;
+          node.rotation.z -= crossSwing * 0.05;
+        });
+
+        withBase(rightLegGroup, (node) => {
+          node.rotation.x += forwardSwing * 1.2;
+          node.rotation.z += crossSwing * 0.05;
+        });
+
+        withBase(torsoMesh, (node) => {
+          node.rotation.y += forwardSwing * 0.08;
+          node.rotation.x += crossSwing * 0.04;
+          node.rotation.z += halfSwing * 0.05;
+        });
+
+        withBase(neckMesh, (node) => {
+          node.rotation.x += crossSwing * 0.05;
+          node.rotation.y += forwardSwing * 0.04;
+        });
+
+        withBase(
+          headMesh,
+          (node) => {
+            node.rotation.x += crossSwing * 0.09;
+            node.rotation.y += forwardSwing * 0.05;
+            node.rotation.z += halfSwing * 0.03;
+            node.position.y += liftSwing * 0.08;
+          },
+          { copyPosition: true }
+        );
+      };
+
+      return {
+        update,
+        reset,
+      };
+    };
+
+    initializePlayerModel(simpleModel, [], {
+      scaleMultiplier: 1,
+      manualAnimatorFactory: createSimplePlayerModelAnimator,
+    });
   };
 
   const loadCustomPlayerModel = () => {
@@ -3489,22 +3689,34 @@ export const initScene = (
       resolvePlayerCollisions(previousPlayerPosition);
     }
 
+    const hasMovementInput =
+      movementState.forward ||
+      movementState.backward ||
+      movementState.left ||
+      movementState.right;
+
+    const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+
+    const isWalking =
+      movementEnabled &&
+      controls.isLocked &&
+      hasMovementInput &&
+      horizontalSpeed > 0.0001;
+
     if (playerModelState.mixer) {
       playerModelState.mixer.update(delta);
-
-      const hasMovementInput =
-        movementState.forward ||
-        movementState.backward ||
-        movementState.left ||
-        movementState.right;
-
-      const isWalking =
-        movementEnabled &&
-        controls.isLocked &&
-        hasMovementInput &&
-        velocity.lengthSq() > 0.0001;
-
       updatePlayerModelAnimationState(isWalking);
+    }
+
+    if (
+      playerModelState.manualAnimator &&
+      typeof playerModelState.manualAnimator.update === "function"
+    ) {
+      playerModelState.manualAnimator.update({
+        delta,
+        isWalking,
+        speed: horizontalSpeed,
+      });
     }
 
     let matchedZone = null;
