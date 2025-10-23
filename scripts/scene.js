@@ -2363,7 +2363,14 @@ export const initScene = (
 
   controls.setPitch(initialPitch);
 
-  const firstPersonCameraOffset = new THREE.Vector3(0, playerEyeLevel, 0);
+  const FIRST_PERSON_EYE_HEIGHT_OFFSET = -1;
+  const FIRST_PERSON_FORWARD_OFFSET = 1;
+
+  const firstPersonCameraOffset = new THREE.Vector3(
+    0,
+    playerEyeLevel + FIRST_PERSON_EYE_HEIGHT_OFFSET,
+    FIRST_PERSON_FORWARD_OFFSET
+  );
   const updateFirstPersonCameraOffset = () => {
     const offsetY = Number.isFinite(playerEyeLevel)
       ? playerEyeLevel
@@ -2385,7 +2392,12 @@ export const initScene = (
       0,
       maxForwardOffset
     );
-    firstPersonCameraOffset.set(0, clampedEyeLevel, -clampedForwardOffset);
+    const adjustedEyeLevel = Math.max(
+      MIN_PLAYER_HEIGHT,
+      clampedEyeLevel + FIRST_PERSON_EYE_HEIGHT_OFFSET
+    );
+    const adjustedForwardOffset = -clampedForwardOffset + FIRST_PERSON_FORWARD_OFFSET;
+    firstPersonCameraOffset.set(0, adjustedEyeLevel, adjustedForwardOffset);
   };
   const thirdPersonCameraOffset = new THREE.Vector3();
   const VIEW_MODES = {
