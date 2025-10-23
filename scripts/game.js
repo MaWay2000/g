@@ -732,7 +732,7 @@ function handleReset(event) {
   }
 
   const shouldReset = window.confirm(
-    "Reset your saved position and view settings? This cannot be undone."
+    "Reset your saved position, view settings, and custom height? This cannot be undone."
   );
 
   if (!shouldReset) {
@@ -755,6 +755,10 @@ function handleReset(event) {
     if (!cleared) {
       throw new Error("Unable to access saved data");
     }
+
+    sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, {
+      persist: false,
+    });
 
     shouldReload = true;
     window.location.reload();
