@@ -3527,7 +3527,7 @@ export const initScene = (
 
   const loadCustomPlayerModel = () => {
     const PLAYER_MODEL_URL = "images/models/suit2.glb";
-    const PLAYER_MODEL_SCALE_MULTIPLIER = 0.1;
+    const PLAYER_MODEL_SCALE_MULTIPLIER = 1;
 
     gltfLoader.load(
       PLAYER_MODEL_URL,
