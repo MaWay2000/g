@@ -2392,7 +2392,7 @@ export const initScene = (
     FIRST_PERSON: "first-person",
     THIRD_PERSON: "third-person",
   };
-  let cameraViewMode = VIEW_MODES.THIRD_PERSON;
+  let cameraViewMode = VIEW_MODES.FIRST_PERSON;
 
   const firstPersonViewOverrides = new Map();
 
@@ -2902,7 +2902,7 @@ export const initScene = (
     recomputePlayerModelScaleAndBounds();
     playerModelState.recalculateBounds = recomputePlayerModelScaleAndBounds;
 
-    const autoHideNamePattern = /(helmet|visor|mask)/i;
+    const autoHideNamePattern = null; // Keep all body parts visible in first-person view.
     const autoShowNamePattern = /(hand|finger|palm|arm)/i;
 
     model.traverse((child) => {
@@ -2915,7 +2915,11 @@ export const initScene = (
       const nodeName = typeof child.name === "string" ? child.name : "";
 
       if (nodeName) {
-        if (autoHideNamePattern.test(nodeName)) {
+        const shouldAutoHide =
+          autoHideNamePattern instanceof RegExp &&
+          autoHideNamePattern.test(nodeName);
+
+        if (shouldAutoHide) {
           registerFirstPersonViewOverride(child, { hideInFirstPerson: true });
         } else if (autoShowNamePattern.test(nodeName)) {
           registerFirstPersonViewOverride(child, { showInFirstPerson: true });
@@ -3443,12 +3447,6 @@ export const initScene = (
       scaleMultiplier: 1,
       manualAnimatorFactory: createSimplePlayerModelAnimator,
     });
-
-    [headMesh, neckMesh, helmetGroup, torsoMesh]
-      .filter((node) => node instanceof THREE.Object3D)
-      .forEach((node) =>
-        registerFirstPersonViewOverride(node, { hideInFirstPerson: true })
-      );
 
     [leftArmGroup, rightArmGroup]
       .filter((node) => node instanceof THREE.Object3D)
