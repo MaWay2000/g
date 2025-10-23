@@ -2902,8 +2902,7 @@ export const initScene = (
     recomputePlayerModelScaleAndBounds();
     playerModelState.recalculateBounds = recomputePlayerModelScaleAndBounds;
 
-    const autoHideNamePattern =
-      /(head|helmet|visor|mask|neck|torso|chest)/i;
+    const autoHideNamePattern = /(helmet|visor|mask)/i;
     const autoShowNamePattern = /(hand|finger|palm|arm)/i;
 
     model.traverse((child) => {
