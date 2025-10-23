@@ -2491,6 +2491,56 @@ export const initScene = (
       depth: 0,
       previousLayerMask: null,
       previousPlayerLayerMask: null,
+      firstPersonVisibilityRestores: null,
+    };
+
+    const temporarilyShowFirstPersonHiddenNodes = () => {
+      if (visibilityState.firstPersonVisibilityRestores) {
+        return;
+      }
+
+      const restores = [];
+
+      firstPersonViewOverrides.forEach((entry, node) => {
+        if (
+          !entry?.hideInFirstPerson ||
+          !(node instanceof THREE.Object3D)
+        ) {
+          return;
+        }
+
+        const desiredVisible = entry.baseVisible !== false;
+
+        if (node.visible === desiredVisible) {
+          return;
+        }
+
+        restores.push({
+          node,
+          previousVisible: node.visible,
+        });
+
+        node.visible = desiredVisible;
+      });
+
+      visibilityState.firstPersonVisibilityRestores = restores;
+    };
+
+    const restoreFirstPersonHiddenNodes = () => {
+      const restores = visibilityState.firstPersonVisibilityRestores;
+
+      if (!Array.isArray(restores) || restores.length === 0) {
+        visibilityState.firstPersonVisibilityRestores = null;
+        return;
+      }
+
+      restores.forEach(({ node, previousVisible }) => {
+        if (node instanceof THREE.Object3D) {
+          node.visible = previousVisible;
+        }
+      });
+
+      visibilityState.firstPersonVisibilityRestores = null;
     };
 
     const originalOnBeforeRender = reflector.onBeforeRender;
@@ -2516,6 +2566,8 @@ export const initScene = (
           } else {
             visibilityState.previousPlayerLayerMask = null;
           }
+
+          temporarilyShowFirstPersonHiddenNodes();
         }
 
         visibilityState.depth += 1;
@@ -2551,6 +2603,8 @@ export const initScene = (
 
             visibilityState.previousPlayerLayerMask = null;
           }
+
+          restoreFirstPersonHiddenNodes();
         }
       }
 
