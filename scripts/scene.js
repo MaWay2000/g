@@ -3036,6 +3036,7 @@ export const initScene = (
     let rightLegGroup = null;
 
     const headSize = cubeSize * 0.8;
+    const headDepth = headSize * 0.85;
     const neckHeight = cubeSize * 0.2;
     const neckWidth = cubeSize * 0.35;
     const neckDepth = cubeSize * 0.35;
@@ -3049,7 +3050,7 @@ export const initScene = (
     const armDepth = cubeSize * 0.28;
     const armHeight = cubeSize * 1.15;
 
-    const headGeometry = new THREE.BoxGeometry(headSize, headSize, headSize);
+    const headGeometry = new THREE.BoxGeometry(headSize, headSize, headDepth);
     headMesh = new THREE.Mesh(headGeometry, bodyMaterial);
     headMesh.name = "PlayerHead";
     headMesh.position.y = legHeight + bodyHeight + neckHeight + headSize * 0.5;
@@ -3251,17 +3252,17 @@ export const initScene = (
     const helmetShellGeometry = new THREE.BoxGeometry(
       headSize * 1.15,
       headSize * 1.05,
-      headSize * 1.15
+      headDepth * 1.1
     );
     const helmetShellMesh = new THREE.Mesh(helmetShellGeometry, gearMaterial);
     helmetShellMesh.name = "PlayerHelmetShell";
-    helmetShellMesh.position.set(0, headSize * 0.05, 0);
+    helmetShellMesh.position.set(0, headSize * 0.05, headDepth * 0.05);
     helmetGroup.add(helmetShellMesh);
 
     const helmetVisorGeometry = new THREE.BoxGeometry(
       headSize * 0.8,
       headSize * 0.35,
-      headSize * 0.1
+      headDepth * 0.12
     );
     const helmetVisorMesh = new THREE.Mesh(helmetVisorGeometry, new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x93c5fd),
@@ -3272,17 +3273,17 @@ export const initScene = (
       opacity: 0.75,
     }));
     helmetVisorMesh.name = "PlayerHelmetVisor";
-    helmetVisorMesh.position.set(0, 0, headSize * 0.6);
+    helmetVisorMesh.position.set(0, 0, headDepth * 0.7);
     helmetGroup.add(helmetVisorMesh);
 
     const helmetRidgeGeometry = new THREE.BoxGeometry(
       headSize * 1.2,
       headSize * 0.15,
-      headSize * 0.3
+      headDepth * 0.35
     );
     const helmetRidgeMesh = new THREE.Mesh(helmetRidgeGeometry, gearMaterial);
     helmetRidgeMesh.name = "PlayerHelmetRidge";
-    helmetRidgeMesh.position.set(0, headSize * 0.6, 0);
+    helmetRidgeMesh.position.set(0, headSize * 0.6, headDepth * 0.08);
     helmetGroup.add(helmetRidgeMesh);
 
     const createSimplePlayerModelAnimator = () => {
