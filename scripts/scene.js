@@ -2914,7 +2914,10 @@ export const initScene = (
     recomputePlayerModelScaleAndBounds();
     playerModelState.recalculateBounds = recomputePlayerModelScaleAndBounds;
 
-    const autoHideNamePattern = null; // Keep all body parts visible in first-person view.
+    const autoHideNamePattern =
+      // Hide major body parts in first-person view so the camera isn't obstructed
+      // by the player's helmet or torso while still keeping the hands visible.
+      /(head|helmet|visor|torso|body|leg|hip|pelvis|thigh|calf|foot|spine|neck)/i;
     const autoShowNamePattern = /(hand|finger|palm|arm)/i;
 
     model.traverse((child) => {
