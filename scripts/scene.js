@@ -2171,6 +2171,10 @@ export const initScene = (
     playerAvatarContainer.scale.setScalar(scale);
   };
 
+  // Display a placeholder avatar immediately so the player model is always visible,
+  // even while the primary GLB is still loading.
+  ensurePlayerAvatarFallback();
+
   const registerPlayerAnimationAction = (
     key,
     action,
