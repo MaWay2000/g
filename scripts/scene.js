@@ -1,5 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
@@ -221,6 +222,11 @@ export const initScene = (
   camera.position.set(0, 0, 8);
 
   const textureLoader = new THREE.TextureLoader();
+  const gltfLoader = new GLTFLoader();
+  const PLAYER_AVATAR_URL = new URL(
+    "../images/models/suit2.glb",
+    import.meta.url
+  ).href;
 
   const colliderDescriptors = [];
 
@@ -2016,6 +2022,226 @@ export const initScene = (
     FIRST_PERSON_FORWARD_OFFSET
   );
 
+  const playerAvatarRoot = new THREE.Group();
+  playerAvatarRoot.name = "PlayerAvatarRoot";
+  playerAvatarRoot.position.set(0, 0, -FIRST_PERSON_FORWARD_OFFSET);
+  playerObject.add(playerAvatarRoot);
+
+  const playerAvatarContainer = new THREE.Group();
+  playerAvatarContainer.name = "PlayerAvatarContainer";
+  playerAvatarRoot.add(playerAvatarContainer);
+
+  let playerAvatarModel = null;
+  let playerAvatarMixer = null;
+  const playerAnimationActions = Object.create(null);
+  let activePlayerAnimationKey = null;
+  let playerAvatarBaseHeight = DEFAULT_PLAYER_HEIGHT;
+  let isPlayerAvatarLoaded = false;
+
+  const PLAYER_ANIMATION_FADE_DURATION = 0.28;
+  const WALK_SPEED_THRESHOLD = 0.5;
+  const RUN_SPEED_THRESHOLD = 6;
+
+  const setPlayerAvatarVisible = (visible) => {
+    playerAvatarRoot.visible = Boolean(visible);
+  };
+  setPlayerAvatarVisible(false);
+
+  const updatePlayerAvatarScale = () => {
+    if (!isPlayerAvatarLoaded || playerAvatarBaseHeight <= 0) {
+      return;
+    }
+
+    const normalizedHeight = Math.max(playerHeight, MIN_PLAYER_HEIGHT);
+    const scale = normalizedHeight / playerAvatarBaseHeight;
+    playerAvatarContainer.scale.setScalar(scale);
+  };
+
+  const registerPlayerAnimationAction = (
+    key,
+    action,
+    { loopOnce = false } = {}
+  ) => {
+    if (!key || !action) {
+      return;
+    }
+
+    action.clampWhenFinished = loopOnce;
+    action.loop = loopOnce ? THREE.LoopOnce : THREE.LoopRepeat;
+    playerAnimationActions[key] = action;
+  };
+
+  const setPlayerAnimationAction = (key, { immediate = false } = {}) => {
+    if (!key || !playerAvatarMixer) {
+      return;
+    }
+
+    const nextAction = playerAnimationActions[key];
+
+    if (!nextAction || activePlayerAnimationKey === key) {
+      return;
+    }
+
+    const previousAction =
+      activePlayerAnimationKey &&
+      playerAnimationActions[activePlayerAnimationKey]
+        ? playerAnimationActions[activePlayerAnimationKey]
+        : null;
+
+    const fadeDuration = immediate ? 0 : PLAYER_ANIMATION_FADE_DURATION;
+
+    nextAction.enabled = true;
+    nextAction.reset();
+    nextAction.setEffectiveTimeScale(1);
+    nextAction.setEffectiveWeight(1);
+    nextAction.play();
+
+    if (previousAction && previousAction !== nextAction) {
+      if (fadeDuration > 0) {
+        previousAction.crossFadeTo(nextAction, fadeDuration, false);
+      } else {
+        previousAction.stop();
+      }
+    } else if (!previousAction && fadeDuration > 0) {
+      nextAction.fadeIn(fadeDuration);
+    }
+
+    activePlayerAnimationKey = key;
+  };
+
+  const findClipByKeywords = (clips, keywordGroups, usedClipNames) => {
+    if (!Array.isArray(clips)) {
+      return null;
+    }
+
+    const normalizedClips = clips.map((clip) => ({
+      clip,
+      normalizedName: typeof clip?.name === "string"
+        ? clip.name.toLowerCase().replace(/[^a-z0-9]+/g, "")
+        : "",
+    }));
+
+    for (const keywords of keywordGroups) {
+      const normalizedKeywords = keywords.map((keyword) =>
+        keyword.toLowerCase().replace(/[^a-z0-9]+/g, "")
+      );
+
+      const matchedEntry = normalizedClips.find(({ clip, normalizedName }) => {
+        if (usedClipNames.has(clip.name)) {
+          return false;
+        }
+
+        return normalizedKeywords.every((keyword) =>
+          keyword !== "" && normalizedName.includes(keyword)
+        );
+      });
+
+      if (matchedEntry) {
+        return matchedEntry.clip;
+      }
+    }
+
+    return null;
+  };
+
+  const loadPlayerAvatar = () => {
+    gltfLoader.load(
+      PLAYER_AVATAR_URL,
+      (gltf) => {
+        const sceneRoot = gltf.scene || gltf.scenes?.[0];
+
+        if (!sceneRoot) {
+          console.warn("Player avatar GLB does not contain a scene.");
+          return;
+        }
+
+        sceneRoot.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = false;
+            child.receiveShadow = false;
+
+            if (child.material && "side" in child.material) {
+              child.material.side = THREE.FrontSide;
+            }
+          }
+        });
+
+        playerAvatarModel = sceneRoot;
+        playerAvatarContainer.add(playerAvatarModel);
+
+        const avatarBounds = new THREE.Box3().setFromObject(playerAvatarModel);
+
+        if (avatarBounds.isEmpty()) {
+          playerAvatarBaseHeight = Math.max(playerHeight, MIN_PLAYER_HEIGHT);
+        } else {
+          const height = avatarBounds.max.y - avatarBounds.min.y;
+          playerAvatarBaseHeight = Math.max(height, MIN_PLAYER_HEIGHT);
+          if (Number.isFinite(avatarBounds.min.y)) {
+            playerAvatarModel.position.y -= avatarBounds.min.y;
+          }
+        }
+
+        playerAvatarMixer = new THREE.AnimationMixer(playerAvatarModel);
+
+        const animations = Array.isArray(gltf.animations) ? gltf.animations : [];
+        const usedClipNames = new Set();
+
+        const assignAction = (key, keywordGroups, options) => {
+          if (playerAnimationActions[key]) {
+            return playerAnimationActions[key];
+          }
+
+          const clip = findClipByKeywords(animations, keywordGroups, usedClipNames);
+          if (!clip) {
+            return null;
+          }
+
+          usedClipNames.add(clip.name);
+          const action = playerAvatarMixer.clipAction(clip);
+          registerPlayerAnimationAction(key, action, options);
+          return action;
+        };
+
+        assignAction("idle", [["idle"], ["breath"], ["stand"]]);
+        assignAction("walk", [["walk"], ["move"]]);
+        assignAction("run", [["run"], ["jog"], ["sprint"]]);
+        assignAction("jump", [["jump"]], { loopOnce: true });
+        assignAction("fall", [["fall"], ["land"]], { loopOnce: true });
+        assignAction("action", [["action"], ["attack"], ["shoot"], ["wave"]]);
+
+        if (!playerAnimationActions.idle && animations.length > 0) {
+          const fallbackClip = animations.find(
+            (clip) => !usedClipNames.has(clip.name)
+          );
+
+          if (fallbackClip) {
+            const fallbackAction = playerAvatarMixer.clipAction(fallbackClip);
+            registerPlayerAnimationAction("idle", fallbackAction);
+          }
+        }
+
+        isPlayerAvatarLoaded = true;
+        setPlayerAvatarVisible(true);
+        updatePlayerAvatarScale();
+
+        const initialActionKey = playerAnimationActions.idle
+          ? "idle"
+          : Object.keys(playerAnimationActions)[0] ?? null;
+
+        if (initialActionKey) {
+          setPlayerAnimationAction(initialActionKey, { immediate: true });
+        }
+      },
+      undefined,
+      (error) => {
+        console.error("Unable to load player avatar", error);
+        setPlayerAvatarVisible(false);
+      }
+    );
+  };
+
+  loadPlayerAvatar();
+
   const updateFirstPersonCameraOffset = () => {
     const baseHeight = Number.isFinite(playerHeight)
       ? Math.max(playerHeight, MIN_PLAYER_HEIGHT)
@@ -2084,6 +2310,7 @@ export const initScene = (
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
     controls.setCameraOffset(firstPersonCameraOffset);
+    updatePlayerAvatarScale();
 
     if (persist) {
       persistPlayerHeight(playerHeight);
@@ -2099,6 +2326,7 @@ export const initScene = (
   applyPlayerHeight(initialHeight, { persist: false });
 
   controls.setCameraOffset(firstPersonCameraOffset);
+  updatePlayerAvatarScale();
 
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
@@ -2380,6 +2608,64 @@ export const initScene = (
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
 
+  const handlePlayerAvatarUpdate = (delta) => {
+    if (!playerAvatarMixer || !isPlayerAvatarLoaded) {
+      return;
+    }
+
+    playerAvatarMixer.update(delta);
+
+    const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+    const wantsToMove =
+      movementState.forward ||
+      movementState.backward ||
+      movementState.left ||
+      movementState.right;
+
+    let nextActionKey = null;
+
+    if (!isGrounded) {
+      if (verticalVelocity < -1 && playerAnimationActions.fall) {
+        nextActionKey = "fall";
+      } else if (playerAnimationActions.jump) {
+        nextActionKey = "jump";
+      }
+    } else if (
+      movementEnabled &&
+      controls.isLocked &&
+      (wantsToMove || horizontalSpeed > 0.05)
+    ) {
+      if (
+        playerAnimationActions.run &&
+        horizontalSpeed > RUN_SPEED_THRESHOLD
+      ) {
+        nextActionKey = "run";
+      } else if (playerAnimationActions.walk) {
+        if (
+          horizontalSpeed > WALK_SPEED_THRESHOLD ||
+          !playerAnimationActions.run
+        ) {
+          nextActionKey = "walk";
+        }
+      } else if (playerAnimationActions.run) {
+        nextActionKey = "run";
+      }
+    }
+
+    if (!nextActionKey) {
+      if (playerAnimationActions.idle) {
+        nextActionKey = "idle";
+      } else {
+        const availableKeys = Object.keys(playerAnimationActions);
+        nextActionKey = availableKeys.length > 0 ? availableKeys[0] : null;
+      }
+    }
+
+    if (nextActionKey) {
+      setPlayerAnimationAction(nextActionKey);
+    }
+  };
+
   const setMovementEnabled = (enabled) => {
     movementEnabled = Boolean(enabled);
 
@@ -2550,6 +2836,8 @@ export const initScene = (
       resolvePlayerCollisions(previousPlayerPosition);
     }
 
+    handlePlayerAvatarUpdate(delta);
+
     let matchedZone = null;
 
     if (controls.isLocked) {
@@ -2637,6 +2925,10 @@ export const initScene = (
         lastUpdatedDisplay.userData.dispose();
       }
       savePlayerState(true);
+      if (playerAvatarMixer) {
+        playerAvatarMixer.stopAllAction();
+      }
+      setPlayerAvatarVisible(false);
       colliderDescriptors.length = 0;
     },
   };
