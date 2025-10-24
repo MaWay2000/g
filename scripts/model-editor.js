@@ -244,7 +244,9 @@ function applySnapshot(snapshot) {
   try {
     const loader = new THREE.ObjectLoader();
     const restored = loader.parse(snapshot.objectJSON);
-    setCurrentSelection(restored, snapshot.sourceName ?? "Imported model");
+    setCurrentSelection(restored, snapshot.sourceName ?? "Imported model", {
+      focus: false,
+    });
 
     snapEnabled = Boolean(snapshot.snapEnabled);
     transformControls.setTranslationSnap(snapEnabled ? 0.25 : null);
@@ -579,7 +581,11 @@ function applyMaterialProperty(property, value) {
   }
 }
 
-function setCurrentSelection(object3D, sourceName = "Imported model") {
+function setCurrentSelection(
+  object3D,
+  sourceName = "Imported model",
+  { focus = true } = {}
+) {
   cancelScheduledHistoryCommit();
   transformHasChanged = false;
   if (currentSelection) {
@@ -601,7 +607,9 @@ function setCurrentSelection(object3D, sourceName = "Imported model") {
   setTransformMode(activeTransformMode);
   setStatus("ready", `Model: ${sourceName}`);
   syncMaterialInputs();
-  focusObject(currentSelection);
+  if (focus) {
+    focusObject(currentSelection);
+  }
   updateHud(currentSelection);
 }
 
