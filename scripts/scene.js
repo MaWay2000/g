@@ -2368,17 +2368,13 @@ export const initScene = (
 
     const { persist = true } = options;
     const clampedHeight = Math.max(newHeight, MIN_PLAYER_HEIGHT);
+    const hasHeightChanged = Math.abs(clampedHeight - playerHeight) >= 0.0001;
 
-    if (Math.abs(clampedHeight - playerHeight) < 0.0001) {
-      if (persist) {
-        persistPlayerHeight(playerHeight);
-      }
-
-      return playerHeight;
+    if (hasHeightChanged) {
+      playerHeight = clampedHeight;
+      playerEyeLevel = playerHeight;
     }
 
-    playerHeight = clampedHeight;
-    playerEyeLevel = playerHeight;
     updateFirstPersonCameraOffset();
     updateThirdPersonCameraOffset();
 
