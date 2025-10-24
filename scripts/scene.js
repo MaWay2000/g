@@ -2019,6 +2019,11 @@ export const initScene = (
   const firstPersonCameraOffset = new THREE.Vector3(
     0,
     playerEyeLevel + FIRST_PERSON_EYE_HEIGHT_OFFSET,
+    0
+  );
+  const thirdPersonCameraOffset = new THREE.Vector3(
+    0,
+    playerEyeLevel + FIRST_PERSON_EYE_HEIGHT_OFFSET,
     FIRST_PERSON_FORWARD_OFFSET
   );
 
@@ -2037,6 +2042,24 @@ export const initScene = (
   let activePlayerAnimationKey = null;
   let playerAvatarBaseHeight = DEFAULT_PLAYER_HEIGHT;
   let isPlayerAvatarLoaded = false;
+
+  const CAMERA_VIEW_MODES = Object.freeze({
+    FIRST_PERSON: "first-person",
+    THIRD_PERSON: "third-person",
+  });
+  const DEFAULT_CAMERA_VIEW_MODE = CAMERA_VIEW_MODES.THIRD_PERSON;
+  const THIRD_PERSON_VERTICAL_BUFFER = 1.5;
+  const THIRD_PERSON_DISTANCE_FACTOR = 0.22;
+  const THIRD_PERSON_ADDITIONAL_DISTANCE = 1.2;
+  const THIRD_PERSON_MIN_DISTANCE = FIRST_PERSON_FORWARD_OFFSET;
+  let cameraViewMode = DEFAULT_CAMERA_VIEW_MODE;
+
+  const syncPlayerAvatarVisibility = () => {
+    setPlayerAvatarVisible(
+      cameraViewMode === CAMERA_VIEW_MODES.THIRD_PERSON &&
+        isPlayerAvatarLoaded
+    );
+  };
 
   const PLAYER_ANIMATION_FADE_DURATION = 0.28;
   const WALK_SPEED_THRESHOLD = 0.5;
@@ -2221,7 +2244,7 @@ export const initScene = (
         }
 
         isPlayerAvatarLoaded = true;
-        setPlayerAvatarVisible(true);
+        syncPlayerAvatarVisibility();
         updatePlayerAvatarScale();
 
         const initialActionKey = playerAnimationActions.idle
@@ -2235,7 +2258,8 @@ export const initScene = (
       undefined,
       (error) => {
         console.error("Unable to load player avatar", error);
-        setPlayerAvatarVisible(false);
+        isPlayerAvatarLoaded = false;
+        syncPlayerAvatarVisibility();
       }
     );
   };
@@ -2251,11 +2275,61 @@ export const initScene = (
       baseHeight + FIRST_PERSON_EYE_HEIGHT_OFFSET
     );
 
-    firstPersonCameraOffset.set(
-      0,
-      adjustedEyeLevel,
-      FIRST_PERSON_FORWARD_OFFSET
+    firstPersonCameraOffset.set(0, adjustedEyeLevel, 0);
+  };
+
+  const updateThirdPersonCameraOffset = () => {
+    const baseHeight = Number.isFinite(playerHeight)
+      ? Math.max(playerHeight, MIN_PLAYER_HEIGHT)
+      : MIN_PLAYER_HEIGHT;
+    const eyeLevel = Math.max(
+      MIN_PLAYER_HEIGHT,
+      baseHeight + FIRST_PERSON_EYE_HEIGHT_OFFSET
     );
+    const distance = Math.max(
+      THIRD_PERSON_MIN_DISTANCE,
+      baseHeight * THIRD_PERSON_DISTANCE_FACTOR +
+        THIRD_PERSON_ADDITIONAL_DISTANCE
+    );
+    const verticalOffset = Math.max(
+      THIRD_PERSON_VERTICAL_BUFFER,
+      baseHeight * 0.2
+    );
+
+    thirdPersonCameraOffset.set(0, eyeLevel + verticalOffset, distance);
+  };
+
+  const applyCameraViewMode = (
+    mode = cameraViewMode,
+    { force = false } = {}
+  ) => {
+    const availableModes = Object.values(CAMERA_VIEW_MODES);
+    const normalizedMode = availableModes.includes(mode)
+      ? mode
+      : cameraViewMode;
+
+    if (force || normalizedMode !== cameraViewMode) {
+      cameraViewMode = normalizedMode;
+    }
+
+    const offset =
+      cameraViewMode === CAMERA_VIEW_MODES.FIRST_PERSON
+        ? firstPersonCameraOffset
+        : thirdPersonCameraOffset;
+
+    controls.setCameraOffset(offset);
+    syncPlayerAvatarVisibility();
+
+    return cameraViewMode;
+  };
+
+  const toggleCameraViewMode = () => {
+    const nextMode =
+      cameraViewMode === CAMERA_VIEW_MODES.FIRST_PERSON
+        ? CAMERA_VIEW_MODES.THIRD_PERSON
+        : CAMERA_VIEW_MODES.FIRST_PERSON;
+
+    applyCameraViewMode(nextMode, { force: true });
   };
 
   const defaultPlayerPosition = new THREE.Vector3(0, roomFloorY, 8);
@@ -2306,10 +2380,11 @@ export const initScene = (
     playerHeight = clampedHeight;
     playerEyeLevel = playerHeight;
     updateFirstPersonCameraOffset();
+    updateThirdPersonCameraOffset();
 
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
-    controls.setCameraOffset(firstPersonCameraOffset);
+    applyCameraViewMode(cameraViewMode);
     updatePlayerAvatarScale();
 
     if (persist) {
@@ -2324,9 +2399,6 @@ export const initScene = (
     ? storedPlayerHeight
     : DEFAULT_PLAYER_HEIGHT;
   applyPlayerHeight(initialHeight, { persist: false });
-
-  controls.setCameraOffset(firstPersonCameraOffset);
-  updatePlayerAvatarScale();
 
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
@@ -2713,6 +2785,12 @@ export const initScene = (
   };
 
   const onKeyDown = (event) => {
+    if (event.code === "KeyV" && !event.repeat) {
+      toggleCameraViewMode();
+      event.preventDefault();
+      return;
+    }
+
     if (!movementEnabled) {
       return;
     }
@@ -2899,6 +2977,9 @@ export const initScene = (
     getPlayerHeight: () => playerHeight,
     setPlayerHeight: (nextHeight, options = {}) =>
       applyPlayerHeight(nextHeight, options),
+    getCameraViewMode: () => cameraViewMode,
+    setCameraViewMode: (mode) => applyCameraViewMode(mode, { force: true }),
+    toggleCameraViewMode,
     setPlayerStatePersistenceEnabled: (enabled = true) => {
       const nextEnabled = Boolean(enabled);
       const previousEnabled = isPlayerStatePersistenceEnabled;
