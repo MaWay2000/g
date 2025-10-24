@@ -1035,18 +1035,6 @@ export const initScene = (
       const optionHeight = 132;
       const optionSpacing = 28;
 
-      const getDevicePixelRatio = () => {
-        if (typeof window === "undefined") {
-          return 1;
-        }
-
-        const ratio = Number(window.devicePixelRatio);
-        return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
-      };
-
-      const snapToDevicePixel = (value, pixelRatio = getDevicePixelRatio()) =>
-        Math.round(value * pixelRatio) / pixelRatio;
-
       const computeQuickAccessZones = () => {
         const optionX = bezelInset + 40;
         const optionWidth = width - optionX * 2;
