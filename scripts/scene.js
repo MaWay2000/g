@@ -3182,6 +3182,7 @@ export const initScene = (
       const firstPersonArmRaise = THREE.MathUtils.degToRad(50);
       const firstPersonArmYaw = THREE.MathUtils.degToRad(12);
       const firstPersonArmRoll = THREE.MathUtils.degToRad(18);
+      const rightArmOutwardYaw = THREE.MathUtils.degToRad(8);
 
       withBase(
         leftArm,
@@ -3203,6 +3204,7 @@ export const initScene = (
         (node) => {
           node.rotation.x -= forwardSwing * 0.85 * armSwingMultiplier;
           node.rotation.z -= crossSwing * 0.12 * armSwingMultiplier;
+          node.rotation.y += rightArmOutwardYaw;
 
           if (isFirstPersonView) {
             node.rotation.x -= firstPersonArmRaise;
