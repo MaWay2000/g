@@ -223,10 +223,14 @@ export const initScene = (
 
   const textureLoader = new THREE.TextureLoader();
   const gltfLoader = new GLTFLoader();
-  const PLAYER_AVATAR_URL = new URL(
-    "../images/models/suit2.glb",
-    import.meta.url
-  ).href;
+  const PLAYER_AVATAR_VERSION = "20241024";
+  const PLAYER_AVATAR_URL = (() => {
+    const url = new URL("../images/models/suit2.glb", import.meta.url);
+    if (PLAYER_AVATAR_VERSION) {
+      url.searchParams.set("v", PLAYER_AVATAR_VERSION);
+    }
+    return url.href;
+  })();
 
   const colliderDescriptors = [];
 
@@ -2037,6 +2041,7 @@ export const initScene = (
   playerAvatarRoot.add(playerAvatarContainer);
 
   let playerAvatarModel = null;
+  let playerAvatarFallbackModel = null;
   let playerAvatarMixer = null;
   const playerAnimationActions = Object.create(null);
   let activePlayerAnimationKey = null;
@@ -2069,6 +2074,92 @@ export const initScene = (
     playerAvatarRoot.visible = Boolean(visible);
   };
   setPlayerAvatarVisible(false);
+
+  const disposeMeshResources = (object) => {
+    if (!object) {
+      return;
+    }
+
+    object.traverse?.((child) => {
+      if (!child || !child.isMesh) {
+        return;
+      }
+
+      if (child.geometry && typeof child.geometry.dispose === "function") {
+        child.geometry.dispose();
+      }
+
+      const { material } = child;
+
+      if (Array.isArray(material)) {
+        material.forEach((mat) => {
+          if (mat && typeof mat.dispose === "function") {
+            mat.dispose();
+          }
+        });
+      } else if (material && typeof material.dispose === "function") {
+        material.dispose();
+      }
+    });
+  };
+
+  const removePlayerAvatarFallback = () => {
+    if (!playerAvatarFallbackModel) {
+      return;
+    }
+
+    if (playerAvatarFallbackModel.parent === playerAvatarContainer) {
+      playerAvatarContainer.remove(playerAvatarFallbackModel);
+    }
+
+    disposeMeshResources(playerAvatarFallbackModel);
+    playerAvatarFallbackModel = null;
+  };
+
+  const ensurePlayerAvatarFallback = () => {
+    const fallbackHeight = 1.8;
+
+    if (playerAvatarFallbackModel) {
+      playerAvatarBaseHeight = Math.max(fallbackHeight, MIN_PLAYER_HEIGHT);
+      isPlayerAvatarLoaded = true;
+      syncPlayerAvatarVisibility();
+      updatePlayerAvatarScale();
+      return playerAvatarFallbackModel;
+    }
+
+    const fallbackRadius = 0.35;
+    const capsuleLength = Math.max(fallbackHeight - fallbackRadius * 2, 0.1);
+    const geometry = new THREE.CapsuleGeometry(
+      fallbackRadius,
+      capsuleLength,
+      12,
+      24
+    );
+    geometry.translate(0, fallbackHeight / 2, 0);
+
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x38bdf8),
+      emissive: new THREE.Color(0x1d4ed8),
+      emissiveIntensity: 0.28,
+      metalness: 0.18,
+      roughness: 0.42,
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = "PlayerAvatarFallback";
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+
+    playerAvatarBaseHeight = Math.max(fallbackHeight, MIN_PLAYER_HEIGHT);
+    playerAvatarFallbackModel = mesh;
+    playerAvatarContainer.add(mesh);
+
+    isPlayerAvatarLoaded = true;
+    syncPlayerAvatarVisibility();
+    updatePlayerAvatarScale();
+
+    return mesh;
+  };
 
   const updatePlayerAvatarScale = () => {
     if (!isPlayerAvatarLoaded || playerAvatarBaseHeight <= 0) {
@@ -2171,10 +2262,19 @@ export const initScene = (
     gltfLoader.load(
       PLAYER_AVATAR_URL,
       (gltf) => {
+        removePlayerAvatarFallback();
+        playerAvatarModel = null;
+        playerAvatarMixer = null;
+        activePlayerAnimationKey = null;
+        Object.keys(playerAnimationActions).forEach((key) => {
+          delete playerAnimationActions[key];
+        });
+
         const sceneRoot = gltf.scene || gltf.scenes?.[0];
 
         if (!sceneRoot) {
           console.warn("Player avatar GLB does not contain a scene.");
+          ensurePlayerAvatarFallback();
           return;
         }
 
@@ -2258,8 +2358,7 @@ export const initScene = (
       undefined,
       (error) => {
         console.error("Unable to load player avatar", error);
-        isPlayerAvatarLoaded = false;
-        syncPlayerAvatarVisibility();
+        ensurePlayerAvatarFallback();
       }
     );
   };
@@ -3006,6 +3105,18 @@ export const initScene = (
         playerAvatarMixer.stopAllAction();
       }
       setPlayerAvatarVisible(false);
+      if (playerAvatarModel && playerAvatarModel.parent) {
+        playerAvatarModel.parent.remove(playerAvatarModel);
+      }
+      disposeMeshResources(playerAvatarModel);
+      playerAvatarModel = null;
+      playerAvatarMixer = null;
+      activePlayerAnimationKey = null;
+      Object.keys(playerAnimationActions).forEach((key) => {
+        delete playerAnimationActions[key];
+      });
+      removePlayerAvatarFallback();
+      isPlayerAvatarLoaded = false;
       colliderDescriptors.length = 0;
     },
   };
