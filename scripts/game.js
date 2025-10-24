@@ -571,49 +571,6 @@ const showTerminalToast = ({ title, description }) => {
   }, 4000);
 };
 
-const isTextEntryElement = (element) => {
-  if (!(element instanceof HTMLElement)) {
-    return false;
-  }
-
-  if (element.isContentEditable) {
-    return true;
-  }
-
-  const tagName = element.tagName;
-  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
-    return true;
-  }
-
-  return (
-    element.closest(
-      "input, textarea, select, [contenteditable='true'], [contenteditable='']"
-    ) !== null
-  );
-};
-
-const handleViewToggleKeydown = (event) => {
-  if (event.code !== "KeyV") {
-    return;
-  }
-
-  if (isTextEntryElement(event.target)) {
-    return;
-  }
-
-  const nextMode = sceneController?.toggleCameraViewMode?.();
-  if (!nextMode) {
-    return;
-  }
-
-  event.preventDefault();
-
-  const title =
-    nextMode === "third-person" ? "Third-person view" : "First-person view";
-  const description = "Press V to toggle camera perspective.";
-  showTerminalToast({ title, description });
-};
-
 const setCrosshairInteractableState = (canInteract) => {
   if (!(crosshair instanceof HTMLElement)) {
     return;
@@ -660,7 +617,6 @@ const bootstrapScene = () => {
 
   sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
 
-  document.addEventListener("keydown", handleViewToggleKeydown);
 };
 
 const scheduleBootstrapScene = () => {
