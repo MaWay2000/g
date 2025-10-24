@@ -1,6 +1,7 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/DRACOLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
@@ -223,6 +224,10 @@ export const initScene = (
 
   const textureLoader = new THREE.TextureLoader();
   const gltfLoader = new GLTFLoader();
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
+  dracoLoader.preload();
+  gltfLoader.setDRACOLoader(dracoLoader);
   const PLAYER_AVATAR_VERSION = "20241024";
   const PLAYER_AVATAR_URL = (() => {
     const url = new URL("../images/models/suit2.glb", import.meta.url);
@@ -3120,6 +3125,7 @@ export const initScene = (
       removePlayerAvatarFallback();
       isPlayerAvatarLoaded = false;
       colliderDescriptors.length = 0;
+      dracoLoader.dispose();
     },
   };
 };
