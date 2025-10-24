@@ -216,7 +216,9 @@ function focusObject(object3D) {
   const center = box.getCenter(new THREE.Vector3());
 
   const maxSize = Math.max(size.x, size.y, size.z);
-  const fitHeightDistance = maxSize / (2 * Math.atan((Math.PI * camera.fov) / 360));
+  const fitHeightDistance =
+    maxSize /
+    (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   const fitWidthDistance = fitHeightDistance / camera.aspect;
   const distance = Math.max(fitHeightDistance, fitWidthDistance) * 1.5;
 
