@@ -37,6 +37,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
+const clock = new THREE.Clock();
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1120");
 
@@ -49,6 +51,25 @@ orbitControls.dampingFactor = 0.08;
 orbitControls.screenSpacePanning = false;
 orbitControls.maxDistance = 200;
 orbitControls.minDistance = 0.25;
+
+const navigationState = {
+  forward: false,
+  backward: false,
+  left: false,
+  right: false,
+};
+
+const navigationKeyMap = new Map([
+  ["w", "forward"],
+  ["s", "backward"],
+  ["a", "left"],
+  ["d", "right"],
+]);
+
+const worldUp = new THREE.Vector3(0, 1, 0);
+const cameraForward = new THREE.Vector3();
+const cameraRight = new THREE.Vector3();
+const movementVector = new THREE.Vector3();
 
 const transformControls = new TransformControls(camera, renderer.domElement);
 transformControls.setSize(1.1);
@@ -108,9 +129,65 @@ function resizeRendererToDisplaySize() {
   }
 }
 
+function updateCameraNavigation(delta) {
+  if (!orbitControls.enabled) {
+    return;
+  }
+
+  const { forward, backward, left, right } = navigationState;
+  if (!forward && !backward && !left && !right) {
+    return;
+  }
+
+  cameraForward.set(0, 0, 0);
+  camera.getWorldDirection(cameraForward);
+  cameraForward.y = 0;
+
+  if (cameraForward.lengthSq() < 1e-6) {
+    return;
+  }
+
+  cameraForward.normalize();
+  cameraRight.copy(cameraForward).cross(worldUp).normalize();
+
+  if (cameraRight.lengthSq() < 1e-6) {
+    cameraRight.set(1, 0, 0);
+  }
+
+  movementVector.set(0, 0, 0);
+
+  if (forward) {
+    movementVector.add(cameraForward);
+  }
+  if (backward) {
+    movementVector.sub(cameraForward);
+  }
+  if (left) {
+    movementVector.sub(cameraRight);
+  }
+  if (right) {
+    movementVector.add(cameraRight);
+  }
+
+  if (movementVector.lengthSq() < 1e-6) {
+    return;
+  }
+
+  movementVector.normalize();
+  const distance = camera.position.distanceTo(orbitControls.target);
+  const speed = Math.max(distance * 0.6, 0.5);
+  const moveDistance = speed * delta;
+
+  movementVector.multiplyScalar(moveDistance);
+  camera.position.add(movementVector);
+  orbitControls.target.add(movementVector);
+}
+
 function animate() {
   requestAnimationFrame(animate);
+  const delta = clock.getDelta();
   resizeRendererToDisplaySize();
+  updateCameraNavigation(delta);
   orbitControls.update();
   renderer.render(scene, camera);
 }
@@ -641,19 +718,70 @@ focusSelectionButton?.addEventListener("click", () => {
   focusObject(currentSelection);
 });
 
+function isEditableTarget(target) {
+  if (!target) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  const tagName = target.tagName;
+  if (!tagName) {
+    return false;
+  }
+
+  const normalized = tagName.toLowerCase();
+  return normalized === "input" || normalized === "textarea" || normalized === "select";
+}
+
 window.addEventListener("keydown", (event) => {
+  if (isEditableTarget(event.target)) {
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  const navigationKey = navigationKeyMap.get(key);
+  if (navigationKey) {
+    navigationState[navigationKey] = true;
+    event.preventDefault();
+  }
+
+  if (key === "f") {
+    focusObject(currentSelection);
+  }
+
   if (!currentSelection) {
     return;
   }
-  if (event.key.toLowerCase() === "g") {
+
+  if (key === "g") {
     setTransformMode("translate");
-  } else if (event.key.toLowerCase() === "r") {
+  } else if (key === "r") {
     setTransformMode("rotate");
-  } else if (event.key.toLowerCase() === "s") {
+  } else if (key === "s") {
     setTransformMode("scale");
-  } else if (event.key.toLowerCase() === "f") {
-    focusObject(currentSelection);
   }
+});
+
+window.addEventListener("keyup", (event) => {
+  if (isEditableTarget(event.target)) {
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  const navigationKey = navigationKeyMap.get(key);
+  if (navigationKey) {
+    navigationState[navigationKey] = false;
+    event.preventDefault();
+  }
+});
+
+window.addEventListener("blur", () => {
+  Object.keys(navigationState).forEach((stateKey) => {
+    navigationState[stateKey] = false;
+  });
 });
 
 colorInput?.addEventListener("input", (event) => {
