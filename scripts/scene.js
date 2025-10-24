@@ -1,5 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
@@ -9,6 +10,12 @@ const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_CAMERA_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
   Math.PI / 2 - THREE.MathUtils.degToRad(1);
+
+const gltfLoader = new GLTFLoader();
+const PLAYER_AVATAR_MODEL_URL = new URL(
+  "../images/models/suit2.glb",
+  import.meta.url
+);
 
 const normalizePitchForPersistence = (pitch) => {
   if (!Number.isFinite(pitch)) {
@@ -1889,6 +1896,7 @@ export const initScene = (
   };
 
   const reflectiveSurfaces = [];
+  let configureReflectiveSurfaceForAvatar = null;
 
   const registerReflectiveSurface = (reflector) => {
     if (!reflector) {
@@ -1896,6 +1904,10 @@ export const initScene = (
     }
 
     reflectiveSurfaces.push(reflector);
+
+    if (typeof configureReflectiveSurfaceForAvatar === "function") {
+      configureReflectiveSurfaceForAvatar(reflector);
+    }
   };
 
   const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
@@ -2007,6 +2019,152 @@ export const initScene = (
   let playerHeight = DEFAULT_PLAYER_HEIGHT;
   let playerEyeLevel = DEFAULT_PLAYER_HEIGHT;
 
+  const playerAvatarRoot = new THREE.Group();
+  playerAvatarRoot.name = "PlayerAvatarRoot";
+  playerAvatarRoot.visible = false;
+  playerObject.add(playerAvatarRoot);
+
+  const playerAvatarState = {
+    model: null,
+    originalHeight: 1,
+    originalBottom: 0,
+    originalCenter: new THREE.Vector3(),
+  };
+  const playerAvatarBoundingBox = new THREE.Box3();
+  const playerAvatarBoundingBoxSize = new THREE.Vector3();
+  const playerAvatarBoundingBoxCenter = new THREE.Vector3();
+
+  const updatePlayerAvatarHeight = () => {
+    const { model, originalHeight, originalBottom, originalCenter } =
+      playerAvatarState;
+
+    if (!model) {
+      return;
+    }
+
+    const safeOriginalHeight = originalHeight > 0 ? originalHeight : 1;
+    const targetHeight = Math.max(
+      MIN_PLAYER_HEIGHT,
+      Number.isFinite(playerHeight) ? playerHeight : MIN_PLAYER_HEIGHT
+    );
+    const scale = targetHeight / safeOriginalHeight;
+
+    model.scale.setScalar(scale);
+    model.position.set(
+      -originalCenter.x * scale,
+      -originalBottom * scale,
+      -originalCenter.z * scale
+    );
+  };
+
+  const configurePlayerAvatarForReflector = (reflector) => {
+    if (!reflector) {
+      return;
+    }
+
+    const userData = reflector.userData || (reflector.userData = {});
+    if (userData.__playerAvatarVisibilityWrapped) {
+      return;
+    }
+
+    userData.__playerAvatarVisibilityWrapped = true;
+    const originalOnBeforeRender = reflector.onBeforeRender;
+
+    reflector.onBeforeRender = function onBeforeRenderWithAvatar(
+      ...args
+    ) {
+      const hasAvatar = Boolean(playerAvatarState.model);
+      const previousVisibility = playerAvatarRoot.visible;
+
+      if (hasAvatar) {
+        playerAvatarRoot.visible = true;
+      }
+
+      try {
+        if (typeof originalOnBeforeRender === "function") {
+          originalOnBeforeRender.apply(this, args);
+        }
+      } finally {
+        if (hasAvatar) {
+          playerAvatarRoot.visible = previousVisibility;
+        }
+      }
+    };
+  };
+
+  configureReflectiveSurfaceForAvatar = configurePlayerAvatarForReflector;
+
+  reflectiveSurfaces.forEach((reflector) => {
+    configurePlayerAvatarForReflector(reflector);
+  });
+
+  const loadPlayerAvatarModel = () => {
+    gltfLoader.load(
+      PLAYER_AVATAR_MODEL_URL.href,
+      (gltf) => {
+        const avatarScene =
+          gltf?.scene || (Array.isArray(gltf?.scenes) ? gltf.scenes[0] : null);
+
+        if (!avatarScene) {
+          console.warn("Player avatar model did not include a usable scene");
+          return;
+        }
+
+        avatarScene.traverse((child) => {
+          if (!child?.isMesh) {
+            return;
+          }
+
+          const { material } = child;
+
+          if (Array.isArray(material)) {
+            child.material = material.map((mat) =>
+              mat?.isMaterial && typeof mat.clone === "function" ? mat.clone() : mat
+            );
+          } else if (material?.isMaterial && typeof material.clone === "function") {
+            child.material = material.clone();
+          }
+
+          child.castShadow = false;
+          child.receiveShadow = false;
+          child.frustumCulled = false;
+        });
+
+        playerAvatarRoot.clear();
+        playerAvatarRoot.add(avatarScene);
+
+        playerAvatarState.model = avatarScene;
+
+        avatarScene.updateMatrixWorld(true);
+
+        playerAvatarBoundingBox.makeEmpty();
+        playerAvatarBoundingBox.setFromObject(avatarScene);
+
+        if (playerAvatarBoundingBox.isEmpty()) {
+          playerAvatarState.originalHeight = 1;
+          playerAvatarState.originalBottom = 0;
+          playerAvatarState.originalCenter.set(0, 0.5, 0);
+        } else {
+          playerAvatarBoundingBox.getSize(playerAvatarBoundingBoxSize);
+          playerAvatarBoundingBox.getCenter(playerAvatarBoundingBoxCenter);
+          playerAvatarState.originalHeight =
+            playerAvatarBoundingBoxSize.y > 0
+              ? playerAvatarBoundingBoxSize.y
+              : 1;
+          playerAvatarState.originalBottom = playerAvatarBoundingBox.min.y;
+          playerAvatarState.originalCenter.copy(playerAvatarBoundingBoxCenter);
+        }
+
+        updatePlayerAvatarHeight();
+        playerAvatarRoot.visible = false;
+      },
+      undefined,
+      (error) => {
+        console.error("Unable to load player avatar model", error);
+      }
+    );
+  };
+
   const FIRST_PERSON_EYE_HEIGHT_OFFSET = -1;
 
   const firstPersonCameraOffset = new THREE.Vector3(
@@ -2071,6 +2229,7 @@ export const initScene = (
     }
 
     updateFirstPersonCameraOffset();
+    updatePlayerAvatarHeight();
 
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
@@ -2088,6 +2247,8 @@ export const initScene = (
     ? storedPlayerHeight
     : DEFAULT_PLAYER_HEIGHT;
   applyPlayerHeight(initialHeight, { persist: false });
+
+  loadPlayerAvatarModel();
 
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
@@ -2628,6 +2789,10 @@ export const initScene = (
       }
       savePlayerState(true);
       colliderDescriptors.length = 0;
+      playerAvatarRoot.clear();
+      playerAvatarState.model = null;
+      playerAvatarRoot.removeFromParent();
+      configureReflectiveSurfaceForAvatar = null;
     },
   };
 };
