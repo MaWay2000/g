@@ -1,5 +1,7 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
+import { OBJLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/OBJLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
@@ -222,6 +224,131 @@ export const initScene = (
 
   const textureLoader = new THREE.TextureLoader();
 
+  const gltfCache = new Map();
+  const objCache = new Map();
+
+  const defaultImportedMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x1f2937),
+    roughness: 0.64,
+    metalness: 0.18,
+  });
+
+  const cloneImportedMaterial = (material) => {
+    if (!material) {
+      return defaultImportedMaterial.clone();
+    }
+
+    if (Array.isArray(material)) {
+      return material.map((entry) => cloneImportedMaterial(entry));
+    }
+
+    const cloned = material.clone();
+
+    if (cloned.color?.isColor) {
+      cloned.color = cloned.color.clone();
+    }
+
+    return cloned;
+  };
+
+  const prepareImportedObject = (object) => {
+    if (!object) {
+      return object;
+    }
+
+    object.traverse((child) => {
+      if (!child.isMesh) {
+        return;
+      }
+
+      child.castShadow = true;
+      child.receiveShadow = true;
+      child.layers.enable(0);
+      child.material = cloneImportedMaterial(child.material);
+    });
+
+    return object;
+  };
+
+  const loadGLTFModel = async (path) => {
+    const resolvedUrl = new URL(path, import.meta.url).href;
+
+    if (!gltfCache.has(resolvedUrl)) {
+      const loader = new GLTFLoader();
+      gltfCache.set(
+        resolvedUrl,
+        loader.loadAsync(resolvedUrl).catch((error) => {
+          console.error(`Failed to load GLTF model from ${resolvedUrl}`, error);
+          gltfCache.delete(resolvedUrl);
+          throw error;
+        })
+      );
+    }
+
+    const gltf = await gltfCache.get(resolvedUrl);
+    const root = gltf?.scene ? gltf.scene.clone(true) : new THREE.Group();
+
+    return prepareImportedObject(root);
+  };
+
+  const loadOBJModel = async (path) => {
+    const resolvedUrl = new URL(path, import.meta.url).href;
+
+    if (!objCache.has(resolvedUrl)) {
+      const loader = new OBJLoader();
+      objCache.set(
+        resolvedUrl,
+        loader.loadAsync(resolvedUrl).catch((error) => {
+          console.error(`Failed to load OBJ model from ${resolvedUrl}`, error);
+          objCache.delete(resolvedUrl);
+          throw error;
+        })
+      );
+    }
+
+    const object = (await objCache.get(resolvedUrl)).clone(true);
+
+    return prepareImportedObject(object);
+  };
+
+  const registerCollidersForImportedRoot = (root, { padding } = {}) => {
+    if (!root) {
+      return;
+    }
+
+    const paddingVector =
+      padding instanceof THREE.Vector3 && padding.lengthSq() > 0
+        ? padding.clone()
+        : null;
+
+    root.updateMatrixWorld(true);
+
+    const descriptors = [];
+
+    root.traverse((child) => {
+      if (!child.isMesh) {
+        return;
+      }
+
+      const bounds = new THREE.Box3().setFromObject(child);
+
+      if (bounds.isEmpty()) {
+        return;
+      }
+
+      if (paddingVector) {
+        bounds.min.sub(paddingVector);
+        bounds.max.add(paddingVector);
+      }
+
+      descriptors.push({ object: child, box: bounds });
+    });
+
+    if (descriptors.length > 0) {
+      registerColliderDescriptors(descriptors);
+    }
+  };
+
   const colliderDescriptors = [];
 
   const registerColliderDescriptors = (descriptors) => {
@@ -238,28 +365,42 @@ export const initScene = (
         ? descriptor.padding.clone()
         : undefined;
 
+      const providedBox =
+        descriptor.box instanceof THREE.Box3 ? descriptor.box.clone() : null;
+
+      const autoUpdate = !providedBox;
+      const box = providedBox ?? new THREE.Box3();
+
+      if (providedBox && padding) {
+        box.min.sub(padding);
+        box.max.add(padding);
+      }
+
       colliderDescriptors.push({
         object: descriptor.object,
-        padding,
-        box: new THREE.Box3(),
+        padding: autoUpdate ? padding : undefined,
+        box,
+        autoUpdate,
       });
     });
   };
 
   const rebuildStaticColliders = () => {
     colliderDescriptors.forEach((descriptor) => {
-      const { object, padding, box } = descriptor;
+      const { object, padding, box, autoUpdate } = descriptor;
 
       if (!object || !box) {
         return;
       }
 
-      object.updateWorldMatrix(true, false);
-      box.setFromObject(object);
+      if (autoUpdate) {
+        object.updateWorldMatrix(true, false);
+        box.setFromObject(object);
 
-      if (padding) {
-        box.min.sub(padding);
-        box.max.add(padding);
+        if (padding) {
+          box.min.sub(padding);
+          box.max.add(padding);
+        }
       }
     });
   };
@@ -1814,6 +1955,59 @@ export const initScene = (
   lastUpdatedDisplay.position.set(-roomWidth / 2 + 0.12, 3.2, 0);
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
+
+  const loadImportedEnvironment = async () => {
+    try {
+      const [storageCrate, pedestal] = await Promise.all([
+        loadGLTFModel("./models/Box.gltf"),
+        loadOBJModel("./models/pedestal.obj"),
+      ]);
+
+      pedestal.scale.set(1.8, 1.4, 1.8);
+      pedestal.position.set(-4.5, roomFloorY, 8);
+      scene.add(pedestal);
+      pedestal.updateMatrixWorld(true);
+
+      const pedestalBounds = new THREE.Box3()
+        .setFromObject(pedestal)
+        .getSize(new THREE.Vector3());
+
+      const pedestalHeight = pedestalBounds.y;
+
+      registerCollidersForImportedRoot(
+        pedestal,
+        {
+          padding: new THREE.Vector3(0.05, 0.05, 0.05),
+        }
+      );
+
+      storageCrate.scale.setScalar(1.35);
+      storageCrate.position.set(-4.5, roomFloorY, 8);
+      storageCrate.updateMatrixWorld(true);
+
+      const crateHeight = new THREE.Box3()
+        .setFromObject(storageCrate)
+        .getSize(new THREE.Vector3()).y;
+
+      storageCrate.position.y = roomFloorY + pedestalHeight + crateHeight / 2;
+      storageCrate.updateMatrixWorld(true);
+
+      scene.add(storageCrate);
+
+      registerCollidersForImportedRoot(
+        storageCrate,
+        {
+          padding: new THREE.Vector3(0.05, 0.05, 0.05),
+        }
+      );
+
+      rebuildStaticColliders();
+    } catch (error) {
+      console.error("Unable to load imported 3D models", error);
+    }
+  };
+
+  loadImportedEnvironment();
 
   const computeReflectorRenderTargetSize = (surfaceWidth, surfaceHeight) => {
     const pixelRatio = renderer.getPixelRatio();
