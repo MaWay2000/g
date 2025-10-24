@@ -75,9 +75,18 @@ const transformControls = new TransformControls(camera, renderer.domElement);
 transformControls.setSize(1.1);
 transformControls.addEventListener("dragging-changed", (event) => {
   orbitControls.enabled = !event.value;
+  if (event.value) {
+    transformHasChanged = false;
+  } else if (transformHasChanged) {
+    transformHasChanged = false;
+    pushHistorySnapshot();
+  }
 });
 transformControls.addEventListener("change", () => {
   updateHud(currentSelection);
+});
+transformControls.addEventListener("objectChange", () => {
+  transformHasChanged = true;
 });
 scene.add(transformControls);
 
@@ -115,8 +124,185 @@ let currentSelection = null;
 let editableMeshes = [];
 let snapEnabled = false;
 let activeTransformMode = "translate";
+let transformHasChanged = false;
 
 const STORAGE_KEY = "model-editor-session-v1";
+
+const HISTORY_LIMIT = 50;
+const historyState = {
+  undoStack: [],
+  redoStack: [],
+  lastSignature: null,
+};
+let historyDebounceHandle = null;
+let isRestoringHistory = false;
+
+function cancelScheduledHistoryCommit() {
+  if (historyDebounceHandle) {
+    clearTimeout(historyDebounceHandle);
+    historyDebounceHandle = null;
+  }
+}
+
+function clearHistoryTracking() {
+  cancelScheduledHistoryCommit();
+  historyState.undoStack = [];
+  historyState.redoStack = [];
+  historyState.lastSignature = null;
+}
+
+function flushHistoryCommit() {
+  if (isRestoringHistory) {
+    cancelScheduledHistoryCommit();
+    return;
+  }
+  if (!historyDebounceHandle) {
+    return;
+  }
+  clearTimeout(historyDebounceHandle);
+  historyDebounceHandle = null;
+  pushHistorySnapshot();
+}
+
+function captureSelectionSnapshot() {
+  if (!currentSelection) {
+    return null;
+  }
+
+  const material = {
+    color: colorInput?.value ?? "#ffffff",
+    metalness: Number.parseFloat(metalnessInput?.value ?? "0") || 0,
+    roughness: Number.parseFloat(roughnessInput?.value ?? "1") || 1,
+  };
+
+  const objectJSON = currentSelection.toJSON();
+  const signature = JSON.stringify({
+    object: objectJSON,
+    material,
+    snapEnabled,
+  });
+
+  return {
+    objectJSON,
+    sourceName: currentSelection.userData.sourceName ?? "Imported model",
+    snapEnabled,
+    material,
+    signature,
+  };
+}
+
+function resetHistoryTracking() {
+  if (isRestoringHistory) {
+    return;
+  }
+  clearHistoryTracking();
+  const snapshot = captureSelectionSnapshot();
+  if (snapshot) {
+    historyState.undoStack.push(snapshot);
+    historyState.lastSignature = snapshot.signature;
+  }
+}
+
+function pushHistorySnapshot() {
+  if (isRestoringHistory) {
+    return;
+  }
+  const snapshot = captureSelectionSnapshot();
+  if (!snapshot) {
+    return;
+  }
+  if (snapshot.signature === historyState.lastSignature) {
+    return;
+  }
+
+  historyState.undoStack.push(snapshot);
+  if (historyState.undoStack.length > HISTORY_LIMIT) {
+    historyState.undoStack.shift();
+  }
+  historyState.lastSignature = snapshot.signature;
+  historyState.redoStack = [];
+}
+
+function scheduleHistoryCommit() {
+  if (isRestoringHistory || !currentSelection) {
+    return;
+  }
+  cancelScheduledHistoryCommit();
+  historyDebounceHandle = setTimeout(() => {
+    historyDebounceHandle = null;
+    pushHistorySnapshot();
+  }, 250);
+}
+
+function applySnapshot(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+
+  isRestoringHistory = true;
+  cancelScheduledHistoryCommit();
+  try {
+    const loader = new THREE.ObjectLoader();
+    const restored = loader.parse(snapshot.objectJSON);
+    setCurrentSelection(restored, snapshot.sourceName ?? "Imported model");
+
+    snapEnabled = Boolean(snapshot.snapEnabled);
+    transformControls.setTranslationSnap(snapEnabled ? 0.25 : null);
+    transformControls.setRotationSnap(
+      snapEnabled ? THREE.MathUtils.degToRad(15) : null
+    );
+    transformControls.setScaleSnap(snapEnabled ? 0.1 : null);
+    if (toggleSnappingButton) {
+      toggleSnappingButton.dataset.active = snapEnabled ? "true" : "false";
+      toggleSnappingButton.textContent = snapEnabled
+        ? "Snapping: On"
+        : "Snapping: Off";
+    }
+
+    if (snapshot.material) {
+      const { color, metalness, roughness } = snapshot.material;
+      if (colorInput && color) {
+        colorInput.value = color;
+      }
+      if (metalnessInput && typeof metalness === "number") {
+        metalnessInput.value = metalness.toString();
+      }
+      if (roughnessInput && typeof roughness === "number") {
+        roughnessInput.value = roughness.toString();
+      }
+    }
+
+    syncMaterialInputs();
+    updateHud(currentSelection);
+  } finally {
+    isRestoringHistory = false;
+  }
+}
+
+function undoLastChange() {
+  flushHistoryCommit();
+  if (historyState.undoStack.length <= 1) {
+    return;
+  }
+  const current = historyState.undoStack.pop();
+  historyState.redoStack.push(current);
+  const previous = historyState.undoStack[historyState.undoStack.length - 1];
+  applySnapshot(previous);
+  historyState.lastSignature = previous.signature;
+  setStatus("ready", "Undo applied");
+}
+
+function redoLastChange() {
+  flushHistoryCommit();
+  if (!historyState.redoStack.length) {
+    return;
+  }
+  const snapshot = historyState.redoStack.pop();
+  historyState.undoStack.push(snapshot);
+  applySnapshot(snapshot);
+  historyState.lastSignature = snapshot.signature;
+  setStatus("ready", "Redo applied");
+}
 
 function resizeRendererToDisplaySize() {
   const width = canvas.clientWidth;
@@ -388,9 +574,14 @@ function applyMaterialProperty(property, value) {
     });
   });
   updateHud(currentSelection);
+  if (!isRestoringHistory) {
+    scheduleHistoryCommit();
+  }
 }
 
 function setCurrentSelection(object3D, sourceName = "Imported model") {
+  cancelScheduledHistoryCommit();
+  transformHasChanged = false;
   if (currentSelection) {
     transformControls.detach();
     scene.remove(currentSelection);
@@ -422,6 +613,8 @@ function clearSelection() {
     editableMeshes = [];
   }
   resetHud();
+  transformHasChanged = false;
+  clearHistoryTracking();
 }
 
 function getExtensionFromName(name = "") {
@@ -557,6 +750,7 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
 
     centerObject(imported);
     setCurrentSelection(imported, name);
+    resetHistoryTracking();
   } catch (error) {
     console.error("Unable to load model", error);
     setStatus("error", `Failed to load ${name}`);
@@ -712,6 +906,7 @@ toggleSnappingButton?.addEventListener("click", () => {
   toggleSnappingButton.textContent = snapEnabled
     ? "Snapping: On"
     : "Snapping: Off";
+  pushHistorySnapshot();
 });
 
 focusSelectionButton?.addEventListener("click", () => {
@@ -742,6 +937,24 @@ window.addEventListener("keydown", (event) => {
   }
 
   const key = event.key.toLowerCase();
+  const modifierActive = event.metaKey || event.ctrlKey;
+
+  if (modifierActive && key === "z") {
+    event.preventDefault();
+    if (event.shiftKey) {
+      redoLastChange();
+    } else {
+      undoLastChange();
+    }
+    return;
+  }
+
+  if (modifierActive && key === "y") {
+    event.preventDefault();
+    redoLastChange();
+    return;
+  }
+
   const navigationKey = navigationKeyMap.get(key);
   if (navigationKey) {
     navigationState[navigationKey] = true;
@@ -860,6 +1073,9 @@ function restoreSession() {
     toggleSnappingButton.dataset.active = snapEnabled ? "true" : "false";
     if (parsed.material) {
       const { color, metalness, roughness } = parsed.material;
+      const previousRestoring = isRestoringHistory;
+      isRestoringHistory = true;
+      try {
       if (color) {
         colorInput.value = color;
         applyMaterialProperty("color", color);
@@ -872,7 +1088,11 @@ function restoreSession() {
         roughnessInput.value = roughness.toString();
         applyMaterialProperty("roughness", roughness);
       }
+      } finally {
+        isRestoringHistory = previousRestoring;
+      }
     }
+    resetHistoryTracking();
     setStatus("ready", "Session restored");
   } catch (error) {
     console.error("Unable to restore session", error);
