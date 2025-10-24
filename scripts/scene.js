@@ -2227,7 +2227,7 @@ export const initScene = (
     activePlayerAnimationKey = key;
   };
 
-  const findClipByKeywords = (clips, keywordGroups, usedClipNames) => {
+  const findClipByKeywords = (clips, keywordGroups, usedClips) => {
     if (!Array.isArray(clips)) {
       return null;
     }
@@ -2245,7 +2245,7 @@ export const initScene = (
       );
 
       const matchedEntry = normalizedClips.find(({ clip, normalizedName }) => {
-        if (usedClipNames.has(clip.name)) {
+        if (usedClips.has(clip)) {
           return false;
         }
 
@@ -2311,19 +2311,19 @@ export const initScene = (
         playerAvatarMixer = new THREE.AnimationMixer(playerAvatarModel);
 
         const animations = Array.isArray(gltf.animations) ? gltf.animations : [];
-        const usedClipNames = new Set();
+        const usedClips = new Set();
 
         const assignAction = (key, keywordGroups, options) => {
           if (playerAnimationActions[key]) {
             return playerAnimationActions[key];
           }
 
-          const clip = findClipByKeywords(animations, keywordGroups, usedClipNames);
+          const clip = findClipByKeywords(animations, keywordGroups, usedClips);
           if (!clip) {
             return null;
           }
 
-          usedClipNames.add(clip.name);
+          usedClips.add(clip);
           const action = playerAvatarMixer.clipAction(clip);
           registerPlayerAnimationAction(key, action, options);
           return action;
@@ -2337,9 +2337,7 @@ export const initScene = (
         assignAction("action", [["action"], ["attack"], ["shoot"], ["wave"]]);
 
         if (!playerAnimationActions.idle && animations.length > 0) {
-          const fallbackClip = animations.find(
-            (clip) => !usedClipNames.has(clip.name)
-          );
+          const fallbackClip = animations.find((clip) => !usedClips.has(clip));
 
           if (fallbackClip) {
             const fallbackAction = playerAvatarMixer.clipAction(fallbackClip);
