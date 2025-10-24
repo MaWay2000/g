@@ -1834,13 +1834,28 @@ export const initScene = (
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
 
+  const computeReflectorRenderTargetSize = (surfaceWidth, surfaceHeight) => {
+    const pixelRatio = renderer.getPixelRatio();
+    const safeSurfaceWidth =
+      Number.isFinite(surfaceWidth) && surfaceWidth > 0 ? surfaceWidth : 1;
+    const safeSurfaceHeight =
+      Number.isFinite(surfaceHeight) && surfaceHeight > 0 ? surfaceHeight : 1;
+    const aspect = safeSurfaceWidth / safeSurfaceHeight;
+    const baseHeight = Math.max(1, window.innerHeight || 1);
+    const baseWidth = baseHeight * aspect;
+
+    return {
+      width: Math.max(1, Math.round(baseWidth * pixelRatio)),
+      height: Math.max(1, Math.round(baseHeight * pixelRatio)),
+    };
+  };
+
   const createWallMirror = () => {
     const group = new THREE.Group();
 
     const mirrorWidth = 12;
     const mirrorHeight = 9;
     const frameInset = 0.18;
-    const pixelRatio = window.devicePixelRatio ?? 1;
 
     const frameMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x111827),
@@ -1860,15 +1875,25 @@ export const initScene = (
     frame.position.z = -0.015;
     group.add(frame);
 
+    const renderTargetSize = computeReflectorRenderTargetSize(
+      mirrorWidth,
+      mirrorHeight
+    );
+
     const reflector = new Reflector(
       new THREE.PlaneGeometry(mirrorWidth, mirrorHeight),
       {
         clipBias: 0.0025,
         color: new THREE.Color(0x9fb7cf),
-        textureWidth: window.innerWidth * pixelRatio,
-        textureHeight: window.innerHeight * pixelRatio,
+        textureWidth: renderTargetSize.width,
+        textureHeight: renderTargetSize.height,
       }
     );
+    const reflectorUserData = reflector.userData || (reflector.userData = {});
+    reflectorUserData.renderSurfaceDimensions = {
+      width: mirrorWidth,
+      height: mirrorHeight,
+    };
     group.add(reflector);
 
     const accentMaterial = new THREE.MeshStandardMaterial({
@@ -2739,14 +2764,29 @@ export const initScene = (
   const handleResize = () => {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
+    const safeHeight = height > 0 ? height : 1;
+    renderer.setSize(width, safeHeight, false);
+    camera.aspect = width / safeHeight;
     camera.updateProjectionMatrix();
 
-    const pixelRatio = renderer.getPixelRatio();
     reflectiveSurfaces.forEach((reflector) => {
-      if (reflector?.renderTarget && typeof reflector.renderTarget.setSize === "function") {
-        reflector.renderTarget.setSize(width * pixelRatio, height * pixelRatio);
+      const renderTarget = reflector?.renderTarget;
+      if (!renderTarget || typeof renderTarget.setSize !== "function") {
+        return;
+      }
+
+      const dimensions =
+        reflector?.userData?.renderSurfaceDimensions ?? undefined;
+      const surfaceWidth = dimensions?.width;
+      const surfaceHeight = dimensions?.height;
+      const { width: targetWidth, height: targetHeight } =
+        computeReflectorRenderTargetSize(surfaceWidth, surfaceHeight);
+
+      if (
+        renderTarget.width !== targetWidth ||
+        renderTarget.height !== targetHeight
+      ) {
+        renderTarget.setSize(targetWidth, targetHeight);
       }
     });
   };
