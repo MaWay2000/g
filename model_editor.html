@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>3D Model Editor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        --slate-950: #020617;
+        --slate-900: #0f172a;
+        --slate-800: #1e293b;
+        --slate-700: #334155;
+        --slate-100: #f1f5f9;
+        --sky-400: #38bdf8;
+        --violet-400: #818cf8;
+        --amber-400: #fbbf24;
+        background: radial-gradient(circle at top, var(--slate-800), var(--slate-950) 70%);
+        color: var(--slate-100);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+        background: transparent;
+        color: inherit;
+      }
+
+      @media (max-width: 1080px) {
+        body {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto minmax(0, 60vh);
+        }
+
+        .editor-shell {
+          order: 2;
+          min-height: 60vh;
+        }
+      }
+
+      header {
+        padding: 1.5rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        background: linear-gradient(
+          180deg,
+          rgba(15, 23, 42, 0.65),
+          rgba(15, 23, 42, 0.35)
+        );
+        backdrop-filter: blur(16px);
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: clamp(1.5rem, 2vw + 1rem, 2.25rem);
+      }
+
+      header p {
+        margin: 0.75rem 0 0;
+        color: rgba(226, 232, 240, 0.8);
+        line-height: 1.6;
+      }
+
+      .sidebar {
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(24px);
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid rgba(148, 163, 184, 0.15);
+      }
+
+      .sidebar__section {
+        padding: 1.5rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+        display: grid;
+        gap: 1rem;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+
+      .sidebar__section h2 {
+        margin: 0;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(148, 163, 184, 0.95);
+      }
+
+      .sidebar__section p {
+        margin: 0;
+        color: rgba(226, 232, 240, 0.75);
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+
+      .uploader {
+        position: relative;
+        border: 1px dashed rgba(148, 163, 184, 0.35);
+        border-radius: 1rem;
+        padding: 1.75rem 1.25rem;
+        text-align: center;
+        transition: border-color 160ms ease, background 160ms ease;
+        background: rgba(15, 23, 42, 0.35);
+        color: rgba(226, 232, 240, 0.9);
+      }
+
+      .uploader[data-state="drag"] {
+        border-color: var(--sky-400);
+        background: rgba(56, 189, 248, 0.12);
+      }
+
+      .uploader input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .uploader strong {
+        color: white;
+        font-weight: 600;
+      }
+
+      .controls-grid {
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      button,
+      select,
+      input,
+      label {
+        font: inherit;
+      }
+
+      button,
+      select,
+      input[type="color"],
+      input[type="range"],
+      input[type="text"] {
+        border-radius: 999px;
+        border: none;
+        padding: 0.65rem 1.1rem;
+        background: rgba(30, 41, 59, 0.65);
+        color: inherit;
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+        transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      }
+
+      button:hover,
+      select:hover,
+      input[type="color"]:hover,
+      input[type="range"]:hover,
+      input[type="text"]:hover {
+        box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.75);
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .button--primary {
+        background: linear-gradient(135deg, var(--sky-400), var(--violet-400));
+        color: var(--slate-950);
+        font-weight: 700;
+      }
+
+      .button--warning {
+        background: rgba(251, 191, 36, 0.1);
+        box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55);
+        color: rgba(251, 191, 36, 0.95);
+        font-weight: 600;
+      }
+
+      .control-group {
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .control-group label {
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .transform-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 0.5rem;
+      }
+
+      .transform-buttons button[data-active="true"] {
+        background: rgba(129, 140, 248, 0.25);
+        box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.55);
+      }
+
+      .editor-shell {
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        justify-content: stretch;
+        background: radial-gradient(circle at top, rgba(56, 189, 248, 0.07), transparent 65%);
+      }
+
+      canvas#editorCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .hud {
+        position: absolute;
+        top: 1.25rem;
+        right: 1.25rem;
+        background: rgba(15, 23, 42, 0.7);
+        padding: 0.85rem 1.25rem;
+        border-radius: 1rem;
+        box-shadow: 0 18px 34px rgba(2, 6, 23, 0.45);
+        font-size: 0.9rem;
+        display: grid;
+        gap: 0.25rem;
+        max-width: min(320px, 40vw);
+      }
+
+      .hud strong {
+        color: white;
+        font-weight: 600;
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        background: rgba(56, 189, 248, 0.18);
+        color: rgba(125, 211, 252, 0.95);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .status-badge[data-state="error"] {
+        background: rgba(248, 113, 113, 0.18);
+        color: rgba(248, 113, 113, 0.95);
+      }
+
+      .material-controls input[type="range"] {
+        accent-color: var(--violet-400);
+      }
+
+      .material-swatches {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .material-swatches button {
+        width: 32px;
+        height: 32px;
+        border-radius: 12px;
+        padding: 0;
+        border: none;
+        box-shadow: inset 0 0 0 2px rgba(15, 23, 42, 0.2);
+      }
+
+      .material-swatches button:focus {
+        outline: 2px solid var(--sky-400);
+        outline-offset: 2px;
+      }
+
+      .info-text {
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      footer {
+        padding: 1.25rem 1.5rem 1.5rem;
+        font-size: 0.8rem;
+        color: rgba(148, 163, 184, 0.75);
+        background: rgba(15, 23, 42, 0.65);
+      }
+    </style>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <header>
+        <h1>3D Model Viewer &amp; Editor</h1>
+        <p>
+          Upload GLTF/GLB, OBJ, FBX or STL assets, explore them with orbit and
+          transform gizmos, adjust their materials, and persist your session to
+          resume editing later.
+        </p>
+      </header>
+
+      <section class="sidebar__section" aria-labelledby="import-heading">
+        <h2 id="import-heading">Import assets</h2>
+        <div class="uploader" data-state="idle" data-dropzone>
+          <strong>Click to choose</strong> or drop a file here
+          <input
+            type="file"
+            accept=".gltf,.glb,.obj,.fbx,.stl"
+            data-file-input
+            aria-label="Upload a 3D model"
+          />
+        </div>
+        <div class="controls-grid">
+          <label class="sr-only" for="sampleModels">Load sample asset</label>
+          <select id="sampleModels" data-sample-select>
+            <option value="" selected>Load a sample model…</option>
+            <option value="models/Box.gltf">Sample Box (GLTF)</option>
+            <option value="models/pedestal.obj">Pedestal (OBJ)</option>
+          </select>
+          <button type="button" class="button--primary" data-reset-scene>
+            Reset Scene
+          </button>
+        </div>
+        <p class="info-text">
+          Larger assets are parsed in the browser without leaving your device.
+          FBX and GLTF binary models may take a few seconds to process after
+          import.
+        </p>
+      </section>
+
+      <section class="sidebar__section" aria-labelledby="transform-heading">
+        <h2 id="transform-heading">Transform</h2>
+        <div class="transform-buttons" data-transform-buttons>
+          <button type="button" data-mode="translate">Move</button>
+          <button type="button" data-mode="rotate">Rotate</button>
+          <button type="button" data-mode="scale">Scale</button>
+        </div>
+        <div class="controls-grid">
+          <button type="button" data-toggle-snapping>Toggle Snapping</button>
+          <button type="button" data-focus-selection>Frame Selection</button>
+        </div>
+      </section>
+
+      <section class="sidebar__section" aria-labelledby="materials-heading">
+        <h2 id="materials-heading">Material</h2>
+        <div class="control-group material-controls">
+          <label for="baseColor">Base color</label>
+          <input type="color" id="baseColor" data-color-input value="#ffffff" />
+        </div>
+        <div class="control-group material-controls">
+          <label for="metalness">Metalness</label>
+          <input
+            type="range"
+            id="metalness"
+            data-metalness-input
+            min="0"
+            max="1"
+            step="0.01"
+            value="0"
+          />
+        </div>
+        <div class="control-group material-controls">
+          <label for="roughness">Roughness</label>
+          <input
+            type="range"
+            id="roughness"
+            data-roughness-input
+            min="0"
+            max="1"
+            step="0.01"
+            value="1"
+          />
+        </div>
+        <div class="material-swatches" data-material-swatches>
+          <button type="button" data-color="#ffffff" style="background: #ffffff"></button>
+          <button type="button" data-color="#ffedd5" style="background: #ffedd5"></button>
+          <button type="button" data-color="#fef3c7" style="background: #fef3c7"></button>
+          <button type="button" data-color="#bfdbfe" style="background: #bfdbfe"></button>
+          <button type="button" data-color="#bbf7d0" style="background: #bbf7d0"></button>
+          <button type="button" data-color="#fca5a5" style="background: #fca5a5"></button>
+        </div>
+      </section>
+
+      <section class="sidebar__section" aria-labelledby="persistence-heading">
+        <h2 id="persistence-heading">Persistence</h2>
+        <div class="controls-grid">
+          <button type="button" data-save-session class="button--primary">
+            Save Session
+          </button>
+          <button type="button" data-restore-session>
+            Restore Last Session
+          </button>
+          <button type="button" data-clear-session class="button--warning">
+            Clear Saved Session
+          </button>
+          <button type="button" data-export-gltf>
+            Export selection as GLB
+          </button>
+        </div>
+        <p class="info-text">
+          Sessions persist the current selection, material overrides, and
+          transforms in your browser. Use export to share a GLB snapshot of the
+          edited model.
+        </p>
+      </section>
+
+      <footer>
+        Built with Three.js orbit &amp; transform controls, multiple loader
+        adapters, and local persistence. Tip: press <kbd>F</kbd> to frame the
+        selected model.
+      </footer>
+    </aside>
+
+    <main class="editor-shell">
+      <canvas id="editorCanvas" aria-label="3D editor viewport"></canvas>
+      <div class="hud" data-hud>
+        <span class="status-badge" data-status-badge data-state="idle">Idle</span>
+        <div data-hud-model>Drop a model to begin.</div>
+        <div data-hud-info></div>
+      </div>
+    </main>
+
+    <script type="module" src="scripts/model-editor.js"></script>
+  </body>
+</html>
