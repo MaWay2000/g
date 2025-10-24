@@ -359,6 +359,64 @@ function parseGLTF(content, name) {
   });
 }
 
+function configureGLTFFileMap(fileMap) {
+  if (!fileMap || !fileMap.size) {
+    return () => {};
+  }
+
+  const manager = loaders.gltf.manager;
+  if (!manager || typeof manager.setURLModifier !== "function") {
+    return () => {};
+  }
+
+  const previousModifier = manager.urlModifier ?? null;
+  const objectURLCache = new Map();
+
+  manager.setURLModifier((url) => {
+    if (typeof url !== "string") {
+      return previousModifier ? previousModifier(url) : url;
+    }
+
+    if (url.startsWith("data:") || url.startsWith("blob:")) {
+      return url;
+    }
+
+    const decodedURL = decodeURI(url);
+    const sanitized = decodedURL.split(/[?#]/)[0];
+    const normalized = sanitized.replace(/^\.\//, "").replace(/^\//, "");
+    const lowerFullPath = normalized.toLowerCase();
+    const lowerFileName = lowerFullPath.split("/").pop();
+
+    const matchKey = fileMap.has(lowerFullPath)
+      ? lowerFullPath
+      : lowerFileName && fileMap.has(lowerFileName)
+      ? lowerFileName
+      : null;
+
+    if (matchKey) {
+      if (!objectURLCache.has(matchKey)) {
+        const file = fileMap.get(matchKey);
+        objectURLCache.set(matchKey, URL.createObjectURL(file));
+      }
+      return objectURLCache.get(matchKey);
+    }
+
+    return previousModifier ? previousModifier(url) : url;
+  });
+
+  return () => {
+    if (previousModifier) {
+      manager.setURLModifier(previousModifier);
+    } else {
+      manager.setURLModifier(undefined);
+    }
+    objectURLCache.forEach((objectURL) => {
+      URL.revokeObjectURL(objectURL);
+    });
+    objectURLCache.clear();
+  };
+}
+
 function parseGLB(arrayBuffer, name) {
   return new Promise((resolve, reject) => {
     loaders.glb.parse(arrayBuffer, "", resolve, (error) => {
@@ -368,21 +426,26 @@ function parseGLB(arrayBuffer, name) {
   });
 }
 
-async function loadModelFromData({ name, extension, arrayBuffer, text, url }) {
+async function loadModelFromData({ name, extension, arrayBuffer, text, url, fileMap }) {
   setStatus("loading", `Loading ${name}…`);
   try {
     let imported = null;
     if (extension === "gltf") {
-      if (url) {
-        const gltf = await loaders.gltf.loadAsync(url);
-        imported = gltf.scene || gltf.scenes?.[0];
-      } else if (arrayBuffer) {
-        const textContent = new TextDecoder().decode(arrayBuffer);
-        const gltf = await parseGLTF(textContent, name);
-        imported = gltf.scene || gltf.scenes?.[0];
-      } else if (text) {
-        const gltf = await parseGLTF(text, name);
-        imported = gltf.scene || gltf.scenes?.[0];
+      const restoreModifier = configureGLTFFileMap(fileMap);
+      try {
+        if (url) {
+          const gltf = await loaders.gltf.loadAsync(url);
+          imported = gltf.scene || gltf.scenes?.[0];
+        } else if (arrayBuffer) {
+          const textContent = new TextDecoder().decode(arrayBuffer);
+          const gltf = await parseGLTF(textContent, name);
+          imported = gltf.scene || gltf.scenes?.[0];
+        } else if (text) {
+          const gltf = await parseGLTF(text, name);
+          imported = gltf.scene || gltf.scenes?.[0];
+        }
+      } finally {
+        restoreModifier();
       }
     } else if (extension === "glb") {
       if (url) {
@@ -426,37 +489,70 @@ function handleFileList(files) {
   if (!files || !files.length) {
     return;
   }
-  const file = files[0];
-  const extension = getExtensionFromName(file.name);
+
+  const fileArray = Array.from(files);
+  const fileMap = new Map();
+
+  fileArray.forEach((entry) => {
+    const lowerName = entry.name.toLowerCase();
+    if (!fileMap.has(lowerName)) {
+      fileMap.set(lowerName, entry);
+    }
+    if (entry.webkitRelativePath) {
+      const relativePath = entry.webkitRelativePath.toLowerCase();
+      if (relativePath && !fileMap.has(relativePath)) {
+        fileMap.set(relativePath, entry);
+      }
+      const relativeName = relativePath.split("/").pop();
+      if (relativeName && !fileMap.has(relativeName)) {
+        fileMap.set(relativeName, entry);
+      }
+    }
+  });
+
+  const primaryFile =
+    fileArray.find((entry) => {
+      const ext = getExtensionFromName(entry.name);
+      return ["gltf", "glb", "obj", "fbx", "stl"].includes(ext);
+    }) ?? fileArray[0];
+
+  if (!primaryFile) {
+    return;
+  }
+
+  const extension = getExtensionFromName(primaryFile.name);
   const reader = new FileReader();
 
   if (extension === "gltf") {
     reader.onload = () => {
       loadModelFromData({
-        name: file.name,
+        name: primaryFile.name,
         extension,
         text: reader.result,
+        fileMap,
       });
     };
-    reader.readAsText(file);
+    reader.readAsText(primaryFile);
   } else if (["glb", "fbx", "stl"].includes(extension)) {
     reader.onload = () => {
       loadModelFromData({
-        name: file.name,
+        name: primaryFile.name,
         extension,
         arrayBuffer: reader.result,
+        fileMap,
       });
     };
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(primaryFile);
   } else if (extension === "obj") {
     reader.onload = () => {
       loadModelFromData({
-        name: file.name,
+        name: primaryFile.name,
         extension,
         text: reader.result,
+        fileMap,
       });
     };
-    reader.readAsText(file);
+    reader.readAsText(primaryFile);
   } else {
     setStatus("error", "Unsupported file type");
     hudInfo.textContent = `Supported formats: GLTF/GLB, OBJ, FBX, STL.`;
