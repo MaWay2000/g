@@ -2998,6 +2998,9 @@ export const initScene = (
 
     playerModelGroup.visible = true;
 
+    let recognizedIdleAction = null;
+    let recognizedWalkAction = null;
+
     if (Array.isArray(animations) && animations.length > 0) {
       playerModelState.mixer = new THREE.AnimationMixer(model);
 
@@ -3009,10 +3012,18 @@ export const initScene = (
         const clipName = String(clip.name || "").toLowerCase();
         const action = playerModelState.mixer.clipAction(clip);
 
-        if (!playerModelState.actions.walk && (clipName.includes("walk") || clipName.includes("run"))) {
+        if (
+          !playerModelState.actions.walk &&
+          (clipName.includes("walk") || clipName.includes("run"))
+        ) {
           playerModelState.actions.walk = action;
-        } else if (!playerModelState.actions.idle && (clipName.includes("idle") || clipName.includes("stand"))) {
+          recognizedWalkAction = action;
+        } else if (
+          !playerModelState.actions.idle &&
+          (clipName.includes("idle") || clipName.includes("stand"))
+        ) {
           playerModelState.actions.idle = action;
+          recognizedIdleAction = action;
         }
       });
 
@@ -3025,6 +3036,10 @@ export const initScene = (
       updatePlayerModelAnimationState(false);
     }
 
+    const hasRecognizedAnimations = Boolean(
+      recognizedIdleAction || recognizedWalkAction
+    );
+
     updatePlayerModelTransform();
     updatePlayerModelBoundingBox();
 
@@ -3035,6 +3050,8 @@ export const initScene = (
         manualAnimator = manualAnimatorFactory({
           model,
           group: playerModelGroup,
+          animations,
+          hasRecognizedAnimations,
         });
       } catch (error) {
         console.warn(
@@ -3055,6 +3072,274 @@ export const initScene = (
     }
 
     refreshCameraViewMode();
+  };
+
+  const createPlayerBodySwingAnimator = ({
+    leftArm,
+    rightArm,
+    leftLeg,
+    rightLeg,
+    torso,
+    neck,
+    head,
+  }) => {
+    const trackedNodes = [
+      leftArm,
+      rightArm,
+      leftLeg,
+      rightLeg,
+      torso,
+      neck,
+      head,
+    ].filter((node) => node instanceof THREE.Object3D);
+
+    if (trackedNodes.length === 0) {
+      return null;
+    }
+
+    const baseTransforms = new Map();
+
+    trackedNodes.forEach((node) => {
+      baseTransforms.set(node, {
+        rotation: node.rotation.clone(),
+        position: node.position.clone(),
+      });
+    });
+
+    let swingPhase = 0;
+    let swingStrength = 0;
+
+    const reset = () => {
+      swingPhase = 0;
+      swingStrength = 0;
+
+      trackedNodes.forEach((node) => {
+        const base = baseTransforms.get(node);
+
+        if (!base) {
+          return;
+        }
+
+        node.rotation.copy(base.rotation);
+        node.position.copy(base.position);
+      });
+    };
+
+    const withBase = (node, callback, options = {}) => {
+      if (!node) {
+        return;
+      }
+
+      const base = baseTransforms.get(node);
+
+      if (!base) {
+        return;
+      }
+
+      node.rotation.copy(base.rotation);
+
+      if (options.copyPosition) {
+        node.position.copy(base.position);
+      }
+
+      callback(node, base);
+    };
+
+    const update = ({
+      delta = 0,
+      isWalking = false,
+      speed = 0,
+    } = {}) => {
+      const clampedDelta = Math.max(delta, 0);
+      const clampedSpeed = Math.max(speed, 0);
+      const normalizedSpeed = THREE.MathUtils.clamp(clampedSpeed / 8, 0, 1);
+      const targetSwing = isWalking
+        ? THREE.MathUtils.lerp(0.35, 1, normalizedSpeed)
+        : 0;
+
+      swingStrength = THREE.MathUtils.damp(
+        swingStrength,
+        targetSwing,
+        6,
+        clampedDelta
+      );
+
+      const swingFrequency = THREE.MathUtils.lerp(4.2, 7.5, normalizedSpeed);
+      swingPhase += clampedDelta * swingFrequency;
+
+      if (!Number.isFinite(swingPhase)) {
+        swingPhase = 0;
+      } else if (swingPhase > Math.PI * 2) {
+        swingPhase %= Math.PI * 2;
+      }
+
+      const forwardSwing = Math.sin(swingPhase) * swingStrength;
+      const crossSwing = Math.cos(swingPhase) * swingStrength;
+      const halfSwing = Math.sin(swingPhase * 0.5) * swingStrength;
+      const liftSwing = Math.abs(Math.sin(swingPhase)) * swingStrength;
+      const isFirstPersonView = cameraViewMode === VIEW_MODES.FIRST_PERSON;
+      const armSwingMultiplier = isFirstPersonView ? 0.45 : 1;
+      const firstPersonArmRaise = THREE.MathUtils.degToRad(50);
+      const firstPersonArmYaw = THREE.MathUtils.degToRad(12);
+      const firstPersonArmRoll = THREE.MathUtils.degToRad(18);
+
+      withBase(
+        leftArm,
+        (node) => {
+          node.rotation.x += forwardSwing * 0.85 * armSwingMultiplier;
+          node.rotation.z += crossSwing * 0.12 * armSwingMultiplier;
+
+          if (isFirstPersonView) {
+            node.rotation.x -= firstPersonArmRaise;
+            node.rotation.y += firstPersonArmYaw;
+            node.rotation.z -= firstPersonArmRoll;
+          }
+        },
+        { copyPosition: false }
+      );
+
+      withBase(
+        rightArm,
+        (node) => {
+          node.rotation.x -= forwardSwing * 0.85 * armSwingMultiplier;
+          node.rotation.z -= crossSwing * 0.12 * armSwingMultiplier;
+
+          if (isFirstPersonView) {
+            node.rotation.x -= firstPersonArmRaise;
+            node.rotation.y -= firstPersonArmYaw;
+            node.rotation.z += firstPersonArmRoll;
+          }
+        },
+        { copyPosition: false }
+      );
+
+      withBase(leftLeg, (node) => {
+        node.rotation.x -= forwardSwing * 1.2;
+        node.rotation.z -= crossSwing * 0.05;
+      });
+
+      withBase(rightLeg, (node) => {
+        node.rotation.x += forwardSwing * 1.2;
+        node.rotation.z += crossSwing * 0.05;
+      });
+
+      withBase(torso, (node) => {
+        node.rotation.y += forwardSwing * 0.08;
+        node.rotation.x += crossSwing * 0.04;
+        node.rotation.z += halfSwing * 0.05;
+      });
+
+      withBase(neck, (node) => {
+        node.rotation.x += crossSwing * 0.05;
+        node.rotation.y += forwardSwing * 0.04;
+      });
+
+      withBase(
+        head,
+        (node) => {
+          node.rotation.x += crossSwing * 0.09;
+          node.rotation.y += forwardSwing * 0.05;
+          node.rotation.z += halfSwing * 0.03;
+          node.position.y += liftSwing * 0.08;
+        },
+        { copyPosition: true }
+      );
+    };
+
+    return {
+      update,
+      reset,
+    };
+  };
+
+  const createImportedPlayerModelAnimator = ({
+    model,
+    hasRecognizedAnimations,
+  }) => {
+    if (!(model instanceof THREE.Object3D) || hasRecognizedAnimations) {
+      return null;
+    }
+
+    const findNode = (variants) => {
+      if (!Array.isArray(variants)) {
+        return null;
+      }
+
+      const normalizeVariant = (variant) => {
+        if (Array.isArray(variant)) {
+          return variant
+            .map((term) => String(term || "").trim().toLowerCase())
+            .filter(Boolean);
+        }
+
+        const normalized = String(variant || "").trim().toLowerCase();
+        return normalized ? [normalized] : [];
+      };
+
+      const searchVariants = variants
+        .map(normalizeVariant)
+        .filter((variant) => variant.length > 0);
+
+      if (searchVariants.length === 0) {
+        return null;
+      }
+
+      let matchedNode = null;
+
+      const tryMatchVariant = (node, variant) =>
+        variant.every((term) => node.name.toLowerCase().includes(term));
+
+      model.traverse((child) => {
+        if (matchedNode || !(child instanceof THREE.Object3D) || !child.name) {
+          return;
+        }
+
+        for (const variant of searchVariants) {
+          if (tryMatchVariant(child, variant)) {
+            matchedNode = child;
+            break;
+          }
+        }
+      });
+
+      return matchedNode;
+    };
+
+    const animator = createPlayerBodySwingAnimator({
+      leftArm: findNode([
+        ["left", "arm"],
+        ["l", "arm"],
+      ]),
+      rightArm: findNode([
+        ["right", "arm"],
+        ["r", "arm"],
+      ]),
+      leftLeg: findNode([
+        ["left", "leg"],
+        ["l", "leg"],
+      ]),
+      rightLeg: findNode([
+        ["right", "leg"],
+        ["r", "leg"],
+      ]),
+      torso: findNode([
+        ["chest"],
+        ["spine"],
+        ["torso"],
+      ]),
+      neck: findNode([["neck"]]),
+      head: findNode([["head"]]),
+    });
+
+    if (!animator) {
+      return null;
+    }
+
+    if (typeof animator.reset === "function") {
+      animator.reset();
+    }
+
+    return animator;
   };
 
   const createSimplePlayerModel = () => {
@@ -3343,175 +3628,16 @@ export const initScene = (
     helmetRidgeMesh.position.set(0, headSize * 0.6, headDepth * 0.08);
     helmetGroup.add(helmetRidgeMesh);
 
-    const createSimplePlayerModelAnimator = () => {
-      const trackedNodes = [
-        leftArmGroup,
-        rightArmGroup,
-        leftLegGroup,
-        rightLegGroup,
-        torsoMesh,
-        neckMesh,
-        headMesh,
-      ].filter((node) => node instanceof THREE.Object3D);
-
-      if (trackedNodes.length === 0) {
-        return null;
-      }
-
-      const baseTransforms = new Map();
-
-      trackedNodes.forEach((node) => {
-        baseTransforms.set(node, {
-          rotation: node.rotation.clone(),
-          position: node.position.clone(),
-        });
+    const createSimplePlayerModelAnimator = () =>
+      createPlayerBodySwingAnimator({
+        leftArm: leftArmGroup,
+        rightArm: rightArmGroup,
+        leftLeg: leftLegGroup,
+        rightLeg: rightLegGroup,
+        torso: torsoMesh,
+        neck: neckMesh,
+        head: headMesh,
       });
-
-      let swingPhase = 0;
-      let swingStrength = 0;
-
-      const reset = () => {
-        swingPhase = 0;
-        swingStrength = 0;
-
-        trackedNodes.forEach((node) => {
-          const base = baseTransforms.get(node);
-
-          if (!base) {
-            return;
-          }
-
-          node.rotation.copy(base.rotation);
-          node.position.copy(base.position);
-        });
-      };
-
-      const withBase = (node, callback, options = {}) => {
-        if (!node) {
-          return;
-        }
-
-        const base = baseTransforms.get(node);
-
-        if (!base) {
-          return;
-        }
-
-        node.rotation.copy(base.rotation);
-
-        if (options.copyPosition) {
-          node.position.copy(base.position);
-        }
-
-        callback(node, base);
-      };
-
-      const update = ({
-        delta = 0,
-        isWalking = false,
-        speed = 0,
-      } = {}) => {
-        const clampedDelta = Math.max(delta, 0);
-        const clampedSpeed = Math.max(speed, 0);
-        const normalizedSpeed = THREE.MathUtils.clamp(clampedSpeed / 8, 0, 1);
-        const targetSwing = isWalking
-          ? THREE.MathUtils.lerp(0.35, 1, normalizedSpeed)
-          : 0;
-
-        swingStrength = THREE.MathUtils.damp(
-          swingStrength,
-          targetSwing,
-          6,
-          clampedDelta
-        );
-
-        const swingFrequency = THREE.MathUtils.lerp(4.2, 7.5, normalizedSpeed);
-        swingPhase += clampedDelta * swingFrequency;
-
-        if (!Number.isFinite(swingPhase)) {
-          swingPhase = 0;
-        } else if (swingPhase > Math.PI * 2) {
-          swingPhase %= Math.PI * 2;
-        }
-
-        const forwardSwing = Math.sin(swingPhase) * swingStrength;
-        const crossSwing = Math.cos(swingPhase) * swingStrength;
-        const halfSwing = Math.sin(swingPhase * 0.5) * swingStrength;
-        const liftSwing = Math.abs(Math.sin(swingPhase)) * swingStrength;
-        const isFirstPersonView = cameraViewMode === VIEW_MODES.FIRST_PERSON;
-        const armSwingMultiplier = isFirstPersonView ? 0.45 : 1;
-        const firstPersonArmRaise = THREE.MathUtils.degToRad(50);
-        const firstPersonArmYaw = THREE.MathUtils.degToRad(12);
-        const firstPersonArmRoll = THREE.MathUtils.degToRad(18);
-
-        withBase(
-          leftArmGroup,
-          (node) => {
-            node.rotation.x += forwardSwing * 0.85 * armSwingMultiplier;
-            node.rotation.z += crossSwing * 0.12 * armSwingMultiplier;
-
-            if (isFirstPersonView) {
-              node.rotation.x -= firstPersonArmRaise;
-              node.rotation.y += firstPersonArmYaw;
-              node.rotation.z -= firstPersonArmRoll;
-            }
-          },
-          { copyPosition: false }
-        );
-
-        withBase(
-          rightArmGroup,
-          (node) => {
-            node.rotation.x -= forwardSwing * 0.85 * armSwingMultiplier;
-            node.rotation.z -= crossSwing * 0.12 * armSwingMultiplier;
-
-            if (isFirstPersonView) {
-              node.rotation.x -= firstPersonArmRaise;
-              node.rotation.y -= firstPersonArmYaw;
-              node.rotation.z += firstPersonArmRoll;
-            }
-          },
-          { copyPosition: false }
-        );
-
-        withBase(leftLegGroup, (node) => {
-          node.rotation.x -= forwardSwing * 1.2;
-          node.rotation.z -= crossSwing * 0.05;
-        });
-
-        withBase(rightLegGroup, (node) => {
-          node.rotation.x += forwardSwing * 1.2;
-          node.rotation.z += crossSwing * 0.05;
-        });
-
-        withBase(torsoMesh, (node) => {
-          node.rotation.y += forwardSwing * 0.08;
-          node.rotation.x += crossSwing * 0.04;
-          node.rotation.z += halfSwing * 0.05;
-        });
-
-        withBase(neckMesh, (node) => {
-          node.rotation.x += crossSwing * 0.05;
-          node.rotation.y += forwardSwing * 0.04;
-        });
-
-        withBase(
-          headMesh,
-          (node) => {
-            node.rotation.x += crossSwing * 0.09;
-            node.rotation.y += forwardSwing * 0.05;
-            node.rotation.z += halfSwing * 0.03;
-            node.position.y += liftSwing * 0.08;
-          },
-          { copyPosition: true }
-        );
-      };
-
-      return {
-        update,
-        reset,
-      };
-    };
 
     initializePlayerModel(simpleModel, [], {
       scaleMultiplier: 1,
@@ -3551,6 +3677,7 @@ export const initScene = (
 
         initializePlayerModel(model, animations, {
           scaleMultiplier: PLAYER_MODEL_SCALE_MULTIPLIER,
+          manualAnimatorFactory: createImportedPlayerModelAnimator,
         });
       },
       undefined,
