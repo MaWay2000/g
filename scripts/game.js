@@ -593,29 +593,41 @@ const setCrosshairInteractableState = (canInteract) => {
   previousCrosshairInteractableState = nextCrosshairInteractableState;
 };
 
-const bootstrapScene = () => {
+const bootstrapScene = async () => {
   if (!(canvas instanceof HTMLCanvasElement)) {
     return;
   }
 
-  sceneController = initScene(canvas, {
-    onControlsLocked() {
-      instructions?.setAttribute("hidden", "");
-    },
-    onControlsUnlocked() {
-      instructions?.removeAttribute("hidden");
-      setCrosshairInteractableState(false);
-      hideTerminalToast();
-    },
-    onTerminalOptionSelected(option) {
-      playTerminalInteractionSound();
-      openQuickAccessModal(option);
-      showTerminalToast(option);
-    },
-    onTerminalInteractableChange: setCrosshairInteractableState,
-  });
+  try {
+    const controller = await initScene(canvas, {
+      onControlsLocked() {
+        instructions?.setAttribute("hidden", "");
+      },
+      onControlsUnlocked() {
+        instructions?.removeAttribute("hidden");
+        setCrosshairInteractableState(false);
+        hideTerminalToast();
+      },
+      onTerminalOptionSelected(option) {
+        playTerminalInteractionSound();
+        openQuickAccessModal(option);
+        showTerminalToast(option);
+      },
+      onTerminalInteractableChange: setCrosshairInteractableState,
+    });
 
-  sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
+    sceneController = controller;
+    sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
+    setErrorMessage("");
+  } catch (error) {
+    console.error("Failed to initialize the hangar scene", error);
+    sceneController = null;
+    setCrosshairInteractableState(false);
+    instructions?.removeAttribute("hidden");
+    setErrorMessage(
+      "We couldn't start the hangar simulation. Please refresh and try again."
+    );
+  }
 
 };
 

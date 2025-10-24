@@ -193,7 +193,7 @@ const loadStoredPlayerState = () => {
   return null;
 };
 
-export const initScene = (
+export const initScene = async (
   canvas,
   {
     onControlsLocked,
@@ -221,6 +221,15 @@ export const initScene = (
   camera.position.set(0, 0, 8);
 
   const textureLoader = new THREE.TextureLoader();
+
+  const modelLoadPromises = [];
+  const trackModelLoadPromise = (promise) => {
+    if (!promise || typeof promise.then !== "function") {
+      return;
+    }
+
+    modelLoadPromises.push(promise);
+  };
 
   const colliderDescriptors = [];
 
@@ -323,18 +332,74 @@ export const initScene = (
   };
 
   const loadClampedTexture = (path, onLoad) => {
-    const texture = textureLoader.load(
-      new URL(path, import.meta.url).href,
-      (loadedTexture) => {
+    let resolveLoad;
+    let rejectLoad;
+    let isSettled = false;
+
+    const settleResolve = (value) => {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
+      resolveLoad?.(value);
+    };
+
+    const settleReject = (error) => {
+      if (isSettled) {
+        return;
+      }
+
+      isSettled = true;
+      rejectLoad?.(error);
+    };
+
+    const url = new URL(path, import.meta.url).href;
+
+    const loadPromise = new Promise((resolve, reject) => {
+      resolveLoad = resolve;
+      rejectLoad = reject;
+    });
+
+    const handleTextureLoad = (loadedTexture) => {
+      try {
         if (typeof onLoad === "function") {
           onLoad(loadedTexture);
         }
+        settleResolve(loadedTexture);
+      } catch (callbackError) {
+        settleReject(callbackError);
       }
-    );
+    };
+
+    const handleTextureError = (errorEvent) => {
+      const error =
+        errorEvent instanceof Error
+          ? errorEvent
+          : new Error(`Failed to load texture: ${path}`);
+      settleReject(error);
+    };
+
+    let texture;
+
+    try {
+      texture = textureLoader.load(
+        url,
+        handleTextureLoad,
+        undefined,
+        handleTextureError
+      );
+    } catch (error) {
+      settleReject(error);
+      throw error;
+    }
+
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    trackModelLoadPromise(loadPromise);
     return texture;
   };
 
@@ -2584,8 +2649,6 @@ export const initScene = (
     renderer.render(scene, camera);
   };
 
-  animate();
-
   const handleResize = () => {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -2618,7 +2681,7 @@ export const initScene = (
 
   window.addEventListener("resize", handleResize);
 
-  return {
+  const controller = {
     scene,
     camera,
     renderer,
@@ -2656,4 +2719,22 @@ export const initScene = (
       colliderDescriptors.length = 0;
     },
   };
+
+  try {
+    await Promise.all(modelLoadPromises);
+  } catch (error) {
+    try {
+      controller.dispose();
+    } catch (disposeError) {
+      console.error(
+        "Error while cleaning up after a failed scene initialization",
+        disposeError
+      );
+    }
+    throw error;
+  }
+
+  animate();
+
+  return controller;
 };
