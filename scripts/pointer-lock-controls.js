@@ -19,8 +19,6 @@ export class PointerLockControls extends THREE.EventDispatcher {
 
     this.camera.rotation.set(0, 0, 0);
 
-    this._cameraOffset = new THREE.Vector3();
-
     const initialCameraPosition = camera.position.clone();
 
     this._yawObject = new THREE.Group();
@@ -134,10 +132,6 @@ export class PointerLockControls extends THREE.EventDispatcher {
     this._pitchObject.rotation.x = THREE.MathUtils.clamp(value, min, max);
   }
 
-  getYaw() {
-    return this._yawObject.rotation.y;
-  }
-
   setYaw(value) {
     if (!Number.isFinite(value)) {
       return;
@@ -146,19 +140,13 @@ export class PointerLockControls extends THREE.EventDispatcher {
     this._yawObject.rotation.y = value;
   }
 
-  getCameraOffset(target = new THREE.Vector3()) {
-    target.copy(this._cameraOffset);
-    return target;
-  }
-
   setCameraOffset(offset) {
     if (offset instanceof THREE.Vector3) {
-      this._cameraOffset.copy(offset);
-    } else {
-      this._cameraOffset.set(0, 0, 0);
+      this.camera.position.copy(offset);
+      return;
     }
 
-    this.camera.position.copy(this._cameraOffset);
+    this.camera.position.set(0, 0, 0);
   }
 
   _onMouseMove(event) {
