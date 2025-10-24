@@ -1,14 +1,12 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
-import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
-import { DRACOLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/DRACOLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
 export const DEFAULT_PLAYER_HEIGHT = 8;
 const PLAYER_HEIGHT_STORAGE_KEY = `${PLAYER_STATE_STORAGE_KEY}.height`;
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
-const DEFAULT_THIRD_PERSON_PITCH = 0;
+const DEFAULT_CAMERA_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
   Math.PI / 2 - THREE.MathUtils.degToRad(1);
 
@@ -223,19 +221,6 @@ export const initScene = (
   camera.position.set(0, 0, 8);
 
   const textureLoader = new THREE.TextureLoader();
-  const gltfLoader = new GLTFLoader();
-  const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath("https://www.gstatic.com/draco/v1/decoders/");
-  dracoLoader.preload();
-  gltfLoader.setDRACOLoader(dracoLoader);
-  const PLAYER_AVATAR_VERSION = "20241024";
-  const PLAYER_AVATAR_URL = (() => {
-    const url = new URL("../images/models/suit2.glb", import.meta.url);
-    if (PLAYER_AVATAR_VERSION) {
-      url.searchParams.set("v", PLAYER_AVATAR_VERSION);
-    }
-    return url.href;
-  })();
 
   const colliderDescriptors = [];
 
@@ -2023,354 +2008,12 @@ export const initScene = (
   let playerEyeLevel = DEFAULT_PLAYER_HEIGHT;
 
   const FIRST_PERSON_EYE_HEIGHT_OFFSET = -1;
-  const FIRST_PERSON_FORWARD_OFFSET = 1;
 
   const firstPersonCameraOffset = new THREE.Vector3(
     0,
     playerEyeLevel + FIRST_PERSON_EYE_HEIGHT_OFFSET,
     0
   );
-  const thirdPersonCameraOffset = new THREE.Vector3(
-    0,
-    playerEyeLevel + FIRST_PERSON_EYE_HEIGHT_OFFSET,
-    FIRST_PERSON_FORWARD_OFFSET
-  );
-
-  const playerAvatarRoot = new THREE.Group();
-  playerAvatarRoot.name = "PlayerAvatarRoot";
-  playerAvatarRoot.position.set(0, 0, -FIRST_PERSON_FORWARD_OFFSET);
-  playerObject.add(playerAvatarRoot);
-
-  const playerAvatarContainer = new THREE.Group();
-  playerAvatarContainer.name = "PlayerAvatarContainer";
-  playerAvatarRoot.add(playerAvatarContainer);
-
-  let playerAvatarModel = null;
-  let playerAvatarFallbackModel = null;
-  let playerAvatarMixer = null;
-  const playerAnimationActions = Object.create(null);
-  let activePlayerAnimationKey = null;
-  let playerAvatarBaseHeight = DEFAULT_PLAYER_HEIGHT;
-  let isPlayerAvatarLoaded = false;
-
-  const CAMERA_VIEW_MODES = Object.freeze({
-    FIRST_PERSON: "first-person",
-    THIRD_PERSON: "third-person",
-  });
-  const DEFAULT_CAMERA_VIEW_MODE = CAMERA_VIEW_MODES.THIRD_PERSON;
-  const THIRD_PERSON_VERTICAL_BUFFER = 1.5;
-  const THIRD_PERSON_DISTANCE_FACTOR = 0.22;
-  const THIRD_PERSON_ADDITIONAL_DISTANCE = 1.2;
-  const THIRD_PERSON_MIN_DISTANCE = FIRST_PERSON_FORWARD_OFFSET;
-  let cameraViewMode = DEFAULT_CAMERA_VIEW_MODE;
-
-  const syncPlayerAvatarVisibility = () => {
-    setPlayerAvatarVisible(
-      cameraViewMode === CAMERA_VIEW_MODES.THIRD_PERSON &&
-        isPlayerAvatarLoaded
-    );
-  };
-
-  const PLAYER_ANIMATION_FADE_DURATION = 0.28;
-  const WALK_SPEED_THRESHOLD = 0.5;
-  const RUN_SPEED_THRESHOLD = 6;
-
-  const setPlayerAvatarVisible = (visible) => {
-    playerAvatarRoot.visible = Boolean(visible);
-  };
-  setPlayerAvatarVisible(false);
-
-  const disposeMeshResources = (object) => {
-    if (!object) {
-      return;
-    }
-
-    object.traverse?.((child) => {
-      if (!child || !child.isMesh) {
-        return;
-      }
-
-      if (child.geometry && typeof child.geometry.dispose === "function") {
-        child.geometry.dispose();
-      }
-
-      const { material } = child;
-
-      if (Array.isArray(material)) {
-        material.forEach((mat) => {
-          if (mat && typeof mat.dispose === "function") {
-            mat.dispose();
-          }
-        });
-      } else if (material && typeof material.dispose === "function") {
-        material.dispose();
-      }
-    });
-  };
-
-  const removePlayerAvatarFallback = () => {
-    if (!playerAvatarFallbackModel) {
-      return;
-    }
-
-    if (playerAvatarFallbackModel.parent === playerAvatarContainer) {
-      playerAvatarContainer.remove(playerAvatarFallbackModel);
-    }
-
-    disposeMeshResources(playerAvatarFallbackModel);
-    playerAvatarFallbackModel = null;
-  };
-
-  const ensurePlayerAvatarFallback = () => {
-    const fallbackHeight = 1.8;
-
-    if (playerAvatarFallbackModel) {
-      playerAvatarBaseHeight = Math.max(fallbackHeight, MIN_PLAYER_HEIGHT);
-      isPlayerAvatarLoaded = true;
-      syncPlayerAvatarVisibility();
-      updatePlayerAvatarScale();
-      return playerAvatarFallbackModel;
-    }
-
-    const fallbackRadius = 0.35;
-    const capsuleLength = Math.max(fallbackHeight - fallbackRadius * 2, 0.1);
-    const geometry = new THREE.CapsuleGeometry(
-      fallbackRadius,
-      capsuleLength,
-      12,
-      24
-    );
-    geometry.translate(0, fallbackHeight / 2, 0);
-
-    const material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x38bdf8),
-      emissive: new THREE.Color(0x1d4ed8),
-      emissiveIntensity: 0.28,
-      metalness: 0.18,
-      roughness: 0.42,
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = "PlayerAvatarFallback";
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-
-    playerAvatarBaseHeight = Math.max(fallbackHeight, MIN_PLAYER_HEIGHT);
-    playerAvatarFallbackModel = mesh;
-    playerAvatarContainer.add(mesh);
-
-    isPlayerAvatarLoaded = true;
-    syncPlayerAvatarVisibility();
-    updatePlayerAvatarScale();
-
-    return mesh;
-  };
-
-  const updatePlayerAvatarScale = () => {
-    if (!isPlayerAvatarLoaded || playerAvatarBaseHeight <= 0) {
-      return;
-    }
-
-    const normalizedHeight = Math.max(playerHeight, MIN_PLAYER_HEIGHT);
-    const scale = normalizedHeight / playerAvatarBaseHeight;
-    playerAvatarContainer.scale.setScalar(scale);
-  };
-
-  // Display a placeholder avatar immediately so the player model is always visible,
-  // even while the primary GLB is still loading.
-  ensurePlayerAvatarFallback();
-
-  const registerPlayerAnimationAction = (
-    key,
-    action,
-    { loopOnce = false } = {}
-  ) => {
-    if (!key || !action) {
-      return;
-    }
-
-    action.clampWhenFinished = loopOnce;
-    action.loop = loopOnce ? THREE.LoopOnce : THREE.LoopRepeat;
-    playerAnimationActions[key] = action;
-  };
-
-  const setPlayerAnimationAction = (key, { immediate = false } = {}) => {
-    if (!key || !playerAvatarMixer) {
-      return;
-    }
-
-    const nextAction = playerAnimationActions[key];
-
-    if (!nextAction || activePlayerAnimationKey === key) {
-      return;
-    }
-
-    const previousAction =
-      activePlayerAnimationKey &&
-      playerAnimationActions[activePlayerAnimationKey]
-        ? playerAnimationActions[activePlayerAnimationKey]
-        : null;
-
-    const fadeDuration = immediate ? 0 : PLAYER_ANIMATION_FADE_DURATION;
-
-    nextAction.enabled = true;
-    nextAction.reset();
-    nextAction.setEffectiveTimeScale(1);
-    nextAction.setEffectiveWeight(1);
-    nextAction.play();
-
-    if (previousAction && previousAction !== nextAction) {
-      if (fadeDuration > 0) {
-        previousAction.crossFadeTo(nextAction, fadeDuration, false);
-      } else {
-        previousAction.stop();
-      }
-    } else if (!previousAction && fadeDuration > 0) {
-      nextAction.fadeIn(fadeDuration);
-    }
-
-    activePlayerAnimationKey = key;
-  };
-
-  const findClipByKeywords = (clips, keywordGroups, usedClips) => {
-    if (!Array.isArray(clips)) {
-      return null;
-    }
-
-    const normalizedClips = clips.map((clip) => ({
-      clip,
-      normalizedName: typeof clip?.name === "string"
-        ? clip.name.toLowerCase().replace(/[^a-z0-9]+/g, "")
-        : "",
-    }));
-
-    for (const keywords of keywordGroups) {
-      const normalizedKeywords = keywords.map((keyword) =>
-        keyword.toLowerCase().replace(/[^a-z0-9]+/g, "")
-      );
-
-      const matchedEntry = normalizedClips.find(({ clip, normalizedName }) => {
-        if (usedClips.has(clip)) {
-          return false;
-        }
-
-        return normalizedKeywords.every((keyword) =>
-          keyword !== "" && normalizedName.includes(keyword)
-        );
-      });
-
-      if (matchedEntry) {
-        return matchedEntry.clip;
-      }
-    }
-
-    return null;
-  };
-
-  const loadPlayerAvatar = () => {
-    gltfLoader.load(
-      PLAYER_AVATAR_URL,
-      (gltf) => {
-        removePlayerAvatarFallback();
-        playerAvatarModel = null;
-        playerAvatarMixer = null;
-        activePlayerAnimationKey = null;
-        Object.keys(playerAnimationActions).forEach((key) => {
-          delete playerAnimationActions[key];
-        });
-
-        const sceneRoot = gltf.scene || gltf.scenes?.[0];
-
-        if (!sceneRoot) {
-          console.warn("Player avatar GLB does not contain a scene.");
-          ensurePlayerAvatarFallback();
-          return;
-        }
-
-        sceneRoot.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = false;
-            child.receiveShadow = false;
-
-            if (child.material && "side" in child.material) {
-              child.material.side = THREE.FrontSide;
-            }
-          }
-        });
-
-        playerAvatarModel = sceneRoot;
-        playerAvatarContainer.add(playerAvatarModel);
-
-        const avatarBounds = new THREE.Box3().setFromObject(playerAvatarModel);
-
-        if (avatarBounds.isEmpty()) {
-          playerAvatarBaseHeight = Math.max(playerHeight, MIN_PLAYER_HEIGHT);
-        } else {
-          const height = avatarBounds.max.y - avatarBounds.min.y;
-          playerAvatarBaseHeight = Math.max(height, MIN_PLAYER_HEIGHT);
-          if (Number.isFinite(avatarBounds.min.y)) {
-            playerAvatarModel.position.y -= avatarBounds.min.y;
-          }
-        }
-
-        playerAvatarMixer = new THREE.AnimationMixer(playerAvatarModel);
-
-        const animations = Array.isArray(gltf.animations) ? gltf.animations : [];
-        const usedClips = new Set();
-
-        const assignAction = (key, keywordGroups, options) => {
-          if (playerAnimationActions[key]) {
-            return playerAnimationActions[key];
-          }
-
-          const clip = findClipByKeywords(animations, keywordGroups, usedClips);
-          if (!clip) {
-            return null;
-          }
-
-          usedClips.add(clip);
-          const action = playerAvatarMixer.clipAction(clip);
-          registerPlayerAnimationAction(key, action, options);
-          return action;
-        };
-
-        assignAction("idle", [["idle"], ["breath"], ["stand"]]);
-        assignAction("walk", [["walk"], ["move"]]);
-        assignAction("run", [["run"], ["jog"], ["sprint"]]);
-        assignAction("jump", [["jump"]], { loopOnce: true });
-        assignAction("fall", [["fall"], ["land"]], { loopOnce: true });
-        assignAction("action", [["action"], ["attack"], ["shoot"], ["wave"]]);
-
-        if (!playerAnimationActions.idle && animations.length > 0) {
-          const fallbackClip = animations.find((clip) => !usedClips.has(clip));
-
-          if (fallbackClip) {
-            const fallbackAction = playerAvatarMixer.clipAction(fallbackClip);
-            registerPlayerAnimationAction("idle", fallbackAction);
-          }
-        }
-
-        isPlayerAvatarLoaded = true;
-        syncPlayerAvatarVisibility();
-        updatePlayerAvatarScale();
-
-        const initialActionKey = playerAnimationActions.idle
-          ? "idle"
-          : Object.keys(playerAnimationActions)[0] ?? null;
-
-        if (initialActionKey) {
-          setPlayerAnimationAction(initialActionKey, { immediate: true });
-        }
-      },
-      undefined,
-      (error) => {
-        console.error("Unable to load player avatar", error);
-        ensurePlayerAvatarFallback();
-      }
-    );
-  };
-
-  loadPlayerAvatar();
 
   const updateFirstPersonCameraOffset = () => {
     const baseHeight = Number.isFinite(playerHeight)
@@ -2384,64 +2027,10 @@ export const initScene = (
     firstPersonCameraOffset.set(0, adjustedEyeLevel, 0);
   };
 
-  const updateThirdPersonCameraOffset = () => {
-    const baseHeight = Number.isFinite(playerHeight)
-      ? Math.max(playerHeight, MIN_PLAYER_HEIGHT)
-      : MIN_PLAYER_HEIGHT;
-    const eyeLevel = Math.max(
-      MIN_PLAYER_HEIGHT,
-      baseHeight + FIRST_PERSON_EYE_HEIGHT_OFFSET
-    );
-    const distance = Math.max(
-      THIRD_PERSON_MIN_DISTANCE,
-      baseHeight * THIRD_PERSON_DISTANCE_FACTOR +
-        THIRD_PERSON_ADDITIONAL_DISTANCE
-    );
-    const verticalOffset = Math.max(
-      THIRD_PERSON_VERTICAL_BUFFER,
-      baseHeight * 0.2
-    );
-
-    thirdPersonCameraOffset.set(0, eyeLevel + verticalOffset, distance);
-  };
-
-  const applyCameraViewMode = (
-    mode = cameraViewMode,
-    { force = false } = {}
-  ) => {
-    const availableModes = Object.values(CAMERA_VIEW_MODES);
-    const normalizedMode = availableModes.includes(mode)
-      ? mode
-      : cameraViewMode;
-
-    if (force || normalizedMode !== cameraViewMode) {
-      cameraViewMode = normalizedMode;
-    }
-
-    const offset =
-      cameraViewMode === CAMERA_VIEW_MODES.FIRST_PERSON
-        ? firstPersonCameraOffset
-        : thirdPersonCameraOffset;
-
-    controls.setCameraOffset(offset);
-    syncPlayerAvatarVisibility();
-
-    return cameraViewMode;
-  };
-
-  const toggleCameraViewMode = () => {
-    const nextMode =
-      cameraViewMode === CAMERA_VIEW_MODES.FIRST_PERSON
-        ? CAMERA_VIEW_MODES.THIRD_PERSON
-        : CAMERA_VIEW_MODES.FIRST_PERSON;
-
-    applyCameraViewMode(nextMode, { force: true });
-  };
-
   const defaultPlayerPosition = new THREE.Vector3(0, roomFloorY, 8);
   playerObject.position.copy(defaultPlayerPosition);
 
-  let initialPitch = DEFAULT_THIRD_PERSON_PITCH;
+  let initialPitch = DEFAULT_CAMERA_PITCH;
 
   if (storedPlayerState) {
     playerObject.position.copy(storedPlayerState.position);
@@ -2482,12 +2071,10 @@ export const initScene = (
     }
 
     updateFirstPersonCameraOffset();
-    updateThirdPersonCameraOffset();
 
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
-    applyCameraViewMode(cameraViewMode);
-    updatePlayerAvatarScale();
+    controls.setCameraOffset(firstPersonCameraOffset);
 
     if (persist) {
       persistPlayerHeight(playerHeight);
@@ -2602,7 +2189,7 @@ export const initScene = (
         w: roundPlayerStateValue(playerObject.quaternion.w),
       },
       pitch: roundPlayerStateValue(
-        pitch !== null ? pitch : DEFAULT_THIRD_PERSON_PITCH
+        pitch !== null ? pitch : DEFAULT_CAMERA_PITCH
       ),
     });
   };
@@ -2782,64 +2369,6 @@ export const initScene = (
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
 
-  const handlePlayerAvatarUpdate = (delta) => {
-    if (!playerAvatarMixer || !isPlayerAvatarLoaded) {
-      return;
-    }
-
-    playerAvatarMixer.update(delta);
-
-    const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
-    const wantsToMove =
-      movementState.forward ||
-      movementState.backward ||
-      movementState.left ||
-      movementState.right;
-
-    let nextActionKey = null;
-
-    if (!isGrounded) {
-      if (verticalVelocity < -1 && playerAnimationActions.fall) {
-        nextActionKey = "fall";
-      } else if (playerAnimationActions.jump) {
-        nextActionKey = "jump";
-      }
-    } else if (
-      movementEnabled &&
-      controls.isLocked &&
-      (wantsToMove || horizontalSpeed > 0.05)
-    ) {
-      if (
-        playerAnimationActions.run &&
-        horizontalSpeed > RUN_SPEED_THRESHOLD
-      ) {
-        nextActionKey = "run";
-      } else if (playerAnimationActions.walk) {
-        if (
-          horizontalSpeed > WALK_SPEED_THRESHOLD ||
-          !playerAnimationActions.run
-        ) {
-          nextActionKey = "walk";
-        }
-      } else if (playerAnimationActions.run) {
-        nextActionKey = "run";
-      }
-    }
-
-    if (!nextActionKey) {
-      if (playerAnimationActions.idle) {
-        nextActionKey = "idle";
-      } else {
-        const availableKeys = Object.keys(playerAnimationActions);
-        nextActionKey = availableKeys.length > 0 ? availableKeys[0] : null;
-      }
-    }
-
-    if (nextActionKey) {
-      setPlayerAnimationAction(nextActionKey);
-    }
-  };
-
   const setMovementEnabled = (enabled) => {
     movementEnabled = Boolean(enabled);
 
@@ -2887,12 +2416,6 @@ export const initScene = (
   };
 
   const onKeyDown = (event) => {
-    if (event.code === "KeyV" && !event.repeat) {
-      toggleCameraViewMode();
-      event.preventDefault();
-      return;
-    }
-
     if (!movementEnabled) {
       return;
     }
@@ -3016,7 +2539,6 @@ export const initScene = (
       resolvePlayerCollisions(previousPlayerPosition);
     }
 
-    handlePlayerAvatarUpdate(delta);
 
     let matchedZone = null;
 
@@ -3079,9 +2601,6 @@ export const initScene = (
     getPlayerHeight: () => playerHeight,
     setPlayerHeight: (nextHeight, options = {}) =>
       applyPlayerHeight(nextHeight, options),
-    getCameraViewMode: () => cameraViewMode,
-    setCameraViewMode: (mode) => applyCameraViewMode(mode, { force: true }),
-    toggleCameraViewMode,
     setPlayerStatePersistenceEnabled: (enabled = true) => {
       const nextEnabled = Boolean(enabled);
       const previousEnabled = isPlayerStatePersistenceEnabled;
@@ -3108,24 +2627,7 @@ export const initScene = (
         lastUpdatedDisplay.userData.dispose();
       }
       savePlayerState(true);
-      if (playerAvatarMixer) {
-        playerAvatarMixer.stopAllAction();
-      }
-      setPlayerAvatarVisible(false);
-      if (playerAvatarModel && playerAvatarModel.parent) {
-        playerAvatarModel.parent.remove(playerAvatarModel);
-      }
-      disposeMeshResources(playerAvatarModel);
-      playerAvatarModel = null;
-      playerAvatarMixer = null;
-      activePlayerAnimationKey = null;
-      Object.keys(playerAnimationActions).forEach((key) => {
-        delete playerAnimationActions[key];
-      });
-      removePlayerAvatarFallback();
-      isPlayerAvatarLoaded = false;
       colliderDescriptors.length = 0;
-      dracoLoader.dispose();
     },
   };
 };
