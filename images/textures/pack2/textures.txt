@@ -1,0 +1,1 @@
+# List textures for pack2 as "texture_name: mapType, mapType"

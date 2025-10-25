@@ -18,6 +18,8 @@ const primitiveContainer = document.querySelector("[data-create-primitive-contai
 const colorInput = document.querySelector("[data-color-input]");
 const metalnessInput = document.querySelector("[data-metalness-input]");
 const roughnessInput = document.querySelector("[data-roughness-input]");
+const texturePackSelect = document.querySelector("[data-texture-pack-select]");
+const textureGrid = document.querySelector("[data-texture-grid]");
 const swatchButtons = Array.from(
   document.querySelectorAll("[data-material-swatches] button")
 );
@@ -185,6 +187,65 @@ scene.add(sceneRoot);
 const figureIdRegistry = new Map();
 let nextFigureId = 1;
 
+const textureLoader = new THREE.TextureLoader();
+THREE.Cache.enabled = true;
+const texturePackRegistry = new Map();
+let texturePackList = [];
+let textureControlsInitialized = false;
+let texturesInitializationPromise = null;
+let textureGridRenderToken = 0;
+let activeTextureApplicationToken = 0;
+const textureCache = new Map();
+
+const TEXTURE_PACKS_ENDPOINT = "images/textures/packs.json";
+const TEXTURE_MANIFEST_FILENAME = "textures.txt";
+const DEFAULT_TEXTURE_EXTENSION = ".png";
+const TEXTURE_PREVIEW_PRIORITY = [
+  "baseColor",
+  "ORM",
+  "metallicRoughness",
+  "normal",
+  "occlusion",
+  "displacement",
+  "emissive",
+];
+
+const MAP_TYPE_CONFIG = {
+  baseColor: {
+    properties: ["map"],
+    colorSpace: THREE.SRGBColorSpace,
+  },
+  metallicRoughness: {
+    properties: ["metalnessMap", "roughnessMap"],
+    colorSpace: THREE.LinearSRGBColorSpace,
+  },
+  normal: {
+    properties: ["normalMap"],
+    colorSpace: THREE.LinearSRGBColorSpace,
+  },
+  occlusion: {
+    properties: ["aoMap"],
+    colorSpace: THREE.LinearSRGBColorSpace,
+  },
+  displacement: {
+    properties: ["displacementMap"],
+    colorSpace: THREE.LinearSRGBColorSpace,
+  },
+  emissive: {
+    properties: ["emissiveMap"],
+    colorSpace: THREE.SRGBColorSpace,
+  },
+  ORM: {
+    properties: ["aoMap", "roughnessMap", "metalnessMap"],
+    colorSpace: THREE.LinearSRGBColorSpace,
+  },
+};
+
+const textureState = {
+  activePackId: null,
+  activeTextureId: null,
+};
+
 function normalizeFigureId(value) {
   if (typeof value === "string") {
     return value.trim();
@@ -242,6 +303,672 @@ function rebuildFigureIdRegistry() {
   sceneRoot.children.forEach((child) => {
     ensureFigureId(child);
   });
+}
+
+function formatTextureLabel(textureId) {
+  if (!textureId) {
+    return "None";
+  }
+  return textureId
+    .replace(/[_-]+/g, " ")
+    .replace(/\b([a-zA-Z])/g, (match, char) => char.toUpperCase());
+}
+
+function getTexturePreviewMap(maps) {
+  if (!Array.isArray(maps) || !maps.length) {
+    return null;
+  }
+  return (
+    TEXTURE_PREVIEW_PRIORITY.find((type) => maps.includes(type)) ?? maps[0]
+  );
+}
+
+function parseTextureManifest(text) {
+  if (!text) {
+    return [];
+  }
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map((line) => {
+      const [idPart, mapsPart] = line.split(":");
+      const id = idPart?.trim();
+      if (!id) {
+        return null;
+      }
+      const maps = mapsPart
+        ? mapsPart
+            .split(",")
+            .map((segment) => segment.trim())
+            .filter(Boolean)
+        : [];
+      const previewMap = getTexturePreviewMap(maps);
+      return {
+        id,
+        maps,
+        label: formatTextureLabel(id),
+        previewMap,
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizePackBasePath(path, packId) {
+  const fallback = `images/textures/${packId}`;
+  const base = (path || fallback).replace(/\\+/g, "/").trim();
+  return base.replace(/\/?$/, "/");
+}
+
+async function ensureTexturePackLoaded(packId) {
+  if (!packId) {
+    return [];
+  }
+  const pack = texturePackRegistry.get(packId);
+  if (!pack) {
+    return [];
+  }
+  if (pack.textures) {
+    return pack.textures;
+  }
+  if (!pack.texturesPromise) {
+    const manifestUrl = `${pack.basePath}${TEXTURE_MANIFEST_FILENAME}`;
+    pack.texturesPromise = fetch(manifestUrl, { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(
+            `Unable to load textures for pack "${pack.label ?? pack.id}" (HTTP ${response.status})`
+          );
+        }
+        return response.text();
+      })
+      .then((text) => {
+        const textures = parseTextureManifest(text);
+        pack.textures = textures;
+        return textures;
+      })
+      .catch((error) => {
+        pack.error =
+          error instanceof Error
+            ? error
+            : new Error("Failed to load texture list");
+        pack.textures = [];
+        return [];
+      });
+  }
+  return pack.texturesPromise;
+}
+
+function buildTextureUrl(pack, textureId, mapType) {
+  const extension = pack.extension || DEFAULT_TEXTURE_EXTENSION;
+  const normalizedType = mapType || "baseColor";
+  return `${pack.basePath}${textureId}_${normalizedType}${extension}`;
+}
+
+function loadPackTexture(packId, textureId, mapType, colorSpace) {
+  const pack = texturePackRegistry.get(packId);
+  if (!pack) {
+    throw new Error(`Unknown texture pack: ${packId}`);
+  }
+  const cacheKey = `${packId}/${textureId}/${mapType}`;
+  if (!textureCache.has(cacheKey)) {
+    const url = buildTextureUrl(pack, textureId, mapType);
+    const promise = new Promise((resolve, reject) => {
+      textureLoader.load(
+        url,
+        (texture) => {
+          texture.colorSpace = colorSpace ?? THREE.LinearSRGBColorSpace;
+          const maxAnisotropy = renderer.capabilities?.getMaxAnisotropy?.();
+          if (Number.isFinite(maxAnisotropy) && maxAnisotropy > 0) {
+            texture.anisotropy = Math.min(8, maxAnisotropy);
+          } else {
+            texture.anisotropy = 4;
+          }
+          resolve(texture);
+        },
+        undefined,
+        (error) => {
+          const message =
+            error?.message ?? `Failed to load texture map "${mapType}".`;
+          reject(new Error(message));
+        }
+      );
+    }).catch((error) => {
+      textureCache.delete(cacheKey);
+      throw error;
+    });
+    textureCache.set(cacheKey, promise);
+  }
+  return textureCache.get(cacheKey);
+}
+
+function clearAppliedTexture(material) {
+  if (!material) {
+    return;
+  }
+  const applied = material.userData?.appliedTexture;
+  if (applied && Array.isArray(applied.properties)) {
+    applied.properties.forEach((property) => {
+      if (property && property in material) {
+        material[property] = null;
+      }
+    });
+  }
+  if (material.userData) {
+    delete material.userData.appliedTexture;
+  }
+  material.needsUpdate = true;
+}
+
+function getAppliedTextureReference(material) {
+  if (!material || !material.userData) {
+    return null;
+  }
+  const applied = material.userData.appliedTexture;
+  if (!applied || !applied.packId || !applied.textureId) {
+    return null;
+  }
+  return {
+    packId: applied.packId,
+    textureId: applied.textureId,
+  };
+}
+
+function getPrimaryEditableMaterial() {
+  if (!editableMeshes.length) {
+    return null;
+  }
+  const firstMesh = editableMeshes[0];
+  if (!firstMesh) {
+    return null;
+  }
+  return Array.isArray(firstMesh.material)
+    ? firstMesh.material[0]
+    : firstMesh.material;
+}
+
+function getCurrentMaterialTextureRef() {
+  const material = getPrimaryEditableMaterial();
+  const applied = getAppliedTextureReference(material);
+  if (!applied) {
+    return null;
+  }
+  return { ...applied };
+}
+
+function selectionHasTrackedTexture() {
+  return Boolean(getAppliedTextureReference(getPrimaryEditableMaterial()));
+}
+
+function setTextureGridBusy(isBusy) {
+  if (!textureGrid) {
+    return;
+  }
+  textureGrid.dataset.applying = isBusy ? "true" : "false";
+  if (!textureControlsInitialized) {
+    return;
+  }
+  Array.from(textureGrid.querySelectorAll("button[data-texture-id]")).forEach(
+    (button) => {
+      button.disabled = isBusy || !editableMeshes.length;
+    }
+  );
+}
+
+function setTextureControlsEnabled(enabled) {
+  if (textureGrid) {
+    textureGrid.dataset.disabled = enabled ? "false" : "true";
+  }
+  if (!textureControlsInitialized) {
+    return;
+  }
+  if (texturePackSelect) {
+    const hasPacks = texturePackRegistry.size > 0;
+    texturePackSelect.disabled = !enabled || !hasPacks;
+  }
+  if (textureGrid) {
+    Array.from(textureGrid.querySelectorAll("button[data-texture-id]")).forEach(
+      (button) => {
+        button.disabled = !enabled;
+      }
+    );
+  }
+}
+
+function highlightTextureSelection(textureId) {
+  if (!textureGrid) {
+    return;
+  }
+  const normalizedId = textureId ?? "";
+  Array.from(textureGrid.querySelectorAll("button[data-texture-id]")).forEach(
+    (button) => {
+      const isSelected = button.dataset.textureId === normalizedId;
+      button.dataset.selected = String(isSelected);
+      button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    }
+  );
+}
+
+async function renderTextureGrid(packId, { selectedTextureId = null } = {}) {
+  if (!textureGrid) {
+    return;
+  }
+  const renderToken = ++textureGridRenderToken;
+  textureGrid.dataset.loading = "true";
+  textureGrid.dataset.packId = packId ?? "";
+  textureGrid.innerHTML =
+    '<p class="texture-grid__message">Loading textures…</p>';
+
+  if (!packId || !texturePackRegistry.has(packId)) {
+    textureGrid.dataset.loading = "false";
+    textureGrid.innerHTML =
+      '<p class="texture-grid__message">Select a texture pack to view textures.</p>';
+    return;
+  }
+
+  const pack = texturePackRegistry.get(packId);
+  const textures = await ensureTexturePackLoaded(packId);
+  if (renderToken !== textureGridRenderToken) {
+    return;
+  }
+
+  textureGrid.dataset.loading = "false";
+  textureGrid.innerHTML = "";
+
+  if (pack?.error) {
+    textureGrid.innerHTML = `<p class="texture-grid__message">${
+      pack.error?.message ?? "Unable to load textures for this pack."
+    }</p>`;
+    return;
+  }
+
+  if (!textures.length) {
+    textureGrid.innerHTML =
+      '<p class="texture-grid__message">No textures found in this pack.</p>';
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  fragment.append(
+    createTextureButton({
+      packId,
+      textureId: "",
+      label: "None",
+      previewUrl: null,
+    })
+  );
+
+  textures.forEach((entry) => {
+    const previewMap = entry.previewMap ?? getTexturePreviewMap(entry.maps);
+    const previewUrl = previewMap ? buildTextureUrl(pack, entry.id, previewMap) : null;
+    fragment.append(
+      createTextureButton({
+        packId,
+        textureId: entry.id,
+        label: entry.label,
+        previewUrl,
+      })
+    );
+  });
+
+  textureGrid.append(fragment);
+  highlightTextureSelection(selectedTextureId);
+}
+
+function createTextureButton({ packId, textureId, label, previewUrl }) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "texture-grid__item";
+  button.dataset.packId = packId ?? "";
+  button.dataset.textureId = textureId ?? "";
+  button.setAttribute(
+    "aria-label",
+    textureId ? `${label} texture` : "Remove applied texture"
+  );
+  button.setAttribute("aria-pressed", "false");
+
+  const preview = document.createElement("div");
+  preview.className = "texture-grid__preview";
+  if (previewUrl) {
+    preview.classList.add("texture-grid__preview--image");
+    preview.style.backgroundImage = `url(${previewUrl})`;
+  } else {
+    preview.textContent = "×";
+  }
+
+  const caption = document.createElement("span");
+  caption.className = "texture-grid__label";
+  caption.textContent = textureId ? label : "None";
+
+  button.append(preview, caption);
+  if (!editableMeshes.length) {
+    button.disabled = true;
+  }
+  return button;
+}
+
+function syncTextureControls() {
+  if (!texturePackSelect || !textureGrid || !textureControlsInitialized) {
+    return;
+  }
+
+  const hasSelection = editableMeshes.length > 0;
+  const hasPacks = texturePackRegistry.size > 0;
+
+  textureGrid.dataset.disabled = hasSelection ? "false" : "true";
+
+  if (texturePackSelect) {
+    texturePackSelect.disabled = !hasSelection || !hasPacks;
+  }
+
+  Array.from(textureGrid.querySelectorAll("button[data-texture-id]")).forEach(
+    (button) => {
+      button.disabled = !hasSelection;
+    }
+  );
+
+  if (!hasSelection || !hasPacks) {
+    highlightTextureSelection(null);
+    return;
+  }
+
+  const material = getPrimaryEditableMaterial();
+  const applied = getAppliedTextureReference(material);
+  if (applied) {
+    textureState.activePackId = applied.packId;
+    textureState.activeTextureId = applied.textureId;
+  }
+
+  const desiredPackId =
+    applied?.packId ??
+    (texturePackRegistry.has(texturePackSelect.value)
+      ? texturePackSelect.value
+      : texturePackList[0]?.id ?? null);
+
+  if (desiredPackId && textureGrid.dataset.packId !== desiredPackId) {
+    texturePackSelect.value = desiredPackId;
+    void renderTextureGrid(desiredPackId, {
+      selectedTextureId: applied?.textureId ?? null,
+    });
+    return;
+  }
+
+  highlightTextureSelection(applied?.textureId ?? null);
+}
+
+function initializeTextureControls() {
+  if (!texturePackSelect || !textureGrid) {
+    if (!texturesInitializationPromise) {
+      texturesInitializationPromise = Promise.resolve(false);
+    }
+    return texturesInitializationPromise;
+  }
+
+  if (texturesInitializationPromise) {
+    return texturesInitializationPromise;
+  }
+
+  texturesInitializationPromise = (async () => {
+    try {
+      texturePackSelect.innerHTML =
+        '<option value="">Loading texture packs…</option>';
+      texturePackSelect.disabled = true;
+      textureGrid.dataset.loading = "true";
+
+      const response = await fetch(TEXTURE_PACKS_ENDPOINT, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`Unable to load texture packs (HTTP ${response.status})`);
+      }
+
+      const data = await response.json();
+      const packs = Array.isArray(data?.packs) ? data.packs : [];
+      texturePackSelect.innerHTML = "";
+      texturePackList = packs;
+      texturePackRegistry.clear();
+
+      packs.forEach((pack, index) => {
+        if (!pack?.id) {
+          return;
+        }
+        const label = pack.label ?? pack.name ?? formatTextureLabel(pack.id);
+        const option = document.createElement("option");
+        option.value = pack.id;
+        option.textContent = label;
+        texturePackSelect.append(option);
+        texturePackRegistry.set(pack.id, {
+          ...pack,
+          id: pack.id,
+          label,
+          basePath: normalizePackBasePath(pack.path, pack.id),
+          extension: pack.extension || DEFAULT_TEXTURE_EXTENSION,
+          textures: null,
+          texturesPromise: null,
+          error: null,
+        });
+        if (index === 0 && !texturePackSelect.value) {
+          texturePackSelect.value = pack.id;
+        }
+      });
+
+      textureControlsInitialized = true;
+
+      if (!packs.length) {
+        texturePackSelect.innerHTML =
+          '<option value="">No texture packs found</option>';
+        texturePackSelect.disabled = true;
+        textureGrid.dataset.loading = "false";
+        textureGrid.innerHTML =
+          '<p class="texture-grid__message">Add texture packs to enable previews.</p>';
+        return false;
+      }
+
+      const initialPackId = texturePackSelect.value || packs[0].id;
+      textureState.activePackId = initialPackId;
+      await renderTextureGrid(initialPackId, { selectedTextureId: null });
+      syncTextureControls();
+      return true;
+    } catch (error) {
+      console.error("Failed to load texture packs", error);
+      if (texturePackSelect) {
+        texturePackSelect.innerHTML =
+          '<option value="">Unable to load texture packs</option>';
+        texturePackSelect.disabled = true;
+      }
+      if (textureGrid) {
+        textureGrid.dataset.loading = "false";
+        textureGrid.innerHTML =
+          '<p class="texture-grid__message">Unable to load texture packs.</p>';
+      }
+      textureControlsInitialized = true;
+      syncTextureControls();
+      return false;
+    }
+  })();
+
+  return texturesInitializationPromise;
+}
+
+async function applyTextureToMaterial(material, packId, textureId, manifestEntry) {
+  if (!material) {
+    return;
+  }
+  clearAppliedTexture(material);
+  if (!packId || !textureId || !manifestEntry) {
+    return;
+  }
+
+  const supportedMapTypes = Array.isArray(manifestEntry.maps)
+    ? manifestEntry.maps.filter((mapType) => MAP_TYPE_CONFIG[mapType])
+    : [];
+  const fallbackMap = manifestEntry.previewMap ?? getTexturePreviewMap(manifestEntry.maps);
+  const mapTypesToLoad = supportedMapTypes.length
+    ? supportedMapTypes
+    : fallbackMap
+    ? [fallbackMap]
+    : [];
+
+  const appliedProperties = [];
+  const loadPromises = mapTypesToLoad.map((mapType) => {
+    const config =
+      MAP_TYPE_CONFIG[mapType] ||
+      (mapType === "baseColor"
+        ? MAP_TYPE_CONFIG.baseColor
+        : {
+            properties: ["map"],
+            colorSpace:
+              mapType === "emissive"
+                ? THREE.SRGBColorSpace
+                : THREE.LinearSRGBColorSpace,
+          });
+    return loadPackTexture(packId, textureId, mapType, config.colorSpace).then(
+      (texture) => ({ mapType, config, texture })
+    );
+  });
+
+  const loadedMaps = await Promise.all(loadPromises);
+  loadedMaps.forEach(({ config, texture }) => {
+    const properties = Array.isArray(config.properties)
+      ? config.properties
+      : [config.properties];
+    properties.forEach((property) => {
+      if (property && property in material) {
+        material[property] = texture;
+        if (!appliedProperties.includes(property)) {
+          appliedProperties.push(property);
+        }
+      }
+    });
+  });
+
+  if (!appliedProperties.length && fallbackMap) {
+    const fallbackConfig =
+      MAP_TYPE_CONFIG[fallbackMap] || MAP_TYPE_CONFIG.baseColor;
+    const texture = await loadPackTexture(
+      packId,
+      textureId,
+      fallbackMap,
+      fallbackConfig.colorSpace
+    );
+    material.map = texture;
+    appliedProperties.push("map");
+  }
+
+  material.userData = material.userData ?? {};
+  material.userData.appliedTexture = {
+    packId,
+    textureId,
+    properties: appliedProperties,
+  };
+  material.needsUpdate = true;
+}
+
+async function applyTextureSelection(packId, textureId, options = {}) {
+  const { skipHistory = false, announce = true } = options;
+  if (!editableMeshes.length) {
+    return;
+  }
+
+  const normalizedTextureId = textureId || null;
+  const targetPackId = normalizedTextureId ? packId : null;
+
+  if (targetPackId) {
+    await initializeTextureControls();
+    if (!texturePackRegistry.has(targetPackId)) {
+      setStatus("error", "Texture pack not available");
+      if (hudInfo) {
+        hudInfo.textContent = "Add the texture pack to apply it.";
+      }
+      return;
+    }
+  }
+
+  const materials = [];
+  editableMeshes.forEach((mesh) => {
+    if (!mesh) {
+      return;
+    }
+    const mat = mesh.material;
+    if (Array.isArray(mat)) {
+      mat.forEach((item) => {
+        if (item) {
+          materials.push(item);
+        }
+      });
+    } else if (mat) {
+      materials.push(mat);
+    }
+  });
+
+  if (!materials.length) {
+    return;
+  }
+
+  const token = ++activeTextureApplicationToken;
+  setTextureGridBusy(true);
+
+  try {
+    let manifestEntry = null;
+    if (targetPackId && normalizedTextureId) {
+      const pack = texturePackRegistry.get(targetPackId);
+      const textures = await ensureTexturePackLoaded(targetPackId);
+      if (!textures.length && pack?.error) {
+        throw pack.error;
+      }
+      manifestEntry = textures.find((entry) => entry.id === normalizedTextureId);
+      if (!manifestEntry) {
+        throw new Error(
+          `Texture "${normalizedTextureId}" was not found in pack "${pack?.label ?? targetPackId}".`
+        );
+      }
+      if (!manifestEntry.previewMap) {
+        manifestEntry.previewMap = getTexturePreviewMap(manifestEntry.maps);
+      }
+    }
+
+    await Promise.all(
+      materials.map((material) =>
+        applyTextureToMaterial(material, targetPackId, normalizedTextureId, manifestEntry)
+      )
+    );
+
+    if (token !== activeTextureApplicationToken) {
+      return;
+    }
+
+    textureState.activePackId = targetPackId;
+    textureState.activeTextureId = normalizedTextureId;
+    highlightTextureSelection(normalizedTextureId);
+
+    if (!skipHistory && !isRestoringHistory) {
+      scheduleHistoryCommit();
+    }
+
+    if (announce) {
+      setStatus(
+        "ready",
+        normalizedTextureId ? "Texture applied" : "Texture maps cleared"
+      );
+      if (hudInfo) {
+        hudInfo.textContent = "";
+      }
+    }
+  } catch (error) {
+    if (token === activeTextureApplicationToken) {
+      console.error("Failed to apply texture", error);
+      setStatus("error", "Failed to apply texture");
+      if (hudInfo) {
+        hudInfo.textContent =
+          error?.message ?? "Unable to apply the selected texture.";
+      }
+    }
+  } finally {
+    if (token === activeTextureApplicationToken) {
+      setTextureGridBusy(false);
+      syncTextureControls();
+    }
+  }
 }
 
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
@@ -507,6 +1234,7 @@ function captureSceneSnapshot() {
         color: colorInput?.value ?? "#ffffff",
         metalness: Number.parseFloat(metalnessInput?.value ?? "0") || 0,
         roughness: Number.parseFloat(roughnessInput?.value ?? "1") || 1,
+        texture: getCurrentMaterialTextureRef(),
       }
     : null;
 
@@ -606,7 +1334,7 @@ function applySnapshot(snapshot) {
     transformControls.setScaleSnap(null);
 
     if (snapshot.material && currentSelection) {
-      const { color, metalness, roughness } = snapshot.material;
+      const { color, metalness, roughness, texture } = snapshot.material;
       if (colorInput && color) {
         colorInput.value = color;
       }
@@ -616,6 +1344,22 @@ function applySnapshot(snapshot) {
       if (roughnessInput && typeof roughness === "number") {
         roughnessInput.value = roughness.toString();
       }
+      if (texture && texture.packId && texture.textureId) {
+        void applyTextureSelection(texture.packId, texture.textureId, {
+          skipHistory: true,
+          announce: false,
+        });
+      } else if (selectionHasTrackedTexture()) {
+        void applyTextureSelection(null, null, {
+          skipHistory: true,
+          announce: false,
+        });
+      }
+    } else if (currentSelection && selectionHasTrackedTexture()) {
+      void applyTextureSelection(null, null, {
+        skipHistory: true,
+        announce: false,
+      });
     }
 
     syncMaterialInputs();
@@ -786,6 +1530,10 @@ function ensureStandardMaterial(material) {
   if (material.emissive) {
     standardMaterial.emissive = material.emissive.clone();
     standardMaterial.emissiveIntensity = material.emissiveIntensity ?? 1;
+  }
+
+  if (material.userData && typeof material.userData === "object") {
+    standardMaterial.userData = { ...material.userData };
   }
 
   material.dispose?.();
@@ -1073,6 +1821,7 @@ function setMaterialControlsEnabled(enabled) {
   swatchButtons.forEach((button) => {
     button.disabled = !enabled;
   });
+  setTextureControlsEnabled(enabled);
 }
 
 function syncMaterialInputs() {
@@ -1081,6 +1830,7 @@ function syncMaterialInputs() {
     colorInput.value = "#ffffff";
     metalnessInput.value = "0";
     roughnessInput.value = "1";
+    syncTextureControls();
     return;
   }
 
@@ -1098,6 +1848,7 @@ function syncMaterialInputs() {
   if (typeof material?.roughness === "number") {
     roughnessInput.value = material.roughness.toString();
   }
+  syncTextureControls();
 }
 
 function applyMaterialProperty(property, value) {
@@ -1924,6 +2675,42 @@ swatchButtons.forEach((button) => {
   });
 });
 
+texturePackSelect?.addEventListener("change", (event) => {
+  const packId = event.target.value;
+  textureState.activePackId = packId || null;
+  initializeTextureControls()
+    .then(() => {
+      const applied = getAppliedTextureReference(getPrimaryEditableMaterial());
+      const selectedTextureId =
+        applied && applied.packId === packId ? applied.textureId : null;
+      return renderTextureGrid(packId, { selectedTextureId });
+    })
+    .finally(() => {
+      syncTextureControls();
+    });
+});
+
+textureGrid?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-texture-id]");
+  if (!button || button.disabled) {
+    return;
+  }
+  event.preventDefault();
+  button.blur();
+  const packId = button.dataset.packId || texturePackSelect?.value || null;
+  const textureId = button.dataset.textureId || null;
+  textureState.activePackId = packId || null;
+  textureState.activeTextureId = textureId || null;
+  const applied = getAppliedTextureReference(getPrimaryEditableMaterial());
+  if (
+    (!textureId && !applied) ||
+    (applied && applied.packId === packId && applied.textureId === textureId)
+  ) {
+    return;
+  }
+  void applyTextureSelection(packId, textureId, { announce: true });
+});
+
 function saveSession() {
   if (!sceneRoot.children.length) {
     setStatus("error", "No scene to save");
@@ -1933,7 +2720,7 @@ function saveSession() {
   try {
     const snapshot = captureSceneSnapshot();
     const sessionData = {
-      version: 3,
+      version: 4,
       selectionUUID: snapshot.selectionUUID,
       material: snapshot.material,
       objectJSON: snapshot.objectJSON,
@@ -2038,6 +2825,7 @@ clearSessionButton?.addEventListener("click", clearSession);
 exportButton?.addEventListener("click", exportScene);
 
 setTransformMode("translate");
+initializeTextureControls();
 
 resetHud();
 resetHistoryTracking();

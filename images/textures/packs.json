@@ -1,0 +1,16 @@
+{
+  "packs": [
+    {
+      "id": "pack1",
+      "label": "Pack 1",
+      "path": "images/textures/pack1",
+      "extension": ".png"
+    },
+    {
+      "id": "pack2",
+      "label": "Pack 2",
+      "path": "images/textures/pack2",
+      "extension": ".png"
+    }
+  ]
+}
