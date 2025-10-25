@@ -15,14 +15,12 @@ const sampleSelect = document.querySelector("[data-sample-select]");
 const resetButton = document.querySelector("[data-reset-scene]");
 const transformButtonsContainer = document.querySelector("[data-transform-buttons]");
 const primitiveContainer = document.querySelector("[data-create-primitive-container]");
+const colorPicker = document.querySelector("[data-color-picker]");
 const colorInput = document.querySelector("[data-color-input]");
 const metalnessInput = document.querySelector("[data-metalness-input]");
 const roughnessInput = document.querySelector("[data-roughness-input]");
 const texturePackSelect = document.querySelector("[data-texture-pack-select]");
 const textureGrid = document.querySelector("[data-texture-grid]");
-const swatchButtons = Array.from(
-  document.querySelectorAll("[data-material-swatches] button")
-);
 const saveSessionButton = document.querySelector("[data-save-session]");
 const restoreSessionButton = document.querySelector("[data-restore-session]");
 const clearSessionButton = document.querySelector("[data-clear-session]");
@@ -1337,6 +1335,7 @@ function applySnapshot(snapshot) {
       const { color, metalness, roughness, texture } = snapshot.material;
       if (colorInput && color) {
         colorInput.value = color;
+        updateColorPickerPreview(color);
       }
       if (metalnessInput && typeof metalness === "number") {
         metalnessInput.value = metalness.toString();
@@ -1814,22 +1813,50 @@ function syncInspectorInputs() {
 
 disableInspectorInputs();
 
+function updateColorPickerPreview(color) {
+  if (!colorPicker) {
+    return;
+  }
+
+  const nextColor = color ?? colorInput?.value ?? "#ffffff";
+  colorPicker.style.setProperty("--preview-color", nextColor);
+}
+
 function setMaterialControlsEnabled(enabled) {
-  colorInput.disabled = !enabled;
-  metalnessInput.disabled = !enabled;
-  roughnessInput.disabled = !enabled;
-  swatchButtons.forEach((button) => {
-    button.disabled = !enabled;
-  });
+  if (colorInput) {
+    colorInput.disabled = !enabled;
+  }
+  if (colorPicker) {
+    if (!enabled) {
+      colorPicker.dataset.disabled = "true";
+      colorPicker.setAttribute("aria-disabled", "true");
+    } else {
+      delete colorPicker.dataset.disabled;
+      colorPicker.setAttribute("aria-disabled", "false");
+    }
+  }
+  if (metalnessInput) {
+    metalnessInput.disabled = !enabled;
+  }
+  if (roughnessInput) {
+    roughnessInput.disabled = !enabled;
+  }
   setTextureControlsEnabled(enabled);
 }
 
 function syncMaterialInputs() {
   if (!editableMeshes.length) {
     setMaterialControlsEnabled(false);
-    colorInput.value = "#ffffff";
-    metalnessInput.value = "0";
-    roughnessInput.value = "1";
+    if (colorInput) {
+      colorInput.value = "#ffffff";
+    }
+    updateColorPickerPreview("#ffffff");
+    if (metalnessInput) {
+      metalnessInput.value = "0";
+    }
+    if (roughnessInput) {
+      roughnessInput.value = "1";
+    }
     syncTextureControls();
     return;
   }
@@ -1840,13 +1867,21 @@ function syncMaterialInputs() {
     ? firstMesh.material[0]
     : firstMesh.material;
   if (material && material.color) {
-    colorInput.value = `#${material.color.getHexString()}`;
+    const hexColor = `#${material.color.getHexString()}`;
+    if (colorInput) {
+      colorInput.value = hexColor;
+    }
+    updateColorPickerPreview(hexColor);
   }
   if (typeof material?.metalness === "number") {
-    metalnessInput.value = material.metalness.toString();
+    if (metalnessInput) {
+      metalnessInput.value = material.metalness.toString();
+    }
   }
   if (typeof material?.roughness === "number") {
-    roughnessInput.value = material.roughness.toString();
+    if (roughnessInput) {
+      roughnessInput.value = material.roughness.toString();
+    }
   }
   syncTextureControls();
 }
@@ -1866,6 +1901,9 @@ function applyMaterialProperty(property, value) {
       mat.needsUpdate = true;
     });
   });
+  if (property === "color") {
+    updateColorPickerPreview(value);
+  }
   updateHud(currentSelection);
   if (!isRestoringHistory) {
     scheduleHistoryCommit();
@@ -2659,7 +2697,9 @@ window.addEventListener("blur", () => {
 });
 
 colorInput?.addEventListener("input", (event) => {
-  applyMaterialProperty("color", event.target.value);
+  const nextColor = event.target.value;
+  updateColorPickerPreview(nextColor);
+  applyMaterialProperty("color", nextColor);
 });
 
 metalnessInput?.addEventListener("input", (event) => {
@@ -2672,16 +2712,7 @@ roughnessInput?.addEventListener("input", (event) => {
   applyMaterialProperty("roughness", THREE.MathUtils.clamp(value, 0, 1));
 });
 
-swatchButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const color = button.dataset.color;
-    if (!color) {
-      return;
-    }
-    colorInput.value = color;
-    applyMaterialProperty("color", color);
-  });
-});
+updateColorPickerPreview(colorInput?.value ?? "#ffffff");
 
 texturePackSelect?.addEventListener("change", (event) => {
   const packId = event.target.value;
