@@ -36,6 +36,10 @@
         min-height: 100vh;
         display: grid;
         grid-template-columns: 320px minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-areas:
+          "top top"
+          "sidebar main";
         background: transparent;
         color: inherit;
       }
@@ -43,41 +47,143 @@
       @media (max-width: 1080px) {
         body {
           grid-template-columns: 1fr;
-          grid-template-rows: auto minmax(0, 60vh);
+          grid-template-rows: auto auto minmax(0, 60vh);
+          grid-template-areas:
+            "top"
+            "sidebar"
+            "main";
         }
 
         .editor-shell {
-          order: 2;
           min-height: 60vh;
         }
       }
 
       header {
-        padding: 1.5rem;
+        grid-area: top;
+        position: sticky;
+        top: 0;
+        z-index: 6;
+        padding: 1rem clamp(1.25rem, 4vw, 2.5rem);
         border-bottom: 1px solid rgba(148, 163, 184, 0.2);
         background: linear-gradient(
           180deg,
-          rgba(15, 23, 42, 0.65),
-          rgba(15, 23, 42, 0.35)
+          rgba(15, 23, 42, 0.9),
+          rgba(15, 23, 42, 0.55)
         );
         backdrop-filter: blur(16px);
-        position: sticky;
-        top: 0;
-        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: clamp(1.5rem, 4vw, 3.5rem);
       }
 
-      header h1 {
-        margin: 0;
-        font-size: clamp(1.5rem, 2vw + 1rem, 2.25rem);
+      .top-menu__brand {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
       }
 
-      header p {
-        margin: 0.75rem 0 0;
-        color: rgba(226, 232, 240, 0.8);
-        line-height: 1.6;
+      .top-menu__brand span {
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .top-menu__brand strong {
+        font-size: clamp(1.1rem, 1.5vw + 0.75rem, 1.65rem);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+
+      .top-menu__nav {
+        display: flex;
+        align-items: center;
+        gap: clamp(0.75rem, 1.5vw, 1.75rem);
+        overflow-x: auto;
+        padding-bottom: 0.1rem;
+      }
+
+      .top-menu__link {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0;
+        color: rgba(226, 232, 240, 0.75);
+        text-decoration: none;
+        font-size: 0.9rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition: color 160ms ease;
+        white-space: nowrap;
+      }
+
+      .top-menu__link::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -0.35rem;
+        height: 2px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--sky-400), var(--violet-400));
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 160ms ease;
+        opacity: 0.85;
+      }
+
+      .top-menu__link:hover,
+      .top-menu__link:focus-visible {
+        color: rgba(226, 232, 240, 1);
+      }
+
+      .top-menu__link:hover::after,
+      .top-menu__link:focus-visible::after {
+        transform: scaleX(1);
+      }
+
+      .top-menu__cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.55rem 1.1rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--sky-400), var(--violet-400));
+        color: var(--slate-950);
+        font-weight: 700;
+        text-decoration: none;
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.45);
+        transition: transform 150ms ease, box-shadow 150ms ease;
+        white-space: nowrap;
+      }
+
+      .top-menu__cta:hover,
+      .top-menu__cta:focus-visible {
+        transform: translateY(-1px);
+        box-shadow: 0 16px 28px rgba(15, 23, 42, 0.55);
+      }
+
+      @media (max-width: 720px) {
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 1rem;
+        }
+
+        .top-menu__nav {
+          width: 100%;
+        }
+
+        .top-menu__cta {
+          align-self: flex-end;
+        }
       }
 
       .sidebar {
+        grid-area: sidebar;
         background: rgba(15, 23, 42, 0.75);
         backdrop-filter: blur(24px);
         display: flex;
@@ -222,6 +328,7 @@
       }
 
       .editor-shell {
+        grid-area: main;
         position: relative;
         display: flex;
         align-items: stretch;
@@ -315,9 +422,27 @@
     </style>
   </head>
   <body>
+    <header>
+      <div class="top-menu__brand">
+        <span>Dusty Nova Lab</span>
+        <strong>Model Editor</strong>
+      </div>
+      <nav class="top-menu__nav" aria-label="Editor navigation">
+        <a class="top-menu__link" href="#import-assets">Import</a>
+        <a class="top-menu__link" href="#create-tools">Create</a>
+        <a class="top-menu__link" href="#transform-tools">Transform</a>
+        <a class="top-menu__link" href="#materials">Material</a>
+        <a class="top-menu__link" href="#persistence">Persistence</a>
+      </nav>
+      <a class="top-menu__cta" href="#create-tools">New Primitive</a>
+    </header>
     <aside class="sidebar">
 
-      <section class="sidebar__section" aria-labelledby="import-heading">
+      <section
+        class="sidebar__section"
+        id="import-assets"
+        aria-labelledby="import-heading"
+      >
         <h2 id="import-heading">Import assets</h2>
         <div class="uploader" data-state="idle" data-dropzone>
           <strong>Click to choose</strong> or drop a file here
@@ -341,7 +466,11 @@
         </div>
       </section>
 
-      <section class="sidebar__section" aria-labelledby="create-heading">
+      <section
+        class="sidebar__section"
+        id="create-tools"
+        aria-labelledby="create-heading"
+      >
         <h2 id="create-heading">Create</h2>
         <div class="controls-grid" data-create-primitive-container>
           <button type="button" data-create-shape="box">Box</button>
@@ -351,7 +480,11 @@
         </div>
       </section>
 
-      <section class="sidebar__section" aria-labelledby="transform-heading">
+      <section
+        class="sidebar__section"
+        id="transform-tools"
+        aria-labelledby="transform-heading"
+      >
         <h2 id="transform-heading">Transform</h2>
         <div class="transform-buttons" data-transform-buttons>
           <button type="button" data-mode="translate">Move</button>
@@ -364,7 +497,11 @@
         </div>
       </section>
 
-      <section class="sidebar__section" aria-labelledby="materials-heading">
+      <section
+        class="sidebar__section"
+        id="materials"
+        aria-labelledby="materials-heading"
+      >
         <h2 id="materials-heading">Material</h2>
         <div class="control-group material-controls">
           <label for="baseColor">Base color</label>
@@ -404,7 +541,11 @@
         </div>
       </section>
 
-      <section class="sidebar__section" aria-labelledby="persistence-heading">
+      <section
+        class="sidebar__section"
+        id="persistence"
+        aria-labelledby="persistence-heading"
+      >
         <h2 id="persistence-heading">Persistence</h2>
         <div class="controls-grid">
           <button type="button" data-save-session class="button--primary">
