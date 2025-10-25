@@ -387,9 +387,10 @@ function applySnapshot(snapshot) {
     sceneRoot.position.copy(restoredRoot.position);
     sceneRoot.quaternion.copy(restoredRoot.quaternion);
     sceneRoot.scale.copy(restoredRoot.scale);
-    restoredRoot.children.forEach((child) => {
+    while (restoredRoot.children.length) {
+      const child = restoredRoot.children[0];
       sceneRoot.add(child);
-    });
+    }
 
     const selection = snapshot.selectionUUID
       ? sceneRoot.getObjectByProperty("uuid", snapshot.selectionUUID)
