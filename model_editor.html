@@ -451,24 +451,69 @@
         accent-color: var(--violet-400);
       }
 
-      .material-swatches {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
+      .color-picker {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 0.65rem 1rem;
+        border-radius: 0.75rem;
+        background: rgba(15, 23, 42, 0.65);
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
+        cursor: pointer;
+        transition: background 160ms ease, box-shadow 160ms ease,
+          transform 160ms ease;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: rgba(226, 232, 240, 0.9);
+        min-height: 2.75rem;
       }
 
-      .material-swatches button {
-        width: 32px;
-        height: 32px;
-        border-radius: 12px;
-        padding: 0;
+      .color-picker:hover:not([data-disabled="true"]),
+      .color-picker:focus-within:not([data-disabled="true"]) {
+        box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.65);
+        transform: translateY(-1px);
+      }
+
+      .color-picker[data-disabled="true"] {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .color-picker__label {
+        pointer-events: none;
+      }
+
+      .color-picker__preview {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 0.6rem;
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.45);
+        background: var(--preview-color, #ffffff);
+        pointer-events: none;
+      }
+
+      .color-picker[data-disabled="true"] .color-picker__preview {
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.25);
+      }
+
+      .color-picker__input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
         border: none;
-        box-shadow: inset 0 0 0 2px rgba(15, 23, 42, 0.2);
+        cursor: pointer;
       }
 
-      .material-swatches button:focus {
-        outline: 2px solid var(--sky-400);
-        outline-offset: 2px;
+      .color-picker[data-disabled="true"] .color-picker__input {
+        pointer-events: none;
       }
 
       .texture-grid {
@@ -662,15 +707,24 @@
       <section
         class="sidebar__section"
         id="materials"
-        aria-labelledby="materials-heading"
+        aria-label="Material settings"
         role="tabpanel"
         aria-live="polite"
         data-panel
       >
-        <h2 id="materials-heading">Material</h2>
         <div class="control-group material-controls">
-          <label for="baseColor">Base color</label>
-          <input type="color" id="baseColor" data-color-input value="#ffffff" />
+          <label class="color-picker" data-color-picker>
+            <span class="color-picker__label">Base color</span>
+            <span class="color-picker__preview" aria-hidden="true"></span>
+            <input
+              type="color"
+              id="baseColor"
+              data-color-input
+              value="#ffffff"
+              aria-label="Select base color"
+              class="color-picker__input"
+            />
+          </label>
         </div>
         <div class="control-group material-controls">
           <label for="metalness">Metalness</label>
@@ -705,14 +759,6 @@
           >
             <option value="">Loading texture packs…</option>
           </select>
-        </div>
-        <div class="material-swatches" data-material-swatches>
-          <button type="button" data-color="#ffffff" style="background: #ffffff"></button>
-          <button type="button" data-color="#ffedd5" style="background: #ffedd5"></button>
-          <button type="button" data-color="#fef3c7" style="background: #fef3c7"></button>
-          <button type="button" data-color="#bfdbfe" style="background: #bfdbfe"></button>
-          <button type="button" data-color="#bbf7d0" style="background: #bbf7d0"></button>
-          <button type="button" data-color="#fca5a5" style="background: #fca5a5"></button>
         </div>
         <div
           class="texture-grid"
