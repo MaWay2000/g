@@ -35,11 +35,9 @@
         margin: 0;
         min-height: 100vh;
         display: grid;
-        grid-template-columns: 320px minmax(0, 1fr);
-        grid-template-rows: auto minmax(0, 1fr);
-        grid-template-areas:
-          "top top"
-          "sidebar main";
+        grid-template-columns: 220px minmax(320px, 380px) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        grid-template-areas: "menu sidebar main";
         background: transparent;
         color: inherit;
       }
@@ -49,7 +47,7 @@
           grid-template-columns: 1fr;
           grid-template-rows: auto auto minmax(0, 60vh);
           grid-template-areas:
-            "top"
+            "menu"
             "sidebar"
             "main";
         }
@@ -57,129 +55,69 @@
         .editor-shell {
           min-height: 60vh;
         }
+
+        .left-menu {
+          flex-direction: row;
+          gap: 0.75rem;
+          overflow-x: auto;
+          border-right: none;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .left-menu__link {
+          width: auto;
+        }
       }
 
-      header {
-        grid-area: top;
+      .left-menu {
+        grid-area: menu;
         position: sticky;
         top: 0;
+        align-self: start;
         z-index: 6;
-        padding: 1rem clamp(1.25rem, 4vw, 2.5rem);
-        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-        background: linear-gradient(
-          180deg,
-          rgba(15, 23, 42, 0.9),
-          rgba(15, 23, 42, 0.55)
-        );
-        backdrop-filter: blur(16px);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: clamp(1.5rem, 4vw, 3.5rem);
-      }
-
-      .top-menu__brand {
         display: flex;
         flex-direction: column;
-        gap: 0.15rem;
-      }
-
-      .top-menu__brand span {
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        font-size: 0.75rem;
-        color: rgba(148, 163, 184, 0.85);
-      }
-
-      .top-menu__brand strong {
-        font-size: clamp(1.1rem, 1.5vw + 0.75rem, 1.65rem);
-        font-weight: 700;
-        letter-spacing: 0.08em;
-      }
-
-      .top-menu__nav {
-        display: flex;
-        align-items: center;
-        gap: clamp(0.75rem, 1.5vw, 1.75rem);
-        overflow-x: auto;
-        padding-bottom: 0.1rem;
-      }
-
-      .top-menu__link {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.35rem 0;
-        color: rgba(226, 232, 240, 0.75);
-        text-decoration: none;
-        font-size: 0.9rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        transition: color 160ms ease;
-        white-space: nowrap;
-      }
-
-      .top-menu__link::after {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: -0.35rem;
-        height: 2px;
-        border-radius: 999px;
-        background: linear-gradient(135deg, var(--sky-400), var(--violet-400));
-        transform: scaleX(0);
-        transform-origin: left;
-        transition: transform 160ms ease;
-        opacity: 0.85;
-      }
-
-      .top-menu__link:hover,
-      .top-menu__link:focus-visible {
-        color: rgba(226, 232, 240, 1);
-      }
-
-      .top-menu__link:hover::after,
-      .top-menu__link:focus-visible::after {
-        transform: scaleX(1);
-      }
-
-      .top-menu__cta {
-        display: inline-flex;
-        align-items: center;
         gap: 0.5rem;
-        padding: 0.55rem 1.1rem;
-        border-radius: 999px;
-        background: linear-gradient(135deg, var(--sky-400), var(--violet-400));
-        color: var(--slate-950);
-        font-weight: 700;
-        text-decoration: none;
-        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.45);
-        transition: transform 150ms ease, box-shadow 150ms ease;
-        white-space: nowrap;
+        padding: 1.5rem 1.25rem;
+        background: linear-gradient(
+          180deg,
+          rgba(15, 23, 42, 0.92),
+          rgba(15, 23, 42, 0.65)
+        );
+        border-right: 1px solid rgba(148, 163, 184, 0.2);
+        backdrop-filter: blur(18px);
       }
 
-      .top-menu__cta:hover,
-      .top-menu__cta:focus-visible {
-        transform: translateY(-1px);
-        box-shadow: 0 16px 28px rgba(15, 23, 42, 0.55);
+      .left-menu__link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 0.5rem;
+        padding: 0.65rem 0.85rem;
+        border-radius: 0.75rem;
+        border: none;
+        background: transparent;
+        color: rgba(226, 232, 240, 0.75);
+        font-size: 0.9rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        width: 100%;
+        transition: color 160ms ease, background 160ms ease, transform 160ms ease;
       }
 
-      @media (max-width: 720px) {
-        header {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 1rem;
-        }
+      .left-menu__link:hover,
+      .left-menu__link:focus-visible {
+        color: rgba(226, 232, 240, 1);
+        background: rgba(129, 140, 248, 0.18);
+        transform: translateX(2px);
+      }
 
-        .top-menu__nav {
-          width: 100%;
-        }
-
-        .top-menu__cta {
-          align-self: flex-end;
-        }
+      .left-menu__link[data-active="true"] {
+        color: white;
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(129, 140, 248, 0.2));
+        box-shadow: inset 0 0 0 1px rgba(129, 140, 248, 0.45);
       }
 
       .sidebar {
@@ -188,14 +126,19 @@
         backdrop-filter: blur(24px);
         display: flex;
         flex-direction: column;
+        overflow-y: auto;
         border-right: 1px solid rgba(148, 163, 184, 0.15);
       }
 
       .sidebar__section {
         padding: 1.5rem;
         border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-        display: grid;
+        display: none;
         gap: 1rem;
+      }
+
+      .sidebar__section[data-active="true"] {
+        display: grid;
       }
 
       .sr-only {
@@ -422,26 +365,69 @@
     </style>
   </head>
   <body>
-    <header>
-      <div class="top-menu__brand">
-        <span>Dusty Nova Lab</span>
-        <strong>Model Editor</strong>
-      </div>
-      <nav class="top-menu__nav" aria-label="Editor navigation">
-        <a class="top-menu__link" href="#import-assets">Import</a>
-        <a class="top-menu__link" href="#create-tools">Create</a>
-        <a class="top-menu__link" href="#transform-tools">Transform</a>
-        <a class="top-menu__link" href="#materials">Material</a>
-        <a class="top-menu__link" href="#persistence">Persistence</a>
-      </nav>
-      <a class="top-menu__cta" href="#create-tools">New Primitive</a>
-    </header>
-    <aside class="sidebar">
+    <nav
+      class="left-menu"
+      aria-label="Editor sections"
+      role="tablist"
+      aria-orientation="vertical"
+    >
+      <button
+        type="button"
+        class="left-menu__link"
+        role="tab"
+        data-panel-target="import-assets"
+        aria-controls="import-assets"
+        data-active="true"
+      >
+        Import
+      </button>
+      <button
+        type="button"
+        class="left-menu__link"
+        role="tab"
+        data-panel-target="create-tools"
+        aria-controls="create-tools"
+      >
+        Create
+      </button>
+      <button
+        type="button"
+        class="left-menu__link"
+        role="tab"
+        data-panel-target="transform-tools"
+        aria-controls="transform-tools"
+      >
+        Transform
+      </button>
+      <button
+        type="button"
+        class="left-menu__link"
+        role="tab"
+        data-panel-target="materials"
+        aria-controls="materials"
+      >
+        Material
+      </button>
+      <button
+        type="button"
+        class="left-menu__link"
+        role="tab"
+        data-panel-target="persistence"
+        aria-controls="persistence"
+      >
+        Persistence
+      </button>
+    </nav>
+    <aside class="sidebar" data-panel-container>
 
       <section
         class="sidebar__section"
         id="import-assets"
         aria-labelledby="import-heading"
+        role="tabpanel"
+        aria-live="polite"
+        data-panel
+        data-active="true"
       >
         <h2 id="import-heading">Import assets</h2>
         <div class="uploader" data-state="idle" data-dropzone>
@@ -470,6 +456,9 @@
         class="sidebar__section"
         id="create-tools"
         aria-labelledby="create-heading"
+        role="tabpanel"
+        aria-live="polite"
+        data-panel
       >
         <h2 id="create-heading">Create</h2>
         <div class="controls-grid" data-create-primitive-container>
@@ -484,6 +473,9 @@
         class="sidebar__section"
         id="transform-tools"
         aria-labelledby="transform-heading"
+        role="tabpanel"
+        aria-live="polite"
+        data-panel
       >
         <h2 id="transform-heading">Transform</h2>
         <div class="transform-buttons" data-transform-buttons>
@@ -501,6 +493,9 @@
         class="sidebar__section"
         id="materials"
         aria-labelledby="materials-heading"
+        role="tabpanel"
+        aria-live="polite"
+        data-panel
       >
         <h2 id="materials-heading">Material</h2>
         <div class="control-group material-controls">
@@ -545,6 +540,9 @@
         class="sidebar__section"
         id="persistence"
         aria-labelledby="persistence-heading"
+        role="tabpanel"
+        aria-live="polite"
+        data-panel
       >
         <h2 id="persistence-heading">Persistence</h2>
         <div class="controls-grid">

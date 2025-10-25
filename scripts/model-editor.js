@@ -30,6 +30,105 @@ const exportButton = document.querySelector("[data-export-gltf]");
 const statusBadge = document.querySelector("[data-status-badge]");
 const hudModel = document.querySelector("[data-hud-model]");
 const hudInfo = document.querySelector("[data-hud-info]");
+const panelButtons = Array.from(
+  document.querySelectorAll("[data-panel-target]")
+);
+const panelSections = Array.from(document.querySelectorAll("[data-panel]"));
+
+let activePanelId =
+  panelButtons.find((button) => button.dataset.active === "true")?.dataset
+    .panelTarget ?? panelButtons[0]?.dataset.panelTarget ?? null;
+
+if (!activePanelId && panelSections[0]) {
+  activePanelId = panelSections[0].id;
+}
+
+function updatePanelVisibility({ focusActive = false } = {}) {
+  panelButtons.forEach((button) => {
+    const isActive = button.dataset.panelTarget === activePanelId;
+    button.dataset.active = String(isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.setAttribute("tabindex", isActive ? "0" : "-1");
+    if (isActive && focusActive) {
+      button.focus();
+    }
+  });
+
+  panelSections.forEach((section) => {
+    const isActive = section.id === activePanelId;
+    section.dataset.active = String(isActive);
+    section.setAttribute("aria-hidden", isActive ? "false" : "true");
+  });
+}
+
+function setActivePanel(panelId, options = {}) {
+  if (!panelId || panelId === activePanelId) {
+    return;
+  }
+
+  activePanelId = panelId;
+  updatePanelVisibility(options);
+}
+
+function focusAdjacentPanel(offset) {
+  if (!panelButtons.length) {
+    return;
+  }
+
+  const currentIndex = panelButtons.findIndex(
+    (button) => button.dataset.panelTarget === activePanelId
+  );
+  const fallbackIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextIndex =
+    (fallbackIndex + offset + panelButtons.length) % panelButtons.length;
+  const nextButton = panelButtons[nextIndex];
+  if (nextButton) {
+    setActivePanel(nextButton.dataset.panelTarget, { focusActive: true });
+  }
+}
+
+panelButtons.forEach((button) => {
+  button.setAttribute(
+    "aria-selected",
+    button.dataset.active === "true" ? "true" : "false"
+  );
+  button.setAttribute("tabindex", button.dataset.active === "true" ? "0" : "-1");
+  button.addEventListener("click", () => {
+    setActivePanel(button.dataset.panelTarget, { focusActive: false });
+  });
+
+  button.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      event.preventDefault();
+      focusAdjacentPanel(-1);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      event.preventDefault();
+      focusAdjacentPanel(1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      const firstButton = panelButtons[0];
+      if (firstButton) {
+        setActivePanel(firstButton.dataset.panelTarget, { focusActive: true });
+      }
+    } else if (event.key === "End") {
+      event.preventDefault();
+      const lastButton = panelButtons[panelButtons.length - 1];
+      if (lastButton) {
+        setActivePanel(lastButton.dataset.panelTarget, { focusActive: true });
+      }
+    } else if (
+      event.key === "Enter" ||
+      event.key === " " ||
+      event.key === "Spacebar" ||
+      event.key === "Space"
+    ) {
+      event.preventDefault();
+      setActivePanel(button.dataset.panelTarget, { focusActive: false });
+    }
+  });
+});
+
+updatePanelVisibility();
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
