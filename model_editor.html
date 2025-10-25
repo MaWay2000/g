@@ -156,6 +156,14 @@
         color: rgba(148, 163, 184, 0.95);
       }
 
+      .sidebar__section h3 {
+        margin: 1.75rem 0 0.5rem;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
       .sidebar__section p {
         margin: 0;
         color: rgba(226, 232, 240, 0.75);
@@ -404,15 +412,6 @@
       >
         Material
       </button>
-      <button
-        type="button"
-        class="left-menu__link"
-        role="tab"
-        data-panel-target="persistence"
-        aria-controls="persistence"
-      >
-        Persistence
-      </button>
     </nav>
     <aside class="sidebar" data-panel-container>
 
@@ -444,6 +443,21 @@
           </select>
           <button type="button" class="button--primary" data-reset-scene>
             Reset Scene
+          </button>
+        </div>
+        <h3>Persistence</h3>
+        <div class="controls-grid">
+          <button type="button" data-save-session class="button--primary">
+            Save Session
+          </button>
+          <button type="button" data-restore-session>
+            Restore Last Session
+          </button>
+          <button type="button" data-clear-session class="button--warning">
+            Clear Saved Session
+          </button>
+          <button type="button" data-export-gltf>
+            Export selection as GLB
           </button>
         </div>
       </section>
@@ -532,30 +546,6 @@
         </div>
       </section>
 
-      <section
-        class="sidebar__section"
-        id="persistence"
-        aria-labelledby="persistence-heading"
-        role="tabpanel"
-        aria-live="polite"
-        data-panel
-      >
-        <h2 id="persistence-heading">Persistence</h2>
-        <div class="controls-grid">
-          <button type="button" data-save-session class="button--primary">
-            Save Session
-          </button>
-          <button type="button" data-restore-session>
-            Restore Last Session
-          </button>
-          <button type="button" data-clear-session class="button--warning">
-            Clear Saved Session
-          </button>
-          <button type="button" data-export-gltf>
-            Export selection as GLB
-          </button>
-        </div>
-      </section>
     </aside>
 
     <main class="editor-shell">
