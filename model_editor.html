@@ -471,6 +471,79 @@
         outline-offset: 2px;
       }
 
+      .texture-grid {
+        margin-top: 0.5rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .texture-grid[data-disabled="true"] {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+
+      .texture-grid[data-loading="true"] {
+        opacity: 0.6;
+      }
+
+      .texture-grid__item {
+        display: grid;
+        gap: 0.45rem;
+        padding: 0.65rem;
+        border-radius: 0.85rem;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        background: rgba(15, 23, 42, 0.45);
+        cursor: pointer;
+        transition: border-color 160ms ease, box-shadow 160ms ease,
+          transform 160ms ease;
+        text-decoration: none;
+      }
+
+      .texture-grid__item:hover,
+      .texture-grid__item:focus-visible {
+        border-color: rgba(129, 140, 248, 0.65);
+        box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.35);
+        transform: translateY(-1px);
+      }
+
+      .texture-grid__item[data-selected="true"] {
+        border-color: rgba(56, 189, 248, 0.85);
+        box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+      }
+
+      .texture-grid__preview {
+        width: 100%;
+        aspect-ratio: 1;
+        border-radius: 0.6rem;
+        background-size: cover;
+        background-position: center;
+        background-color: rgba(30, 41, 59, 0.9);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);
+        display: grid;
+        place-items: center;
+        font-size: 1.25rem;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .texture-grid__preview--image {
+        font-size: 0;
+      }
+
+      .texture-grid__label {
+        font-size: 0.75rem;
+        line-height: 1.3;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(226, 232, 240, 0.85);
+      }
+
+      .texture-grid__message {
+        margin: 0;
+        font-size: 0.85rem;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
       .info-text {
         font-size: 0.85rem;
         line-height: 1.5;
@@ -623,6 +696,16 @@
             value="1"
           />
         </div>
+        <div class="control-group material-controls">
+          <label for="texturePack">Texture pack</label>
+          <select
+            id="texturePack"
+            data-texture-pack-select
+            disabled
+          >
+            <option value="">Loading texture packs…</option>
+          </select>
+        </div>
         <div class="material-swatches" data-material-swatches>
           <button type="button" data-color="#ffffff" style="background: #ffffff"></button>
           <button type="button" data-color="#ffedd5" style="background: #ffedd5"></button>
@@ -630,6 +713,16 @@
           <button type="button" data-color="#bfdbfe" style="background: #bfdbfe"></button>
           <button type="button" data-color="#bbf7d0" style="background: #bbf7d0"></button>
           <button type="button" data-color="#fca5a5" style="background: #fca5a5"></button>
+        </div>
+        <div
+          class="texture-grid"
+          data-texture-grid
+          data-disabled="true"
+          aria-live="polite"
+        >
+          <p class="texture-grid__message">
+            Select a texture pack to preview textures.
+          </p>
         </div>
       </section>
 
