@@ -1904,10 +1904,18 @@ function handlePointerDown(event) {
     pointerDownInfo = null;
     return;
   }
+  const composedPath =
+    typeof event.composedPath === "function" ? event.composedPath() : null;
+  let interactedWithCanvas = event.currentTarget === renderer.domElement;
+  if (!interactedWithCanvas && event.target === renderer.domElement) {
+    interactedWithCanvas = true;
+  } else if (!interactedWithCanvas && Array.isArray(composedPath)) {
+    interactedWithCanvas = composedPath.includes(renderer.domElement);
+  }
   pointerDownInfo = {
     x: event.clientX,
     y: event.clientY,
-    active: event.target === renderer.domElement,
+    active: interactedWithCanvas,
   };
 }
 
