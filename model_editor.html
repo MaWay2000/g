@@ -515,15 +515,6 @@
         type="button"
         class="left-menu__link"
         role="tab"
-        data-panel-target="inspector"
-        aria-controls="inspector"
-      >
-        Inspector
-      </button>
-      <button
-        type="button"
-        class="left-menu__link"
-        role="tab"
         data-panel-target="materials"
         aria-controls="materials"
       >
@@ -592,106 +583,6 @@
           <button type="button" data-create-shape="sphere">Sphere</button>
           <button type="button" data-create-shape="cylinder">Cylinder</button>
           <button type="button" data-create-shape="plane">Plane</button>
-        </div>
-      </section>
-
-      <section
-        class="sidebar__section"
-        id="inspector"
-        aria-labelledby="inspector-heading"
-        role="tabpanel"
-        aria-live="polite"
-        data-panel
-      >
-        <h2 id="inspector-heading">Inspector</h2>
-        <div class="control-group">
-          <label for="figureId">Figure ID</label>
-          <input
-            type="text"
-            id="figureId"
-            data-figure-id-input
-            placeholder="No selection"
-            disabled
-          />
-        </div>
-        <div class="control-group">
-          <span class="control-group__label">Center</span>
-          <div class="inspector-grid">
-            <label>
-              <span>X</span>
-              <input
-                type="number"
-                step="0.01"
-                data-center-input="x"
-                placeholder="—"
-                disabled
-                aria-label="Center X"
-              />
-            </label>
-            <label>
-              <span>Y</span>
-              <input
-                type="number"
-                step="0.01"
-                data-center-input="y"
-                placeholder="—"
-                disabled
-                aria-label="Center Y"
-              />
-            </label>
-            <label>
-              <span>Z</span>
-              <input
-                type="number"
-                step="0.01"
-                data-center-input="z"
-                placeholder="—"
-                disabled
-                aria-label="Center Z"
-              />
-            </label>
-          </div>
-        </div>
-        <div class="control-group">
-          <span class="control-group__label">Size</span>
-          <div class="inspector-grid">
-            <label>
-              <span>X</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                data-size-input="x"
-                placeholder="—"
-                disabled
-                aria-label="Size X"
-              />
-            </label>
-            <label>
-              <span>Y</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                data-size-input="y"
-                placeholder="—"
-                disabled
-                aria-label="Size Y"
-              />
-            </label>
-            <label>
-              <span>Z</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                data-size-input="z"
-                placeholder="—"
-                disabled
-                aria-label="Size Z"
-              />
-            </label>
-          </div>
         </div>
       </section>
 
