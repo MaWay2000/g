@@ -234,6 +234,7 @@ const mtlLoader = new MTLLoader();
 const gltfExporter = new GLTFExporter();
 
 let currentSelection = null;
+const selectedObjects = new Set();
 let editableMeshes = [];
 let snapEnabled = false;
 let activeTransformMode = "translate";
@@ -718,6 +719,24 @@ function collectEditableMeshes(object3D) {
   return meshes;
 }
 
+function collectEditableMeshesForSelection(selectionSet) {
+  const seen = new Set();
+  const meshes = [];
+  selectionSet.forEach((object3D) => {
+    if (!object3D) {
+      return;
+    }
+    const collected = collectEditableMeshes(object3D);
+    collected.forEach((mesh) => {
+      if (!seen.has(mesh.uuid)) {
+        seen.add(mesh.uuid);
+        meshes.push(mesh);
+      }
+    });
+  });
+  return meshes;
+}
+
 const primitiveFactories = {
   box: () => new THREE.BoxGeometry(1, 1, 1),
   sphere: () => new THREE.SphereGeometry(0.5, 32, 16),
@@ -946,8 +965,16 @@ function handlePointerUp(event) {
   const picked = pickSceneObject(event.clientX, event.clientY);
   if (picked) {
     const sourceName = picked.userData?.sourceName ?? "Scene object";
-    setCurrentSelection(picked, sourceName, { focus: false, addToScene: false });
-  } else if (currentSelection) {
+    const multiSelect = event.ctrlKey || event.metaKey;
+    if (multiSelect) {
+      toggleSelection(picked, sourceName);
+    } else {
+      setCurrentSelection(picked, sourceName, {
+        focus: false,
+        addToScene: false,
+      });
+    }
+  } else if (!event.ctrlKey && !event.metaKey && selectedObjects.size) {
     setCurrentSelection(null, undefined, { focus: false });
   }
 }
@@ -955,17 +982,18 @@ function handlePointerUp(event) {
 function setCurrentSelection(
   object3D,
   sourceName = "Imported model",
-  { focus = true, addToScene = true } = {}
+  { focus = true, addToScene = true, append = false } = {}
 ) {
   cancelScheduledHistoryCommit();
   transformHasChanged = false;
 
-  if (currentSelection && currentSelection !== object3D) {
+  if (!append && currentSelection && currentSelection !== object3D) {
     transformControls.detach();
   }
 
   if (!object3D) {
     currentSelection = null;
+    selectedObjects.clear();
     editableMeshes = [];
     syncMaterialInputs();
     if (sceneRoot.children.length) {
@@ -983,12 +1011,27 @@ function setCurrentSelection(
     sceneRoot.add(object3D);
   }
 
+  if (!append) {
+    selectedObjects.clear();
+  }
+
+  selectedObjects.add(object3D);
+
+  if (append && currentSelection && currentSelection !== object3D) {
+    transformControls.detach();
+  }
+
   currentSelection = object3D;
   currentSelection.userData.sourceName = sourceName;
-  editableMeshes = collectEditableMeshes(currentSelection);
+  editableMeshes = collectEditableMeshesForSelection(selectedObjects);
   transformControls.attach(currentSelection);
   setTransformMode(activeTransformMode);
-  setStatus("ready", `Selected: ${sourceName}`);
+  const selectionCount = selectedObjects.size;
+  const statusMessage =
+    selectionCount > 1
+      ? `Selected ${selectionCount} objects (active: ${sourceName})`
+      : `Selected: ${sourceName}`;
+  setStatus("ready", statusMessage);
   syncMaterialInputs();
   if (focus) {
     focusObject(currentSelection);
@@ -996,10 +1039,62 @@ function setCurrentSelection(
   updateHud(currentSelection);
 }
 
+function toggleSelection(object3D, sourceName, options = {}) {
+  if (!object3D) {
+    return;
+  }
+
+  if (selectedObjects.has(object3D)) {
+    selectedObjects.delete(object3D);
+    if (!selectedObjects.size) {
+      setCurrentSelection(null, undefined, { focus: false });
+      return;
+    }
+
+    const nextActive = Array.from(selectedObjects).pop();
+    const nextName = nextActive.userData?.sourceName ?? "Scene object";
+    setCurrentSelection(nextActive, nextName, {
+      focus: false,
+      addToScene: false,
+      append: true,
+      ...options,
+    });
+    return;
+  }
+
+  setCurrentSelection(object3D, sourceName, {
+    focus: false,
+    addToScene: false,
+    append: true,
+    ...options,
+  });
+}
+
+function deleteSelectedObjects() {
+  if (!selectedObjects.size) {
+    return;
+  }
+
+  const toRemove = Array.from(selectedObjects);
+  toRemove.forEach((object3D) => {
+    object3D?.removeFromParent?.();
+  });
+
+  const count = toRemove.length;
+  setCurrentSelection(null, undefined, { focus: false });
+  hudInfo.textContent = "";
+  setStatus(
+    "ready",
+    `Deleted ${count} object${count === 1 ? "" : "s"}`
+  );
+  pushHistorySnapshot();
+}
+
 function clearScene() {
   flushHistoryCommit();
   transformControls.detach();
   currentSelection = null;
+  selectedObjects.clear();
   editableMeshes = [];
   sceneRoot.clear();
   syncMaterialInputs();
@@ -1409,6 +1504,14 @@ window.addEventListener("keydown", (event) => {
 
   if (key === "f") {
     focusObject(currentSelection);
+  }
+
+  if (key === "delete" || key === "backspace") {
+    if (selectedObjects.size) {
+      event.preventDefault();
+      deleteSelectedObjects();
+    }
+    return;
   }
 
   if (!currentSelection) {
