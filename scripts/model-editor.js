@@ -44,6 +44,10 @@ const clock = new THREE.Clock();
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#0b1120");
 
+const sceneRoot = new THREE.Group();
+sceneRoot.name = "EditableScene";
+scene.add(sceneRoot);
+
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
 camera.position.set(6, 4, 8);
 
@@ -73,10 +77,16 @@ const cameraForward = new THREE.Vector3();
 const cameraRight = new THREE.Vector3();
 const movementVector = new THREE.Vector3();
 
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+const POINTER_CLICK_THRESHOLD = 5;
+let pointerDownInfo = null;
+
 const transformControls = new TransformControls(camera, renderer.domElement);
 transformControls.setSize(1.1);
 transformControls.addEventListener("dragging-changed", (event) => {
   orbitControls.enabled = !event.value;
+  isTransformDragging = event.value;
   if (event.value) {
     transformHasChanged = false;
   } else if (transformHasChanged) {
@@ -129,6 +139,7 @@ let editableMeshes = [];
 let snapEnabled = false;
 let activeTransformMode = "translate";
 let transformHasChanged = false;
+let isTransformDragging = false;
 
 const STORAGE_KEY = "model-editor-session-v1";
 
@@ -292,31 +303,30 @@ function flushHistoryCommit() {
   pushHistorySnapshot();
 }
 
-function captureSelectionSnapshot() {
-  if (!currentSelection) {
-    return null;
-  }
+function captureSceneSnapshot() {
+  const objectJSON = sceneRoot.toJSON();
+  const material = currentSelection
+    ? {
+        color: colorInput?.value ?? "#ffffff",
+        metalness: Number.parseFloat(metalnessInput?.value ?? "0") || 0,
+        roughness: Number.parseFloat(roughnessInput?.value ?? "1") || 1,
+      }
+    : null;
 
-  const material = {
-    color: colorInput?.value ?? "#ffffff",
-    metalness: Number.parseFloat(metalnessInput?.value ?? "0") || 0,
-    roughness: Number.parseFloat(roughnessInput?.value ?? "1") || 1,
-  };
-
-  const objectJSON = currentSelection.toJSON();
-  const signature = JSON.stringify({
-    object: objectJSON,
-    material,
-    snapEnabled,
-  });
-
-  return {
+  const snapshot = {
     objectJSON,
-    sourceName: currentSelection.userData.sourceName ?? "Imported model",
+    selectionUUID: currentSelection?.uuid ?? null,
     snapEnabled,
     material,
-    signature,
+    signature: JSON.stringify({
+      object: objectJSON,
+      selectionUUID: currentSelection?.uuid ?? null,
+      snapEnabled,
+      material,
+    }),
   };
+
+  return snapshot;
 }
 
 function resetHistoryTracking() {
@@ -324,7 +334,7 @@ function resetHistoryTracking() {
     return;
   }
   clearHistoryTracking();
-  const snapshot = captureSelectionSnapshot();
+  const snapshot = captureSceneSnapshot();
   if (snapshot) {
     historyState.undoStack.push(snapshot);
     historyState.lastSignature = snapshot.signature;
@@ -335,7 +345,7 @@ function pushHistorySnapshot() {
   if (isRestoringHistory) {
     return;
   }
-  const snapshot = captureSelectionSnapshot();
+  const snapshot = captureSceneSnapshot();
   if (!snapshot) {
     return;
   }
@@ -352,7 +362,7 @@ function pushHistorySnapshot() {
 }
 
 function scheduleHistoryCommit() {
-  if (isRestoringHistory || !currentSelection) {
+  if (isRestoringHistory) {
     return;
   }
   cancelScheduledHistoryCommit();
@@ -371,10 +381,26 @@ function applySnapshot(snapshot) {
   cancelScheduledHistoryCommit();
   try {
     const loader = new THREE.ObjectLoader();
-    const restored = loader.parse(snapshot.objectJSON);
-    setCurrentSelection(restored, snapshot.sourceName ?? "Imported model", {
-      focus: false,
+    const restoredRoot = loader.parse(snapshot.objectJSON);
+
+    sceneRoot.clear();
+    sceneRoot.position.copy(restoredRoot.position);
+    sceneRoot.quaternion.copy(restoredRoot.quaternion);
+    sceneRoot.scale.copy(restoredRoot.scale);
+    restoredRoot.children.forEach((child) => {
+      sceneRoot.add(child);
     });
+
+    const selection = snapshot.selectionUUID
+      ? sceneRoot.getObjectByProperty("uuid", snapshot.selectionUUID)
+      : null;
+
+    if (selection) {
+      const sourceName = selection.userData?.sourceName ?? "Imported model";
+      setCurrentSelection(selection, sourceName, { focus: false, addToScene: false });
+    } else {
+      setCurrentSelection(null, undefined, { focus: false });
+    }
 
     snapEnabled = Boolean(snapshot.snapEnabled);
     transformControls.setTranslationSnap(snapEnabled ? 0.25 : null);
@@ -389,7 +415,7 @@ function applySnapshot(snapshot) {
         : "Snapping: Off";
     }
 
-    if (snapshot.material) {
+    if (snapshot.material && currentSelection) {
       const { color, metalness, roughness } = snapshot.material;
       if (colorInput && color) {
         colorInput.value = color;
@@ -403,7 +429,6 @@ function applySnapshot(snapshot) {
     }
 
     syncMaterialInputs();
-    updateHud(currentSelection);
   } finally {
     isRestoringHistory = false;
   }
@@ -757,31 +782,113 @@ function applyMaterialProperty(property, value) {
   }
 }
 
-function setCurrentSelection(
-  object3D,
-  sourceName = "Imported model",
-  { focus = true } = {}
-) {
-  cancelScheduledHistoryCommit();
-  transformHasChanged = false;
-  if (currentSelection) {
-    transformControls.detach();
-    scene.remove(currentSelection);
+function findSceneObjectFromChild(child) {
+  let current = child;
+  while (current && current.parent && current.parent !== sceneRoot) {
+    current = current.parent;
   }
+  if (!current) {
+    return null;
+  }
+  return current.parent === sceneRoot ? current : null;
+}
 
-  currentSelection = object3D;
-  if (!currentSelection) {
-    editableMeshes = [];
-    resetHud();
+function pickSceneObject(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const normalizedX = ((clientX - rect.left) / rect.width) * 2 - 1;
+  const normalizedY = -((clientY - rect.top) / rect.height) * 2 + 1;
+  pointerNDC.set(normalizedX, normalizedY);
+  raycaster.setFromCamera(pointerNDC, camera);
+  const intersections = raycaster.intersectObjects(sceneRoot.children, true);
+  for (const hit of intersections) {
+    const candidate = findSceneObjectFromChild(hit.object);
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function handlePointerDown(event) {
+  if (event.button !== 0) {
+    pointerDownInfo = null;
+    return;
+  }
+  pointerDownInfo = {
+    x: event.clientX,
+    y: event.clientY,
+    active: event.target === renderer.domElement,
+  };
+}
+
+function handlePointerUp(event) {
+  if (event.button !== 0) {
+    pointerDownInfo = null;
+    return;
+  }
+  if (!pointerDownInfo || !pointerDownInfo.active) {
+    pointerDownInfo = null;
     return;
   }
 
+  const { x, y } = pointerDownInfo;
+  pointerDownInfo = null;
+
+  if (isTransformDragging) {
+    return;
+  }
+
+  const movement = Math.hypot(event.clientX - x, event.clientY - y);
+  if (movement > POINTER_CLICK_THRESHOLD) {
+    return;
+  }
+
+  const picked = pickSceneObject(event.clientX, event.clientY);
+  if (picked) {
+    const sourceName = picked.userData?.sourceName ?? "Scene object";
+    setCurrentSelection(picked, sourceName, { focus: false, addToScene: false });
+  } else if (currentSelection) {
+    setCurrentSelection(null, undefined, { focus: false });
+  }
+}
+
+function setCurrentSelection(
+  object3D,
+  sourceName = "Imported model",
+  { focus = true, addToScene = true } = {}
+) {
+  cancelScheduledHistoryCommit();
+  transformHasChanged = false;
+
+  if (currentSelection && currentSelection !== object3D) {
+    transformControls.detach();
+  }
+
+  if (!object3D) {
+    currentSelection = null;
+    editableMeshes = [];
+    syncMaterialInputs();
+    if (sceneRoot.children.length) {
+      hudModel.textContent = "No object selected.";
+      hudInfo.textContent = "";
+      setStatus("idle", "No selection");
+    } else {
+      resetHud();
+      setStatus("idle", "No selection");
+    }
+    return;
+  }
+
+  if (addToScene && object3D.parent !== sceneRoot) {
+    sceneRoot.add(object3D);
+  }
+
+  currentSelection = object3D;
   currentSelection.userData.sourceName = sourceName;
-  scene.add(currentSelection);
   editableMeshes = collectEditableMeshes(currentSelection);
   transformControls.attach(currentSelection);
   setTransformMode(activeTransformMode);
-  setStatus("ready", `Model: ${sourceName}`);
+  setStatus("ready", `Selected: ${sourceName}`);
   syncMaterialInputs();
   if (focus) {
     focusObject(currentSelection);
@@ -789,16 +896,19 @@ function setCurrentSelection(
   updateHud(currentSelection);
 }
 
-function clearSelection() {
-  if (currentSelection) {
-    transformControls.detach();
-    scene.remove(currentSelection);
-    currentSelection = null;
-    editableMeshes = [];
-  }
+function clearScene() {
+  flushHistoryCommit();
+  transformControls.detach();
+  currentSelection = null;
+  editableMeshes = [];
+  sceneRoot.clear();
+  syncMaterialInputs();
   resetHud();
   transformHasChanged = false;
-  clearHistoryTracking();
+  setStatus("idle", "Scene cleared");
+  if (!isRestoringHistory) {
+    pushHistorySnapshot();
+  }
 }
 
 function getExtensionFromName(name = "") {
@@ -961,7 +1071,7 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
 
     centerObject(imported);
     setCurrentSelection(imported, name);
-    resetHistoryTracking();
+    pushHistorySnapshot();
   } catch (error) {
     console.error("Unable to load model", error);
     setStatus("error", `Failed to load ${name}`);
@@ -1099,14 +1209,11 @@ primitiveContainer?.addEventListener("click", (event) => {
 
   const displayName = primitiveDisplayNames[shape] ?? "Primitive";
   setCurrentSelection(mesh, `${displayName} primitive`, { focus: true });
-  focusObject(mesh);
-  syncMaterialInputs();
-  clearHistoryTracking();
   pushHistorySnapshot();
 });
 
 resetButton?.addEventListener("click", () => {
-  clearSelection();
+  clearScene();
 });
 
 function setTransformMode(mode) {
@@ -1130,6 +1237,9 @@ transformButtonsContainer?.addEventListener("click", (event) => {
   const mode = button.dataset.mode;
   setTransformMode(mode);
 });
+
+renderer.domElement?.addEventListener("pointerdown", handlePointerDown);
+window.addEventListener("pointerup", handlePointerUp);
 
 toggleSnappingButton?.addEventListener("click", () => {
   snapEnabled = !snapEnabled;
@@ -1259,22 +1369,19 @@ swatchButtons.forEach((button) => {
 });
 
 function saveSession() {
-  if (!currentSelection) {
-    setStatus("error", "No selection to save");
-    hudInfo.textContent = "Import a model before saving a session.";
+  if (!sceneRoot.children.length) {
+    setStatus("error", "No scene to save");
+    hudInfo.textContent = "Add a model before saving a session.";
     return;
   }
   try {
+    const snapshot = captureSceneSnapshot();
     const sessionData = {
-      version: 1,
-      sourceName: currentSelection.userData.sourceName ?? "Imported model",
-      snapEnabled,
-      material: {
-        color: colorInput.value,
-        metalness: Number.parseFloat(metalnessInput.value),
-        roughness: Number.parseFloat(roughnessInput.value),
-      },
-      objectJSON: currentSelection.toJSON(),
+      version: 2,
+      snapEnabled: snapshot.snapEnabled,
+      selectionUUID: snapshot.selectionUUID,
+      material: snapshot.material,
+      objectJSON: snapshot.objectJSON,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
     setStatus("ready", "Session saved locally");
@@ -1293,41 +1400,34 @@ function restoreSession() {
       hudInfo.textContent = "Save a session before trying to restore.";
       return;
     }
+
     const parsed = JSON.parse(serialized);
     const loader = new THREE.ObjectLoader();
-    const restored = loader.parse(parsed.objectJSON);
-    setCurrentSelection(restored, parsed.sourceName ?? "Restored model");
-    snapEnabled = Boolean(parsed.snapEnabled);
-    transformControls.setTranslationSnap(snapEnabled ? 0.25 : null);
-    transformControls.setRotationSnap(
-      snapEnabled ? THREE.MathUtils.degToRad(15) : null
-    );
-    transformControls.setScaleSnap(snapEnabled ? 0.1 : null);
-    toggleSnappingButton.textContent = snapEnabled
-      ? "Snapping: On"
-      : "Snapping: Off";
-    toggleSnappingButton.dataset.active = snapEnabled ? "true" : "false";
-    if (parsed.material) {
-      const { color, metalness, roughness } = parsed.material;
-      const previousRestoring = isRestoringHistory;
-      isRestoringHistory = true;
-      try {
-      if (color) {
-        colorInput.value = color;
-        applyMaterialProperty("color", color);
-      }
-      if (typeof metalness === "number") {
-        metalnessInput.value = metalness.toString();
-        applyMaterialProperty("metalness", metalness);
-      }
-      if (typeof roughness === "number") {
-        roughnessInput.value = roughness.toString();
-        applyMaterialProperty("roughness", roughness);
-      }
-      } finally {
-        isRestoringHistory = previousRestoring;
-      }
+    let snapshot;
+
+    if (!parsed.version || parsed.version === 1) {
+      const restored = loader.parse(parsed.objectJSON);
+      restored.userData.sourceName = parsed.sourceName ?? "Restored model";
+      const tempRoot = new THREE.Group();
+      tempRoot.add(restored);
+      snapshot = {
+        objectJSON: tempRoot.toJSON(),
+        selectionUUID: restored.uuid,
+        snapEnabled: Boolean(parsed.snapEnabled),
+        material: parsed.material ?? null,
+        signature: null,
+      };
+    } else {
+      snapshot = {
+        objectJSON: parsed.objectJSON,
+        selectionUUID: parsed.selectionUUID ?? null,
+        snapEnabled: Boolean(parsed.snapEnabled),
+        material: parsed.material ?? null,
+        signature: null,
+      };
     }
+
+    applySnapshot(snapshot);
     resetHistoryTracking();
     setStatus("ready", "Session restored");
   } catch (error) {
@@ -1343,26 +1443,27 @@ function clearSession() {
   hudInfo.textContent = "";
 }
 
-function exportCurrentSelection() {
-  if (!currentSelection) {
-    setStatus("error", "No selection to export");
-    hudInfo.textContent = "Import a model before exporting.";
+function exportScene() {
+  if (!sceneRoot.children.length) {
+    setStatus("error", "No scene to export");
+    hudInfo.textContent = "Add a model before exporting.";
     return;
   }
 
-  setStatus("loading", "Exporting selection…");
+  setStatus("loading", "Exporting scene…");
   gltfExporter.parse(
-    currentSelection,
+    sceneRoot,
     (result) => {
       const blob = new Blob([result], { type: "model/gltf-binary" });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
-      const safeName = (currentSelection.userData.sourceName || "model")
+      const activeName = currentSelection?.userData?.sourceName;
+      const safeName = (activeName || "scene")
         .replace(/\s+/g, "-")
         .replace(/[^a-z0-9-_]/gi, "")
         .toLowerCase();
       anchor.href = url;
-      anchor.download = `${safeName || "model"}.glb`;
+      anchor.download = `${safeName || "scene"}.glb`;
       anchor.click();
       URL.revokeObjectURL(url);
       setStatus("ready", "Export complete");
@@ -1370,7 +1471,7 @@ function exportCurrentSelection() {
     (error) => {
       console.error("Failed to export GLB", error);
       setStatus("error", "Export failed");
-      hudInfo.textContent = error?.message ?? "Could not export the current model.";
+      hudInfo.textContent = error?.message ?? "Could not export the current scene.";
     },
     { binary: true }
   );
@@ -1379,7 +1480,7 @@ function exportCurrentSelection() {
 saveSessionButton?.addEventListener("click", saveSession);
 restoreSessionButton?.addEventListener("click", restoreSession);
 clearSessionButton?.addEventListener("click", clearSession);
-exportButton?.addEventListener("click", exportCurrentSelection);
+exportButton?.addEventListener("click", exportScene);
 
 setTransformMode("translate");
 if (toggleSnappingButton) {
@@ -1388,6 +1489,7 @@ if (toggleSnappingButton) {
 }
 
 resetHud();
+resetHistoryTracking();
 
 // Restore automatically on load if a session is available
 try {
