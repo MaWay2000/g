@@ -32,6 +32,17 @@ const panelButtons = Array.from(
   document.querySelectorAll("[data-panel-target]")
 );
 const panelSections = Array.from(document.querySelectorAll("[data-panel]"));
+const figureIdInput = document.querySelector("[data-figure-id-input]");
+const centerInputs = {
+  x: document.querySelector('[data-center-input="x"]'),
+  y: document.querySelector('[data-center-input="y"]'),
+  z: document.querySelector('[data-center-input="z"]'),
+};
+const sizeInputs = {
+  x: document.querySelector('[data-size-input="x"]'),
+  y: document.querySelector('[data-size-input="y"]'),
+  z: document.querySelector('[data-size-input="z"]'),
+};
 
 let activePanelId =
   panelButtons.find((button) => button.dataset.active === "true")?.dataset
@@ -145,6 +156,68 @@ const sceneRoot = new THREE.Group();
 sceneRoot.name = "EditableScene";
 scene.add(sceneRoot);
 
+const figureIdRegistry = new Map();
+let nextFigureId = 1;
+
+function normalizeFigureId(value) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (value == null) {
+    return "";
+  }
+  return String(value).trim();
+}
+
+function updateNextFigureIdFromValue(value) {
+  const match = /^figure-(\d+)$/i.exec(value);
+  if (!match) {
+    return;
+  }
+  const numeric = Number.parseInt(match[1], 10);
+  if (Number.isFinite(numeric)) {
+    nextFigureId = Math.max(nextFigureId, numeric + 1);
+  }
+}
+
+function generateFigureId(object3D) {
+  let candidate = `figure-${nextFigureId++}`;
+  while (figureIdRegistry.has(candidate)) {
+    candidate = `figure-${nextFigureId++}`;
+  }
+  figureIdRegistry.set(candidate, object3D ?? null);
+  return candidate;
+}
+
+function ensureFigureId(object3D) {
+  if (!object3D) {
+    return null;
+  }
+  const current = normalizeFigureId(object3D.userData?.figureId);
+  if (current) {
+    const owner = figureIdRegistry.get(current);
+    if (!owner || owner === object3D) {
+      figureIdRegistry.set(current, object3D);
+      updateNextFigureIdFromValue(current);
+      object3D.userData.figureId = current;
+      return current;
+    }
+  }
+
+  const generated = generateFigureId(object3D);
+  updateNextFigureIdFromValue(generated);
+  object3D.userData.figureId = generated;
+  return generated;
+}
+
+function rebuildFigureIdRegistry() {
+  figureIdRegistry.clear();
+  nextFigureId = 1;
+  sceneRoot.children.forEach((child) => {
+    ensureFigureId(child);
+  });
+}
+
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
 camera.position.set(6, 4, 8);
 
@@ -193,6 +266,7 @@ transformControls.addEventListener("dragging-changed", (event) => {
 });
 transformControls.addEventListener("change", () => {
   updateHud(currentSelection);
+  syncInspectorInputs();
 });
 transformControls.addEventListener("objectChange", () => {
   transformHasChanged = true;
@@ -487,6 +561,8 @@ function applySnapshot(snapshot) {
       const child = restoredRoot.children[0];
       sceneRoot.add(child);
     }
+
+    rebuildFigureIdRegistry();
 
     const selection = snapshot.selectionUUID
       ? sceneRoot.getObjectByProperty("uuid", snapshot.selectionUUID)
@@ -806,6 +882,7 @@ function updateHud(object3D) {
     return;
   }
 
+  const figureId = ensureFigureId(object3D);
   const box = new THREE.Box3().setFromObject(object3D);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
@@ -829,9 +906,82 @@ function updateHud(object3D) {
     2
   )})`;
   const countsText = `Vertices: ${vertexCount.toLocaleString()} · Draw calls: ${drawCallCount}`;
-
-  hudInfo.textContent = `${sizeText}\n${centerText}\n${countsText}`;
+  const lines = [];
+  if (figureId) {
+    lines.push(`ID: ${figureId}`);
+  }
+  lines.push(sizeText, centerText, countsText);
+  hudInfo.textContent = lines.join("\n");
 }
+
+function disableInspectorInputs(placeholder = "No selection") {
+  if (figureIdInput) {
+    figureIdInput.value = "";
+    figureIdInput.placeholder = placeholder;
+    figureIdInput.disabled = true;
+  }
+  Object.values(centerInputs).forEach((input) => {
+    if (input) {
+      input.value = "";
+      input.placeholder = "—";
+      input.disabled = true;
+    }
+  });
+  Object.values(sizeInputs).forEach((input) => {
+    if (input) {
+      input.value = "";
+      input.placeholder = "—";
+      input.disabled = true;
+    }
+  });
+}
+
+function syncInspectorInputs() {
+  if (!figureIdInput) {
+    return;
+  }
+
+  if (!currentSelection) {
+    disableInspectorInputs("No selection");
+    return;
+  }
+
+  if (selectedObjects.size > 1) {
+    disableInspectorInputs("Multiple selected");
+    return;
+  }
+
+  const figureId = ensureFigureId(currentSelection);
+  figureIdInput.disabled = false;
+  figureIdInput.placeholder = "";
+  figureIdInput.value = figureId ?? "";
+
+  const box = new THREE.Box3().setFromObject(currentSelection);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+
+  Object.entries(centerInputs).forEach(([axis, input]) => {
+    if (!input) {
+      return;
+    }
+    input.disabled = false;
+    input.value = Number.isFinite(center[axis])
+      ? center[axis].toFixed(2)
+      : "";
+    input.placeholder = "—";
+  });
+
+  Object.entries(sizeInputs).forEach(([axis, input]) => {
+    if (!input) {
+      return;
+    }
+    input.disabled = false;
+    input.value = Number.isFinite(size[axis]) ? size[axis].toFixed(2) : "";
+    input.placeholder = "—";
+  });
+}
+
+disableInspectorInputs();
 
 function setMaterialControlsEnabled(enabled) {
   colorInput.disabled = !enabled;
@@ -983,6 +1133,7 @@ function setCurrentSelection(
     selectedObjects.clear();
     editableMeshes = [];
     syncMaterialInputs();
+    syncInspectorInputs();
     if (sceneRoot.children.length) {
       hudModel.textContent = "No object selected.";
       hudInfo.textContent = "";
@@ -1002,6 +1153,7 @@ function setCurrentSelection(
     selectedObjects.clear();
   }
 
+  ensureFigureId(object3D);
   selectedObjects.add(object3D);
 
   if (append && currentSelection && currentSelection !== object3D) {
@@ -1024,6 +1176,7 @@ function setCurrentSelection(
     focusObject(currentSelection);
   }
   updateHud(currentSelection);
+  syncInspectorInputs();
 }
 
 function toggleSelection(object3D, sourceName, options = {}) {
@@ -1067,6 +1220,8 @@ function deleteSelectedObjects() {
     object3D?.removeFromParent?.();
   });
 
+  rebuildFigureIdRegistry();
+
   const count = toRemove.length;
   setCurrentSelection(null, undefined, { focus: false });
   hudInfo.textContent = "";
@@ -1084,7 +1239,10 @@ function clearScene() {
   selectedObjects.clear();
   editableMeshes = [];
   sceneRoot.clear();
+  figureIdRegistry.clear();
+  nextFigureId = 1;
   syncMaterialInputs();
+  disableInspectorInputs();
   resetHud();
   transformHasChanged = false;
   setStatus("idle", "Scene cleared");
@@ -1396,6 +1554,118 @@ primitiveContainer?.addEventListener("click", (event) => {
 
 resetButton?.addEventListener("click", () => {
   clearScene();
+});
+
+figureIdInput?.addEventListener("input", () => {
+  figureIdInput.setCustomValidity("");
+});
+
+figureIdInput?.addEventListener("change", () => {
+  if (!currentSelection || selectedObjects.size > 1) {
+    syncInspectorInputs();
+    return;
+  }
+
+  const proposed = normalizeFigureId(figureIdInput.value);
+  const currentId = normalizeFigureId(currentSelection.userData?.figureId);
+
+  if (!proposed) {
+    const ensured = ensureFigureId(currentSelection);
+    figureIdInput.value = ensured ?? "";
+    syncInspectorInputs();
+    scheduleHistoryCommit();
+    updateHud(currentSelection);
+    return;
+  }
+
+  const existingOwner = figureIdRegistry.get(proposed);
+  if (existingOwner && existingOwner !== currentSelection) {
+    figureIdInput.setCustomValidity("Figure ID must be unique.");
+    figureIdInput.reportValidity();
+    figureIdInput.value = currentId;
+    return;
+  }
+
+  if (proposed === currentId) {
+    figureIdInput.value = currentId;
+    return;
+  }
+
+  if (currentId && figureIdRegistry.get(currentId) === currentSelection) {
+    figureIdRegistry.delete(currentId);
+  }
+  figureIdRegistry.set(proposed, currentSelection);
+  currentSelection.userData.figureId = proposed;
+  updateNextFigureIdFromValue(proposed);
+  figureIdInput.value = proposed;
+  updateHud(currentSelection);
+  syncInspectorInputs();
+  scheduleHistoryCommit();
+});
+
+Object.entries(centerInputs).forEach(([axis, input]) => {
+  input?.addEventListener("change", () => {
+    if (!currentSelection || selectedObjects.size > 1) {
+      syncInspectorInputs();
+      return;
+    }
+
+    const value = Number.parseFloat(input.value);
+    if (!Number.isFinite(value)) {
+      syncInspectorInputs();
+      return;
+    }
+
+    const box = new THREE.Box3().setFromObject(currentSelection);
+    const center = box.getCenter(new THREE.Vector3());
+    const delta = value - center[axis];
+
+    if (!Number.isFinite(delta) || Math.abs(delta) < 1e-3) {
+      syncInspectorInputs();
+      return;
+    }
+
+    currentSelection.position[axis] += delta;
+    currentSelection.updateMatrixWorld(true);
+    updateHud(currentSelection);
+    syncInspectorInputs();
+    scheduleHistoryCommit();
+  });
+});
+
+Object.entries(sizeInputs).forEach(([axis, input]) => {
+  input?.addEventListener("change", () => {
+    if (!currentSelection || selectedObjects.size > 1) {
+      syncInspectorInputs();
+      return;
+    }
+
+    const desired = Number.parseFloat(input.value);
+    if (!Number.isFinite(desired) || desired <= 0) {
+      syncInspectorInputs();
+      return;
+    }
+
+    const box = new THREE.Box3().setFromObject(currentSelection);
+    const size = box.getSize(new THREE.Vector3());
+    const currentSize = size[axis];
+    if (!Number.isFinite(currentSize) || currentSize <= 1e-6) {
+      syncInspectorInputs();
+      return;
+    }
+
+    const scaleFactor = desired / currentSize;
+    if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) {
+      syncInspectorInputs();
+      return;
+    }
+
+    currentSelection.scale[axis] *= scaleFactor;
+    currentSelection.updateMatrixWorld(true);
+    updateHud(currentSelection);
+    syncInspectorInputs();
+    scheduleHistoryCommit();
+  });
 });
 
 function setTransformMode(mode) {
