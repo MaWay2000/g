@@ -1081,12 +1081,17 @@ sampleSelect?.addEventListener("change", async (event) => {
 });
 
 primitiveContainer?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-create-shape]");
-  if (!button) {
+  const target = event.target;
+  if (!(target instanceof Element)) {
     return;
   }
 
-  const shape = button.getAttribute("data-create-shape");
+  const button = target.closest("[data-create-shape]");
+  if (!(button instanceof HTMLElement)) {
+    return;
+  }
+
+  const shape = button.dataset.createShape;
   const mesh = createPrimitiveMesh(shape);
   if (!mesh) {
     return;
