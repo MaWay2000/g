@@ -3,6 +3,7 @@ import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/cont
 import { TransformControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/TransformControls.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/OBJLoader.js";
+import { MTLLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/MTLLoader.js";
 import { FBXLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/FBXLoader.js";
 import { STLLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js";
 import { GLTFExporter } from "https://unpkg.com/three@0.160.0/examples/jsm/exporters/GLTFExporter.js";
@@ -118,6 +119,8 @@ const loaders = {
   stl: new STLLoader(),
 };
 
+const mtlLoader = new MTLLoader();
+
 const gltfExporter = new GLTFExporter();
 
 let currentSelection = null;
@@ -136,6 +139,130 @@ const historyState = {
 };
 let historyDebounceHandle = null;
 let isRestoringHistory = false;
+
+function extractMtllibReference(objText) {
+  if (!objText) {
+    return null;
+  }
+
+  const pattern = /^[ \t]*mtllib[ \t]+(.+?)\s*$/gim;
+  let match;
+  while ((match = pattern.exec(objText))) {
+    const rawValue = match[1]?.trim();
+    if (!rawValue) {
+      continue;
+    }
+    const commentIndex = rawValue.indexOf("#");
+    const cleaned = (commentIndex >= 0 ? rawValue.slice(0, commentIndex) : rawValue).trim();
+    if (cleaned) {
+      return cleaned;
+    }
+  }
+
+  return null;
+}
+
+function normalizeReferencePath(value) {
+  return value.replace(/\\/g, "/");
+}
+
+function getCandidateFileMapKeys(reference) {
+  const normalized = normalizeReferencePath(reference).toLowerCase();
+  const candidates = new Set([normalized]);
+  if (normalized.startsWith("./")) {
+    candidates.add(normalized.slice(2));
+  }
+  const filename = normalized.split("/").pop();
+  if (filename) {
+    candidates.add(filename);
+  }
+  return Array.from(candidates);
+}
+
+async function readFileLikeAsText(fileLike) {
+  if (!fileLike) {
+    return null;
+  }
+
+  if (typeof fileLike.text === "function") {
+    return await fileLike.text();
+  }
+
+  if (typeof FileReader === "undefined") {
+    return null;
+  }
+
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error ?? new Error("Unable to read file"));
+    reader.readAsText(fileLike);
+  });
+}
+
+async function loadMaterialsForObj({ objText, fileMap, sourceUrl }) {
+  const mtllibReference = extractMtllibReference(objText);
+  if (!mtllibReference) {
+    return null;
+  }
+
+  const normalizedReference = normalizeReferencePath(mtllibReference);
+  const candidateKeys = fileMap ? getCandidateFileMapKeys(normalizedReference) : [];
+  let materialsText = null;
+  let materialPath = "./";
+
+  if (fileMap && fileMap.size) {
+    for (const key of candidateKeys) {
+      const fileEntry = fileMap.get(key);
+      if (!fileEntry) {
+        continue;
+      }
+      try {
+        materialsText = await readFileLikeAsText(fileEntry);
+      } catch (error) {
+        console.warn(`Failed to read MTL file from upload: ${normalizedReference}`, error);
+      }
+      if (materialsText) {
+        const slashIndex = normalizedReference.lastIndexOf("/");
+        if (slashIndex !== -1) {
+          materialPath = normalizedReference.slice(0, slashIndex + 1);
+        }
+        break;
+      }
+    }
+  }
+
+  if (!materialsText && sourceUrl) {
+    try {
+      const baseUrl = new URL(sourceUrl, window.location.href);
+      const resolvedUrl = new URL(normalizedReference, baseUrl);
+      const response = await fetch(resolvedUrl.href);
+      if (response.ok) {
+        materialsText = await response.text();
+        materialPath = new URL("./", resolvedUrl).href;
+      } else {
+        console.warn(
+          `Failed to fetch MTL file: ${resolvedUrl.href} (status ${response.status})`
+        );
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch MTL file: ${normalizedReference}`, error);
+    }
+  }
+
+  if (!materialsText) {
+    return null;
+  }
+
+  try {
+    const materials = mtlLoader.parse(materialsText, materialPath);
+    materials.preload();
+    return materials;
+  } catch (error) {
+    console.warn(`Failed to parse MTL file: ${normalizedReference}`, error);
+    return null;
+  }
+}
 
 function cancelScheduledHistoryCommit() {
   if (historyDebounceHandle) {
@@ -736,8 +863,35 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
         imported = gltf.scene || gltf.scenes?.[0];
       }
     } else if (extension === "obj") {
-      const data = text ?? new TextDecoder().decode(arrayBuffer);
-      imported = loaders.obj.parse(data);
+      let data = text;
+      if (!data && arrayBuffer) {
+        data = new TextDecoder().decode(arrayBuffer);
+      }
+      if (!data && url) {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch OBJ file: ${response.status}`);
+        }
+        data = await response.text();
+      }
+      if (!data) {
+        throw new Error("OBJ data unavailable");
+      }
+
+      const materials = await loadMaterialsForObj({
+        objText: data,
+        fileMap,
+        sourceUrl: url,
+      });
+
+      try {
+        if (materials) {
+          loaders.obj.setMaterials(materials);
+        }
+        imported = loaders.obj.parse(data);
+      } finally {
+        loaders.obj.setMaterials(null);
+      }
     } else if (extension === "fbx") {
       const buffer = arrayBuffer ?? (await fetch(url).then((res) => res.arrayBuffer()));
       imported = loaders.fbx.parse(buffer, name);
