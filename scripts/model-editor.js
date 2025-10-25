@@ -14,8 +14,6 @@ const fileInput = document.querySelector("[data-file-input]");
 const sampleSelect = document.querySelector("[data-sample-select]");
 const resetButton = document.querySelector("[data-reset-scene]");
 const transformButtonsContainer = document.querySelector("[data-transform-buttons]");
-const toggleSnappingButton = document.querySelector("[data-toggle-snapping]");
-const focusSelectionButton = document.querySelector("[data-focus-selection]");
 const primitiveContainer = document.querySelector("[data-create-primitive-container]");
 const colorInput = document.querySelector("[data-color-input]");
 const metalnessInput = document.querySelector("[data-metalness-input]");
@@ -236,7 +234,6 @@ const gltfExporter = new GLTFExporter();
 let currentSelection = null;
 const selectedObjects = new Set();
 let editableMeshes = [];
-let snapEnabled = false;
 let activeTransformMode = "translate";
 let transformHasChanged = false;
 let isTransformDragging = false;
@@ -413,15 +410,14 @@ function captureSceneSnapshot() {
       }
     : null;
 
+  const selectionUUID = currentSelection?.uuid ?? null;
   const snapshot = {
     objectJSON,
-    selectionUUID: currentSelection?.uuid ?? null,
-    snapEnabled,
+    selectionUUID,
     material,
     signature: JSON.stringify({
       object: objectJSON,
-      selectionUUID: currentSelection?.uuid ?? null,
-      snapEnabled,
+      selectionUUID,
       material,
     }),
   };
@@ -503,18 +499,9 @@ function applySnapshot(snapshot) {
       setCurrentSelection(null, undefined, { focus: false });
     }
 
-    snapEnabled = Boolean(snapshot.snapEnabled);
-    transformControls.setTranslationSnap(snapEnabled ? 0.25 : null);
-    transformControls.setRotationSnap(
-      snapEnabled ? THREE.MathUtils.degToRad(15) : null
-    );
-    transformControls.setScaleSnap(snapEnabled ? 0.1 : null);
-    if (toggleSnappingButton) {
-      toggleSnappingButton.dataset.active = snapEnabled ? "true" : "false";
-      toggleSnappingButton.textContent = snapEnabled
-        ? "Snapping: On"
-        : "Snapping: Off";
-    }
+    transformControls.setTranslationSnap(null);
+    transformControls.setRotationSnap(null);
+    transformControls.setScaleSnap(null);
 
     if (snapshot.material && currentSelection) {
       const { color, metalness, roughness } = snapshot.material;
@@ -1436,24 +1423,6 @@ transformButtonsContainer?.addEventListener("click", (event) => {
 renderer.domElement?.addEventListener("pointerdown", handlePointerDown);
 window.addEventListener("pointerup", handlePointerUp);
 
-toggleSnappingButton?.addEventListener("click", () => {
-  snapEnabled = !snapEnabled;
-  transformControls.setTranslationSnap(snapEnabled ? 0.25 : null);
-  transformControls.setRotationSnap(
-    snapEnabled ? THREE.MathUtils.degToRad(15) : null
-  );
-  transformControls.setScaleSnap(snapEnabled ? 0.1 : null);
-  toggleSnappingButton.dataset.active = snapEnabled ? "true" : "false";
-  toggleSnappingButton.textContent = snapEnabled
-    ? "Snapping: On"
-    : "Snapping: Off";
-  pushHistorySnapshot();
-});
-
-focusSelectionButton?.addEventListener("click", () => {
-  focusObject(currentSelection);
-});
-
 function isEditableTarget(target) {
   if (!target) {
     return false;
@@ -1580,8 +1549,7 @@ function saveSession() {
   try {
     const snapshot = captureSceneSnapshot();
     const sessionData = {
-      version: 2,
-      snapEnabled: snapshot.snapEnabled,
+      version: 3,
       selectionUUID: snapshot.selectionUUID,
       material: snapshot.material,
       objectJSON: snapshot.objectJSON,
@@ -1608,7 +1576,9 @@ function restoreSession() {
     const loader = new THREE.ObjectLoader();
     let snapshot;
 
-    if (!parsed.version || parsed.version === 1) {
+    const version = parsed.version ?? 1;
+
+    if (version === 1) {
       const restored = loader.parse(parsed.objectJSON);
       restored.userData.sourceName = parsed.sourceName ?? "Restored model";
       const tempRoot = new THREE.Group();
@@ -1616,7 +1586,6 @@ function restoreSession() {
       snapshot = {
         objectJSON: tempRoot.toJSON(),
         selectionUUID: restored.uuid,
-        snapEnabled: Boolean(parsed.snapEnabled),
         material: parsed.material ?? null,
         signature: null,
       };
@@ -1624,7 +1593,6 @@ function restoreSession() {
       snapshot = {
         objectJSON: parsed.objectJSON,
         selectionUUID: parsed.selectionUUID ?? null,
-        snapEnabled: Boolean(parsed.snapEnabled),
         material: parsed.material ?? null,
         signature: null,
       };
@@ -1686,10 +1654,6 @@ clearSessionButton?.addEventListener("click", clearSession);
 exportButton?.addEventListener("click", exportScene);
 
 setTransformMode("translate");
-if (toggleSnappingButton) {
-  toggleSnappingButton.textContent = "Snapping: Off";
-  toggleSnappingButton.dataset.active = "false";
-}
 
 resetHud();
 resetHistoryTracking();
