@@ -43,6 +43,32 @@ const sizeInputs = {
   y: document.querySelector('[data-size-input="y"]'),
   z: document.querySelector('[data-size-input="z"]'),
 };
+const hudEditor = document.querySelector("[data-hud-editor]");
+const hudFigureIdInput = hudEditor?.querySelector("[data-hud-figure-id]");
+const hudCenterInputs = {
+  x: hudEditor?.querySelector('[data-hud-center-input="x"]'),
+  y: hudEditor?.querySelector('[data-hud-center-input="y"]'),
+  z: hudEditor?.querySelector('[data-hud-center-input="z"]'),
+};
+const hudSizeInputs = {
+  x: hudEditor?.querySelector('[data-hud-size-input="x"]'),
+  y: hudEditor?.querySelector('[data-hud-size-input="y"]'),
+  z: hudEditor?.querySelector('[data-hud-size-input="z"]'),
+};
+
+const inspectorControlSet = {
+  figureIdInput,
+  centerInputs,
+  sizeInputs,
+};
+
+const hudControlSet = {
+  figureIdInput: hudFigureIdInput,
+  centerInputs: hudCenterInputs,
+  sizeInputs: hudSizeInputs,
+  container: hudEditor,
+  hideWhenDisabled: true,
+};
 
 let activePanelId =
   panelButtons.find((button) => button.dataset.active === "true")?.dataset
@@ -914,30 +940,108 @@ function updateHud(object3D) {
   hudInfo.textContent = lines.join("\n");
 }
 
-function disableInspectorInputs(placeholder = "No selection") {
-  if (figureIdInput) {
-    figureIdInput.value = "";
-    figureIdInput.placeholder = placeholder;
-    figureIdInput.disabled = true;
+function resetControlSet(controlSet, placeholder = "No selection") {
+  if (!controlSet) {
+    return;
   }
-  Object.values(centerInputs).forEach((input) => {
+
+  const {
+    figureIdInput: controlFigureId,
+    centerInputs: controlCenterInputs = {},
+    sizeInputs: controlSizeInputs = {},
+    container,
+    hideWhenDisabled = false,
+  } = controlSet;
+
+  if (controlFigureId) {
+    controlFigureId.value = "";
+    if (placeholder !== undefined) {
+      controlFigureId.placeholder = placeholder;
+    }
+    controlFigureId.disabled = true;
+  }
+
+  Object.values(controlCenterInputs).forEach((input) => {
     if (input) {
       input.value = "";
       input.placeholder = "—";
       input.disabled = true;
     }
   });
-  Object.values(sizeInputs).forEach((input) => {
+
+  Object.values(controlSizeInputs).forEach((input) => {
     if (input) {
       input.value = "";
       input.placeholder = "—";
       input.disabled = true;
     }
   });
+
+  if (container && hideWhenDisabled) {
+    container.hidden = true;
+  }
+}
+
+function populateControlSet(controlSet, { figureId, center, size }) {
+  if (!controlSet) {
+    return;
+  }
+
+  const {
+    figureIdInput: controlFigureId,
+    centerInputs: controlCenterInputs = {},
+    sizeInputs: controlSizeInputs = {},
+    container,
+    hideWhenDisabled = false,
+  } = controlSet;
+
+  if (controlFigureId) {
+    controlFigureId.disabled = false;
+    controlFigureId.placeholder = "";
+    controlFigureId.value = figureId ?? "";
+  }
+
+  Object.entries(controlCenterInputs).forEach(([axis, input]) => {
+    if (!input) {
+      return;
+    }
+    input.disabled = false;
+    const value = center?.[axis];
+    input.value = Number.isFinite(value) ? value.toFixed(2) : "";
+    input.placeholder = "—";
+  });
+
+  Object.entries(controlSizeInputs).forEach(([axis, input]) => {
+    if (!input) {
+      return;
+    }
+    input.disabled = false;
+    const value = size?.[axis];
+    input.value = Number.isFinite(value) ? value.toFixed(2) : "";
+    input.placeholder = "—";
+  });
+
+  if (container && hideWhenDisabled) {
+    container.hidden = false;
+  }
+}
+
+function disableInspectorInputs(placeholder = "No selection") {
+  resetControlSet(inspectorControlSet, placeholder);
+  resetControlSet(hudControlSet, placeholder);
 }
 
 function syncInspectorInputs() {
-  if (!figureIdInput) {
+  const hasInspectorControls =
+    figureIdInput ||
+    Object.values(centerInputs).some(Boolean) ||
+    Object.values(sizeInputs).some(Boolean);
+  const hasHudControls =
+    hudFigureIdInput ||
+    Object.values(hudCenterInputs).some(Boolean) ||
+    Object.values(hudSizeInputs).some(Boolean);
+
+  if (!hasInspectorControls && !hasHudControls) {
     return;
   }
 
@@ -952,33 +1056,12 @@ function syncInspectorInputs() {
   }
 
   const figureId = ensureFigureId(currentSelection);
-  figureIdInput.disabled = false;
-  figureIdInput.placeholder = "";
-  figureIdInput.value = figureId ?? "";
-
   const box = new THREE.Box3().setFromObject(currentSelection);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
 
-  Object.entries(centerInputs).forEach(([axis, input]) => {
-    if (!input) {
-      return;
-    }
-    input.disabled = false;
-    input.value = Number.isFinite(center[axis])
-      ? center[axis].toFixed(2)
-      : "";
-    input.placeholder = "—";
-  });
-
-  Object.entries(sizeInputs).forEach(([axis, input]) => {
-    if (!input) {
-      return;
-    }
-    input.disabled = false;
-    input.value = Number.isFinite(size[axis]) ? size[axis].toFixed(2) : "";
-    input.placeholder = "—";
-  });
+  populateControlSet(inspectorControlSet, { figureId, center, size });
+  populateControlSet(hudControlSet, { figureId, center, size });
 }
 
 disableInspectorInputs();
@@ -1556,22 +1639,23 @@ resetButton?.addEventListener("click", () => {
   clearScene();
 });
 
-figureIdInput?.addEventListener("input", () => {
-  figureIdInput.setCustomValidity("");
-});
+function handleFigureIdChange(event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) {
+    return;
+  }
 
-figureIdInput?.addEventListener("change", () => {
   if (!currentSelection || selectedObjects.size > 1) {
     syncInspectorInputs();
     return;
   }
 
-  const proposed = normalizeFigureId(figureIdInput.value);
+  const proposed = normalizeFigureId(input.value);
   const currentId = normalizeFigureId(currentSelection.userData?.figureId);
 
   if (!proposed) {
     const ensured = ensureFigureId(currentSelection);
-    figureIdInput.value = ensured ?? "";
+    input.value = ensured ?? "";
     syncInspectorInputs();
     scheduleHistoryCommit();
     updateHud(currentSelection);
@@ -1580,14 +1664,16 @@ figureIdInput?.addEventListener("change", () => {
 
   const existingOwner = figureIdRegistry.get(proposed);
   if (existingOwner && existingOwner !== currentSelection) {
-    figureIdInput.setCustomValidity("Figure ID must be unique.");
-    figureIdInput.reportValidity();
-    figureIdInput.value = currentId;
+    input.setCustomValidity("Figure ID must be unique.");
+    input.reportValidity();
+    input.value = currentId ?? "";
+    syncInspectorInputs();
     return;
   }
 
   if (proposed === currentId) {
-    figureIdInput.value = currentId;
+    input.value = currentId ?? "";
+    syncInspectorInputs();
     return;
   }
 
@@ -1597,76 +1683,104 @@ figureIdInput?.addEventListener("change", () => {
   figureIdRegistry.set(proposed, currentSelection);
   currentSelection.userData.figureId = proposed;
   updateNextFigureIdFromValue(proposed);
-  figureIdInput.value = proposed;
+  input.value = proposed;
   updateHud(currentSelection);
   syncInspectorInputs();
   scheduleHistoryCommit();
-});
+}
 
-Object.entries(centerInputs).forEach(([axis, input]) => {
-  input?.addEventListener("change", () => {
-    if (!currentSelection || selectedObjects.size > 1) {
-      syncInspectorInputs();
-      return;
-    }
+function handleCenterInputChange(axis, input) {
+  if (!input) {
+    return;
+  }
 
-    const value = Number.parseFloat(input.value);
-    if (!Number.isFinite(value)) {
-      syncInspectorInputs();
-      return;
-    }
-
-    const box = new THREE.Box3().setFromObject(currentSelection);
-    const center = box.getCenter(new THREE.Vector3());
-    const delta = value - center[axis];
-
-    if (!Number.isFinite(delta) || Math.abs(delta) < 1e-3) {
-      syncInspectorInputs();
-      return;
-    }
-
-    currentSelection.position[axis] += delta;
-    currentSelection.updateMatrixWorld(true);
-    updateHud(currentSelection);
+  if (!currentSelection || selectedObjects.size > 1) {
     syncInspectorInputs();
-    scheduleHistoryCommit();
-  });
-});
+    return;
+  }
 
-Object.entries(sizeInputs).forEach(([axis, input]) => {
-  input?.addEventListener("change", () => {
-    if (!currentSelection || selectedObjects.size > 1) {
-      syncInspectorInputs();
-      return;
-    }
-
-    const desired = Number.parseFloat(input.value);
-    if (!Number.isFinite(desired) || desired <= 0) {
-      syncInspectorInputs();
-      return;
-    }
-
-    const box = new THREE.Box3().setFromObject(currentSelection);
-    const size = box.getSize(new THREE.Vector3());
-    const currentSize = size[axis];
-    if (!Number.isFinite(currentSize) || currentSize <= 1e-6) {
-      syncInspectorInputs();
-      return;
-    }
-
-    const scaleFactor = desired / currentSize;
-    if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) {
-      syncInspectorInputs();
-      return;
-    }
-
-    currentSelection.scale[axis] *= scaleFactor;
-    currentSelection.updateMatrixWorld(true);
-    updateHud(currentSelection);
+  const value = Number.parseFloat(input.value);
+  if (!Number.isFinite(value)) {
     syncInspectorInputs();
-    scheduleHistoryCommit();
+    return;
+  }
+
+  const box = new THREE.Box3().setFromObject(currentSelection);
+  const center = box.getCenter(new THREE.Vector3());
+  const delta = value - center[axis];
+
+  if (!Number.isFinite(delta) || Math.abs(delta) < 1e-3) {
+    syncInspectorInputs();
+    return;
+  }
+
+  currentSelection.position[axis] += delta;
+  currentSelection.updateMatrixWorld(true);
+  updateHud(currentSelection);
+  syncInspectorInputs();
+  scheduleHistoryCommit();
+}
+
+function handleSizeInputChange(axis, input) {
+  if (!input) {
+    return;
+  }
+
+  if (!currentSelection || selectedObjects.size > 1) {
+    syncInspectorInputs();
+    return;
+  }
+
+  const desired = Number.parseFloat(input.value);
+  if (!Number.isFinite(desired) || desired <= 0) {
+    syncInspectorInputs();
+    return;
+  }
+
+  const box = new THREE.Box3().setFromObject(currentSelection);
+  const size = box.getSize(new THREE.Vector3());
+  const currentSize = size[axis];
+  if (!Number.isFinite(currentSize) || currentSize <= 1e-6) {
+    syncInspectorInputs();
+    return;
+  }
+
+  const scaleFactor = desired / currentSize;
+  if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) {
+    syncInspectorInputs();
+    return;
+  }
+
+  currentSelection.scale[axis] *= scaleFactor;
+  currentSelection.updateMatrixWorld(true);
+  updateHud(currentSelection);
+  syncInspectorInputs();
+  scheduleHistoryCommit();
+}
+
+function attachCenterInputHandlers(inputs) {
+  Object.entries(inputs).forEach(([axis, input]) => {
+    input?.addEventListener("change", () => handleCenterInputChange(axis, input));
   });
+}
+
+function attachSizeInputHandlers(inputs) {
+  Object.entries(inputs).forEach(([axis, input]) => {
+    input?.addEventListener("change", () => handleSizeInputChange(axis, input));
+  });
+}
+
+[figureIdInput, hudFigureIdInput].forEach((input) => {
+  input?.addEventListener("input", () => {
+    input.setCustomValidity("");
+  });
+  input?.addEventListener("change", handleFigureIdChange);
 });
+
+attachCenterInputHandlers(centerInputs);
+attachCenterInputHandlers(hudCenterInputs);
+attachSizeInputHandlers(sizeInputs);
+attachSizeInputHandlers(hudSizeInputs);
 
 function setTransformMode(mode) {
   activeTransformMode = mode;
