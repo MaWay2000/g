@@ -16,6 +16,7 @@ const resetButton = document.querySelector("[data-reset-scene]");
 const transformButtonsContainer = document.querySelector("[data-transform-buttons]");
 const toggleSnappingButton = document.querySelector("[data-toggle-snapping]");
 const focusSelectionButton = document.querySelector("[data-focus-selection]");
+const primitiveContainer = document.querySelector("[data-create-primitive-container]");
 const colorInput = document.querySelector("[data-color-input]");
 const metalnessInput = document.querySelector("[data-metalness-input]");
 const roughnessInput = document.querySelector("[data-roughness-input]");
@@ -592,6 +593,54 @@ function collectEditableMeshes(object3D) {
   return meshes;
 }
 
+const primitiveFactories = {
+  box: () => new THREE.BoxGeometry(1, 1, 1),
+  sphere: () => new THREE.SphereGeometry(0.5, 32, 16),
+  cylinder: () => new THREE.CylinderGeometry(0.5, 0.5, 1, 32),
+  plane: () => new THREE.PlaneGeometry(1, 1, 1, 1),
+};
+
+const primitiveDisplayNames = {
+  box: "Box",
+  sphere: "Sphere",
+  cylinder: "Cylinder",
+  plane: "Plane",
+};
+
+function createPrimitiveMesh(shape) {
+  const geometryFactory = primitiveFactories[shape];
+  if (!geometryFactory) {
+    return null;
+  }
+
+  const geometry = geometryFactory();
+  const material = new THREE.MeshStandardMaterial({
+    color: colorInput?.value ?? "#ffffff",
+    metalness: Number.parseFloat(metalnessInput?.value ?? "0") || 0,
+    roughness: Number.parseFloat(roughnessInput?.value ?? "1") || 1,
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  if (shape === "plane") {
+    mesh.rotation.x = -Math.PI / 2;
+  }
+
+  centerObject(mesh);
+
+  const size = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+  const offset = new THREE.Vector3(
+    (Math.random() - 0.5) * 4,
+    size.y / 2,
+    (Math.random() - 0.5) * 4
+  );
+  mesh.position.add(offset);
+
+  return mesh;
+}
+
 function centerObject(object3D) {
   const box = new THREE.Box3().setFromObject(object3D);
   const center = box.getCenter(new THREE.Vector3());
@@ -1029,6 +1078,26 @@ sampleSelect?.addEventListener("change", async (event) => {
   const extension = getExtensionFromName(name);
   await loadModelFromData({ name, extension, url: value });
   sampleSelect.value = "";
+});
+
+primitiveContainer?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-create-shape]");
+  if (!button) {
+    return;
+  }
+
+  const shape = button.getAttribute("data-create-shape");
+  const mesh = createPrimitiveMesh(shape);
+  if (!mesh) {
+    return;
+  }
+
+  const displayName = primitiveDisplayNames[shape] ?? "Primitive";
+  setCurrentSelection(mesh, `${displayName} primitive`, { focus: true });
+  focusObject(mesh);
+  syncMaterialInputs();
+  clearHistoryTracking();
+  pushHistorySnapshot();
 });
 
 resetButton?.addEventListener("click", () => {
