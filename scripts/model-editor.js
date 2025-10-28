@@ -228,6 +228,10 @@ const MAP_TYPE_CONFIG = {
   displacement: {
     properties: ["displacementMap"],
     colorSpace: THREE.LinearSRGBColorSpace,
+    defaults: {
+      displacementScale: 0.05,
+      displacementBias: 0,
+    },
   },
   emissive: {
     properties: ["emissiveMap"],
@@ -243,6 +247,26 @@ const textureState = {
   activePackId: null,
   activeTextureId: null,
 };
+
+function applyDisplacementSettings(material, mapConfig, manifestEntry) {
+  if (!material) {
+    return;
+  }
+  const defaults = mapConfig?.defaults ?? MAP_TYPE_CONFIG.displacement?.defaults ?? {};
+  const manifestSettings = manifestEntry?.mapSettings?.displacement ?? {};
+  const displacementScale = Number.isFinite(manifestSettings.displacementScale)
+    ? manifestSettings.displacementScale
+    : defaults.displacementScale;
+  const displacementBias = Number.isFinite(manifestSettings.displacementBias)
+    ? manifestSettings.displacementBias
+    : defaults.displacementBias;
+  if (Number.isFinite(displacementScale)) {
+    material.displacementScale = displacementScale;
+  }
+  if (Number.isFinite(displacementBias)) {
+    material.displacementBias = displacementBias;
+  }
+}
 
 function normalizeFigureId(value) {
   if (typeof value === "string") {
@@ -335,19 +359,55 @@ function parseTextureManifest(text) {
       if (!id) {
         return null;
       }
-      const maps = mapsPart
-        ? mapsPart
-            .split(",")
-            .map((segment) => segment.trim())
-            .filter(Boolean)
-        : [];
+      let maps = [];
+      const mapSettings = {};
+      if (mapsPart) {
+        const segments = mapsPart
+          .split(";")
+          .map((segment) => segment.trim())
+          .filter(Boolean);
+        if (segments.length) {
+          const mapsSegment = segments.shift();
+          if (mapsSegment) {
+            maps = mapsSegment
+              .split(",")
+              .map((segment) => segment.trim())
+              .filter(Boolean);
+          }
+        }
+        segments.forEach((segment) => {
+          const [rawKey, rawValue] = segment.split("=");
+          const key = rawKey?.trim();
+          if (!key) {
+            return;
+          }
+          const value = rawValue?.trim();
+          if (value == null || value === "") {
+            return;
+          }
+          const numericValue = Number.parseFloat(value);
+          if (!Number.isFinite(numericValue)) {
+            return;
+          }
+          if (key === "displacementScale" || key === "displacementBias") {
+            if (!mapSettings.displacement) {
+              mapSettings.displacement = {};
+            }
+            mapSettings.displacement[key] = numericValue;
+          }
+        });
+      }
       const previewMap = getTexturePreviewMap(maps);
-      return {
+      const result = {
         id,
         maps,
         label: formatTextureLabel(id),
         previewMap,
       };
+      if (Object.keys(mapSettings).length) {
+        result.mapSettings = mapSettings;
+      }
+      return result;
     })
     .filter(Boolean);
 }
@@ -843,6 +903,9 @@ async function applyTextureToMaterial(material, packId, textureId, manifestEntry
     properties.forEach((property) => {
       if (property && property in material) {
         material[property] = texture;
+        if (property === "displacementMap") {
+          applyDisplacementSettings(material, config, manifestEntry);
+        }
         if (!appliedProperties.includes(property)) {
           appliedProperties.push(property);
         }
