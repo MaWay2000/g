@@ -270,8 +270,40 @@ export const initScene = (
     return object;
   };
 
+  const resolveAssetUrl = (path) => {
+    if (typeof path !== "string") {
+      return null;
+    }
+
+    const trimmed = path.trim();
+
+    if (!trimmed) {
+      return null;
+    }
+
+    const windowHref = typeof window !== "undefined" ? window.location?.href : null;
+
+    if (windowHref) {
+      try {
+        return new URL(trimmed, windowHref).href;
+      } catch (error) {
+        // Ignore and fall back to resolving relative to the module URL.
+      }
+    }
+
+    try {
+      return new URL(trimmed, import.meta.url).href;
+    } catch (error) {
+      return trimmed;
+    }
+  };
+
   const loadGLTFModel = async (path) => {
-    const resolvedUrl = new URL(path, import.meta.url).href;
+    const resolvedUrl = resolveAssetUrl(path);
+
+    if (!resolvedUrl) {
+      throw new Error("Unable to resolve GLTF model path");
+    }
 
     if (!gltfCache.has(resolvedUrl)) {
       const loader = new GLTFLoader();
@@ -292,7 +324,11 @@ export const initScene = (
   };
 
   const loadOBJModel = async (path) => {
-    const resolvedUrl = new URL(path, import.meta.url).href;
+    const resolvedUrl = resolveAssetUrl(path);
+
+    if (!resolvedUrl) {
+      throw new Error("Unable to resolve OBJ model path");
+    }
 
     if (!objCache.has(resolvedUrl)) {
       const loader = new OBJLoader();
@@ -511,8 +547,14 @@ export const initScene = (
   };
 
   const loadClampedTexture = (path, onLoad) => {
+    const resolvedUrl = resolveAssetUrl(path);
+
+    if (!resolvedUrl) {
+      throw new Error("Unable to resolve texture path");
+    }
+
     const texture = textureLoader.load(
-      new URL(path, import.meta.url).href,
+      resolvedUrl,
       (loadedTexture) => {
         if (typeof onLoad === "function") {
           onLoad(loadedTexture);
