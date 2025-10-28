@@ -606,7 +606,7 @@ const renderModelPaletteEntries = (entries) => {
   setModelPaletteStatus("Select a model to deploy in front of you.");
 };
 
-const closeModelPalette = () => {
+const closeModelPalette = ({ preservePlacementState = false, restoreFocus = true } = {}) => {
   if (!isModelPaletteOpen() || !(modelPalette instanceof HTMLElement)) {
     return;
   }
@@ -620,9 +620,11 @@ const closeModelPalette = () => {
 
   sceneController?.setMovementEnabled(true);
   setModelPaletteButtonsDisabled(false);
-  modelPalettePlacementInProgress = false;
+  if (!preservePlacementState) {
+    modelPalettePlacementInProgress = false;
+  }
 
-  const elementToRefocus = lastModelPaletteFocusedElement;
+  const elementToRefocus = restoreFocus ? lastModelPaletteFocusedElement : null;
   lastModelPaletteFocusedElement = null;
 
   if (elementToRefocus instanceof HTMLElement) {
@@ -713,25 +715,23 @@ const handleModelPaletteSelection = async (entry, trigger) => {
   }
 
   const label = entry.label || entry.path;
-  setModelPaletteStatus(`Placing ${label}...`);
 
   try {
     const placementPromise = sceneController.placeModelFromManifestEntry(entry);
-    setModelPaletteStatus("Left click to place");
+    showTerminalToast({ title: "Placement ready", description: "Left click to place" });
+    closeModelPalette({ preservePlacementState: true, restoreFocus: false });
 
     await placementPromise;
-    setModelPaletteStatus("");
     showTerminalToast({ title: "Model placed", description: label });
-    closeModelPalette();
   } catch (error) {
     if (error?.name === "PlacementCancelledError" || error?.isPlacementCancellation) {
-      setModelPaletteStatus("");
+      showTerminalToast({ title: "Placement cancelled", description: label });
     } else {
       console.error("Unable to place model from manifest", error);
-      setModelPaletteStatus(
-        "We couldn't place that model. Please try again.",
-        { isError: true }
-      );
+      showTerminalToast({
+        title: "Model placement failed",
+        description: "We couldn't place that model. Please try again.",
+      });
     }
   } finally {
     modelPalettePlacementInProgress = false;
