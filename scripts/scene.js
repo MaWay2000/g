@@ -311,6 +311,53 @@ export const initScene = (
     return prepareImportedObject(object);
   };
 
+  const resolveManifestModelPath = (rawPath) => {
+    if (typeof rawPath !== "string") {
+      return null;
+    }
+
+    const trimmed = rawPath.trim();
+
+    if (trimmed === "") {
+      return null;
+    }
+
+    if (/^(https?:)?\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith("./") || trimmed.startsWith("../")) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith("/")) {
+      return trimmed;
+    }
+
+    return `./models/${trimmed}`;
+  };
+
+  const loadModelFromManifestEntry = async (entry) => {
+    const resolvedPath = resolveManifestModelPath(entry?.path);
+
+    if (!resolvedPath) {
+      throw new Error("Invalid model manifest entry path");
+    }
+
+    const extensionMatch = resolvedPath.match(/\.([a-z0-9]+)$/i);
+    const extension = extensionMatch?.[1]?.toLowerCase() ?? "";
+
+    if (extension === "gltf" || extension === "glb") {
+      return loadGLTFModel(resolvedPath);
+    }
+
+    if (extension === "obj") {
+      return loadOBJModel(resolvedPath);
+    }
+
+    throw new Error(`Unsupported model format for path: ${resolvedPath}`);
+  };
+
   const registerCollidersForImportedRoot = (root, { padding } = {}) => {
     if (!root) {
       return;
@@ -2573,6 +2620,90 @@ export const initScene = (
 
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
+  const manifestPlacementPadding = new THREE.Vector3(0.05, 0.05, 0.05);
+
+  const createManifestPlacementContainer = (object, manifestEntry) => {
+    const container = new THREE.Group();
+    container.name = manifestEntry?.label
+      ? `ManifestModel:${manifestEntry.label}`
+      : "ManifestModel";
+    const userData = container.userData || (container.userData = {});
+    userData.manifestEntry = manifestEntry ?? null;
+    container.add(object);
+
+    const boundingBox = new THREE.Box3().setFromObject(container);
+
+    if (!boundingBox.isEmpty()) {
+      const center = boundingBox.getCenter(new THREE.Vector3());
+      object.position.sub(center);
+      container.updateMatrixWorld(true);
+    }
+
+    return container;
+  };
+
+  const placeModelFromManifestEntry = async (entry, options = {}) => {
+    try {
+      const loadedObject = await loadModelFromManifestEntry(entry);
+
+      if (!loadedObject) {
+        throw new Error("Unable to load the requested model");
+      }
+
+      const container = createManifestPlacementContainer(loadedObject, entry);
+      const containerBounds = new THREE.Box3().setFromObject(container);
+      const containerSize = containerBounds.getSize(new THREE.Vector3());
+      const spawnDirection = new THREE.Vector3();
+      camera.getWorldDirection(spawnDirection);
+      spawnDirection.y = 0;
+
+      if (spawnDirection.lengthSq() < 1e-6) {
+        spawnDirection.set(0, 0, -1);
+      } else {
+        spawnDirection.normalize();
+      }
+
+      const minDistance = 2;
+      const requestedDistance = Number.isFinite(options?.distance)
+        ? options.distance
+        : 6;
+      const spawnDistance = Math.max(minDistance, requestedDistance);
+      const spawnPosition = controls.getObject().position
+        .clone()
+        .addScaledVector(spawnDirection, spawnDistance);
+
+      const halfWidth = roomWidth / 2 - 1;
+      const halfDepth = roomDepth / 2 - 1;
+      spawnPosition.x = THREE.MathUtils.clamp(
+        spawnPosition.x,
+        -halfWidth,
+        halfWidth
+      );
+      spawnPosition.z = THREE.MathUtils.clamp(
+        spawnPosition.z,
+        -halfDepth,
+        halfDepth
+      );
+
+      const spawnHeight = containerBounds.isEmpty()
+        ? roomFloorY
+        : roomFloorY + containerSize.y / 2;
+
+      container.position.set(spawnPosition.x, spawnHeight, spawnPosition.z);
+      scene.add(container);
+      container.updateMatrixWorld(true);
+
+      registerCollidersForImportedRoot(container, {
+        padding: manifestPlacementPadding,
+      });
+      rebuildStaticColliders();
+
+      return container;
+    } catch (error) {
+      console.error("Unable to place model from manifest", error);
+      throw error;
+    }
+  };
 
   const setMovementEnabled = (enabled) => {
     movementEnabled = Boolean(enabled);
@@ -2832,6 +2963,18 @@ export const initScene = (
       isPlayerStatePersistenceEnabled = nextEnabled;
       lastSerializedPlayerState = null;
       return previousEnabled;
+    },
+    placeModelFromManifestEntry,
+    unlockPointerLock: () => {
+      if (controls.isLocked) {
+        controls.unlock();
+        return true;
+      }
+
+      return false;
+    },
+    requestPointerLock: () => {
+      attemptPointerLock();
     },
     dispose: () => {
       window.removeEventListener("resize", handleResize);
