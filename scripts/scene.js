@@ -2045,29 +2045,6 @@ export const initScene = (
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
 
-  const loadImportedEnvironment = async () => {
-    try {
-      const pedestal = await loadOBJModel("./models/pedestal.obj");
-
-      pedestal.scale.set(1.8, 1.4, 1.8);
-      pedestal.position.set(-4.5, roomFloorY, 8);
-      scene.add(pedestal);
-      pedestal.updateMatrixWorld(true);
-
-      registerCollidersForImportedRoot(
-        pedestal,
-        {
-          padding: new THREE.Vector3(0.05, 0.05, 0.05),
-        }
-      );
-
-      rebuildStaticColliders();
-    } catch (error) {
-      console.error("Unable to load imported 3D models", error);
-    }
-  };
-
-  loadImportedEnvironment();
 
   const computeReflectorRenderTargetSize = (surfaceWidth, surfaceHeight) => {
     const pixelRatio = renderer.getPixelRatio();
