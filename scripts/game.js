@@ -25,6 +25,20 @@ const quickAccessModalMatrix = quickAccessModal?.querySelector(
   ".quick-access-modal__matrix"
 );
 
+const modelPalette = document.querySelector("[data-model-palette]");
+const modelPaletteDialog = modelPalette?.querySelector(
+  "[data-model-palette-dialog]"
+);
+const modelPaletteList = modelPalette?.querySelector(
+  "[data-model-palette-list]"
+);
+const modelPaletteStatus = modelPalette?.querySelector(
+  "[data-model-palette-status]"
+);
+const modelPaletteClose = modelPalette?.querySelector(
+  "[data-model-palette-close]"
+);
+
 const quickAccessModalTemplates = {
   default: document.getElementById("quick-access-modal-default"),
   news: document.getElementById("quick-access-modal-news"),
@@ -34,6 +48,14 @@ const quickAccessModalTemplates = {
 
 const modalFocusableSelectors =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const MODEL_MANIFEST_URL = "models/manifest.json";
+let cachedModelManifest = null;
+let modelManifestPromise = null;
+let modelPaletteOpening = false;
+let modelPalettePlacementInProgress = false;
+let lastModelPaletteFocusedElement = null;
+let modelPaletteWasPointerLocked = false;
 
 const terminalInteractionSoundSource = "images/index/button_hower.mp3";
 const terminalInteractionSound = new Audio();
@@ -379,6 +401,401 @@ const isFocusableElementVisible = (element) => {
   return hiddenAncestor === null;
 };
 
+const isModelPaletteOpen = () =>
+  modelPalette instanceof HTMLElement &&
+  modelPalette.dataset.open === "true" &&
+  modelPalette.hidden !== true;
+
+const setModelPaletteStatus = (message, { isError = false } = {}) => {
+  if (!(modelPaletteStatus instanceof HTMLElement)) {
+    return;
+  }
+
+  const normalizedMessage =
+    typeof message === "string" ? message.trim() : String(message ?? "").trim();
+
+  if (!normalizedMessage) {
+    modelPaletteStatus.hidden = true;
+    modelPaletteStatus.textContent = "";
+    delete modelPaletteStatus.dataset.status;
+    return;
+  }
+
+  modelPaletteStatus.hidden = false;
+  modelPaletteStatus.textContent = normalizedMessage;
+  if (isError) {
+    modelPaletteStatus.dataset.status = "error";
+  } else {
+    delete modelPaletteStatus.dataset.status;
+  }
+};
+
+const setModelPaletteButtonsDisabled = (disabled) => {
+  if (!(modelPaletteList instanceof HTMLElement)) {
+    return;
+  }
+
+  const buttons = modelPaletteList.querySelectorAll("button");
+  buttons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    button.disabled = Boolean(disabled);
+
+    if (!disabled) {
+      button.removeAttribute("data-loading");
+    }
+  });
+};
+
+const trapFocusWithinModelPalette = (event) => {
+  if (!(modelPaletteDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  const focusableElements = Array.from(
+    modelPaletteDialog.querySelectorAll(modalFocusableSelectors)
+  ).filter(
+    (element) =>
+      element instanceof HTMLElement &&
+      !element.hasAttribute("disabled") &&
+      element.getAttribute("aria-hidden") !== "true" &&
+      element.tabIndex !== -1 &&
+      isFocusableElementVisible(element)
+  );
+
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const [firstElement] = focusableElements;
+  const lastElement = focusableElements[focusableElements.length - 1];
+  const activeElement = document.activeElement;
+
+  if (event.shiftKey) {
+    if (activeElement === firstElement || !modelPaletteDialog.contains(activeElement)) {
+      event.preventDefault();
+      lastElement.focus({ preventScroll: true });
+    }
+  } else if (activeElement === lastElement) {
+    event.preventDefault();
+    firstElement.focus({ preventScroll: true });
+  }
+};
+
+const handleModelPaletteKeydown = (event) => {
+  if (!isModelPaletteOpen()) {
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeModelPalette();
+  } else if (event.key === "Tab") {
+    trapFocusWithinModelPalette(event);
+  }
+};
+
+const loadModelManifest = async () => {
+  if (Array.isArray(cachedModelManifest)) {
+    return cachedModelManifest;
+  }
+
+  if (!modelManifestPromise) {
+    modelManifestPromise = (async () => {
+      try {
+        const response = await fetch(MODEL_MANIFEST_URL, { cache: "no-store" });
+
+        if (!response.ok) {
+          throw new Error(
+            `Unable to load the model manifest (${response.status}).`
+          );
+        }
+
+        const manifest = await response.json();
+
+        if (!Array.isArray(manifest)) {
+          throw new Error("Unexpected model manifest format.");
+        }
+
+        const parsedEntries = manifest
+          .map((entry, index) => {
+            const rawPath = typeof entry?.path === "string" ? entry.path.trim() : "";
+
+            if (!rawPath) {
+              return null;
+            }
+
+            const label =
+              typeof entry?.label === "string" && entry.label.trim() !== ""
+                ? entry.label.trim()
+                : rawPath;
+
+            return {
+              id: `${index}:${rawPath}`,
+              path: rawPath,
+              label,
+            };
+          })
+          .filter(Boolean);
+
+        cachedModelManifest = parsedEntries;
+        return parsedEntries;
+      } catch (error) {
+        console.error("Failed to load model manifest", error);
+        throw error;
+      } finally {
+        modelManifestPromise = null;
+      }
+    })();
+  }
+
+  try {
+    const entries = await modelManifestPromise;
+    return Array.isArray(entries) ? entries : [];
+  } catch (error) {
+    cachedModelManifest = null;
+    throw error;
+  }
+};
+
+const renderModelPaletteEntries = (entries) => {
+  if (!(modelPaletteList instanceof HTMLElement)) {
+    return;
+  }
+
+  modelPaletteList.innerHTML = "";
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    setModelPaletteStatus(
+      "No models are currently listed in the manifest.",
+      {
+        isError: true,
+      }
+    );
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  entries.forEach((entry) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "model-palette__option";
+    button.dataset.modelPath = entry.path;
+
+    const labelElement = document.createElement("span");
+    labelElement.className = "model-palette__option-label";
+    labelElement.textContent = entry.label;
+
+    const pathElement = document.createElement("span");
+    pathElement.className = "model-palette__option-path";
+    pathElement.textContent = entry.path;
+
+    button.append(labelElement, pathElement);
+    button.addEventListener("click", () => {
+      handleModelPaletteSelection(entry, button);
+    });
+
+    fragment.appendChild(button);
+  });
+
+  modelPaletteList.appendChild(fragment);
+  setModelPaletteStatus("Select a model to deploy in front of you.");
+};
+
+const closeModelPalette = () => {
+  if (!isModelPaletteOpen() || !(modelPalette instanceof HTMLElement)) {
+    return;
+  }
+
+  modelPalette.dataset.open = "false";
+  modelPalette.setAttribute("aria-hidden", "true");
+  modelPalette.hidden = true;
+
+  updateBodyModalState(false);
+  document.removeEventListener("keydown", handleModelPaletteKeydown, true);
+
+  sceneController?.setMovementEnabled(true);
+  setModelPaletteButtonsDisabled(false);
+  modelPalettePlacementInProgress = false;
+
+  const elementToRefocus = lastModelPaletteFocusedElement;
+  lastModelPaletteFocusedElement = null;
+
+  if (elementToRefocus instanceof HTMLElement) {
+    elementToRefocus.focus({ preventScroll: true });
+  }
+
+  if (modelPaletteWasPointerLocked) {
+    attemptToRestorePointerLock();
+  }
+
+  modelPaletteWasPointerLocked = false;
+};
+
+const openModelPalette = async () => {
+  if (
+    !(modelPalette instanceof HTMLElement) ||
+    !(modelPaletteDialog instanceof HTMLElement) ||
+    !(modelPaletteList instanceof HTMLElement)
+  ) {
+    return;
+  }
+
+  if (!sceneController?.placeModelFromManifestEntry) {
+    return;
+  }
+
+  if (isModelPaletteOpen() || modelPaletteOpening) {
+    return;
+  }
+
+  modelPaletteOpening = true;
+  modelPaletteWasPointerLocked = Boolean(
+    sceneController?.unlockPointerLock?.()
+  );
+  sceneController?.setMovementEnabled(false);
+  hideTerminalToast();
+
+  lastModelPaletteFocusedElement =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  modelPalette.hidden = false;
+  modelPalette.dataset.open = "true";
+  modelPalette.setAttribute("aria-hidden", "false");
+
+  updateBodyModalState(true);
+  document.addEventListener("keydown", handleModelPaletteKeydown, true);
+
+  setModelPaletteButtonsDisabled(false);
+  setModelPaletteStatus("Loading models...");
+
+  try {
+    const entries = await loadModelManifest();
+    renderModelPaletteEntries(entries);
+  } catch (error) {
+    setModelPaletteStatus(
+      "We couldn't load the model manifest. Please try again.",
+      { isError: true }
+    );
+  } finally {
+    modelPaletteOpening = false;
+  }
+
+  requestAnimationFrame(() => {
+    const focusTarget =
+      modelPaletteList?.querySelector("button:not([disabled])") ||
+      modelPaletteClose;
+
+    if (focusTarget instanceof HTMLElement) {
+      focusTarget.focus({ preventScroll: true });
+    }
+  });
+};
+
+const handleModelPaletteSelection = async (entry, trigger) => {
+  if (!entry || !sceneController?.placeModelFromManifestEntry) {
+    return;
+  }
+
+  if (modelPalettePlacementInProgress) {
+    return;
+  }
+
+  modelPalettePlacementInProgress = true;
+  setModelPaletteButtonsDisabled(true);
+
+  if (trigger instanceof HTMLButtonElement) {
+    trigger.dataset.loading = "true";
+  }
+
+  const label = entry.label || entry.path;
+  setModelPaletteStatus(`Placing ${label}...`);
+
+  try {
+    await sceneController.placeModelFromManifestEntry(entry);
+    showTerminalToast({ title: "Model placed", description: label });
+    closeModelPalette();
+  } catch (error) {
+    console.error("Unable to place model from manifest", error);
+    setModelPaletteStatus(
+      "We couldn't place that model. Please try again.",
+      { isError: true }
+    );
+  } finally {
+    modelPalettePlacementInProgress = false;
+
+    if (trigger instanceof HTMLButtonElement) {
+      delete trigger.dataset.loading;
+    }
+
+    if (isModelPaletteOpen()) {
+      setModelPaletteButtonsDisabled(false);
+
+      if (trigger instanceof HTMLButtonElement) {
+        trigger.focus({ preventScroll: true });
+      }
+    }
+  }
+};
+
+const shouldIgnoreModelPaletteHotkey = (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (modelPalette instanceof HTMLElement && modelPalette.contains(target)) {
+    return false;
+  }
+
+  const tagName = target.tagName;
+
+  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  return false;
+};
+
+const handleModelPaletteHotkey = (event) => {
+  if (event.code !== "KeyB" || event.repeat) {
+    return;
+  }
+
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return;
+  }
+
+  if (!sceneController?.placeModelFromManifestEntry) {
+    return;
+  }
+
+  if (shouldIgnoreModelPaletteHotkey(event)) {
+    return;
+  }
+
+  if (quickAccessModal instanceof HTMLElement && !quickAccessModal.hidden) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (isModelPaletteOpen()) {
+    closeModelPalette();
+  } else {
+    void openModelPalette();
+  }
+};
+
 const trapFocusWithinModal = (event) => {
   if (!quickAccessModalDialog) {
     return;
@@ -539,6 +956,22 @@ if (quickAccessModal instanceof HTMLElement) {
     }
   });
 }
+
+if (modelPalette instanceof HTMLElement) {
+  modelPalette.addEventListener("click", (event) => {
+    const target =
+      event.target instanceof HTMLElement
+        ? event.target.closest("[data-model-palette-close]")
+        : null;
+
+    if (target) {
+      event.preventDefault();
+      closeModelPalette();
+    }
+  });
+}
+
+document.addEventListener("keydown", handleModelPaletteHotkey);
 
 const hideTerminalToast = () => {
   window.clearTimeout(terminalToastHideTimeoutId);

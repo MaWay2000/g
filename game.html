@@ -524,6 +524,152 @@
         color: #fecaca;
       }
 
+      .model-palette {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 180ms ease;
+        z-index: 120;
+      }
+
+      .model-palette[hidden] {
+        display: none;
+      }
+
+      .model-palette[data-open="true"] {
+        pointer-events: auto;
+        opacity: 1;
+      }
+
+      .model-palette__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.72);
+        backdrop-filter: blur(14px);
+      }
+
+      .model-palette__dialog {
+        position: relative;
+        width: min(520px, 92vw);
+        max-height: min(560px, 90vh);
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-radius: 24px;
+        box-shadow: 0 24px 48px rgba(2, 6, 23, 0.55);
+        padding: 1.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+        z-index: 1;
+      }
+
+      .model-palette__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .model-palette__title {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: inherit;
+      }
+
+      .model-palette__close {
+        background: rgba(15, 23, 42, 0.65);
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        color: inherit;
+        padding: 0.4rem 1.05rem;
+        border-radius: 999px;
+        font-weight: 600;
+        transition: transform 150ms ease, box-shadow 150ms ease,
+          background 150ms ease, border-color 150ms ease;
+      }
+
+      .model-palette__close:hover,
+      .model-palette__close:focus-visible {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(148, 163, 184, 0.2);
+        background: rgba(30, 41, 59, 0.75);
+        border-color: rgba(148, 163, 184, 0.65);
+        outline: none;
+      }
+
+      .model-palette__description {
+        margin: 0;
+        font-size: 0.95rem;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .model-palette__list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        overflow-y: auto;
+        padding: 0.25rem;
+        margin: -0.25rem;
+        max-height: 100%;
+      }
+
+      .model-palette__option {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+        width: 100%;
+        background: rgba(30, 41, 59, 0.72);
+        border: 1px solid rgba(56, 189, 248, 0.32);
+        border-radius: 18px;
+        padding: 0.9rem 1.15rem;
+        color: inherit;
+        transition: transform 150ms ease, box-shadow 150ms ease,
+          border-color 150ms ease, background 150ms ease;
+      }
+
+      .model-palette__option:hover,
+      .model-palette__option:focus-visible {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 32px rgba(56, 189, 248, 0.28);
+        border-color: rgba(56, 189, 248, 0.55);
+        background: rgba(14, 165, 233, 0.18);
+        outline: none;
+      }
+
+      .model-palette__option:disabled,
+      .model-palette__option[data-loading="true"] {
+        opacity: 0.65;
+        cursor: progress;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .model-palette__option-label {
+        font-weight: 600;
+        font-size: 1rem;
+        color: inherit;
+      }
+
+      .model-palette__option-path {
+        font-size: 0.85rem;
+        color: rgba(148, 163, 184, 0.88);
+      }
+
+      .model-palette__status {
+        margin: 0;
+        font-size: 0.9rem;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .model-palette__status[data-status="error"] {
+        color: rgba(248, 113, 113, 0.95);
+      }
+
       .quick-access-modal__divider {
         margin: 1.6rem 0;
         height: 1px;
@@ -611,6 +757,7 @@
           look around.
         </p>
         <p>Press V to toggle between first- and third-person views.</p>
+        <p>Press B to open the model manifest and place a model nearby.</p>
       </div>
     </div>
 
@@ -624,6 +771,41 @@
         aria-label="Terminal information panel"
       >
         <div class="quick-access-modal__content" role="document"></div>
+      </div>
+    </div>
+
+    <div class="model-palette" data-model-palette hidden aria-hidden="true">
+      <div class="model-palette__backdrop" data-model-palette-close></div>
+      <div
+        class="model-palette__dialog"
+        data-model-palette-dialog
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modelPaletteTitle"
+      >
+        <header class="model-palette__header">
+          <h2 class="model-palette__title" id="modelPaletteTitle">
+            Model manifest
+          </h2>
+          <button
+            type="button"
+            class="model-palette__close"
+            data-model-palette-close
+          >
+            Close
+          </button>
+        </header>
+        <p class="model-palette__description">
+          Select a model from the manifest to place it in front of you.
+        </p>
+        <div class="model-palette__list" data-model-palette-list></div>
+        <p
+          class="model-palette__status"
+          data-model-palette-status
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
       </div>
     </div>
 
