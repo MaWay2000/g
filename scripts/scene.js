@@ -2047,44 +2047,15 @@ export const initScene = (
 
   const loadImportedEnvironment = async () => {
     try {
-      const [storageCrate, pedestal] = await Promise.all([
-        loadGLTFModel("./models/Box.gltf"),
-        loadOBJModel("./models/pedestal.obj"),
-      ]);
+      const pedestal = await loadOBJModel("./models/pedestal.obj");
 
       pedestal.scale.set(1.8, 1.4, 1.8);
       pedestal.position.set(-4.5, roomFloorY, 8);
       scene.add(pedestal);
       pedestal.updateMatrixWorld(true);
 
-      const pedestalBounds = new THREE.Box3()
-        .setFromObject(pedestal)
-        .getSize(new THREE.Vector3());
-
-      const pedestalHeight = pedestalBounds.y;
-
       registerCollidersForImportedRoot(
         pedestal,
-        {
-          padding: new THREE.Vector3(0.05, 0.05, 0.05),
-        }
-      );
-
-      storageCrate.scale.setScalar(1.35);
-      storageCrate.position.set(-4.5, roomFloorY, 8);
-      storageCrate.updateMatrixWorld(true);
-
-      const crateHeight = new THREE.Box3()
-        .setFromObject(storageCrate)
-        .getSize(new THREE.Vector3()).y;
-
-      storageCrate.position.y = roomFloorY + pedestalHeight + crateHeight / 2;
-      storageCrate.updateMatrixWorld(true);
-
-      scene.add(storageCrate);
-
-      registerCollidersForImportedRoot(
-        storageCrate,
         {
           padding: new THREE.Vector3(0.05, 0.05, 0.05),
         }
