@@ -2536,6 +2536,16 @@ export const initScene = (
 
   let playerStateSaveAccumulator = 0;
 
+  class PlacementCancelledError extends Error {
+    constructor(message = "Placement cancelled") {
+      super(message);
+      this.name = "PlacementCancelledError";
+      this.isPlacementCancellation = true;
+    }
+  }
+
+  let activePlacement = null;
+
   controls.addEventListener("lock", () => {
     if (typeof onControlsLocked === "function") {
       onControlsLocked();
@@ -2548,6 +2558,11 @@ export const initScene = (
     }
 
     updateTerminalInteractableState(false);
+    if (activePlacement) {
+      cancelActivePlacement(
+        new PlacementCancelledError("Pointer lock released")
+      );
+    }
   });
 
   const attemptPointerLock = () => {
@@ -2663,6 +2678,122 @@ export const initScene = (
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
   const manifestPlacementPadding = new THREE.Vector3(0.05, 0.05, 0.05);
+  const placementPointerEvents = ["pointerdown", "mousedown"];
+
+  function clearPlacementEventListeners(placement) {
+    if (!placement) {
+      return;
+    }
+
+    placementPointerEvents.forEach((eventName) => {
+      if (placement.pointerHandler) {
+        canvas.removeEventListener(eventName, placement.pointerHandler);
+      }
+    });
+
+    if (placement.keydownHandler) {
+      document.removeEventListener("keydown", placement.keydownHandler, true);
+    }
+  }
+
+  function cancelActivePlacement(reason) {
+    if (!activePlacement) {
+      return;
+    }
+
+    const placement = activePlacement;
+    clearPlacementEventListeners(placement);
+    activePlacement = null;
+    scene.remove(placement.container);
+
+    let error;
+
+    if (reason instanceof PlacementCancelledError) {
+      error = reason;
+    } else if (reason instanceof Error) {
+      error = new PlacementCancelledError(reason.message);
+      error.cause = reason;
+    } else {
+      error = new PlacementCancelledError();
+    }
+
+    placement.reject(error);
+  }
+
+  function finalizeActivePlacement() {
+    if (!activePlacement) {
+      return;
+    }
+
+    const placement = activePlacement;
+    clearPlacementEventListeners(placement);
+    activePlacement = null;
+
+    const finalPosition = placement.previewPosition.clone();
+    const containerBounds = placement.containerBounds;
+    const containerSize = placement.containerSize;
+
+    const spawnHeight = containerBounds.isEmpty()
+      ? roomFloorY
+      : roomFloorY + containerSize.y / 2;
+
+    finalPosition.y = spawnHeight;
+
+    placement.container.position.copy(finalPosition);
+    placement.container.updateMatrixWorld(true);
+
+    registerCollidersForImportedRoot(placement.container, {
+      padding: manifestPlacementPadding,
+    });
+    rebuildStaticColliders();
+
+    placement.resolve(placement.container);
+  }
+
+  function updateActivePlacementPreview() {
+    if (!activePlacement) {
+      return;
+    }
+
+    const placement = activePlacement;
+    const playerPosition = controls.getObject().position;
+    const directionVector = placement.previewDirection;
+
+    camera.getWorldDirection(directionVector);
+    directionVector.y = 0;
+
+    if (directionVector.lengthSq() < 1e-6) {
+      directionVector.set(0, 0, -1);
+    } else {
+      directionVector.normalize();
+    }
+
+    const targetPosition = placement.previewPosition;
+    targetPosition.copy(playerPosition).addScaledVector(
+      directionVector,
+      placement.distance
+    );
+
+    const halfWidth = roomWidth / 2 - 1;
+    const halfDepth = roomDepth / 2 - 1;
+
+    targetPosition.x = THREE.MathUtils.clamp(
+      targetPosition.x,
+      -halfWidth,
+      halfWidth
+    );
+    targetPosition.z = THREE.MathUtils.clamp(
+      targetPosition.z,
+      -halfDepth,
+      halfDepth
+    );
+
+    const eyeHeight = playerPosition.y + playerEyeLevel;
+    targetPosition.y = eyeHeight;
+
+    placement.container.position.copy(targetPosition);
+    placement.container.updateMatrixWorld(true);
+  }
 
   const createManifestPlacementContainer = (object, manifestEntry) => {
     const container = new THREE.Group();
@@ -2695,52 +2826,61 @@ export const initScene = (
       const container = createManifestPlacementContainer(loadedObject, entry);
       const containerBounds = new THREE.Box3().setFromObject(container);
       const containerSize = containerBounds.getSize(new THREE.Vector3());
-      const spawnDirection = new THREE.Vector3();
-      camera.getWorldDirection(spawnDirection);
-      spawnDirection.y = 0;
-
-      if (spawnDirection.lengthSq() < 1e-6) {
-        spawnDirection.set(0, 0, -1);
-      } else {
-        spawnDirection.normalize();
-      }
 
       const minDistance = 2;
       const requestedDistance = Number.isFinite(options?.distance)
         ? options.distance
         : 6;
-      const spawnDistance = Math.max(minDistance, requestedDistance);
-      const spawnPosition = controls.getObject().position
-        .clone()
-        .addScaledVector(spawnDirection, spawnDistance);
+      const placementDistance = Math.max(minDistance, requestedDistance);
 
-      const halfWidth = roomWidth / 2 - 1;
-      const halfDepth = roomDepth / 2 - 1;
-      spawnPosition.x = THREE.MathUtils.clamp(
-        spawnPosition.x,
-        -halfWidth,
-        halfWidth
-      );
-      spawnPosition.z = THREE.MathUtils.clamp(
-        spawnPosition.z,
-        -halfDepth,
-        halfDepth
+      cancelActivePlacement(
+        new PlacementCancelledError("Placement superseded")
       );
 
-      const spawnHeight = containerBounds.isEmpty()
-        ? roomFloorY
-        : roomFloorY + containerSize.y / 2;
+      const placementPromise = new Promise((resolve, reject) => {
+        const placement = {
+          entry,
+          container,
+          containerBounds,
+          containerSize,
+          resolve,
+          reject,
+          distance: placementDistance,
+          previewDirection: new THREE.Vector3(),
+          previewPosition: new THREE.Vector3(),
+          pointerHandler: null,
+          keydownHandler: null,
+        };
 
-      container.position.set(spawnPosition.x, spawnHeight, spawnPosition.z);
-      scene.add(container);
-      container.updateMatrixWorld(true);
+        placement.pointerHandler = (event) => {
+          if (event.button !== 0) {
+            return;
+          }
 
-      registerCollidersForImportedRoot(container, {
-        padding: manifestPlacementPadding,
+          finalizeActivePlacement();
+        };
+
+        placement.keydownHandler = (event) => {
+          if (event.code === "Escape") {
+            cancelActivePlacement(
+              new PlacementCancelledError("Placement cancelled")
+            );
+          }
+        };
+
+        activePlacement = placement;
+
+        placementPointerEvents.forEach((eventName) => {
+          canvas.addEventListener(eventName, placement.pointerHandler);
+        });
+        document.addEventListener("keydown", placement.keydownHandler, true);
+
+        scene.add(container);
+        container.updateMatrixWorld(true);
+        updateActivePlacementPreview();
       });
-      rebuildStaticColliders();
 
-      return container;
+      return placementPromise;
     } catch (error) {
       console.error("Unable to place model from manifest", error);
       throw error;
@@ -2948,6 +3088,8 @@ export const initScene = (
       savePlayerState();
     }
 
+    updateActivePlacementPreview();
+
     renderer.render(scene, camera);
   };
 
@@ -3019,6 +3161,11 @@ export const initScene = (
       attemptPointerLock();
     },
     dispose: () => {
+      if (activePlacement) {
+        cancelActivePlacement(
+          new PlacementCancelledError("Scene disposed")
+        );
+      }
       window.removeEventListener("resize", handleResize);
       canvas.removeEventListener("click", attemptPointerLock);
       canvas.removeEventListener("click", handleCanvasClick);
