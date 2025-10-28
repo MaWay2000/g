@@ -6,5 +6,9 @@
   {
     "path": "pedestal.obj",
     "label": "Pedestal (OBJ)"
+  },
+  {
+    "path": "table1.glb",
+    "label": "Table 1 (GLB)"
   }
 ]
