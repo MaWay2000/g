@@ -1,0 +1,51 @@
+# Auto-generated texture manifest
+000_camo_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+001_camo_mustard_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+002_camo_stealth_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+003_camo_hex_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+004_camo_hex_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+005_camo_hex_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+006_camo_panel_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+007_camo_panel_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+008_camo_panel_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+009_camo_teal_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+010_camo_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+011_camo_mustard_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+012_camo_stealth_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+013_camo_hex_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+014_camo_hex_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+015_camo_hex_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+016_camo_panel_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+017_camo_panel_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+018_camo_panel_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+019_camo_teal_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+020_camo_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+021_camo_mustard_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+022_camo_stealth_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+023_camo_hex_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+024_camo_hex_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+025_camo_hex_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+026_camo_panel_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+027_camo_panel_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+028_camo_panel_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+029_camo_teal_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+030_camo_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+031_camo_mustard_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+032_camo_stealth_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+033_camo_hex_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+034_camo_hex_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+035_camo_hex_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+036_camo_panel_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+037_camo_panel_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+038_camo_panel_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+039_camo_teal_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+040_camo_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+041_camo_mustard_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+042_camo_stealth_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+043_camo_hex_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+044_camo_hex_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+045_camo_hex_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+046_camo_panel_red: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+047_camo_panel_mustard: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+048_camo_panel_stealth: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+049_camo_teal_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
