@@ -1,50 +1,51 @@
-000_black_alloy: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-001_red_painted: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-002_hazard_dark_yellow: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-003_hex_plate_black: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-004_grille_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-005_checker_plate_blk: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-006_panel_lines_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-007_rubber_dots_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-008_black_carbon: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-009_red_nanogrid_glow: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-010_red_screen: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-011_black_alloy: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-012_red_painted: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-013_hazard_dark_yellow: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-014_hex_plate_black: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-015_grille_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-016_checker_plate_blk: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-017_panel_lines_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-018_rubber_dots_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-019_black_carbon: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-020_red_nanogrid_glow: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-021_red_screen: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-022_black_alloy: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-023_red_painted: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-024_hazard_dark_yellow: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-025_hex_plate_black: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-026_grille_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-027_checker_plate_blk: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-028_panel_lines_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-029_rubber_dots_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-030_black_carbon: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-031_red_nanogrid_glow: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-032_red_screen: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-033_black_alloy: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-034_red_painted: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-035_hazard_dark_yellow: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-036_hex_plate_black: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-037_grille_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-038_checker_plate_blk: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-039_panel_lines_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-040_rubber_dots_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-041_black_carbon: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-042_red_nanogrid_glow: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-043_red_screen: baseColor, displacement, emissive, metallicRoughness, normal, occlusion, ORM
-044_black_alloy: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-045_red_painted: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-046_hazard_dark_yellow: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-047_hex_plate_black: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-048_grille_dark: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
-049_checker_plate_blk: baseColor, displacement, metallicRoughness, normal, occlusion, ORM
+# Auto-generated texture manifest
+000_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+001_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+002_hazard_dark_yellow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+003_hex_plate_black: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+004_grille_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+005_checker_plate_blk: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+006_panel_lines_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+007_rubber_dots_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+008_black_carbon: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+009_red_nanogrid_glow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+010_red_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+011_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+012_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+013_hazard_dark_yellow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+014_hex_plate_black: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+015_grille_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+016_checker_plate_blk: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+017_panel_lines_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+018_rubber_dots_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+019_black_carbon: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+020_red_nanogrid_glow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+021_red_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+022_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+023_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+024_hazard_dark_yellow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+025_hex_plate_black: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+026_grille_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+027_checker_plate_blk: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+028_panel_lines_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+029_rubber_dots_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+030_black_carbon: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+031_red_nanogrid_glow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+032_red_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+033_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+034_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+035_hazard_dark_yellow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+036_hex_plate_black: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+037_grille_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+038_checker_plate_blk: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+039_panel_lines_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+040_rubber_dots_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+041_black_carbon: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+042_red_nanogrid_glow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+043_red_screen: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+044_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+045_red_painted: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+046_hazard_dark_yellow: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+047_hex_plate_black: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+048_grille_dark: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+049_checker_plate_blk: baseColor, normal, occlusion, metallicRoughness, ORM, displacement

@@ -1,1 +1,51 @@
-# List textures for pack2 as "texture_name: mapType, mapType"
+# Auto-generated texture manifest
+000_matte_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+001_diagonal_panels: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+002_hex_plate_rot: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+003_red_painted_heavy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+004_hazard_mustard_diag: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+005_grille_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+006_black_carbon_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+007_checker_plate_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+008_red_grid_emissive: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+009_red_screen_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+010_matte_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+011_diagonal_panels: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+012_hex_plate_rot: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+013_red_painted_heavy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+014_hazard_mustard_diag: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+015_grille_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+016_black_carbon_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+017_checker_plate_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+018_red_grid_emissive: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+019_red_screen_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+020_matte_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+021_diagonal_panels: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+022_hex_plate_rot: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+023_red_painted_heavy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+024_hazard_mustard_diag: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+025_grille_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+026_black_carbon_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+027_checker_plate_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+028_red_grid_emissive: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+029_red_screen_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+030_matte_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+031_diagonal_panels: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+032_hex_plate_rot: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+033_red_painted_heavy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+034_hazard_mustard_diag: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+035_grille_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+036_black_carbon_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+037_checker_plate_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+038_red_grid_emissive: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+039_red_screen_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+040_matte_black_alloy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+041_diagonal_panels: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+042_hex_plate_rot: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+043_red_painted_heavy: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+044_hazard_mustard_diag: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+045_grille_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+046_black_carbon_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+047_checker_plate_sparse: baseColor, normal, occlusion, metallicRoughness, ORM, displacement
+048_red_grid_emissive: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
+049_red_screen_alt: baseColor, normal, occlusion, metallicRoughness, ORM, displacement, emissive
