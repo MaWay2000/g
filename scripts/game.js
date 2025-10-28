@@ -716,15 +716,23 @@ const handleModelPaletteSelection = async (entry, trigger) => {
   setModelPaletteStatus(`Placing ${label}...`);
 
   try {
-    await sceneController.placeModelFromManifestEntry(entry);
+    const placementPromise = sceneController.placeModelFromManifestEntry(entry);
+    setModelPaletteStatus("Left click to place");
+
+    await placementPromise;
+    setModelPaletteStatus("");
     showTerminalToast({ title: "Model placed", description: label });
     closeModelPalette();
   } catch (error) {
-    console.error("Unable to place model from manifest", error);
-    setModelPaletteStatus(
-      "We couldn't place that model. Please try again.",
-      { isError: true }
-    );
+    if (error?.name === "PlacementCancelledError" || error?.isPlacementCancellation) {
+      setModelPaletteStatus("");
+    } else {
+      console.error("Unable to place model from manifest", error);
+      setModelPaletteStatus(
+        "We couldn't place that model. Please try again.",
+        { isError: true }
+      );
+    }
   } finally {
     modelPalettePlacementInProgress = false;
 
