@@ -70,6 +70,17 @@ const hudControlSet = {
   hideWhenDisabled: true,
 };
 
+const SAMPLE_MODELS_ENDPOINT = "models/manifest.json";
+
+const defaultSampleModels = sampleSelect
+  ? Array.from(sampleSelect.querySelectorAll("option"))
+      .filter((option) => option.value)
+      .map((option) => ({
+        value: option.value,
+        label: option.textContent?.trim() ?? option.value,
+      }))
+  : [];
+
 let activePanelId =
   panelButtons.find((button) => button.dataset.active === "true")?.dataset
     .panelTarget ?? panelButtons[0]?.dataset.panelTarget ?? null;
@@ -164,6 +175,158 @@ panelButtons.forEach((button) => {
 });
 
 updatePanelVisibility();
+
+function resolveSampleModelPath(path) {
+  if (!path) {
+    return "";
+  }
+
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("./") ||
+    trimmed.startsWith("../")
+  ) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("models/")) {
+    return trimmed;
+  }
+
+  return `models/${trimmed}`;
+}
+
+function deriveSampleModelLabel(path, providedLabel) {
+  if (providedLabel && providedLabel.trim()) {
+    return providedLabel.trim();
+  }
+
+  const fileName = path.split("/").pop() ?? path;
+  const extensionIndex = fileName.lastIndexOf(".");
+  const baseName =
+    extensionIndex >= 0 ? fileName.slice(0, extensionIndex) : fileName;
+  const extension =
+    extensionIndex >= 0 ? fileName.slice(extensionIndex + 1) : "";
+
+  const formattedBase = baseName
+    .replace(/[_-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  const labelBase = formattedBase || baseName || "Model";
+  const extensionLabel = extension ? ` (${extension.toUpperCase()})` : "";
+  return `${labelBase}${extensionLabel}`;
+}
+
+function normalizeSampleManifestEntry(entry) {
+  if (typeof entry === "string") {
+    return { path: entry, label: null };
+  }
+
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  const path =
+    typeof entry.path === "string"
+      ? entry.path
+      : typeof entry.value === "string"
+      ? entry.value
+      : typeof entry.url === "string"
+      ? entry.url
+      : "";
+  const label =
+    typeof entry.label === "string"
+      ? entry.label
+      : typeof entry.name === "string"
+      ? entry.name
+      : null;
+
+  return { path, label };
+}
+
+async function initializeSampleModels() {
+  if (!sampleSelect) {
+    return;
+  }
+
+  const placeholderTemplate =
+    sampleSelect.querySelector('option[value=""]') ?? null;
+  const placeholderLabel =
+    placeholderTemplate?.textContent?.trim() ?? "Load a sample model…";
+
+  sampleSelect.innerHTML = "";
+  const placeholderOption = document.createElement("option");
+  placeholderOption.value = "";
+  placeholderOption.selected = true;
+  placeholderOption.textContent = placeholderLabel;
+  sampleSelect.append(placeholderOption);
+
+  const appendOptions = (options) => {
+    const seenValues = new Set();
+    options.forEach((option) => {
+      const value = option?.value;
+      if (!value || seenValues.has(value)) {
+        return;
+      }
+
+      seenValues.add(value);
+      const label = option.label ?? value;
+      const optionElement = document.createElement("option");
+      optionElement.value = value;
+      optionElement.textContent = label;
+      sampleSelect.append(optionElement);
+    });
+  };
+
+  try {
+    const response = await fetch(SAMPLE_MODELS_ENDPOINT, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const manifest = await response.json();
+    if (!Array.isArray(manifest)) {
+      throw new Error("Manifest is not an array");
+    }
+
+    const parsedOptions = manifest
+      .map((entry) => normalizeSampleManifestEntry(entry))
+      .filter((entry) => entry && entry.path)
+      .map((entry) => {
+        const resolvedPath = resolveSampleModelPath(entry.path);
+        if (!resolvedPath) {
+          return null;
+        }
+
+        return {
+          value: resolvedPath,
+          label: deriveSampleModelLabel(resolvedPath, entry.label ?? null),
+        };
+      })
+      .filter((entry) => entry);
+
+    if (!parsedOptions.length) {
+      throw new Error("Manifest did not contain any valid models");
+    }
+
+    appendOptions(parsedOptions);
+  } catch (error) {
+    console.error("Failed to load sample models manifest", error);
+    appendOptions(defaultSampleModels);
+  }
+}
+
+initializeSampleModels();
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
