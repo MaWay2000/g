@@ -23,6 +23,12 @@
       "label": "Pack 4",
       "path": "images/textures/pack4",
       "extension": ".png"
+    },
+    {
+      "id": "pack5",
+      "label": "Pack 5",
+      "path": "images/textures/pack5",
+      "extension": ".png"
     }
   ]
 }
