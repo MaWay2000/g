@@ -673,11 +673,21 @@ function syncTextureControls() {
   const material = getPrimaryEditableMaterial();
   const applied = getAppliedTextureReference(material);
   if (applied) {
-    textureState.activePackId = applied.packId;
     textureState.activeTextureId = applied.textureId;
+    if (!textureState.activePackId || textureState.activePackId === applied.packId) {
+      textureState.activePackId = applied.packId;
+    }
+  } else if (
+    textureState.activePackId &&
+    !texturePackRegistry.has(textureState.activePackId)
+  ) {
+    textureState.activePackId = null;
   }
 
   const desiredPackId =
+    (textureState.activePackId && texturePackRegistry.has(textureState.activePackId)
+      ? textureState.activePackId
+      : null) ??
     applied?.packId ??
     (texturePackRegistry.has(texturePackSelect.value)
       ? texturePackSelect.value
