@@ -1449,15 +1449,39 @@ function objectContainsRenderable(object3D) {
   return hasRenderable;
 }
 
-function separateImportedObject(imported, sourceName) {
-  if (!imported || !imported.children || imported.children.length <= 1) {
+function findSeparableChildren(object3D) {
+  if (!object3D || !Array.isArray(object3D.children) || !object3D.children.length) {
     return null;
   }
 
-  const childEntries = imported.children.map((child) => ({
+  const childEntries = object3D.children.map((child) => ({
     child,
     hasRenderable: objectContainsRenderable(child),
   }));
+
+  const renderableChildren = childEntries.filter((entry) => entry.hasRenderable);
+
+  if (renderableChildren.length > 1) {
+    return { parent: object3D, childEntries };
+  }
+
+  for (const entry of renderableChildren) {
+    const nested = findSeparableChildren(entry.child);
+    if (nested) {
+      return nested;
+    }
+  }
+
+  return null;
+}
+
+function separateImportedObject(imported, sourceName) {
+  const separation = findSeparableChildren(imported);
+  if (!separation) {
+    return null;
+  }
+
+  const { childEntries } = separation;
 
   const renderableChildren = childEntries
     .filter((entry) => entry.hasRenderable)
