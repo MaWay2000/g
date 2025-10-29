@@ -2,5 +2,9 @@
   {
     "path": "table1.glb",
     "label": "Table 1 (GLB)"
+  },
+  {
+    "path": "floor1.glb",
+    "label": "Floor 1 (GLB)"
   }
 ]
