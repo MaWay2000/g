@@ -2387,10 +2387,12 @@ export const initScene = (
         const playerX = playerPosition.x;
         const playerZ = playerPosition.z;
 
-        const insideX = playerX > minX && playerX < maxX;
-        const insideZ = playerZ > minZ && playerZ < maxZ;
-
-        if (!insideX && !insideZ) {
+        if (
+          playerX < minX ||
+          playerX > maxX ||
+          playerZ < minZ ||
+          playerZ > maxZ
+        ) {
           break;
         }
 
@@ -2399,28 +2401,15 @@ export const initScene = (
         const overlapBack = playerZ - minZ;
         const overlapFront = maxZ - playerZ;
 
-        let resolveAxis = null;
+        const minOverlapX = Math.min(overlapLeft, overlapRight);
+        const minOverlapZ = Math.min(overlapBack, overlapFront);
 
-        if (insideX && !insideZ) {
-          resolveAxis = "x";
-        } else if (!insideX && insideZ) {
-          resolveAxis = "z";
-        } else {
-          resolveAxis =
-            Math.min(overlapLeft, overlapRight) <=
-            Math.min(overlapBack, overlapFront)
-              ? "x"
-              : "z";
-        }
-
-        if (resolveAxis === "x") {
-          const deltaX = playerPosition.x - previousPosition.x;
-
-          if (deltaX > 0 || previousPosition.x <= minX) {
+        if (minOverlapX < minOverlapZ) {
+          if (previousPosition.x <= minX) {
             playerPosition.x = minX;
-          } else if (deltaX < 0 || previousPosition.x >= maxX) {
+          } else if (previousPosition.x >= maxX) {
             playerPosition.x = maxX;
-          } else if (overlapLeft <= overlapRight) {
+          } else if (overlapLeft < overlapRight) {
             playerPosition.x = minX;
           } else {
             playerPosition.x = maxX;
@@ -2428,13 +2417,11 @@ export const initScene = (
 
           velocity.x = 0;
         } else {
-          const deltaZ = playerPosition.z - previousPosition.z;
-
-          if (deltaZ > 0 || previousPosition.z <= minZ) {
+          if (previousPosition.z <= minZ) {
             playerPosition.z = minZ;
-          } else if (deltaZ < 0 || previousPosition.z >= maxZ) {
+          } else if (previousPosition.z >= maxZ) {
             playerPosition.z = maxZ;
-          } else if (overlapBack <= overlapFront) {
+          } else if (overlapBack < overlapFront) {
             playerPosition.z = minZ;
           } else {
             playerPosition.z = maxZ;
