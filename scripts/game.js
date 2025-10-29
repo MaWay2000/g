@@ -1170,7 +1170,7 @@ const handleManifestEditModeChange = (enabled) => {
   }
 
   const description = nextState
-    ? "Hover placed models to highlight them. Left click to select, then press Delete to remove. Press Esc to exit."
+    ? "Hover placed models to highlight them. Left click to pick them up and place them again, or press Delete to remove. Press Esc to exit."
     : "Edit mode disabled.";
 
   showTerminalToast({ title: "Edit mode", description });
