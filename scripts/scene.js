@@ -419,12 +419,13 @@ export const initScene = (
         return;
       }
 
+      const descriptor = { object: child };
+
       if (paddingVector) {
-        bounds.min.sub(paddingVector);
-        bounds.max.add(paddingVector);
+        descriptor.padding = paddingVector.clone();
       }
 
-      descriptors.push({ object: child, box: bounds });
+      descriptors.push(descriptor);
     });
 
     if (descriptors.length > 0) {
@@ -2647,6 +2648,64 @@ export const initScene = (
   const clock = new THREE.Clock();
   const manifestPlacementPadding = new THREE.Vector3(0.05, 0.05, 0.05);
   const placementPointerEvents = ["pointerdown", "mousedown"];
+  const placementPreviewBasePosition = new THREE.Vector3();
+  const placementComputedPosition = new THREE.Vector3();
+
+  const computePlacementPosition = (placement, basePosition) => {
+    placementComputedPosition.copy(basePosition);
+
+    if (!placement || !placement.containerBounds) {
+      if (!Number.isFinite(placementComputedPosition.y)) {
+        placementComputedPosition.y = roomFloorY;
+      }
+      return placementComputedPosition;
+    }
+
+    const bounds = placement.containerBounds;
+
+    if (bounds.isEmpty()) {
+      placementComputedPosition.y = roomFloorY;
+      return placementComputedPosition;
+    }
+
+    const footprintMinX = basePosition.x + bounds.min.x;
+    const footprintMaxX = basePosition.x + bounds.max.x;
+    const footprintMinZ = basePosition.z + bounds.min.z;
+    const footprintMaxZ = basePosition.z + bounds.max.z;
+
+    let supportHeight = roomFloorY;
+
+    colliderDescriptors.forEach((descriptor) => {
+      const box = descriptor.box;
+
+      if (!box || box.isEmpty()) {
+        return;
+      }
+
+      if (
+        footprintMaxX <= box.min.x ||
+        footprintMinX >= box.max.x ||
+        footprintMaxZ <= box.min.z ||
+        footprintMinZ >= box.max.z
+      ) {
+        return;
+      }
+
+      const paddingY =
+        descriptor.padding instanceof THREE.Vector3
+          ? descriptor.padding.y
+          : 0;
+
+      const effectiveTop = box.max.y - paddingY;
+
+      if (effectiveTop > supportHeight) {
+        supportHeight = effectiveTop;
+      }
+    });
+
+    placementComputedPosition.y = supportHeight - bounds.min.y;
+    return placementComputedPosition;
+  };
 
   function clearPlacementEventListeners(placement) {
     if (!placement) {
@@ -2697,17 +2756,13 @@ export const initScene = (
     clearPlacementEventListeners(placement);
     activePlacement = null;
 
-    const finalPosition = placement.previewPosition.clone();
-    const containerBounds = placement.containerBounds;
-    const containerSize = placement.containerSize;
+    const finalPosition = computePlacementPosition(
+      placement,
+      placement.previewPosition
+    );
 
-    const spawnHeight = containerBounds.isEmpty()
-      ? roomFloorY
-      : roomFloorY + containerSize.y / 2;
-
-    finalPosition.y = spawnHeight;
-
-    placement.container.position.copy(finalPosition);
+    placement.previewPosition.copy(finalPosition);
+    placement.container.position.copy(placement.previewPosition);
     placement.container.updateMatrixWorld(true);
 
     registerCollidersForImportedRoot(placement.container, {
@@ -2736,30 +2791,31 @@ export const initScene = (
       directionVector.normalize();
     }
 
-    const targetPosition = placement.previewPosition;
-    targetPosition.copy(playerPosition).addScaledVector(
-      directionVector,
-      placement.distance
-    );
+    placementPreviewBasePosition
+      .copy(playerPosition)
+      .addScaledVector(directionVector, placement.distance);
 
     const halfWidth = roomWidth / 2 - 1;
     const halfDepth = roomDepth / 2 - 1;
 
-    targetPosition.x = THREE.MathUtils.clamp(
-      targetPosition.x,
+    placementPreviewBasePosition.x = THREE.MathUtils.clamp(
+      placementPreviewBasePosition.x,
       -halfWidth,
       halfWidth
     );
-    targetPosition.z = THREE.MathUtils.clamp(
-      targetPosition.z,
+    placementPreviewBasePosition.z = THREE.MathUtils.clamp(
+      placementPreviewBasePosition.z,
       -halfDepth,
       halfDepth
     );
 
-    const eyeHeight = playerPosition.y + playerEyeLevel;
-    targetPosition.y = eyeHeight;
+    const computedPosition = computePlacementPosition(
+      placement,
+      placementPreviewBasePosition
+    );
 
-    placement.container.position.copy(targetPosition);
+    placement.previewPosition.copy(computedPosition);
+    placement.container.position.copy(placement.previewPosition);
     placement.container.updateMatrixWorld(true);
   }
 
@@ -2793,7 +2849,6 @@ export const initScene = (
 
       const container = createManifestPlacementContainer(loadedObject, entry);
       const containerBounds = new THREE.Box3().setFromObject(container);
-      const containerSize = containerBounds.getSize(new THREE.Vector3());
 
       const minDistance = 2;
       const requestedDistance = Number.isFinite(options?.distance)
@@ -2810,7 +2865,6 @@ export const initScene = (
           entry,
           container,
           containerBounds,
-          containerSize,
           resolve,
           reject,
           distance: placementDistance,
