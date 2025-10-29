@@ -56,6 +56,11 @@ const hudSizeInputs = {
   z: hudEditor?.querySelector('[data-hud-size-input="z"]'),
 };
 
+const partsPanel = document.querySelector("[data-parts-panel]");
+const partsListElement = document.querySelector("[data-parts-list]");
+const partsEmptyState = document.querySelector("[data-parts-empty]");
+const partsCountLabel = document.querySelector("[data-parts-count]");
+
 const inspectorControlSet = {
   figureIdInput,
   centerInputs,
@@ -487,6 +492,122 @@ function rebuildFigureIdRegistry() {
   nextFigureId = 1;
   sceneRoot.children.forEach((child) => {
     ensureFigureId(child);
+  });
+  renderPartsList();
+}
+
+function getObjectDisplayName(object3D) {
+  if (!object3D) {
+    return "Scene object";
+  }
+  const sourceName = object3D.userData?.sourceName;
+  if (sourceName && typeof sourceName === "string") {
+    return sourceName;
+  }
+  if (object3D.name) {
+    return object3D.name;
+  }
+  if (object3D.type) {
+    return object3D.type;
+  }
+  return "Scene object";
+}
+
+function updatePartsPanelState({ count }) {
+  if (partsCountLabel) {
+    const label = count === 1 ? "1 part" : `${count} parts`;
+    partsCountLabel.textContent = label;
+  }
+  if (partsEmptyState) {
+    partsEmptyState.hidden = count > 0;
+  }
+  if (partsPanel) {
+    partsPanel.dataset.count = count.toString();
+  }
+}
+
+function createPartsListItem(object3D) {
+  const item = document.createElement("li");
+  item.className = "parts-panel__list-item";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "parts-panel__item";
+  button.dataset.partItem = "true";
+  button.dataset.objectUuid = object3D.uuid;
+  const figureId = ensureFigureId(object3D);
+  if (figureId) {
+    button.dataset.figureId = figureId;
+  }
+  const isSelected = selectedObjects.has(object3D);
+  button.dataset.active = String(isSelected);
+  button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+
+  const title = document.createElement("span");
+  title.className = "parts-panel__item-title";
+  const displayName = getObjectDisplayName(object3D);
+  if (figureId) {
+    title.textContent = figureId;
+  } else {
+    title.textContent = displayName;
+  }
+
+  const subtitle = document.createElement("span");
+  subtitle.className = "parts-panel__item-subtitle";
+  const shouldShowSubtitle = figureId && displayName && displayName !== figureId;
+  if (shouldShowSubtitle) {
+    subtitle.textContent = displayName;
+    button.append(title, subtitle);
+  } else {
+    button.append(title);
+  }
+
+  const tooltipParts = [];
+  if (figureId) {
+    tooltipParts.push(figureId);
+  }
+  if (displayName && (!figureId || displayName !== figureId)) {
+    tooltipParts.push(displayName);
+  }
+  if (tooltipParts.length) {
+    button.title = tooltipParts.join(" • ");
+  }
+
+  item.append(button);
+  return item;
+}
+
+function renderPartsList() {
+  if (!partsListElement) {
+    return;
+  }
+  const children = Array.from(sceneRoot.children);
+  partsListElement.innerHTML = "";
+  updatePartsPanelState({ count: children.length });
+  if (!children.length) {
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  children.forEach((child) => {
+    fragment.append(createPartsListItem(child));
+  });
+  partsListElement.append(fragment);
+  syncPartsListSelection();
+}
+
+function syncPartsListSelection() {
+  if (!partsListElement) {
+    return;
+  }
+  updatePartsPanelState({ count: sceneRoot.children.length });
+  const buttons = partsListElement.querySelectorAll("[data-part-item]");
+  buttons.forEach((button) => {
+    const uuid = button.dataset.objectUuid;
+    const object3D = uuid
+      ? sceneRoot.getObjectByProperty("uuid", uuid)
+      : null;
+    const isSelected = object3D ? selectedObjects.has(object3D) : false;
+    button.dataset.active = String(isSelected);
+    button.setAttribute("aria-pressed", isSelected ? "true" : "false");
   });
 }
 
@@ -2131,6 +2252,7 @@ function syncInspectorInputs() {
 }
 
 disableInspectorInputs();
+renderPartsList();
 
 function updateColorPickerPreview(color) {
   if (!colorPicker) {
@@ -2341,12 +2463,16 @@ function setCurrentSelection(
       resetHud();
       setStatus("idle", "No selection");
     }
+    syncPartsListSelection();
     return;
   }
 
-  if (addToScene && object3D.parent !== sceneRoot) {
+  const shouldAddToScene = addToScene && object3D.parent !== sceneRoot;
+  if (shouldAddToScene) {
     sceneRoot.add(object3D);
   }
+
+  const shouldRefreshPartsList = shouldAddToScene;
 
   if (!append) {
     selectedObjects.clear();
@@ -2376,6 +2502,11 @@ function setCurrentSelection(
   }
   updateHud(currentSelection);
   syncInspectorInputs();
+  if (shouldRefreshPartsList) {
+    renderPartsList();
+  } else {
+    syncPartsListSelection();
+  }
 }
 
 function toggleSelection(object3D, sourceName, options = {}) {
@@ -2440,6 +2571,7 @@ function clearScene() {
   sceneRoot.clear();
   figureIdRegistry.clear();
   nextFigureId = 1;
+  renderPartsList();
   syncMaterialInputs();
   disableInspectorInputs();
   resetHud();
@@ -2627,6 +2759,8 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
         ensureFigureId(piece);
       });
 
+      renderPartsList();
+
       const activePiece = separatedPieces[0];
       const activeName =
         (typeof activePiece.userData?.sourceName === "string" &&
@@ -2781,6 +2915,37 @@ primitiveContainer?.addEventListener("click", (event) => {
   pushHistorySnapshot();
 });
 
+partsListElement?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const button = target.closest("button[data-part-item]");
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+  event.preventDefault();
+  const uuid = button.dataset.objectUuid;
+  if (!uuid) {
+    return;
+  }
+  const object3D = sceneRoot.getObjectByProperty("uuid", uuid);
+  if (!object3D) {
+    renderPartsList();
+    return;
+  }
+  const sourceName = getObjectDisplayName(object3D);
+  const multiSelect = event.ctrlKey || event.metaKey || event.shiftKey;
+  if (multiSelect) {
+    toggleSelection(object3D, sourceName, { focus: false });
+  } else {
+    setCurrentSelection(object3D, sourceName, {
+      focus: false,
+      addToScene: false,
+    });
+  }
+});
+
 resetButton?.addEventListener("click", () => {
   clearScene();
 });
@@ -2805,6 +2970,7 @@ function handleFigureIdChange(event) {
     syncInspectorInputs();
     scheduleHistoryCommit();
     updateHud(currentSelection);
+    renderPartsList();
     return;
   }
 
@@ -2833,6 +2999,7 @@ function handleFigureIdChange(event) {
   updateHud(currentSelection);
   syncInspectorInputs();
   scheduleHistoryCommit();
+  renderPartsList();
 }
 
 function handleCenterInputChange(axis, input) {
