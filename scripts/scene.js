@@ -3095,6 +3095,9 @@ export const initScene = (
   const placementPointerEvents = ["pointerdown", "mousedown"];
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const placementPreviewBasePosition = new THREE.Vector3();
+  const placementPreviewCameraPosition = new THREE.Vector3();
+  const placementPreviewHorizontalDirection = new THREE.Vector3();
+  const placementPreviewOffset = new THREE.Vector3();
   const placementComputedPosition = new THREE.Vector3();
   const placementBoundsWorldPosition = new THREE.Vector3();
 
@@ -3278,17 +3281,54 @@ export const initScene = (
     const directionVector = placement.previewDirection;
 
     camera.getWorldDirection(directionVector);
-    directionVector.y = 0;
+    camera.getWorldPosition(placementPreviewCameraPosition);
 
-    if (directionVector.lengthSq() < 1e-6) {
-      directionVector.set(0, 0, -1);
-    } else {
-      directionVector.normalize();
+    let usedRayIntersection = false;
+
+    if (Math.abs(directionVector.y) > 1e-5) {
+      const intersectionDistance =
+        (roomFloorY - placementPreviewCameraPosition.y) / directionVector.y;
+
+      if (Number.isFinite(intersectionDistance) && intersectionDistance > 0) {
+        placementPreviewBasePosition
+          .copy(placementPreviewCameraPosition)
+          .addScaledVector(directionVector, intersectionDistance);
+        usedRayIntersection = true;
+      }
     }
 
-    placementPreviewBasePosition
-      .copy(playerPosition)
-      .addScaledVector(directionVector, placement.distance);
+    if (!usedRayIntersection) {
+      placementPreviewHorizontalDirection
+        .copy(directionVector)
+        .setY(0);
+
+      if (placementPreviewHorizontalDirection.lengthSq() < 1e-6) {
+        placementPreviewHorizontalDirection.set(0, 0, -1);
+      } else {
+        placementPreviewHorizontalDirection.normalize();
+      }
+
+      placementPreviewBasePosition
+        .copy(playerPosition)
+        .addScaledVector(
+          placementPreviewHorizontalDirection,
+          placement.distance
+        );
+    }
+
+    placementPreviewOffset
+      .copy(placementPreviewBasePosition)
+      .sub(playerPosition);
+    placementPreviewOffset.y = 0;
+
+    const horizontalDistance = placementPreviewOffset.length();
+
+    if (Number.isFinite(horizontalDistance) && horizontalDistance > 0) {
+      placement.distance = Math.max(
+        MIN_MANIFEST_PLACEMENT_DISTANCE,
+        horizontalDistance
+      );
+    }
 
     const halfWidth = roomWidth / 2 - 1;
     const halfDepth = roomDepth / 2 - 1;
