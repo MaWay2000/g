@@ -12,8 +12,69 @@ const resetButton = document.querySelector("[data-reset-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
 const crosshair = document.querySelector(".crosshair");
+const crosshairStates = {
+  terminal: false,
+  edit: false,
+};
 let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
+
+if (previousCrosshairInteractableState) {
+  crosshairStates.terminal = true;
+}
+
+const applyCrosshairInteractableState = () => {
+  const nextState = Object.values(crosshairStates).some(Boolean);
+
+  if (!(crosshair instanceof HTMLElement)) {
+    previousCrosshairInteractableState = nextState;
+    return;
+  }
+
+  if (!previousCrosshairInteractableState && nextState) {
+    playTerminalInteractionSound();
+  }
+
+  if (nextState) {
+    crosshair.dataset.interactable = "true";
+  } else {
+    delete crosshair.dataset.interactable;
+  }
+
+  previousCrosshairInteractableState = nextState;
+};
+
+const setCrosshairSourceState = (source, canInteract) => {
+  if (!(source in crosshairStates)) {
+    return;
+  }
+
+  const nextValue = Boolean(canInteract);
+
+  if (crosshairStates[source] === nextValue) {
+    return;
+  }
+
+  crosshairStates[source] = nextValue;
+  applyCrosshairInteractableState();
+};
+
+const resetCrosshairInteractableState = () => {
+  let changed = false;
+
+  Object.keys(crosshairStates).forEach((key) => {
+    if (!crosshairStates[key]) {
+      return;
+    }
+
+    crosshairStates[key] = false;
+    changed = true;
+  });
+
+  if (changed) {
+    applyCrosshairInteractableState();
+  }
+};
 const quickAccessModal = document.querySelector(".quick-access-modal");
 const quickAccessModalDialog = quickAccessModal?.querySelector(
   ".quick-access-modal__dialog"
@@ -56,6 +117,7 @@ let modelPaletteOpening = false;
 let modelPalettePlacementInProgress = false;
 let lastModelPaletteFocusedElement = null;
 let modelPaletteWasPointerLocked = false;
+let editModeActive = false;
 
 const terminalInteractionSoundSource = "images/index/button_hower.mp3";
 const terminalInteractionSound = new Audio();
@@ -567,43 +629,63 @@ const renderModelPaletteEntries = (entries) => {
   }
 
   modelPaletteList.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+  const editButton = createModelPaletteEditButton();
+  const canEditPlacements = Boolean(sceneController?.hasManifestPlacements?.());
+  editButton.disabled = !canEditPlacements;
+  fragment.appendChild(editButton);
 
-  if (!Array.isArray(entries) || entries.length === 0) {
-    setModelPaletteStatus(
-      "No models are currently listed in the manifest.",
-      {
-        isError: true,
-      }
-    );
-    return;
+  const hasEntries = Array.isArray(entries) && entries.length > 0;
+
+  if (hasEntries) {
+    const divider = document.createElement("div");
+    divider.className = "model-palette__divider";
+    fragment.appendChild(divider);
+
+    entries.forEach((entry) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "model-palette__option";
+      button.dataset.modelPath = entry.path;
+
+      const labelElement = document.createElement("span");
+      labelElement.className = "model-palette__option-label";
+      labelElement.textContent = entry.label;
+
+      const pathElement = document.createElement("span");
+      pathElement.className = "model-palette__option-path";
+      pathElement.textContent = entry.path;
+
+      button.append(labelElement, pathElement);
+      button.addEventListener("click", () => {
+        handleModelPaletteSelection(entry, button);
+      });
+
+      fragment.appendChild(button);
+    });
   }
 
-  const fragment = document.createDocumentFragment();
-
-  entries.forEach((entry) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "model-palette__option";
-    button.dataset.modelPath = entry.path;
-
-    const labelElement = document.createElement("span");
-    labelElement.className = "model-palette__option-label";
-    labelElement.textContent = entry.label;
-
-    const pathElement = document.createElement("span");
-    pathElement.className = "model-palette__option-path";
-    pathElement.textContent = entry.path;
-
-    button.append(labelElement, pathElement);
-    button.addEventListener("click", () => {
-      handleModelPaletteSelection(entry, button);
-    });
-
-    fragment.appendChild(button);
-  });
-
   modelPaletteList.appendChild(fragment);
-  setModelPaletteStatus("Select a model to deploy in front of you.");
+
+  if (hasEntries) {
+    if (canEditPlacements) {
+      setModelPaletteStatus(
+        "Select a model to deploy or edit your placed models."
+      );
+    } else {
+      setModelPaletteStatus(
+        "Select a model to deploy. Edit unlocks after you place a model."
+      );
+    }
+  } else {
+    const noManifestMessage = canEditPlacements
+      ? "No models are currently listed in the manifest. You can still edit placed models."
+      : "No models are currently listed in the manifest yet.";
+
+    setModelPaletteStatus(noManifestMessage, {
+      isError: true,
+    });
+  }
 };
 
 const closeModelPalette = ({ preservePlacementState = false, restoreFocus = true } = {}) => {
@@ -638,6 +720,50 @@ const closeModelPalette = ({ preservePlacementState = false, restoreFocus = true
   modelPaletteWasPointerLocked = false;
 };
 
+const handleModelPaletteEditSelection = () => {
+  if (!sceneController?.setManifestEditModeEnabled) {
+    return;
+  }
+
+  if (!sceneController?.hasManifestPlacements?.()) {
+    showTerminalToast({
+      title: "Edit mode",
+      description: "There are no placed models to edit yet.",
+    });
+    return;
+  }
+
+  playTerminalInteractionSound();
+  closeModelPalette({ preservePlacementState: true, restoreFocus: false });
+
+  const enabled = sceneController.setManifestEditModeEnabled(true);
+
+  if (enabled) {
+    sceneController.requestPointerLock?.();
+  }
+};
+
+const createModelPaletteEditButton = () => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "model-palette__option model-palette__option--action";
+  button.dataset.modelPaletteAction = "edit";
+
+  const labelElement = document.createElement("span");
+  labelElement.className = "model-palette__option-label";
+  labelElement.textContent = "Edit placed models";
+
+  const descriptionElement = document.createElement("span");
+  descriptionElement.className = "model-palette__option-path";
+  descriptionElement.textContent =
+    "Select existing placements to remove them.";
+
+  button.append(labelElement, descriptionElement);
+  button.addEventListener("click", handleModelPaletteEditSelection);
+
+  return button;
+};
+
 const openModelPalette = async () => {
   if (
     !(modelPalette instanceof HTMLElement) ||
@@ -656,6 +782,7 @@ const openModelPalette = async () => {
   }
 
   modelPaletteOpening = true;
+  sceneController?.setManifestEditModeEnabled?.(false);
   modelPaletteWasPointerLocked = Boolean(
     sceneController?.unlockPointerLock?.()
   );
@@ -679,6 +806,7 @@ const openModelPalette = async () => {
     const entries = await loadModelManifest();
     renderModelPaletteEntries(entries);
   } catch (error) {
+    renderModelPaletteEntries([]);
     setModelPaletteStatus(
       "We couldn't load the model manifest. Please try again.",
       { isError: true }
@@ -1012,26 +1140,44 @@ const showTerminalToast = ({ title, description }) => {
   }, 4000);
 };
 
-const setCrosshairInteractableState = (canInteract) => {
-  if (!(crosshair instanceof HTMLElement)) {
+const describeManifestEntry = (entry) => {
+  if (typeof entry?.label === "string" && entry.label.trim() !== "") {
+    return entry.label.trim();
+  }
+
+  if (typeof entry?.path === "string" && entry.path.trim() !== "") {
+    return entry.path.trim();
+  }
+
+  return "Placement removed";
+};
+
+const handleManifestPlacementHoverChange = (canHover) => {
+  setCrosshairSourceState("edit", Boolean(canHover));
+};
+
+const handleManifestEditModeChange = (enabled) => {
+  const nextState = Boolean(enabled);
+
+  if (nextState === editModeActive) {
     return;
   }
 
-  const nextCrosshairInteractableState = Boolean(canInteract);
-  if (
-    previousCrosshairInteractableState === false &&
-    nextCrosshairInteractableState === true
-  ) {
-    playTerminalInteractionSound();
+  editModeActive = nextState;
+
+  if (!nextState) {
+    setCrosshairSourceState("edit", false);
   }
 
-  if (nextCrosshairInteractableState) {
-    crosshair.dataset.interactable = "true";
-  } else {
-    delete crosshair.dataset.interactable;
-  }
+  const description = nextState
+    ? "Hover placed models to highlight them. Left click to select, then press Delete to remove. Press Esc to exit."
+    : "Edit mode disabled.";
 
-  previousCrosshairInteractableState = nextCrosshairInteractableState;
+  showTerminalToast({ title: "Edit mode", description });
+};
+
+const handleManifestPlacementRemoved = (entry) => {
+  showTerminalToast({ title: "Model removed", description: describeManifestEntry(entry) });
 };
 
 const bootstrapScene = () => {
@@ -1045,7 +1191,7 @@ const bootstrapScene = () => {
     },
     onControlsUnlocked() {
       instructions?.removeAttribute("hidden");
-      setCrosshairInteractableState(false);
+      resetCrosshairInteractableState();
       hideTerminalToast();
     },
     onTerminalOptionSelected(option) {
@@ -1053,7 +1199,12 @@ const bootstrapScene = () => {
       openQuickAccessModal(option);
       showTerminalToast(option);
     },
-    onTerminalInteractableChange: setCrosshairInteractableState,
+    onTerminalInteractableChange(value) {
+      setCrosshairSourceState("terminal", value);
+    },
+    onManifestPlacementHoverChange: handleManifestPlacementHoverChange,
+    onManifestEditModeChange: handleManifestEditModeChange,
+    onManifestPlacementRemoved: handleManifestPlacementRemoved,
   });
 
   sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
