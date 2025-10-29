@@ -142,10 +142,12 @@ export class PointerLockControls extends THREE.EventDispatcher {
 
   setCameraOffset(offset) {
     if (offset instanceof THREE.Vector3) {
-      this.camera.position.copy(offset);
+      this._pitchObject.position.copy(offset);
+      this.camera.position.set(0, 0, 0);
       return;
     }
 
+    this._pitchObject.position.set(0, 0, 0);
     this.camera.position.set(0, 0, 0);
   }
 
