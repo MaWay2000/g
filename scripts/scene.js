@@ -2700,6 +2700,8 @@ export const initScene = (
       return;
     }
 
+    setHoveredManifestPlacement(null);
+
     const userData = container.userData || {};
 
     const colliders = Array.isArray(userData.manifestPlacementColliders)
@@ -2924,6 +2926,13 @@ export const initScene = (
 
   const updateManifestEditModeHover = () => {
     if (!manifestEditModeState.enabled) {
+      if (manifestEditModeState.hovered) {
+        setHoveredManifestPlacement(null);
+      }
+      return;
+    }
+
+    if (activePlacement && activePlacement.isReposition) {
       if (manifestEditModeState.hovered) {
         setHoveredManifestPlacement(null);
       }
