@@ -3343,12 +3343,14 @@ export const initScene = (
     registerManifestPlacement(placement.container, colliderEntries);
     rebuildStaticColliders();
 
-    const placementsRealigned = realignManifestPlacements({
-      exclude: placement.container,
-    });
+    if (placement.isReposition) {
+      const placementsRealigned = realignManifestPlacements({
+        exclude: placement.container,
+      });
 
-    if (placementsRealigned) {
-      rebuildStaticColliders();
+      if (placementsRealigned) {
+        rebuildStaticColliders();
+      }
     }
 
     if (placement.isReposition) {
