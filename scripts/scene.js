@@ -3277,6 +3277,12 @@ export const initScene = (
     registerManifestPlacement(placement.container, colliderEntries);
     rebuildStaticColliders();
 
+    if (placement.isReposition) {
+      setSelectedManifestPlacement(null);
+      setHoveredManifestPlacement(null);
+      updateManifestEditModeHover();
+    }
+
     if (typeof placement.resolve === "function") {
       placement.resolve(placement.container);
     }
