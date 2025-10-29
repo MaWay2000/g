@@ -2718,11 +2718,25 @@ export const initScene = (
         quaternion: container.quaternion.clone(),
         scale: container.scale.clone(),
       },
+      skipNextPointerDown: true,
+      skipNextMouseDown: true,
     };
 
     placement.pointerHandler = (event) => {
       if (event.button !== 0) {
         return;
+      }
+
+      if (placement.isReposition) {
+        if (event.type === "pointerdown" && placement.skipNextPointerDown) {
+          placement.skipNextPointerDown = false;
+          return;
+        }
+
+        if (event.type === "mousedown" && placement.skipNextMouseDown) {
+          placement.skipNextMouseDown = false;
+          return;
+        }
       }
 
       if (typeof event.preventDefault === "function") {
