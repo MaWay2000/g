@@ -3228,39 +3228,29 @@ export const initScene = (
 
   const realignManifestPlacements = ({ exclude } = {}) => {
     let anyChanged = false;
-    let passChanged = false;
 
-    do {
-      passChanged = false;
-
-      manifestPlacements.forEach((container) => {
-        if (!container || container === exclude) {
-          return;
-        }
-
-        const bounds = computeManifestPlacementBounds(container);
-
-        if (bounds.isEmpty()) {
-          return;
-        }
-
-        const computedPosition = computePlacementPosition(
-          { container, containerBounds: bounds },
-          container.position
-        );
-
-        if (!container.position.equals(computedPosition)) {
-          container.position.copy(computedPosition);
-          container.updateMatrixWorld(true);
-          anyChanged = true;
-          passChanged = true;
-        }
-      });
-
-      if (passChanged) {
-        rebuildStaticColliders();
+    manifestPlacements.forEach((container) => {
+      if (!container || container === exclude) {
+        return;
       }
-    } while (passChanged);
+
+      const bounds = computeManifestPlacementBounds(container);
+
+      if (bounds.isEmpty()) {
+        return;
+      }
+
+      const computedPosition = computePlacementPosition(
+        { container, containerBounds: bounds },
+        container.position
+      );
+
+      if (!container.position.equals(computedPosition)) {
+        container.position.copy(computedPosition);
+        container.updateMatrixWorld(true);
+        anyChanged = true;
+      }
+    });
 
     return anyChanged;
   };
