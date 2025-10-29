@@ -1366,6 +1366,14 @@ transformControls.addEventListener("dragging-changed", (event) => {
   orbitControls.enabled = !event.value;
   isTransformDragging = event.value;
   if (event.value) {
+    if (currentSelection && selectedObjects.size > 1) {
+      const sourceName =
+        currentSelection.userData?.sourceName ?? "Scene object";
+      setCurrentSelection(currentSelection, sourceName, {
+        focus: false,
+        addToScene: false,
+      });
+    }
     transformHasChanged = false;
   } else if (transformHasChanged) {
     transformHasChanged = false;
