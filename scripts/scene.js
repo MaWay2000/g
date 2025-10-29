@@ -202,6 +202,9 @@ export const initScene = (
     onControlsUnlocked,
     onTerminalOptionSelected,
     onTerminalInteractableChange,
+    onManifestPlacementHoverChange,
+    onManifestEditModeChange,
+    onManifestPlacementRemoved,
   } = {}
 ) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -396,7 +399,7 @@ export const initScene = (
 
   const registerCollidersForImportedRoot = (root, { padding } = {}) => {
     if (!root) {
-      return;
+      return [];
     }
 
     const paddingVector =
@@ -428,17 +431,21 @@ export const initScene = (
       descriptors.push(descriptor);
     });
 
-    if (descriptors.length > 0) {
-      registerColliderDescriptors(descriptors);
+    if (descriptors.length === 0) {
+      return [];
     }
+
+    return registerColliderDescriptors(descriptors);
   };
 
   const colliderDescriptors = [];
 
   const registerColliderDescriptors = (descriptors) => {
-    if (!Array.isArray(descriptors)) {
-      return;
+    if (!Array.isArray(descriptors) || descriptors.length === 0) {
+      return [];
     }
+
+    const registeredDescriptors = [];
 
     descriptors.forEach((descriptor) => {
       if (!descriptor || !descriptor.object) {
@@ -460,13 +467,36 @@ export const initScene = (
         box.max.add(padding);
       }
 
-      colliderDescriptors.push({
+      const registeredDescriptor = {
         object: descriptor.object,
         padding: autoUpdate ? padding : undefined,
         box,
         autoUpdate,
-      });
+      };
+
+      colliderDescriptors.push(registeredDescriptor);
+      registeredDescriptors.push(registeredDescriptor);
     });
+
+    return registeredDescriptors;
+  };
+
+  const unregisterColliderDescriptors = (descriptors) => {
+    if (!Array.isArray(descriptors) || descriptors.length === 0) {
+      return;
+    }
+
+    const descriptorSet = new Set(descriptors);
+
+    for (let index = colliderDescriptors.length - 1; index >= 0; index -= 1) {
+      const descriptor = colliderDescriptors[index];
+
+      if (!descriptorSet.has(descriptor)) {
+        continue;
+      }
+
+      colliderDescriptors.splice(index, 1);
+    }
   };
 
   const rebuildStaticColliders = () => {
@@ -2514,6 +2544,319 @@ export const initScene = (
   }
 
   let activePlacement = null;
+  const manifestPlacements = new Set();
+
+  const EDIT_MODE_HOVER_OPACITY = 0.25;
+  const EDIT_MODE_SELECTED_OPACITY = 0.45;
+
+  const manifestEditModeState = {
+    enabled: false,
+    hovered: null,
+    selected: null,
+    pointerDownHandlerAttached: false,
+    keydownHandlerAttached: false,
+  };
+
+  const getManifestPlacementRoot = (object) => {
+    let current = object;
+
+    while (current && current !== scene) {
+      if (manifestPlacements.has(current)) {
+        return current;
+      }
+
+      current = current.parent;
+    }
+
+    return null;
+  };
+
+  const updateManifestPlacementVisualState = (container) => {
+    if (!container) {
+      return;
+    }
+
+    const multiplier = !manifestEditModeState.enabled
+      ? 1
+      : manifestEditModeState.hovered === container
+      ? EDIT_MODE_HOVER_OPACITY
+      : manifestEditModeState.selected === container
+      ? EDIT_MODE_SELECTED_OPACITY
+      : 1;
+
+    container.traverse((child) => {
+      if (!child.isMesh) {
+        return;
+      }
+
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+
+      materials.forEach((material) => {
+        if (!material) {
+          return;
+        }
+
+        const userData = material.userData || (material.userData = {});
+        if (!Number.isFinite(userData.baseOpacity)) {
+          userData.baseOpacity = Number.isFinite(material.opacity)
+            ? material.opacity
+            : 1;
+        }
+
+        if (typeof userData.baseTransparent !== "boolean") {
+          userData.baseTransparent = Boolean(material.transparent);
+        }
+
+        if (typeof userData.baseDepthWrite !== "boolean") {
+          userData.baseDepthWrite = Boolean(material.depthWrite);
+        }
+
+        if (multiplier < 1) {
+          material.transparent = true;
+          material.opacity = userData.baseOpacity * multiplier;
+          material.depthWrite = false;
+        } else {
+          material.transparent = userData.baseTransparent ?? false;
+          material.opacity = userData.baseOpacity;
+          material.depthWrite =
+            typeof userData.baseDepthWrite === "boolean"
+              ? userData.baseDepthWrite
+              : true;
+        }
+
+        material.needsUpdate = true;
+      });
+    });
+  };
+
+  const setHoveredManifestPlacement = (container) => {
+    if (manifestEditModeState.hovered === container) {
+      return;
+    }
+
+    const previous = manifestEditModeState.hovered;
+    manifestEditModeState.hovered = container;
+
+    if (previous) {
+      updateManifestPlacementVisualState(previous);
+    }
+
+    if (container) {
+      updateManifestPlacementVisualState(container);
+    }
+
+    if (typeof onManifestPlacementHoverChange === "function") {
+      onManifestPlacementHoverChange(Boolean(container));
+    }
+  };
+
+  const setSelectedManifestPlacement = (container) => {
+    if (manifestEditModeState.selected === container) {
+      return;
+    }
+
+    const previous = manifestEditModeState.selected;
+    manifestEditModeState.selected = container;
+
+    if (previous) {
+      updateManifestPlacementVisualState(previous);
+    }
+
+    if (container) {
+      updateManifestPlacementVisualState(container);
+    }
+  };
+
+  const registerManifestPlacement = (container, colliderEntries = []) => {
+    if (!container) {
+      return;
+    }
+
+    manifestPlacements.add(container);
+
+    const userData = container.userData || (container.userData = {});
+    userData.manifestPlacementColliders = Array.isArray(colliderEntries)
+      ? colliderEntries
+      : [];
+    userData.isManifestPlacement = true;
+
+    updateManifestPlacementVisualState(container);
+  };
+
+  const removeManifestPlacement = (container) => {
+    if (!container || !manifestPlacements.has(container)) {
+      return null;
+    }
+
+    if (manifestEditModeState.hovered === container) {
+      setHoveredManifestPlacement(null);
+    }
+
+    if (manifestEditModeState.selected === container) {
+      setSelectedManifestPlacement(null);
+    }
+
+    manifestPlacements.delete(container);
+
+    const colliders = Array.isArray(
+      container.userData?.manifestPlacementColliders
+    )
+      ? container.userData.manifestPlacementColliders
+      : [];
+
+    if (colliders.length > 0) {
+      unregisterColliderDescriptors(colliders);
+      container.userData.manifestPlacementColliders = [];
+    }
+
+    scene.remove(container);
+    rebuildStaticColliders();
+
+    const manifestEntry = container.userData?.manifestEntry ?? null;
+
+    if (typeof onManifestPlacementRemoved === "function") {
+      onManifestPlacementRemoved(manifestEntry);
+    }
+
+    return manifestEntry;
+  };
+
+  const handleManifestEditModePointerDown = (event) => {
+    if (!manifestEditModeState.enabled) {
+      return;
+    }
+
+    if (event.button === 0) {
+      if (!controls.isLocked) {
+        return;
+      }
+
+      const hovered = manifestEditModeState.hovered;
+      if (hovered) {
+        setSelectedManifestPlacement(hovered);
+      }
+    } else if (event.button === 2) {
+      setSelectedManifestPlacement(null);
+    }
+  };
+
+  const handleManifestEditModeKeydown = (event) => {
+    if (!manifestEditModeState.enabled) {
+      return;
+    }
+
+    const target = event.target;
+
+    if (target instanceof HTMLElement) {
+      const tagName = target.tagName;
+
+      if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+        return;
+      }
+
+      if (target.isContentEditable) {
+        return;
+      }
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setManifestEditModeEnabled(false);
+      return;
+    }
+
+    if (event.key === "Delete" || event.key === "Backspace") {
+      const selected = manifestEditModeState.selected;
+
+      if (!selected) {
+        return;
+      }
+
+      event.preventDefault();
+      removeManifestPlacement(selected);
+    }
+  };
+
+  const updateManifestEditModeHover = () => {
+    if (!manifestEditModeState.enabled) {
+      if (manifestEditModeState.hovered) {
+        setHoveredManifestPlacement(null);
+      }
+      return;
+    }
+
+    if (!controls.isLocked || manifestPlacements.size === 0) {
+      if (manifestEditModeState.hovered) {
+        setHoveredManifestPlacement(null);
+      }
+      return;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(
+      Array.from(manifestPlacements),
+      true
+    );
+
+    if (intersections.length === 0) {
+      if (manifestEditModeState.hovered) {
+        setHoveredManifestPlacement(null);
+      }
+      return;
+    }
+
+    const intersection = intersections[0];
+    const placement = getManifestPlacementRoot(intersection.object);
+    setHoveredManifestPlacement(placement);
+  };
+
+  const setManifestEditModeEnabled = (enabled) => {
+    const nextEnabled = Boolean(enabled);
+
+    if (nextEnabled === manifestEditModeState.enabled) {
+      return manifestEditModeState.enabled;
+    }
+
+    manifestEditModeState.enabled = nextEnabled;
+
+    if (manifestEditModeState.pointerDownHandlerAttached) {
+      canvas.removeEventListener(
+        "pointerdown",
+        handleManifestEditModePointerDown
+      );
+      manifestEditModeState.pointerDownHandlerAttached = false;
+    }
+
+    if (manifestEditModeState.keydownHandlerAttached) {
+      document.removeEventListener(
+        "keydown",
+        handleManifestEditModeKeydown,
+        true
+      );
+      manifestEditModeState.keydownHandlerAttached = false;
+    }
+
+    if (nextEnabled) {
+      canvas.addEventListener("pointerdown", handleManifestEditModePointerDown);
+      document.addEventListener("keydown", handleManifestEditModeKeydown, true);
+      manifestEditModeState.pointerDownHandlerAttached = true;
+      manifestEditModeState.keydownHandlerAttached = true;
+      updateManifestEditModeHover();
+    } else {
+      setHoveredManifestPlacement(null);
+      setSelectedManifestPlacement(null);
+    }
+
+    manifestPlacements.forEach(updateManifestPlacementVisualState);
+
+    if (typeof onManifestEditModeChange === "function") {
+      onManifestEditModeChange(manifestEditModeState.enabled);
+    }
+
+    return manifestEditModeState.enabled;
+  };
 
   controls.addEventListener("lock", () => {
     if (typeof onControlsLocked === "function") {
@@ -2527,6 +2870,7 @@ export const initScene = (
     }
 
     updateTerminalInteractableState(false);
+    setManifestEditModeEnabled(false);
     if (activePlacement) {
       cancelActivePlacement(
         new PlacementCancelledError("Pointer lock released")
@@ -2765,9 +3109,10 @@ export const initScene = (
     placement.container.position.copy(placement.previewPosition);
     placement.container.updateMatrixWorld(true);
 
-    registerCollidersForImportedRoot(placement.container, {
+    const colliderEntries = registerCollidersForImportedRoot(placement.container, {
       padding: manifestPlacementPadding,
     });
+    registerManifestPlacement(placement.container, colliderEntries);
     rebuildStaticColliders();
 
     placement.resolve(placement.container);
@@ -2841,6 +3186,7 @@ export const initScene = (
 
   const placeModelFromManifestEntry = async (entry, options = {}) => {
     try {
+      setManifestEditModeEnabled(false);
       const loadedObject = await loadModelFromManifestEntry(entry);
 
       if (!loadedObject) {
@@ -3110,6 +3456,7 @@ export const initScene = (
       savePlayerState();
     }
 
+    updateManifestEditModeHover();
     updateActivePlacementPreview();
 
     renderer.render(scene, camera);
@@ -3171,6 +3518,9 @@ export const initScene = (
       return previousEnabled;
     },
     placeModelFromManifestEntry,
+    setManifestEditModeEnabled,
+    isManifestEditModeEnabled: () => manifestEditModeState.enabled,
+    hasManifestPlacements: () => manifestPlacements.size > 0,
     unlockPointerLock: () => {
       if (controls.isLocked) {
         controls.unlock();
@@ -3188,6 +3538,7 @@ export const initScene = (
           new PlacementCancelledError("Scene disposed")
         );
       }
+      setManifestEditModeEnabled(false);
       window.removeEventListener("resize", handleResize);
       canvas.removeEventListener("click", attemptPointerLock);
       canvas.removeEventListener("click", handleCanvasClick);
