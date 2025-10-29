@@ -422,7 +422,7 @@ export const initScene = (
         return;
       }
 
-      const descriptor = { object: child };
+      const descriptor = { object: child, root };
 
       if (paddingVector) {
         descriptor.padding = paddingVector.clone();
@@ -474,6 +474,10 @@ export const initScene = (
         autoUpdate,
       };
 
+      if (descriptor.root) {
+        registeredDescriptor.root = descriptor.root;
+      }
+
       colliderDescriptors.push(registeredDescriptor);
       registeredDescriptors.push(registeredDescriptor);
     });
@@ -517,6 +521,24 @@ export const initScene = (
         }
       }
     });
+  };
+
+  const isObjectDescendantOf = (object, ancestor) => {
+    if (!object || !ancestor) {
+      return false;
+    }
+
+    let current = object;
+
+    while (current) {
+      if (current === ancestor) {
+        return true;
+      }
+
+      current = current.parent;
+    }
+
+    return false;
   };
 
   const createQuickAccessFallbackTexture = () => {
@@ -2817,6 +2839,12 @@ export const initScene = (
     scene.remove(container);
     rebuildStaticColliders();
 
+    const placementsRealigned = realignManifestPlacements();
+
+    if (placementsRealigned) {
+      rebuildStaticColliders();
+    }
+
     const manifestEntry = container.userData?.manifestEntry ?? null;
 
     if (typeof onManifestPlacementRemoved === "function") {
@@ -3122,6 +3150,7 @@ export const initScene = (
       return placementComputedPosition;
     }
 
+    const container = placement.container ?? null;
     const bounds = placement.containerBounds;
 
     if (bounds.isEmpty()) {
@@ -3140,6 +3169,14 @@ export const initScene = (
       const box = descriptor.box;
 
       if (!box || box.isEmpty()) {
+        return;
+      }
+
+      if (
+        container &&
+        (descriptor.root === container ||
+          isObjectDescendantOf(descriptor.object, container))
+      ) {
         return;
       }
 
@@ -3187,6 +3224,35 @@ export const initScene = (
     bounds.max.sub(placementBoundsWorldPosition);
 
     return bounds;
+  };
+
+  const realignManifestPlacements = ({ exclude } = {}) => {
+    let anyChanged = false;
+
+    manifestPlacements.forEach((container) => {
+      if (!container || container === exclude) {
+        return;
+      }
+
+      const bounds = computeManifestPlacementBounds(container);
+
+      if (bounds.isEmpty()) {
+        return;
+      }
+
+      const computedPosition = computePlacementPosition(
+        { container, containerBounds: bounds },
+        container.position
+      );
+
+      if (!container.position.equals(computedPosition)) {
+        container.position.copy(computedPosition);
+        container.updateMatrixWorld(true);
+        anyChanged = true;
+      }
+    });
+
+    return anyChanged;
   };
 
   function clearPlacementEventListeners(placement) {
@@ -3276,6 +3342,14 @@ export const initScene = (
     });
     registerManifestPlacement(placement.container, colliderEntries);
     rebuildStaticColliders();
+
+    const placementsRealigned = realignManifestPlacements({
+      exclude: placement.container,
+    });
+
+    if (placementsRealigned) {
+      rebuildStaticColliders();
+    }
 
     if (placement.isReposition) {
       setSelectedManifestPlacement(null);
