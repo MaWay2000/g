@@ -2669,6 +2669,95 @@ export const initScene = (
     }
   };
 
+  const beginManifestPlacementReposition = (container) => {
+    if (!container || activePlacement) {
+      return;
+    }
+
+    if (!manifestPlacements.has(container)) {
+      return;
+    }
+
+    const userData = container.userData || {};
+
+    const colliders = Array.isArray(userData.manifestPlacementColliders)
+      ? userData.manifestPlacementColliders
+      : [];
+
+    let collidersWereRemoved = false;
+
+    if (colliders.length > 0) {
+      unregisterColliderDescriptors(colliders);
+      collidersWereRemoved = true;
+    }
+
+    userData.manifestPlacementColliders = [];
+
+    const containerBounds = new THREE.Box3().setFromObject(container);
+
+    const playerPosition = controls.getObject().position;
+    const distanceToPlayer = playerPosition.distanceTo(container.position);
+    const placementDistance = Number.isFinite(distanceToPlayer)
+      ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, distanceToPlayer)
+      : MIN_MANIFEST_PLACEMENT_DISTANCE;
+
+    const placement = {
+      entry: userData.manifestEntry ?? null,
+      container,
+      containerBounds,
+      resolve: () => {},
+      reject: () => {},
+      distance: placementDistance,
+      previewDirection: new THREE.Vector3(),
+      previewPosition: container.position.clone(),
+      pointerHandler: null,
+      keydownHandler: null,
+      isReposition: true,
+      previousState: {
+        position: container.position.clone(),
+        quaternion: container.quaternion.clone(),
+        scale: container.scale.clone(),
+      },
+    };
+
+    placement.pointerHandler = (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      if (typeof event.preventDefault === "function") {
+        event.preventDefault();
+      }
+      if (typeof event.stopImmediatePropagation === "function") {
+        event.stopImmediatePropagation();
+      }
+
+      finalizeActivePlacement();
+    };
+
+    placement.keydownHandler = (event) => {
+      if (event.code === "Escape") {
+        cancelActivePlacement(
+          new PlacementCancelledError("Placement cancelled"),
+          { restoreOnCancel: true }
+        );
+      }
+    };
+
+    activePlacement = placement;
+
+    placementPointerEvents.forEach((eventName) => {
+      canvas.addEventListener(eventName, placement.pointerHandler);
+    });
+    document.addEventListener("keydown", placement.keydownHandler, true);
+
+    if (collidersWereRemoved) {
+      rebuildStaticColliders();
+    }
+
+    updateActivePlacementPreview();
+  };
+
   const registerManifestPlacement = (container, colliderEntries = []) => {
     if (!container) {
       return;
@@ -2728,6 +2817,10 @@ export const initScene = (
       return;
     }
 
+    if (activePlacement) {
+      return;
+    }
+
     if (event.button === 0) {
       if (!controls.isLocked) {
         return;
@@ -2736,6 +2829,7 @@ export const initScene = (
       const hovered = manifestEditModeState.hovered;
       if (hovered) {
         setSelectedManifestPlacement(hovered);
+        beginManifestPlacementReposition(hovered);
       }
     } else if (event.button === 2) {
       setSelectedManifestPlacement(null);
@@ -2775,6 +2869,13 @@ export const initScene = (
       }
 
       event.preventDefault();
+      if (activePlacement && activePlacement.container === selected) {
+        cancelActivePlacement(
+          new PlacementCancelledError("Placement removed"),
+          { restoreOnCancel: false }
+        );
+      }
+
       removeManifestPlacement(selected);
     }
   };
@@ -2992,6 +3093,7 @@ export const initScene = (
   const clock = new THREE.Clock();
   const manifestPlacementPadding = new THREE.Vector3(0.05, 0.05, 0.05);
   const placementPointerEvents = ["pointerdown", "mousedown"];
+  const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const placementPreviewBasePosition = new THREE.Vector3();
   const placementComputedPosition = new THREE.Vector3();
 
@@ -3067,7 +3169,7 @@ export const initScene = (
     }
   }
 
-  function cancelActivePlacement(reason) {
+  function cancelActivePlacement(reason, options = {}) {
     if (!activePlacement) {
       return;
     }
@@ -3075,7 +3177,29 @@ export const initScene = (
     const placement = activePlacement;
     clearPlacementEventListeners(placement);
     activePlacement = null;
-    scene.remove(placement.container);
+
+    const restoreOnCancel =
+      options.restoreOnCancel ?? (placement.isReposition ? true : false);
+
+    if (placement.isReposition && restoreOnCancel) {
+      const container = placement.container;
+      const previousState = placement.previousState;
+
+      if (previousState) {
+        container.position.copy(previousState.position);
+        container.quaternion.copy(previousState.quaternion);
+        container.scale.copy(previousState.scale);
+        container.updateMatrixWorld(true);
+      }
+
+      const colliderEntries = registerCollidersForImportedRoot(container, {
+        padding: manifestPlacementPadding,
+      });
+      registerManifestPlacement(container, colliderEntries);
+      rebuildStaticColliders();
+    } else {
+      scene.remove(placement.container);
+    }
 
     let error;
 
@@ -3088,7 +3212,9 @@ export const initScene = (
       error = new PlacementCancelledError();
     }
 
-    placement.reject(error);
+    if (typeof placement.reject === "function") {
+      placement.reject(error);
+    }
   }
 
   function finalizeActivePlacement() {
@@ -3115,7 +3241,9 @@ export const initScene = (
     registerManifestPlacement(placement.container, colliderEntries);
     rebuildStaticColliders();
 
-    placement.resolve(placement.container);
+    if (typeof placement.resolve === "function") {
+      placement.resolve(placement.container);
+    }
   }
 
   function updateActivePlacementPreview() {
@@ -3196,11 +3324,13 @@ export const initScene = (
       const container = createManifestPlacementContainer(loadedObject, entry);
       const containerBounds = new THREE.Box3().setFromObject(container);
 
-      const minDistance = 2;
       const requestedDistance = Number.isFinite(options?.distance)
         ? options.distance
         : 6;
-      const placementDistance = Math.max(minDistance, requestedDistance);
+      const placementDistance = Math.max(
+        MIN_MANIFEST_PLACEMENT_DISTANCE,
+        requestedDistance
+      );
 
       cancelActivePlacement(
         new PlacementCancelledError("Placement superseded")
