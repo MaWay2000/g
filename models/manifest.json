@@ -2,5 +2,13 @@
   {
     "path": "table1.glb",
     "label": "Table 1 (GLB)"
+  },
+  {
+    "path": "Box.gltf",
+    "label": "Sample Box (GLTF)"
+  },
+  {
+    "path": "pedestal.obj",
+    "label": "Pedestal (OBJ)"
   }
 ]
