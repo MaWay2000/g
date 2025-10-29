@@ -1434,6 +1434,65 @@ async function loadMaterialsForObj({ objText, fileMap, sourceUrl }) {
   }
 }
 
+function objectContainsRenderable(object3D) {
+  if (!object3D) {
+    return false;
+  }
+
+  let hasRenderable = false;
+  object3D.traverse((child) => {
+    if (child.isMesh || child.isLine || child.isPoints) {
+      hasRenderable = true;
+    }
+  });
+
+  return hasRenderable;
+}
+
+function separateImportedObject(imported, sourceName) {
+  if (!imported || !imported.children || imported.children.length <= 1) {
+    return null;
+  }
+
+  const childEntries = imported.children.map((child) => ({
+    child,
+    hasRenderable: objectContainsRenderable(child),
+  }));
+
+  const renderableChildren = childEntries
+    .filter((entry) => entry.hasRenderable)
+    .map((entry) => entry.child);
+
+  if (renderableChildren.length <= 1) {
+    return null;
+  }
+
+  imported.updateMatrixWorld(true);
+
+  let partIndex = 1;
+  childEntries.forEach(({ child, hasRenderable }) => {
+    sceneRoot.attach(child);
+
+    if (!child.userData || typeof child.userData !== "object") {
+      child.userData = {};
+    }
+
+    if (hasRenderable) {
+      const existingName =
+        (typeof child.userData.sourceName === "string" && child.userData.sourceName.trim()) ||
+        (typeof child.name === "string" && child.name.trim()) ||
+        `${sourceName} part ${partIndex}`;
+      child.userData.sourceName = existingName;
+      partIndex += 1;
+    }
+  });
+
+  return {
+    pieces: renderableChildren,
+    children: childEntries.map((entry) => entry.child),
+  };
+}
+
 function cancelScheduledHistoryCommit() {
   if (historyDebounceHandle) {
     clearTimeout(historyDebounceHandle);
@@ -2523,6 +2582,36 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
 
     if (!imported) {
       throw new Error("Unable to import model");
+    }
+
+    const separationResult = separateImportedObject(imported, name);
+    if (separationResult) {
+      const { pieces: separatedPieces, children: separatedChildren } = separationResult;
+      sceneRoot.updateMatrixWorld(true);
+      const boundingBox = new THREE.Box3();
+      separatedPieces.forEach((piece) => {
+        piece.updateMatrixWorld(true);
+        boundingBox.expandByObject(piece);
+      });
+
+      const centerOffset = boundingBox.getCenter(new THREE.Vector3());
+      separatedChildren.forEach((child) => {
+        child.position.sub(centerOffset);
+      });
+
+      separatedPieces.forEach((piece) => {
+        ensureFigureId(piece);
+      });
+
+      const activePiece = separatedPieces[0];
+      const activeName =
+        (typeof activePiece.userData?.sourceName === "string" &&
+          activePiece.userData.sourceName.trim()) ||
+        `${name} part 1`;
+
+      setCurrentSelection(activePiece, activeName, { addToScene: false });
+      pushHistorySnapshot();
+      return;
     }
 
     centerObject(imported);
