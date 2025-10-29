@@ -2693,7 +2693,7 @@ export const initScene = (
 
     userData.manifestPlacementColliders = [];
 
-    const containerBounds = new THREE.Box3().setFromObject(container);
+    const containerBounds = computeManifestPlacementBounds(container);
 
     const playerPosition = controls.getObject().position;
     const distanceToPlayer = playerPosition.distanceTo(container.position);
@@ -3096,6 +3096,7 @@ export const initScene = (
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const placementPreviewBasePosition = new THREE.Vector3();
   const placementComputedPosition = new THREE.Vector3();
+  const placementBoundsWorldPosition = new THREE.Vector3();
 
   const computePlacementPosition = (placement, basePosition) => {
     placementComputedPosition.copy(basePosition);
@@ -3151,6 +3152,27 @@ export const initScene = (
 
     placementComputedPosition.y = supportHeight - bounds.min.y;
     return placementComputedPosition;
+  };
+
+  const computeManifestPlacementBounds = (container) => {
+    const bounds = new THREE.Box3();
+
+    if (!container) {
+      return bounds;
+    }
+
+    container.updateMatrixWorld(true);
+    bounds.setFromObject(container);
+
+    if (bounds.isEmpty()) {
+      return bounds;
+    }
+
+    container.getWorldPosition(placementBoundsWorldPosition);
+    bounds.min.sub(placementBoundsWorldPosition);
+    bounds.max.sub(placementBoundsWorldPosition);
+
+    return bounds;
   };
 
   function clearPlacementEventListeners(placement) {
@@ -3322,7 +3344,7 @@ export const initScene = (
       }
 
       const container = createManifestPlacementContainer(loadedObject, entry);
-      const containerBounds = new THREE.Box3().setFromObject(container);
+      const containerBounds = computeManifestPlacementBounds(container);
 
       const requestedDistance = Number.isFinite(options?.distance)
         ? options.distance
