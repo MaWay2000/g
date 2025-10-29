@@ -1214,6 +1214,22 @@ export const initScene = (
     deskTop.position.set(0, deskHeight + deskTopThickness / 2, 0);
     group.add(deskTop);
 
+    const deskCollisionVolume = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        deskWidth,
+        deskHeight + deskTopThickness,
+        deskDepth
+      ),
+      deskMaterial
+    );
+    deskCollisionVolume.visible = false;
+    deskCollisionVolume.position.set(
+      0,
+      (deskHeight + deskTopThickness) / 2,
+      0
+    );
+    group.add(deskCollisionVolume);
+
     const legGeometry = new THREE.BoxGeometry(0.14, deskHeight, 0.14);
     const legPositions = [
       [-deskWidth / 2 + 0.22, deskHeight / 2, -deskDepth / 2 + 0.22],
@@ -1889,6 +1905,10 @@ export const initScene = (
     group.add(speakerGrillRight);
 
     group.userData.colliderDescriptors = [
+      {
+        object: deskCollisionVolume,
+        padding: new THREE.Vector3(0.08, 0.05, 0.08),
+      },
       {
         object: deskTop,
         padding: new THREE.Vector3(0.05, 0.3, 0.05),
