@@ -3181,10 +3181,10 @@ export const initScene = (
       placementComputedPosition.y = baseY;
     }
 
-    const currentBottom = baseY + bounds.min.y;
-    const currentTop = baseY + bounds.max.y;
+    const boundsHeight = bounds.max.y - bounds.min.y;
 
     let supportHeight = roomFloorY;
+    let currentTop = supportHeight + boundsHeight;
 
     colliderDescriptors.forEach((descriptor) => {
       const box = descriptor.box;
@@ -3225,6 +3225,7 @@ export const initScene = (
 
       if (effectiveTop > supportHeight) {
         supportHeight = effectiveTop;
+        currentTop = supportHeight + boundsHeight;
       }
     });
 
