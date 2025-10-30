@@ -3205,6 +3205,9 @@ export const initScene = (
   const placementComputedPosition = new THREE.Vector3();
   const placementBoundsWorldPosition = new THREE.Vector3();
   const placementDependentOffset = new THREE.Vector3();
+  const placementPreviousPreviewPosition = new THREE.Vector3();
+  const placementCollisionBox = new THREE.Box3();
+  const placementPreviousCollisionBox = new THREE.Box3();
   const stackingBoundsBase = new THREE.Box3();
   const stackingBoundsCandidate = new THREE.Box3();
   const STACKING_VERTICAL_TOLERANCE = 0.02;
@@ -3355,6 +3358,203 @@ export const initScene = (
 
     placementComputedPosition.y = supportHeight - bounds.min.y;
     return placementComputedPosition;
+  };
+
+  const resolvePlacementPreviewCollisions = (placement, previousPosition) => {
+    if (!placement || !placement.container) {
+      return false;
+    }
+
+    const bounds = placement.containerBounds;
+
+    if (!bounds || bounds.isEmpty()) {
+      return false;
+    }
+
+    const container = placement.container;
+    const position = container.position;
+    const dependents = Array.isArray(placement.dependents)
+      ? placement.dependents
+      : [];
+
+    placementCollisionBox.min.copy(bounds.min).add(position);
+    placementCollisionBox.max.copy(bounds.max).add(position);
+
+    let previousBox = null;
+
+    if (previousPosition) {
+      placementPreviousCollisionBox.min.copy(bounds.min).add(previousPosition);
+      placementPreviousCollisionBox.max.copy(bounds.max).add(previousPosition);
+      previousBox = placementPreviousCollisionBox;
+    }
+
+    const wallPadding = 1e-3;
+    const roomMinX = -roomWidth / 2 + wallPadding;
+    const roomMaxX = roomWidth / 2 - wallPadding;
+    const roomMinZ = -roomDepth / 2 + wallPadding;
+    const roomMaxZ = roomDepth / 2 - wallPadding;
+
+    const applyOffset = (offsetX, offsetZ) => {
+      if (offsetX) {
+        position.x += offsetX;
+        placementCollisionBox.min.x += offsetX;
+        placementCollisionBox.max.x += offsetX;
+      }
+
+      if (offsetZ) {
+        position.z += offsetZ;
+        placementCollisionBox.min.z += offsetZ;
+        placementCollisionBox.max.z += offsetZ;
+      }
+    };
+
+    const clampToRoomBounds = () => {
+      let adjusted = false;
+
+      if (placementCollisionBox.min.x < roomMinX) {
+        applyOffset(roomMinX - placementCollisionBox.min.x, 0);
+        adjusted = true;
+      } else if (placementCollisionBox.max.x > roomMaxX) {
+        applyOffset(roomMaxX - placementCollisionBox.max.x, 0);
+        adjusted = true;
+      }
+
+      if (placementCollisionBox.min.z < roomMinZ) {
+        applyOffset(0, roomMinZ - placementCollisionBox.min.z);
+        adjusted = true;
+      } else if (placementCollisionBox.max.z > roomMaxZ) {
+        applyOffset(0, roomMaxZ - placementCollisionBox.max.z);
+        adjusted = true;
+      }
+
+      return adjusted;
+    };
+
+    const isPlacementObject = (object) => {
+      if (!object) {
+        return false;
+      }
+
+      if (object === container || isObjectDescendantOf(object, container)) {
+        return true;
+      }
+
+      return dependents.some((dependent) => {
+        const dependentContainer = dependent?.container ?? null;
+        return (
+          dependentContainer &&
+          (object === dependentContainer ||
+            isObjectDescendantOf(object, dependentContainer))
+        );
+      });
+    };
+
+    let collisionResolved = clampToRoomBounds();
+    const maxIterations = 10;
+
+    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+      let iterationAdjusted = false;
+
+      for (let i = 0; i < colliderDescriptors.length; i += 1) {
+        const descriptor = colliderDescriptors[i];
+
+        if (!descriptor) {
+          continue;
+        }
+
+        if (isPlacementObject(descriptor.object) || isPlacementObject(descriptor.root)) {
+          continue;
+        }
+
+        const box = descriptor.box;
+
+        if (!box || box.isEmpty()) {
+          continue;
+        }
+
+        if (
+          placementCollisionBox.max.y <= box.min.y ||
+          placementCollisionBox.min.y >= box.max.y
+        ) {
+          continue;
+        }
+
+        const overlapX =
+          Math.min(placementCollisionBox.max.x, box.max.x) -
+          Math.max(placementCollisionBox.min.x, box.min.x);
+        const overlapZ =
+          Math.min(placementCollisionBox.max.z, box.max.z) -
+          Math.max(placementCollisionBox.min.z, box.min.z);
+        const overlapY =
+          Math.min(placementCollisionBox.max.y, box.max.y) -
+          Math.max(placementCollisionBox.min.y, box.min.y);
+
+        if (
+          overlapX <= 0 ||
+          overlapZ <= 0 ||
+          overlapY <= STACKING_VERTICAL_TOLERANCE
+        ) {
+          continue;
+        }
+
+        if (overlapX < overlapZ) {
+          const overlapLeft = placementCollisionBox.max.x - box.min.x;
+          const overlapRight = box.max.x - placementCollisionBox.min.x;
+          let shiftX = 0;
+
+          if (previousBox && previousBox.max.x <= box.min.x) {
+            shiftX = box.min.x - placementCollisionBox.max.x;
+          } else if (previousBox && previousBox.min.x >= box.max.x) {
+            shiftX = box.max.x - placementCollisionBox.min.x;
+          } else if (overlapLeft < overlapRight) {
+            shiftX = box.min.x - placementCollisionBox.max.x;
+          } else {
+            shiftX = box.max.x - placementCollisionBox.min.x;
+          }
+
+          if (shiftX !== 0) {
+            applyOffset(shiftX, 0);
+            iterationAdjusted = true;
+          }
+        } else {
+          const overlapBack = placementCollisionBox.max.z - box.min.z;
+          const overlapFront = box.max.z - placementCollisionBox.min.z;
+          let shiftZ = 0;
+
+          if (previousBox && previousBox.max.z <= box.min.z) {
+            shiftZ = box.min.z - placementCollisionBox.max.z;
+          } else if (previousBox && previousBox.min.z >= box.max.z) {
+            shiftZ = box.max.z - placementCollisionBox.min.z;
+          } else if (overlapBack < overlapFront) {
+            shiftZ = box.min.z - placementCollisionBox.max.z;
+          } else {
+            shiftZ = box.max.z - placementCollisionBox.min.z;
+          }
+
+          if (shiftZ !== 0) {
+            applyOffset(0, shiftZ);
+            iterationAdjusted = true;
+          }
+        }
+
+        if (iterationAdjusted) {
+          collisionResolved = true;
+          clampToRoomBounds();
+          break;
+        }
+      }
+
+      if (!iterationAdjusted) {
+        break;
+      }
+    }
+
+    if (collisionResolved) {
+      container.position.x = position.x;
+      container.position.z = position.z;
+    }
+
+    return collisionResolved;
   };
 
   const computeManifestPlacementBounds = (container) => {
@@ -3586,6 +3786,8 @@ export const initScene = (
     const playerPosition = controls.getObject().position;
     const directionVector = placement.previewDirection;
 
+    placementPreviousPreviewPosition.copy(placement.previewPosition);
+
     camera.getWorldDirection(directionVector);
     directionVector.y = 0;
 
@@ -3620,6 +3822,16 @@ export const initScene = (
 
     placement.previewPosition.copy(computedPosition);
     placement.container.position.copy(placement.previewPosition);
+
+    const collisionsResolved = resolvePlacementPreviewCollisions(
+      placement,
+      placementPreviousPreviewPosition
+    );
+
+    if (collisionsResolved) {
+      placement.previewPosition.copy(placement.container.position);
+    }
+
     placement.container.updateMatrixWorld(true);
 
     if (Array.isArray(placement.dependents) && placement.dependents.length > 0) {
