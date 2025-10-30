@@ -2725,6 +2725,8 @@ export const initScene = (
       ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, distanceToPlayer)
       : MIN_MANIFEST_PLACEMENT_DISTANCE;
 
+    const stackedDependents = collectStackedManifestPlacements(container);
+
     const placement = {
       entry: userData.manifestEntry ?? null,
       container,
@@ -2744,6 +2746,7 @@ export const initScene = (
       },
       skipNextPointerDown: true,
       skipNextMouseDown: true,
+      dependents: stackedDependents,
     };
 
     placement.pointerHandler = (event) => {
@@ -3149,6 +3152,75 @@ export const initScene = (
   const placementPreviewBasePosition = new THREE.Vector3();
   const placementComputedPosition = new THREE.Vector3();
   const placementBoundsWorldPosition = new THREE.Vector3();
+  const placementDependentOffset = new THREE.Vector3();
+  const stackingBoundsBase = new THREE.Box3();
+  const stackingBoundsCandidate = new THREE.Box3();
+  const STACKING_VERTICAL_TOLERANCE = 0.02;
+  const STACKING_HORIZONTAL_TOLERANCE = 1e-3;
+
+  const collectStackedManifestPlacements = (rootContainer) => {
+    if (!rootContainer) {
+      return [];
+    }
+
+    const dependents = [];
+    const visited = new Set([rootContainer]);
+    const toProcess = [rootContainer];
+
+    while (toProcess.length > 0) {
+      const current = toProcess.pop();
+
+      if (!current) {
+        continue;
+      }
+
+      current.updateMatrixWorld(true);
+      stackingBoundsBase.setFromObject(current);
+
+      manifestPlacements.forEach((candidate) => {
+        if (!candidate || visited.has(candidate) || candidate === current) {
+          return;
+        }
+
+        candidate.updateMatrixWorld(true);
+        stackingBoundsCandidate.setFromObject(candidate);
+
+        if (stackingBoundsCandidate.isEmpty()) {
+          return;
+        }
+
+        const verticalGap =
+          stackingBoundsCandidate.min.y - stackingBoundsBase.max.y;
+
+        if (Math.abs(verticalGap) > STACKING_VERTICAL_TOLERANCE) {
+          return;
+        }
+
+        const overlapsHorizontally =
+          stackingBoundsCandidate.max.x >
+            stackingBoundsBase.min.x - STACKING_HORIZONTAL_TOLERANCE &&
+          stackingBoundsCandidate.min.x <
+            stackingBoundsBase.max.x + STACKING_HORIZONTAL_TOLERANCE &&
+          stackingBoundsCandidate.max.z >
+            stackingBoundsBase.min.z - STACKING_HORIZONTAL_TOLERANCE &&
+          stackingBoundsCandidate.min.z <
+            stackingBoundsBase.max.z + STACKING_HORIZONTAL_TOLERANCE;
+
+        if (!overlapsHorizontally) {
+          return;
+        }
+
+        visited.add(candidate);
+        dependents.push({
+          container: candidate,
+          initialPosition: candidate.position.clone(),
+        });
+        toProcess.push(candidate);
+      });
+    }
+
+    return dependents;
+  };
 
   const computePlacementPosition = (placement, basePosition) => {
     placementComputedPosition.copy(basePosition);
@@ -3322,6 +3394,17 @@ export const initScene = (
         container.updateMatrixWorld(true);
       }
 
+      if (Array.isArray(placement.dependents)) {
+        placement.dependents.forEach((dependent) => {
+          if (!dependent?.container || !dependent.initialPosition) {
+            return;
+          }
+
+          dependent.container.position.copy(dependent.initialPosition);
+          dependent.container.updateMatrixWorld(true);
+        });
+      }
+
       const colliderEntries = registerCollidersForImportedRoot(container, {
         padding: manifestPlacementPadding,
       });
@@ -3436,6 +3519,23 @@ export const initScene = (
     placement.previewPosition.copy(computedPosition);
     placement.container.position.copy(placement.previewPosition);
     placement.container.updateMatrixWorld(true);
+
+    if (Array.isArray(placement.dependents) && placement.dependents.length > 0) {
+      placementDependentOffset
+        .copy(placement.container.position)
+        .sub(placement.previousState?.position ?? placement.container.position);
+
+      placement.dependents.forEach((dependent) => {
+        if (!dependent?.container || !dependent.initialPosition) {
+          return;
+        }
+
+        dependent.container.position
+          .copy(dependent.initialPosition)
+          .add(placementDependentOffset);
+        dependent.container.updateMatrixWorld(true);
+      });
+    }
   }
 
   const createManifestPlacementContainer = (object, manifestEntry) => {
