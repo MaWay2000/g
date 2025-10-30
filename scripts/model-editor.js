@@ -43,6 +43,19 @@ const sizeInputs = {
   y: document.querySelector('[data-size-input="y"]'),
   z: document.querySelector('[data-size-input="z"]'),
 };
+const motionToggle = document.querySelector("[data-motion-enabled]");
+const motionSpeedInput = document.querySelector("[data-motion-speed]");
+const motionSpeedValueLabel = document.querySelector("[data-motion-speed-value]");
+const motionAxisInputs = {
+  x: document.querySelector('[data-motion-axis="x"]'),
+  y: document.querySelector('[data-motion-axis="y"]'),
+  z: document.querySelector('[data-motion-axis="z"]'),
+};
+const motionStatusLabel = document.querySelector("[data-motion-status]");
+const motionControlGroups = Array.from(
+  document.querySelectorAll("[data-motion-controls]")
+);
+const clockDisplay = document.querySelector("[data-clock-display]");
 const hudEditor = document.querySelector("[data-hud-editor]");
 const hudFigureIdInput = hudEditor?.querySelector("[data-hud-figure-id]");
 const hudCenterInputs = {
@@ -74,6 +87,22 @@ const hudControlSet = {
   container: hudEditor,
   hideWhenDisabled: true,
 };
+
+const MOTION_DEFAULT_SPEED = 45;
+const MOTION_DEFAULT_AXES = { x: false, y: true, z: false };
+
+if (clockDisplay) {
+  const clockFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const updateClockReadout = () => {
+    clockDisplay.textContent = clockFormatter.format(new Date());
+  };
+  updateClockReadout();
+  setInterval(updateClockReadout, 1000);
+}
 
 const SAMPLE_MODELS_ENDPOINT = "models/manifest.json";
 
@@ -355,6 +384,8 @@ scene.background = new THREE.Color("#0b1120");
 const sceneRoot = new THREE.Group();
 sceneRoot.name = "EditableScene";
 scene.add(sceneRoot);
+
+const animatedObjects = new Map();
 
 const helperRoot = new THREE.Group();
 helperRoot.name = "SceneHelpers";
@@ -739,6 +770,7 @@ function rebuildFigureIdRegistry() {
     ensureFigureId(child);
   });
   renderPartsList();
+  rebuildAnimationRegistry();
 }
 
 function getObjectDisplayName(object3D) {
@@ -2150,11 +2182,58 @@ function updateCameraNavigation(delta) {
   orbitControls.target.add(movementVector);
 }
 
+function updateAnimatedObjects(delta) {
+  if (!animatedObjects.size) {
+    return;
+  }
+
+  const toRemove = [];
+  animatedObjects.forEach((object3D, uuid) => {
+    if (!object3D || !object3D.parent) {
+      toRemove.push(uuid);
+      return;
+    }
+    const motion = normalizeMotionConfig(object3D.userData?.motion);
+    if (!motion || !motion.enabled) {
+      toRemove.push(uuid);
+      return;
+    }
+
+    const speed = Number.isFinite(motion.speed) ? motion.speed : MOTION_DEFAULT_SPEED;
+    if (!Number.isFinite(speed) || speed === 0) {
+      return;
+    }
+
+    const radians = THREE.MathUtils.degToRad(speed) * delta;
+    if (radians === 0) {
+      return;
+    }
+
+    const axes = motion.axes ?? MOTION_DEFAULT_AXES;
+    if (axes.x) {
+      object3D.rotateX(radians);
+    }
+    if (axes.y) {
+      object3D.rotateY(radians);
+    }
+    if (axes.z) {
+      object3D.rotateZ(radians);
+    }
+  });
+
+  if (toRemove.length) {
+    toRemove.forEach((uuid) => {
+      animatedObjects.delete(uuid);
+    });
+  }
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
   resizeRendererToDisplaySize();
   updateCameraNavigation(delta);
+  updateAnimatedObjects(delta);
   orbitControls.update();
   renderer.render(scene, camera);
 }
@@ -2466,6 +2545,161 @@ function populateControlSet(controlSet, { figureId, center, size }) {
   }
 }
 
+function setMotionControlsDisabled(disabled) {
+  if (motionSpeedInput) {
+    motionSpeedInput.disabled = disabled;
+  }
+  Object.values(motionAxisInputs).forEach((input) => {
+    if (input) {
+      input.disabled = disabled;
+    }
+  });
+  motionControlGroups.forEach((group) => {
+    if (disabled) {
+      group.dataset.disabled = "true";
+    } else {
+      delete group.dataset.disabled;
+    }
+  });
+}
+
+function disableMotionControls(message = "Select a model to configure animation.") {
+  if (motionToggle) {
+    motionToggle.checked = false;
+    motionToggle.disabled = true;
+  }
+  setMotionControlsDisabled(true);
+  if (motionStatusLabel) {
+    motionStatusLabel.textContent = message;
+  }
+  if (motionSpeedInput) {
+    motionSpeedInput.value = String(MOTION_DEFAULT_SPEED);
+  }
+  updateMotionSpeedLabel(MOTION_DEFAULT_SPEED);
+  Object.entries(motionAxisInputs).forEach(([axis, input]) => {
+    if (input) {
+      input.checked = Boolean(MOTION_DEFAULT_AXES[axis]);
+    }
+  });
+}
+
+function updateMotionSpeedLabel(speed) {
+  if (!motionSpeedValueLabel) {
+    return;
+  }
+  const rounded = Math.round(speed);
+  const suffix = `${rounded}°/s`;
+  motionSpeedValueLabel.textContent = suffix;
+}
+
+function normalizeMotionConfig(motion) {
+  if (!motion || typeof motion !== "object") {
+    return null;
+  }
+  const axes = motion.axes && typeof motion.axes === "object" ? motion.axes : {};
+  const normalizedAxes = {
+    x: Boolean(axes.x),
+    y: Boolean(axes.y),
+    z: Boolean(axes.z),
+  };
+  if (!normalizedAxes.x && !normalizedAxes.y && !normalizedAxes.z) {
+    normalizedAxes.x = MOTION_DEFAULT_AXES.x;
+    normalizedAxes.y = MOTION_DEFAULT_AXES.y;
+    normalizedAxes.z = MOTION_DEFAULT_AXES.z;
+  }
+  const clampedSpeed = Number.isFinite(motion.speed)
+    ? THREE.MathUtils.clamp(motion.speed, -180, 180)
+    : MOTION_DEFAULT_SPEED;
+  motion.axes = normalizedAxes;
+  motion.speed = clampedSpeed;
+  motion.enabled = Boolean(motion.enabled);
+  return motion;
+}
+
+function ensureMotionConfig(object3D) {
+  if (!object3D) {
+    return null;
+  }
+  if (!object3D.userData || typeof object3D.userData !== "object") {
+    object3D.userData = {};
+  }
+  if (!object3D.userData.motion || typeof object3D.userData.motion !== "object") {
+    object3D.userData.motion = {
+      enabled: false,
+      speed: MOTION_DEFAULT_SPEED,
+      axes: { ...MOTION_DEFAULT_AXES },
+    };
+  }
+  return normalizeMotionConfig(object3D.userData.motion);
+}
+
+function registerAnimatedObject(object3D) {
+  if (!object3D) {
+    return;
+  }
+  const motion = normalizeMotionConfig(object3D.userData?.motion);
+  if (!motion || !motion.enabled) {
+    animatedObjects.delete(object3D.uuid);
+    return;
+  }
+  animatedObjects.set(object3D.uuid, object3D);
+}
+
+function unregisterAnimatedObject(object3D) {
+  if (!object3D) {
+    return;
+  }
+  animatedObjects.delete(object3D.uuid);
+}
+
+function rebuildAnimationRegistry() {
+  animatedObjects.clear();
+  sceneRoot.traverse((child) => {
+    const motion = normalizeMotionConfig(child.userData?.motion);
+    if (motion?.enabled) {
+      animatedObjects.set(child.uuid, child);
+    }
+  });
+}
+
+function syncAnimationControls() {
+  if (!motionToggle) {
+    return;
+  }
+
+  if (!currentSelection) {
+    disableMotionControls("Select a model to configure animation.");
+    return;
+  }
+
+  if (selectedObjects.size > 1) {
+    disableMotionControls("Animation editing works with one model at a time.");
+    return;
+  }
+
+  const motion = ensureMotionConfig(currentSelection);
+  const speed = motion?.speed ?? MOTION_DEFAULT_SPEED;
+  motionToggle.disabled = false;
+  motionToggle.checked = Boolean(motion?.enabled);
+  setMotionControlsDisabled(!motion?.enabled);
+  if (motionSpeedInput) {
+    motionSpeedInput.value = String(speed);
+  }
+  updateMotionSpeedLabel(speed);
+
+  Object.entries(motionAxisInputs).forEach(([axis, input]) => {
+    if (input) {
+      input.checked = Boolean(motion?.axes?.[axis]);
+    }
+  });
+
+  if (motionStatusLabel) {
+    motionStatusLabel.textContent = motion?.enabled
+      ? "Animation enabled for this model."
+      : "Enable animation to start rotation.";
+  }
+}
+
 function disableInspectorInputs(placeholder = "No selection") {
   resetControlSet(inspectorControlSet, placeholder);
   resetControlSet(hudControlSet, placeholder);
@@ -2506,6 +2740,7 @@ function syncInspectorInputs() {
 
 disableInspectorInputs();
 renderPartsList();
+syncAnimationControls();
 
 function updateColorPickerPreview(color) {
   if (!colorPicker) {
@@ -2708,6 +2943,7 @@ function setCurrentSelection(
     editableMeshes = [];
     syncMaterialInputs();
     syncInspectorInputs();
+    syncAnimationControls();
     if (sceneRoot.children.length) {
       hudModel.textContent = "No object selected.";
       hudInfo.textContent = "";
@@ -2755,6 +2991,7 @@ function setCurrentSelection(
   }
   updateHud(currentSelection);
   syncInspectorInputs();
+  syncAnimationControls();
   if (shouldRefreshPartsList) {
     renderPartsList();
   } else {
@@ -2822,11 +3059,13 @@ function clearScene() {
   selectedObjects.clear();
   editableMeshes = [];
   sceneRoot.clear();
+  animatedObjects.clear();
   figureIdRegistry.clear();
   nextFigureId = 1;
   renderPartsList();
   syncMaterialInputs();
   disableInspectorInputs();
+  syncAnimationControls();
   resetHud();
   transformHasChanged = false;
   setStatus("idle", "Scene cleared");
@@ -3347,6 +3586,83 @@ attachCenterInputHandlers(centerInputs);
 attachCenterInputHandlers(hudCenterInputs);
 attachSizeInputHandlers(sizeInputs);
 attachSizeInputHandlers(hudSizeInputs);
+
+motionToggle?.addEventListener("change", () => {
+  if (!currentSelection || selectedObjects.size !== 1) {
+    syncAnimationControls();
+    return;
+  }
+
+  const motion = ensureMotionConfig(currentSelection);
+  motion.enabled = motionToggle.checked;
+
+  const axes = motion.axes ?? { ...MOTION_DEFAULT_AXES };
+  if (!axes.x && !axes.y && !axes.z) {
+    motion.axes = { ...MOTION_DEFAULT_AXES };
+  }
+
+  if (motion.enabled) {
+    setMotionControlsDisabled(false);
+    registerAnimatedObject(currentSelection);
+  } else {
+    setMotionControlsDisabled(true);
+    unregisterAnimatedObject(currentSelection);
+  }
+
+  syncAnimationControls();
+  scheduleHistoryCommit();
+});
+
+motionSpeedInput?.addEventListener("input", () => {
+  const parsed = Number.parseFloat(motionSpeedInput.value);
+  const clamped = Number.isFinite(parsed)
+    ? THREE.MathUtils.clamp(parsed, -180, 180)
+    : MOTION_DEFAULT_SPEED;
+  if (motionSpeedInput.value !== String(clamped)) {
+    motionSpeedInput.value = String(clamped);
+  }
+  updateMotionSpeedLabel(clamped);
+
+  if (!currentSelection || selectedObjects.size !== 1) {
+    return;
+  }
+
+  const motion = ensureMotionConfig(currentSelection);
+  motion.speed = clamped;
+  if (motion.enabled) {
+    registerAnimatedObject(currentSelection);
+  }
+});
+
+motionSpeedInput?.addEventListener("change", () => {
+  if (!currentSelection || selectedObjects.size !== 1) {
+    return;
+  }
+  scheduleHistoryCommit();
+});
+
+Object.entries(motionAxisInputs).forEach(([axis, input]) => {
+  input?.addEventListener("change", () => {
+    if (!currentSelection || selectedObjects.size !== 1) {
+      syncAnimationControls();
+      return;
+    }
+
+    const motion = ensureMotionConfig(currentSelection);
+    motion.axes[axis] = input.checked;
+
+    if (!motion.axes.x && !motion.axes.y && !motion.axes.z) {
+      motion.axes = { ...MOTION_DEFAULT_AXES };
+    }
+
+    if (motion.enabled) {
+      registerAnimatedObject(currentSelection);
+    }
+
+    syncAnimationControls();
+    scheduleHistoryCommit();
+  });
+});
 
 function setTransformMode(mode) {
   activeTransformMode = mode;
