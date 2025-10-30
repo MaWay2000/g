@@ -3280,7 +3280,23 @@ export const initScene = (
   const computePlacementPosition = (placement, basePosition) => {
     placementComputedPosition.copy(basePosition);
 
+    let supportingColliders = null;
+
+    if (placement) {
+      if (Array.isArray(placement.supportColliders)) {
+        supportingColliders = placement.supportColliders;
+        supportingColliders.length = 0;
+      } else {
+        supportingColliders = [];
+        placement.supportColliders = supportingColliders;
+      }
+    }
+
     if (!placement || !placement.containerBounds) {
+      if (supportingColliders) {
+        supportingColliders.length = 0;
+      }
+
       if (!Number.isFinite(placementComputedPosition.y)) {
         placementComputedPosition.y = roomFloorY;
       }
@@ -3353,6 +3369,19 @@ export const initScene = (
       if (effectiveTop > supportHeight) {
         supportHeight = effectiveTop;
         currentTop = supportHeight + boundsHeight;
+
+        if (supportingColliders) {
+          supportingColliders.length = 0;
+          supportingColliders.push(descriptor);
+        }
+        return;
+      }
+
+      if (
+        supportingColliders &&
+        Math.abs(effectiveTop - supportHeight) <= STACKING_VERTICAL_TOLERANCE
+      ) {
+        supportingColliders.push(descriptor);
       }
     });
 
@@ -3376,6 +3405,9 @@ export const initScene = (
     const dependents = Array.isArray(placement.dependents)
       ? placement.dependents
       : [];
+    const supportingColliders = Array.isArray(placement.supportColliders)
+      ? placement.supportColliders
+      : null;
 
     placementCollisionBox.min.copy(bounds.min).add(position);
     placementCollisionBox.max.copy(bounds.max).add(position);
@@ -3488,6 +3520,20 @@ export const initScene = (
         const overlapY =
           Math.min(placementCollisionBox.max.y, box.max.y) -
           Math.max(placementCollisionBox.min.y, box.min.y);
+
+        if (
+          supportingColliders &&
+          supportingColliders.includes(descriptor)
+        ) {
+          const allowedOverlap =
+            (descriptor.padding instanceof THREE.Vector3
+              ? descriptor.padding.y
+              : 0) + STACKING_VERTICAL_TOLERANCE;
+
+          if (overlapY <= allowedOverlap) {
+            continue;
+          }
+        }
 
         if (
           overlapX <= 0 ||
