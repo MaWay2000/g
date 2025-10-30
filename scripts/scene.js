@@ -2860,6 +2860,14 @@ export const initScene = (
   };
 
   const handleManifestEditModePointerDown = (event) => {
+    if (
+      event.type === "mousedown" &&
+      typeof window !== "undefined" &&
+      typeof window.PointerEvent === "function"
+    ) {
+      return;
+    }
+
     if (!manifestEditModeState.enabled) {
       return;
     }
@@ -2981,6 +2989,10 @@ export const initScene = (
         "pointerdown",
         handleManifestEditModePointerDown
       );
+      canvas.removeEventListener(
+        "mousedown",
+        handleManifestEditModePointerDown
+      );
       manifestEditModeState.pointerDownHandlerAttached = false;
     }
 
@@ -2995,6 +3007,7 @@ export const initScene = (
 
     if (nextEnabled) {
       canvas.addEventListener("pointerdown", handleManifestEditModePointerDown);
+      canvas.addEventListener("mousedown", handleManifestEditModePointerDown);
       document.addEventListener("keydown", handleManifestEditModeKeydown, true);
       manifestEditModeState.pointerDownHandlerAttached = true;
       manifestEditModeState.keydownHandlerAttached = true;
