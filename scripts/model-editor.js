@@ -77,6 +77,12 @@ const hudControlSet = {
 
 const SAMPLE_MODELS_ENDPOINT = "models/manifest.json";
 
+const PLAYER_HEIGHT_REFERENCE_MARKS = [
+  { height: 1.6, label: "1.60 m" },
+  { height: 1.8, label: "Player 1.80 m", accent: true },
+  { height: 2.0, label: "2.00 m" },
+];
+
 const defaultSampleModels = sampleSelect
   ? Array.from(sampleSelect.querySelectorAll("option"))
       .filter((option) => option.value)
@@ -424,12 +430,6 @@ const textureState = {
   activePackId: null,
   activeTextureId: null,
 };
-
-const PLAYER_HEIGHT_REFERENCE_MARKS = [
-  { height: 1.6, label: "1.60 m" },
-  { height: 1.8, label: "Player 1.80 m", accent: true },
-  { height: 2.0, label: "2.00 m" },
-];
 
 function createTextSprite(
   text,
