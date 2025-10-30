@@ -2730,6 +2730,8 @@ export const initScene = (
       }
     );
 
+    const userData = container.userData || (container.userData = {});
+
     const placement = {
       entry: userData.manifestEntry ?? null,
       container,
