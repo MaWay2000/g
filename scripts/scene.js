@@ -2723,9 +2723,35 @@ export const initScene = (
           collidersWereRemoved = true;
         }
 
+        if (!dependentContainer) {
+          return {
+            ...dependent,
+            collidersCleared,
+            containerBounds: null,
+            previewPlacement: null,
+            previewPosition: null,
+            lastResolvedPosition: null,
+          };
+        }
+
+        const containerBounds = computeManifestPlacementBounds(
+          dependentContainer
+        );
+        const previewPlacement = containerBounds?.isEmpty()
+          ? null
+          : {
+              container: dependentContainer,
+              containerBounds,
+              dependents: [],
+            };
+
         return {
           ...dependent,
           collidersCleared,
+          containerBounds,
+          previewPlacement,
+          previewPosition: dependentContainer.position.clone(),
+          lastResolvedPosition: dependentContainer.position.clone(),
         };
       }
     );
@@ -3206,6 +3232,7 @@ export const initScene = (
   const placementComputedPosition = new THREE.Vector3();
   const placementBoundsWorldPosition = new THREE.Vector3();
   const placementDependentOffset = new THREE.Vector3();
+  const placementDependentPreviousPosition = new THREE.Vector3();
   const placementPreviousPreviewPosition = new THREE.Vector3();
   const placementCollisionBox = new THREE.Box3();
   const placementPreviousCollisionBox = new THREE.Box3();
@@ -3927,9 +3954,58 @@ export const initScene = (
           return;
         }
 
-        dependent.container.position
+        const previewPosition =
+          dependent.previewPosition ??
+          (dependent.previewPosition = new THREE.Vector3());
+        previewPosition
           .copy(dependent.initialPosition)
           .add(placementDependentOffset);
+
+        const previousResolvedPosition = dependent.lastResolvedPosition
+          ? placementDependentPreviousPosition.copy(
+              dependent.lastResolvedPosition
+            )
+          : placementDependentPreviousPosition
+              .copy(dependent.initialPosition)
+              .add(placementDependentOffset);
+
+        dependent.container.position.copy(previewPosition);
+
+        let dependentCollisionsResolved = false;
+
+        const previewPlacement = dependent.previewPlacement ?? null;
+
+        if (previewPlacement?.dependents) {
+          const previewDependents = previewPlacement.dependents;
+          previewDependents.length = 0;
+
+          if (placement.container) {
+            previewDependents.push({ container: placement.container });
+          }
+
+          placement.dependents.forEach((other) => {
+            if (!other?.container || other === dependent) {
+              return;
+            }
+
+            previewDependents.push({ container: other.container });
+          });
+
+          dependentCollisionsResolved = resolvePlacementPreviewCollisions(
+            previewPlacement,
+            previousResolvedPosition
+          );
+        }
+
+        if (dependentCollisionsResolved && previewPlacement) {
+          previewPosition.copy(dependent.container.position);
+        }
+
+        if (!dependent.lastResolvedPosition) {
+          dependent.lastResolvedPosition = new THREE.Vector3();
+        }
+
+        dependent.lastResolvedPosition.copy(dependent.container.position);
         dependent.container.updateMatrixWorld(true);
       });
     }
