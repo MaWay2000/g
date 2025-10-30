@@ -2747,8 +2747,7 @@ export const initScene = (
         quaternion: container.quaternion.clone(),
         scale: container.scale.clone(),
       },
-      skipNextPointerDown: true,
-      skipNextMouseDown: true,
+      skipEventTypes: new Set(placementPointerEvents),
       dependents: stackedDependents,
       collidersWereRemoved,
     };
@@ -2759,13 +2758,10 @@ export const initScene = (
       }
 
       if (placement.isReposition) {
-        if (event.type === "pointerdown" && placement.skipNextPointerDown) {
-          placement.skipNextPointerDown = false;
-          return;
-        }
+        const skipEvents = placement.skipEventTypes;
 
-        if (event.type === "mousedown" && placement.skipNextMouseDown) {
-          placement.skipNextMouseDown = false;
+        if (skipEvents instanceof Set && skipEvents.has(event.type)) {
+          skipEvents.delete(event.type);
           return;
         }
       }
