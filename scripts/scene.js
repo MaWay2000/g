@@ -3199,6 +3199,7 @@ export const initScene = (
     return userData.manifestPlacementColliders;
   };
   const PLACEMENT_VERTICAL_TOLERANCE = 1e-3;
+  const ROOM_BOUNDARY_PADDING = 1e-3;
   const placementPointerEvents = ["pointerdown", "mousedown"];
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const placementPreviewBasePosition = new THREE.Vector3();
@@ -3311,10 +3312,47 @@ export const initScene = (
       return placementComputedPosition;
     }
 
-    const footprintMinX = basePosition.x + bounds.min.x;
-    const footprintMaxX = basePosition.x + bounds.max.x;
-    const footprintMinZ = basePosition.z + bounds.min.z;
-    const footprintMaxZ = basePosition.z + bounds.max.z;
+    if (!Number.isFinite(placementComputedPosition.x)) {
+      placementComputedPosition.x = Number.isFinite(basePosition.x)
+        ? basePosition.x
+        : 0;
+    }
+
+    if (!Number.isFinite(placementComputedPosition.z)) {
+      placementComputedPosition.z = Number.isFinite(basePosition.z)
+        ? basePosition.z
+        : 0;
+    }
+
+    const roomMinX = -roomWidth / 2 + ROOM_BOUNDARY_PADDING;
+    const roomMaxX = roomWidth / 2 - ROOM_BOUNDARY_PADDING;
+    const roomMinZ = -roomDepth / 2 + ROOM_BOUNDARY_PADDING;
+    const roomMaxZ = roomDepth / 2 - ROOM_BOUNDARY_PADDING;
+
+    let footprintMinX = placementComputedPosition.x + bounds.min.x;
+    let footprintMaxX = placementComputedPosition.x + bounds.max.x;
+    let footprintMinZ = placementComputedPosition.z + bounds.min.z;
+    let footprintMaxZ = placementComputedPosition.z + bounds.max.z;
+
+    if (footprintMinX < roomMinX) {
+      placementComputedPosition.x += roomMinX - footprintMinX;
+      footprintMinX = roomMinX;
+      footprintMaxX = placementComputedPosition.x + bounds.max.x;
+    } else if (footprintMaxX > roomMaxX) {
+      placementComputedPosition.x += roomMaxX - footprintMaxX;
+      footprintMaxX = roomMaxX;
+      footprintMinX = placementComputedPosition.x + bounds.min.x;
+    }
+
+    if (footprintMinZ < roomMinZ) {
+      placementComputedPosition.z += roomMinZ - footprintMinZ;
+      footprintMinZ = roomMinZ;
+      footprintMaxZ = placementComputedPosition.z + bounds.max.z;
+    } else if (footprintMaxZ > roomMaxZ) {
+      placementComputedPosition.z += roomMaxZ - footprintMaxZ;
+      footprintMaxZ = roomMaxZ;
+      footprintMinZ = placementComputedPosition.z + bounds.min.z;
+    }
 
     const baseY = Number.isFinite(basePosition.y)
       ? basePosition.y
@@ -3420,11 +3458,10 @@ export const initScene = (
       previousBox = placementPreviousCollisionBox;
     }
 
-    const wallPadding = 1e-3;
-    const roomMinX = -roomWidth / 2 + wallPadding;
-    const roomMaxX = roomWidth / 2 - wallPadding;
-    const roomMinZ = -roomDepth / 2 + wallPadding;
-    const roomMaxZ = roomDepth / 2 - wallPadding;
+    const roomMinX = -roomWidth / 2 + ROOM_BOUNDARY_PADDING;
+    const roomMaxX = roomWidth / 2 - ROOM_BOUNDARY_PADDING;
+    const roomMinZ = -roomDepth / 2 + ROOM_BOUNDARY_PADDING;
+    const roomMaxZ = roomDepth / 2 - ROOM_BOUNDARY_PADDING;
 
     const applyOffset = (offsetX, offsetZ) => {
       if (offsetX) {
