@@ -350,6 +350,15 @@ const sceneRoot = new THREE.Group();
 sceneRoot.name = "EditableScene";
 scene.add(sceneRoot);
 
+const helperRoot = new THREE.Group();
+helperRoot.name = "SceneHelpers";
+scene.add(helperRoot);
+
+const playerHeightMarkers = createPlayerHeightMarkers();
+playerHeightMarkers.position.set(-2.6, 0, -0.6);
+playerHeightMarkers.userData.isHelper = true;
+helperRoot.add(playerHeightMarkers);
+
 const figureIdRegistry = new Map();
 let nextFigureId = 1;
 
@@ -415,6 +424,242 @@ const textureState = {
   activePackId: null,
   activeTextureId: null,
 };
+
+const PLAYER_HEIGHT_REFERENCE_MARKS = [
+  { height: 1.6, label: "1.60 m" },
+  { height: 1.8, label: "Player 1.80 m", accent: true },
+  { height: 2.0, label: "2.00 m" },
+];
+
+function createTextSprite(
+  text,
+  {
+    background = "rgba(15, 23, 42, 0.82)",
+    color = "#e2e8f0",
+    borderColor = "rgba(148, 163, 184, 0.5)",
+    fontSize = 36,
+    padding = 8,
+    scale = 0.18,
+  } = {}
+) {
+  const ratio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
+  const fontFamily = '"Inter", "Segoe UI", sans-serif';
+  const fontWeight = 600;
+  const fontDeclaration = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  const tempCanvas = document.createElement("canvas");
+  const tempContext = tempCanvas.getContext("2d");
+  if (!tempContext) {
+    return null;
+  }
+
+  tempContext.font = fontDeclaration;
+  const textMetrics = tempContext.measureText(text);
+  const textWidth = textMetrics.width;
+  const baseWidth = Math.ceil(textWidth + padding * 2);
+  const baseHeight = Math.ceil(fontSize + padding * 2);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = baseWidth * ratio;
+  canvas.height = baseHeight * ratio;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return null;
+  }
+
+  context.scale(ratio, ratio);
+  context.font = fontDeclaration;
+  context.textBaseline = "middle";
+  context.textAlign = "center";
+
+  const drawWidth = baseWidth;
+  const drawHeight = baseHeight;
+  const radius = Math.min(padding * 1.5, 12);
+
+  context.fillStyle = background;
+  if (typeof context.roundRect === "function") {
+    context.beginPath();
+    context.roundRect(0, 0, drawWidth, drawHeight, radius);
+    context.fill();
+    if (borderColor) {
+      context.strokeStyle = borderColor;
+      context.lineWidth = 1;
+      context.stroke();
+    }
+  } else {
+    context.fillRect(0, 0, drawWidth, drawHeight);
+    if (borderColor) {
+      context.strokeStyle = borderColor;
+      context.lineWidth = 1;
+      context.strokeRect(0.5, 0.5, drawWidth - 1, drawHeight - 1);
+    }
+  }
+
+  context.fillStyle = color;
+  context.fillText(text, drawWidth / 2, drawHeight / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+
+  const sprite = new THREE.Sprite(material);
+  const aspect = drawWidth / drawHeight;
+  sprite.scale.set(scale * aspect, scale, 1);
+  sprite.renderOrder = 5;
+  return sprite;
+}
+
+function createPlayerHeightMarkers({
+  totalHeight = 2.2,
+  tickSpacing = 0.1,
+  majorTickSpacing = 0.5,
+  referenceMarks = PLAYER_HEIGHT_REFERENCE_MARKS,
+} = {}) {
+  const group = new THREE.Group();
+  group.name = "PlayerHeightMarkers";
+
+  const mainMaterial = new THREE.LineBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.75,
+    depthTest: false,
+    depthWrite: false,
+  });
+
+  const minorMaterial = new THREE.LineBasicMaterial({
+    color: 0xe2e8f0,
+    transparent: true,
+    opacity: 0.45,
+    depthTest: false,
+    depthWrite: false,
+  });
+
+  const highlightMaterial = new THREE.LineBasicMaterial({
+    color: 0x7dd3fc,
+    transparent: true,
+    opacity: 0.85,
+    depthTest: false,
+    depthWrite: false,
+  });
+
+  const verticalGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, totalHeight, 0),
+  ]);
+  const verticalLine = new THREE.Line(verticalGeometry, mainMaterial);
+  verticalLine.renderOrder = 3;
+  group.add(verticalLine);
+
+  const baseGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.25, 0, 0),
+    new THREE.Vector3(0.4, 0, 0),
+  ]);
+  const baseLine = new THREE.Line(baseGeometry, mainMaterial);
+  baseLine.renderOrder = 3;
+  group.add(baseLine);
+
+  const normalizedReferenceMap = new Map();
+  referenceMarks
+    .filter((mark) => Number.isFinite(mark?.height))
+    .forEach((mark) => {
+      const key = Number(mark.height.toFixed(2));
+      normalizedReferenceMap.set(key, mark);
+    });
+
+  const minorTickLength = 0.15;
+  const majorTickLength = 0.3;
+
+  const zeroLabel = createTextSprite("0.00 m", {
+    fontSize: 30,
+    padding: 6,
+    scale: 0.16,
+  });
+  if (zeroLabel) {
+    zeroLabel.position.set(majorTickLength + 0.18, 0, 0);
+    group.add(zeroLabel);
+  }
+
+  for (
+    let current = tickSpacing;
+    current <= totalHeight + 1e-4;
+    current = Number((current + tickSpacing).toFixed(10))
+  ) {
+    const normalizedHeight = Number(current.toFixed(2));
+    const isMajor = Math.abs(normalizedHeight % majorTickSpacing) < 1e-6;
+    const material = isMajor ? mainMaterial : minorMaterial;
+    const tickLength = isMajor ? majorTickLength : minorTickLength;
+    const tickGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, normalizedHeight, 0),
+      new THREE.Vector3(tickLength, normalizedHeight, 0),
+    ]);
+    const tickLine = new THREE.Line(tickGeometry, material);
+    tickLine.renderOrder = 3;
+    group.add(tickLine);
+
+    if (isMajor && !normalizedReferenceMap.has(normalizedHeight)) {
+      const label = createTextSprite(`${normalizedHeight.toFixed(2)} m`, {
+        scale: 0.16,
+        fontSize: 30,
+        padding: 6,
+      });
+      if (label) {
+        label.position.set(tickLength + 0.18, normalizedHeight, 0);
+        group.add(label);
+      }
+    }
+  }
+
+  normalizedReferenceMap.forEach((mark, height) => {
+    if (height < 0 || height > totalHeight) {
+      return;
+    }
+    const highlightLength = majorTickLength + 0.1;
+    const highlightGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-0.05, height, 0),
+      new THREE.Vector3(highlightLength, height, 0),
+    ]);
+    const highlightLine = new THREE.Line(highlightGeometry, highlightMaterial);
+    highlightLine.renderOrder = 4;
+    group.add(highlightLine);
+
+    const sprite = createTextSprite(mark.label ?? `${height.toFixed(2)} m`, {
+      background: mark.accent
+        ? "rgba(56, 189, 248, 0.2)"
+        : "rgba(15, 23, 42, 0.82)",
+      borderColor: mark.accent
+        ? "rgba(56, 189, 248, 0.7)"
+        : "rgba(148, 163, 184, 0.5)",
+      color: mark.accent ? "#f0f9ff" : "#e2e8f0",
+      fontSize: mark.accent ? 38 : 32,
+      scale: mark.accent ? 0.22 : 0.18,
+      padding: mark.accent ? 10 : 8,
+    });
+    if (sprite) {
+      sprite.position.set(highlightLength + 0.22, height, 0);
+      group.add(sprite);
+    }
+  });
+
+  const titleSprite = createTextSprite("Player height reference", {
+    fontSize: 30,
+    scale: 0.18,
+    color: "#cbd5f5",
+  });
+  if (titleSprite) {
+    titleSprite.position.set(0.32, totalHeight + 0.18, 0);
+    group.add(titleSprite);
+  }
+
+  return group;
+}
 
 function applyDisplacementSettings(material, mapConfig, manifestEntry) {
   if (!material) {
