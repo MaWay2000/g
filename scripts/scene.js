@@ -3143,6 +3143,7 @@ export const initScene = (
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
   const manifestPlacementPadding = new THREE.Vector3(0.05, 0.05, 0.05);
+  const PLACEMENT_VERTICAL_TOLERANCE = 1e-3;
   const placementPointerEvents = ["pointerdown", "mousedown"];
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const placementPreviewBasePosition = new THREE.Vector3();
@@ -3171,6 +3172,17 @@ export const initScene = (
     const footprintMaxX = basePosition.x + bounds.max.x;
     const footprintMinZ = basePosition.z + bounds.min.z;
     const footprintMaxZ = basePosition.z + bounds.max.z;
+
+    const baseY = Number.isFinite(basePosition.y)
+      ? basePosition.y
+      : roomFloorY;
+
+    if (!Number.isFinite(placementComputedPosition.y)) {
+      placementComputedPosition.y = baseY;
+    }
+
+    const currentBottom = baseY + bounds.min.y;
+    const currentTop = baseY + bounds.max.y;
 
     let supportHeight = roomFloorY;
 
@@ -3202,6 +3214,12 @@ export const initScene = (
         descriptor.padding instanceof THREE.Vector3
           ? descriptor.padding.y
           : 0;
+
+      const supportBottom = box.min.y + paddingY;
+
+      if (supportBottom >= currentTop - PLACEMENT_VERTICAL_TOLERANCE) {
+        return;
+      }
 
       const effectiveTop = box.max.y - paddingY;
 
