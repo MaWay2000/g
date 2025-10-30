@@ -2702,20 +2702,7 @@ export const initScene = (
 
     setHoveredManifestPlacement(null);
 
-    const userData = container.userData || {};
-
-    const colliders = Array.isArray(userData.manifestPlacementColliders)
-      ? userData.manifestPlacementColliders
-      : [];
-
-    let collidersWereRemoved = false;
-
-    if (colliders.length > 0) {
-      unregisterColliderDescriptors(colliders);
-      collidersWereRemoved = true;
-    }
-
-    userData.manifestPlacementColliders = [];
+    let collidersWereRemoved = clearManifestPlacementColliders(container);
 
     const containerBounds = computeManifestPlacementBounds(container);
 
@@ -2725,7 +2712,23 @@ export const initScene = (
       ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, distanceToPlayer)
       : MIN_MANIFEST_PLACEMENT_DISTANCE;
 
-    const stackedDependents = collectStackedManifestPlacements(container);
+    const stackedDependents = collectStackedManifestPlacements(container).map(
+      (dependent) => {
+        const dependentContainer = dependent?.container ?? null;
+        const collidersCleared = clearManifestPlacementColliders(
+          dependentContainer
+        );
+
+        if (collidersCleared) {
+          collidersWereRemoved = true;
+        }
+
+        return {
+          ...dependent,
+          collidersCleared,
+        };
+      }
+    );
 
     const placement = {
       entry: userData.manifestEntry ?? null,
@@ -2747,6 +2750,7 @@ export const initScene = (
       skipNextPointerDown: true,
       skipNextMouseDown: true,
       dependents: stackedDependents,
+      collidersWereRemoved,
     };
 
     placement.pointerHandler = (event) => {
@@ -3146,6 +3150,43 @@ export const initScene = (
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
   const manifestPlacementPadding = new THREE.Vector3(0.05, 0.05, 0.05);
+  const clearManifestPlacementColliders = (container) => {
+    if (!container) {
+      return false;
+    }
+
+    const userData = container.userData || (container.userData = {});
+    const colliders = Array.isArray(userData.manifestPlacementColliders)
+      ? userData.manifestPlacementColliders
+      : [];
+
+    if (colliders.length === 0) {
+      userData.manifestPlacementColliders = [];
+      return false;
+    }
+
+    unregisterColliderDescriptors(colliders);
+    userData.manifestPlacementColliders = [];
+
+    return true;
+  };
+
+  const refreshManifestPlacementColliders = (container) => {
+    if (!container) {
+      return [];
+    }
+
+    const colliderEntries = registerCollidersForImportedRoot(container, {
+      padding: manifestPlacementPadding,
+    });
+
+    const userData = container.userData || (container.userData = {});
+    userData.manifestPlacementColliders = Array.isArray(colliderEntries)
+      ? colliderEntries
+      : [];
+
+    return userData.manifestPlacementColliders;
+  };
   const PLACEMENT_VERTICAL_TOLERANCE = 1e-3;
   const placementPointerEvents = ["pointerdown", "mousedown"];
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
@@ -3409,7 +3450,32 @@ export const initScene = (
         padding: manifestPlacementPadding,
       });
       registerManifestPlacement(container, colliderEntries);
-      rebuildStaticColliders();
+
+      let shouldRebuildColliders = Boolean(placement.collidersWereRemoved);
+
+      if (Array.isArray(colliderEntries) && colliderEntries.length > 0) {
+        shouldRebuildColliders = true;
+      }
+
+      if (Array.isArray(placement.dependents) && placement.dependents.length > 0) {
+        placement.dependents.forEach((dependent) => {
+          if (!dependent?.container || !dependent.collidersCleared) {
+            return;
+          }
+
+          const dependentEntries = refreshManifestPlacementColliders(
+            dependent.container
+          );
+
+          if (Array.isArray(dependentEntries) && dependentEntries.length > 0) {
+            shouldRebuildColliders = true;
+          }
+        });
+      }
+
+      if (shouldRebuildColliders) {
+        rebuildStaticColliders();
+      }
     } else {
       scene.remove(placement.container);
     }
@@ -3452,7 +3518,32 @@ export const initScene = (
       padding: manifestPlacementPadding,
     });
     registerManifestPlacement(placement.container, colliderEntries);
-    rebuildStaticColliders();
+
+    let shouldRebuildColliders = Boolean(placement.collidersWereRemoved);
+
+    if (Array.isArray(colliderEntries) && colliderEntries.length > 0) {
+      shouldRebuildColliders = true;
+    }
+
+    if (Array.isArray(placement.dependents) && placement.dependents.length > 0) {
+      placement.dependents.forEach((dependent) => {
+        if (!dependent?.container || !dependent.collidersCleared) {
+          return;
+        }
+
+        const dependentEntries = refreshManifestPlacementColliders(
+          dependent.container
+        );
+
+        if (Array.isArray(dependentEntries) && dependentEntries.length > 0) {
+          shouldRebuildColliders = true;
+        }
+      });
+    }
+
+    if (shouldRebuildColliders) {
+      rebuildStaticColliders();
+    }
 
     if (placement.isReposition) {
       const placementsRealigned = realignManifestPlacements({
