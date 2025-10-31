@@ -223,7 +223,8 @@ export const initScene = (
     200
   );
   const MIN_PLAYER_HEIGHT = 0.1;
-  camera.position.set(0, 0, 8);
+  const ROOM_SCALE_FACTOR = 0.25;
+  camera.position.set(0, 0, 8 * ROOM_SCALE_FACTOR);
 
   const textureLoader = new THREE.TextureLoader();
 
@@ -625,11 +626,20 @@ export const initScene = (
   scene.add(ambientLight);
 
   const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
-  keyLight.position.set(5, 8, 4);
+  keyLight.position.set(5 * ROOM_SCALE_FACTOR, 8 * ROOM_SCALE_FACTOR, 4 * ROOM_SCALE_FACTOR);
   scene.add(keyLight);
 
-  const fillLight = new THREE.PointLight(0x7dd3fc, 0.4, 50, 2);
-  fillLight.position.set(-6, 4, -5);
+  const fillLight = new THREE.PointLight(
+    0x7dd3fc,
+    0.4,
+    50 * ROOM_SCALE_FACTOR,
+    2
+  );
+  fillLight.position.set(
+    -6 * ROOM_SCALE_FACTOR,
+    4 * ROOM_SCALE_FACTOR,
+    -5 * ROOM_SCALE_FACTOR
+  );
   scene.add(fillLight);
 
   const storedPlayerHeight = loadStoredPlayerHeight();
@@ -638,18 +648,18 @@ export const initScene = (
     : DEFAULT_PLAYER_HEIGHT;
   let playerHeight = initialPlayerHeight;
 
-  const BASE_ROOM_WIDTH = 20;
-  const BASE_ROOM_HEIGHT = 10;
-  const BASE_ROOM_DEPTH = 60;
-  const BASE_DOOR_WIDTH = 8.5;
-  const BASE_DOOR_HEIGHT = 9.0;
-  const BASE_MIRROR_WIDTH = 12;
-  const BASE_MIRROR_HEIGHT = 9;
+  const BASE_ROOM_WIDTH = 20 * ROOM_SCALE_FACTOR;
+  const BASE_ROOM_HEIGHT = 10 * ROOM_SCALE_FACTOR;
+  const BASE_ROOM_DEPTH = 60 * ROOM_SCALE_FACTOR;
+  const BASE_DOOR_WIDTH = 8.5 * ROOM_SCALE_FACTOR;
+  const BASE_DOOR_HEIGHT = 9.0 * ROOM_SCALE_FACTOR;
+  const BASE_MIRROR_WIDTH = 12 * ROOM_SCALE_FACTOR;
+  const BASE_MIRROR_HEIGHT = 9 * ROOM_SCALE_FACTOR;
 
   const roomWidth = BASE_ROOM_WIDTH;
   const roomDepth = BASE_ROOM_DEPTH;
   let roomHeight = BASE_ROOM_HEIGHT * (playerHeight / DEFAULT_PLAYER_HEIGHT);
-  const terminalBackOffset = 4;
+  const terminalBackOffset = 4 * ROOM_SCALE_FACTOR;
   let roomFloorY = -roomHeight / 2;
 
   const createWallMaterial = (hexColor) =>
@@ -1230,7 +1240,12 @@ export const initScene = (
     controlButton.position.set(0, -0.3, 0.1);
     controlPanel.add(controlButton);
 
-    const panelLight = new THREE.PointLight(0xf97316, 0.35, 4.5, 2);
+    const panelLight = new THREE.PointLight(
+      0xf97316,
+      0.35,
+      4.5 * ROOM_SCALE_FACTOR,
+      2
+    );
     panelLight.position.set(controlPanel.position.x, controlPanel.position.y + 0.3, 0.4);
     group.add(panelLight);
 
@@ -1245,7 +1260,7 @@ export const initScene = (
   hangarDoor.position.set(
     0,
     -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
-    roomDepth / 2 - 0.32
+    roomDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
   );
   scene.add(hangarDoor);
 
@@ -2114,7 +2129,7 @@ export const initScene = (
 
   const computerSetup = createComputerSetup();
   computerSetup.position.set(
-    3,
+    3 * ROOM_SCALE_FACTOR,
     roomFloorY,
     -roomDepth / 2 + terminalBackOffset
   );
@@ -2136,7 +2151,11 @@ export const initScene = (
   }
 
   const lastUpdatedDisplay = createLastUpdatedDisplay();
-  lastUpdatedDisplay.position.set(-roomWidth / 2 + 0.12, 3.2, 0);
+  lastUpdatedDisplay.position.set(
+    -roomWidth / 2 + 0.12 * ROOM_SCALE_FACTOR,
+    roomFloorY + roomHeight * 0.82,
+    0
+  );
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
 
@@ -2323,9 +2342,9 @@ export const initScene = (
   const mirrorDimensions = wallMirror.userData?.dimensions;
   const mirrorHeight = mirrorDimensions?.height ?? BASE_MIRROR_HEIGHT;
   wallMirror.position.set(
-    roomWidth / 2 - 0.16,
+    roomWidth / 2 - 0.16 * ROOM_SCALE_FACTOR,
     roomFloorY + 0.5 + mirrorHeight / 2,
-    6
+    6 * ROOM_SCALE_FACTOR
   );
   wallMirror.rotation.y = -Math.PI / 2;
   scene.add(wallMirror);
@@ -2465,7 +2484,11 @@ export const initScene = (
     firstPersonCameraOffset.set(0, adjustedEyeLevel, 0);
   };
 
-  const defaultPlayerPosition = new THREE.Vector3(0, roomFloorY, 8);
+  const defaultPlayerPosition = new THREE.Vector3(
+    0,
+    roomFloorY,
+    8 * ROOM_SCALE_FACTOR
+  );
   playerObject.position.copy(defaultPlayerPosition);
 
   let initialPitch = DEFAULT_CAMERA_PITCH;
