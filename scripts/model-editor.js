@@ -1719,6 +1719,9 @@ const movementVector = new THREE.Vector3();
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 const POINTER_CLICK_THRESHOLD = 5;
+const MIN_VERTICAL_SCALE = 0.01;
+const selectionBoundingBoxHelper = new THREE.Box3();
+const tempBoundingBoxHelper = new THREE.Box3();
 let pointerDownInfo = null;
 
 const transformControls = new TransformControls(camera, renderer.domElement);
@@ -1736,9 +1739,21 @@ transformControls.addEventListener("dragging-changed", (event) => {
       });
     }
     transformHasChanged = false;
+    if (activeTransformMode === "scale") {
+      const bounds = computeSelectionBoundingBox();
+      activeTransformGroundTarget =
+        bounds && Number.isFinite(bounds.min.y)
+          ? Math.max(0, bounds.min.y)
+          : 0;
+    } else {
+      activeTransformGroundTarget = null;
+    }
   } else if (transformHasChanged) {
     transformHasChanged = false;
     pushHistorySnapshot();
+    activeTransformGroundTarget = null;
+  } else {
+    activeTransformGroundTarget = null;
   }
 });
 transformControls.addEventListener("change", () => {
@@ -1747,6 +1762,10 @@ transformControls.addEventListener("change", () => {
 });
 transformControls.addEventListener("objectChange", () => {
   transformHasChanged = true;
+  if (activeTransformMode === "scale") {
+    enforcePositiveVerticalScale();
+    keepSelectionAboveGround();
+  }
 });
 scene.add(transformControls);
 
@@ -1788,6 +1807,7 @@ let editableMeshes = [];
 let activeTransformMode = "translate";
 let transformHasChanged = false;
 let isTransformDragging = false;
+let activeTransformGroundTarget = null;
 
 const STORAGE_KEY = "model-editor-session-v1";
 
@@ -2427,6 +2447,92 @@ function collectEditableMeshesForSelection(selectionSet) {
     });
   });
   return meshes;
+}
+
+function computeSelectionBoundingBox() {
+  if (!selectedObjects.size) {
+    return null;
+  }
+
+  let hasBounds = false;
+  selectionBoundingBoxHelper.makeEmpty();
+
+  selectedObjects.forEach((object3D) => {
+    if (!object3D) {
+      return;
+    }
+
+    tempBoundingBoxHelper.setFromObject(object3D);
+
+    if (
+      !Number.isFinite(tempBoundingBoxHelper.min.y) ||
+      !Number.isFinite(tempBoundingBoxHelper.max.y)
+    ) {
+      return;
+    }
+
+    if (!hasBounds) {
+      selectionBoundingBoxHelper.copy(tempBoundingBoxHelper);
+      hasBounds = true;
+    } else {
+      selectionBoundingBoxHelper.union(tempBoundingBoxHelper);
+    }
+  });
+
+  return hasBounds ? selectionBoundingBoxHelper : null;
+}
+
+function enforcePositiveVerticalScale() {
+  if (!selectedObjects.size) {
+    return;
+  }
+
+  selectedObjects.forEach((object3D) => {
+    if (!object3D || !object3D.scale) {
+      return;
+    }
+
+    const currentScaleY = object3D.scale.y;
+    if (!Number.isFinite(currentScaleY)) {
+      return;
+    }
+
+    const positiveScaleY = Math.abs(currentScaleY);
+    const clampedScaleY = Math.max(positiveScaleY, MIN_VERTICAL_SCALE);
+
+    if (clampedScaleY !== currentScaleY) {
+      object3D.scale.y = clampedScaleY;
+      object3D.updateMatrixWorld(true);
+    }
+  });
+}
+
+function keepSelectionAboveGround(targetMinY = activeTransformGroundTarget) {
+  const bounds = computeSelectionBoundingBox();
+  if (!bounds) {
+    return;
+  }
+
+  const resolvedTarget =
+    typeof targetMinY === "number" ? Math.max(0, targetMinY) : 0;
+
+  if (!Number.isFinite(resolvedTarget) || !Number.isFinite(bounds.min.y)) {
+    return;
+  }
+
+  if (bounds.min.y >= resolvedTarget) {
+    return;
+  }
+
+  const offset = resolvedTarget - bounds.min.y;
+
+  selectedObjects.forEach((object3D) => {
+    if (!object3D) {
+      return;
+    }
+    object3D.position.y += offset;
+    object3D.updateMatrixWorld(true);
+  });
 }
 
 const primitiveFactories = {
@@ -3643,6 +3749,7 @@ function handleSizeInputChange(axis, input) {
   }
 
   const box = new THREE.Box3().setFromObject(currentSelection);
+  const initialMinY = box.min.y;
   const size = box.getSize(new THREE.Vector3());
   const currentSize = size[axis];
   if (!Number.isFinite(currentSize) || currentSize <= 1e-6) {
@@ -3658,6 +3765,10 @@ function handleSizeInputChange(axis, input) {
 
   currentSelection.scale[axis] *= scaleFactor;
   currentSelection.updateMatrixWorld(true);
+  if (axis === "y") {
+    enforcePositiveVerticalScale();
+    keepSelectionAboveGround(Math.max(0, initialMinY));
+  }
   updateHud(currentSelection);
   syncInspectorInputs();
   scheduleHistoryCommit();
