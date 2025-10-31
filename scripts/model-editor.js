@@ -3722,10 +3722,18 @@ function handleCenterInputChange(axis, input) {
     return;
   }
 
-  const value = Number.parseFloat(input.value);
+  let value = Number.parseFloat(input.value);
   if (!Number.isFinite(value)) {
     syncInspectorInputs();
     return;
+  }
+
+  if (axis === "y") {
+    const clampedValue = Math.max(value, 0);
+    if (clampedValue !== value) {
+      value = clampedValue;
+      input.value = clampedValue.toFixed(2);
+    }
   }
 
   const box = reusableBoundingBox.setFromObject(currentSelection);
@@ -3733,8 +3741,12 @@ function handleCenterInputChange(axis, input) {
   const displayCenter = getDisplayCenterFromBox(box, reusableDisplayCenterVector);
   const currentValue = axis === "y" ? displayCenter.y : actualCenter[axis];
   const delta = value - currentValue;
+  const deltaTooSmall = Math.abs(delta) < 1e-3;
 
-  if (!Number.isFinite(delta) || Math.abs(delta) < 1e-3) {
+  if (
+    !Number.isFinite(delta) ||
+    (deltaTooSmall && !(axis === "y" && currentValue < 0 && value >= 0))
+  ) {
     syncInspectorInputs();
     return;
   }
