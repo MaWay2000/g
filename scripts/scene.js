@@ -5,7 +5,7 @@ import { OBJLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/
 import { PointerLockControls } from "./pointer-lock-controls.js";
 
 export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
-export const DEFAULT_PLAYER_HEIGHT = 8;
+export const DEFAULT_PLAYER_HEIGHT = 1.8;
 const PLAYER_HEIGHT_STORAGE_KEY = `${PLAYER_STATE_STORAGE_KEY}.height`;
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_CAMERA_PITCH = 0;
@@ -2323,7 +2323,7 @@ export const initScene = (
   let playerHeight = DEFAULT_PLAYER_HEIGHT;
   let playerEyeLevel = DEFAULT_PLAYER_HEIGHT;
 
-  const FIRST_PERSON_EYE_HEIGHT_OFFSET = -1;
+  const FIRST_PERSON_EYE_HEIGHT_OFFSET = -0.1;
 
   const firstPersonCameraOffset = new THREE.Vector3(
     0,
@@ -2410,8 +2410,8 @@ export const initScene = (
   let verticalVelocity = 0;
   let isGrounded = true;
   let jumpRequested = false;
-  const GRAVITY = -48;
-  const JUMP_VELOCITY = 13;
+  const GRAVITY = -9.81;
+  const JUMP_VELOCITY = 4.5;
   const CEILING_CLEARANCE = 0.5;
 
   const resolvePlayerCollisions = (previousPosition) => {
