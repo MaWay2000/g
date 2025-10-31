@@ -803,39 +803,76 @@ function updatePartsPanelState({ count }) {
   }
 }
 
+function getPartsListLabel(object3D) {
+  if (!object3D) {
+    return {
+      figureId: "",
+      displayName: "Scene object",
+      label: "Scene object",
+    };
+  }
+  const figureId = normalizeFigureId(object3D.userData?.figureId);
+  const displayName = getObjectDisplayName(object3D);
+  const label = figureId || displayName || "Scene object";
+  return { figureId, displayName, label };
+}
+
+function updateVisibilityToggleButton(button, object3D) {
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+  const { label } = getPartsListLabel(object3D);
+  const isVisible = object3D?.visible !== false;
+  const action = isVisible ? "Hide" : "Show";
+  button.dataset.visible = isVisible ? "true" : "false";
+  button.setAttribute("aria-pressed", isVisible ? "false" : "true");
+  button.setAttribute("aria-label", `${action} ${label}`);
+  button.title = `${action} ${label}`;
+  button.textContent = action;
+}
+
 function createPartsListItem(object3D) {
   const item = document.createElement("li");
   item.className = "parts-panel__list-item";
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "parts-panel__item";
-  button.dataset.partItem = "true";
-  button.dataset.objectUuid = object3D.uuid;
-  const figureId = ensureFigureId(object3D);
+  const container = document.createElement("div");
+  container.className = "parts-panel__item";
+  container.dataset.objectUuid = object3D.uuid;
+
+  const selectButton = document.createElement("button");
+  selectButton.type = "button";
+  selectButton.className = "parts-panel__item-main";
+  selectButton.dataset.partItem = "true";
+  selectButton.dataset.objectUuid = object3D.uuid;
+
+  ensureFigureId(object3D);
+  const { figureId, displayName } = getPartsListLabel(object3D);
   if (figureId) {
-    button.dataset.figureId = figureId;
+    selectButton.dataset.figureId = figureId;
   }
+
   const isSelected = selectedObjects.has(object3D);
-  button.dataset.active = String(isSelected);
-  button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+  container.dataset.active = String(isSelected);
+  selectButton.dataset.active = String(isSelected);
+  selectButton.setAttribute("aria-pressed", isSelected ? "true" : "false");
+  selectButton.setAttribute(
+    "aria-label",
+    figureId ? `Select ${figureId}` : `Select ${displayName}`
+  );
 
   const title = document.createElement("span");
   title.className = "parts-panel__item-title";
-  const displayName = getObjectDisplayName(object3D);
-  if (figureId) {
-    title.textContent = figureId;
-  } else {
-    title.textContent = displayName;
-  }
+  title.textContent = figureId ?? displayName;
 
   const subtitle = document.createElement("span");
   subtitle.className = "parts-panel__item-subtitle";
-  const shouldShowSubtitle = figureId && displayName && displayName !== figureId;
+  const shouldShowSubtitle = Boolean(
+    figureId && displayName && displayName !== figureId
+  );
   if (shouldShowSubtitle) {
     subtitle.textContent = displayName;
-    button.append(title, subtitle);
+    selectButton.append(title, subtitle);
   } else {
-    button.append(title);
+    selectButton.append(title);
   }
 
   const tooltipParts = [];
@@ -846,10 +883,18 @@ function createPartsListItem(object3D) {
     tooltipParts.push(displayName);
   }
   if (tooltipParts.length) {
-    button.title = tooltipParts.join(" • ");
+    selectButton.title = tooltipParts.join(" • ");
   }
 
-  item.append(button);
+  const visibilityButton = document.createElement("button");
+  visibilityButton.type = "button";
+  visibilityButton.className = "parts-panel__visibility-toggle";
+  visibilityButton.dataset.visibilityToggle = "true";
+  visibilityButton.dataset.objectUuid = object3D.uuid;
+  updateVisibilityToggleButton(visibilityButton, object3D);
+
+  container.append(selectButton, visibilityButton);
+  item.append(container);
   return item;
 }
 
@@ -885,6 +930,45 @@ function syncPartsListSelection() {
     const isSelected = object3D ? selectedObjects.has(object3D) : false;
     button.dataset.active = String(isSelected);
     button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    const container = button.closest(".parts-panel__item");
+    if (container) {
+      container.dataset.active = String(isSelected);
+    }
+  });
+  syncPartsListVisibility();
+}
+
+function syncPartsListVisibility() {
+  if (!partsListElement) {
+    return;
+  }
+  const toggles = partsListElement.querySelectorAll("[data-visibility-toggle]");
+  toggles.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const uuid = button.dataset.objectUuid;
+    if (!uuid) {
+      button.disabled = true;
+      button.dataset.visible = "false";
+      button.textContent = "Show";
+      button.removeAttribute("aria-label");
+      button.removeAttribute("title");
+      button.setAttribute("aria-pressed", "false");
+      return;
+    }
+    const object3D = sceneRoot.getObjectByProperty("uuid", uuid);
+    if (!object3D) {
+      button.disabled = true;
+      button.dataset.visible = "false";
+      button.textContent = "Show";
+      button.removeAttribute("aria-label");
+      button.removeAttribute("title");
+      button.setAttribute("aria-pressed", "false");
+      return;
+    }
+    button.disabled = false;
+    updateVisibilityToggleButton(button, object3D);
   });
 }
 
@@ -3410,6 +3494,22 @@ primitiveContainer?.addEventListener("click", (event) => {
 partsListElement?.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) {
+    return;
+  }
+  const visibilityButton = target.closest("button[data-visibility-toggle]");
+  if (visibilityButton instanceof HTMLButtonElement) {
+    event.preventDefault();
+    const uuid = visibilityButton.dataset.objectUuid;
+    if (!uuid) {
+      return;
+    }
+    const object3D = sceneRoot.getObjectByProperty("uuid", uuid);
+    if (!object3D) {
+      renderPartsList();
+      return;
+    }
+    object3D.visible = !object3D.visible;
+    updateVisibilityToggleButton(visibilityButton, object3D);
     return;
   }
   const button = target.closest("button[data-part-item]");
