@@ -632,11 +632,25 @@ export const initScene = (
   fillLight.position.set(-6, 4, -5);
   scene.add(fillLight);
 
-  const roomWidth = 20;
-  const roomHeight = 10;
-  const roomDepth = 60;
+  const storedPlayerHeight = loadStoredPlayerHeight();
+  const initialPlayerHeight = Number.isFinite(storedPlayerHeight)
+    ? storedPlayerHeight
+    : DEFAULT_PLAYER_HEIGHT;
+  let playerHeight = initialPlayerHeight;
+
+  const BASE_ROOM_WIDTH = 20;
+  const BASE_ROOM_HEIGHT = 10;
+  const BASE_ROOM_DEPTH = 60;
+  const BASE_DOOR_WIDTH = 8.5;
+  const BASE_DOOR_HEIGHT = 9.0;
+  const BASE_MIRROR_WIDTH = 12;
+  const BASE_MIRROR_HEIGHT = 9;
+
+  const roomWidth = BASE_ROOM_WIDTH;
+  const roomDepth = BASE_ROOM_DEPTH;
+  let roomHeight = BASE_ROOM_HEIGHT * (playerHeight / DEFAULT_PLAYER_HEIGHT);
   const terminalBackOffset = 4;
-  const roomFloorY = -roomHeight / 2;
+  let roomFloorY = -roomHeight / 2;
 
   const createWallMaterial = (hexColor) =>
     new THREE.MeshStandardMaterial({
@@ -655,7 +669,11 @@ export const initScene = (
     metalness: 0.06,
   });
 
-  const roomGeometry = new THREE.BoxGeometry(roomWidth, roomHeight, roomDepth);
+  const roomGeometry = new THREE.BoxGeometry(
+    roomWidth,
+    BASE_ROOM_HEIGHT,
+    roomDepth
+  );
 
   const ceilingGroupIndex = 2;
   // Remove the ceiling faces from the room geometry so the room is open from above.
@@ -685,13 +703,14 @@ export const initScene = (
   ];
 
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
+  roomMesh.scale.set(1, roomHeight / BASE_ROOM_HEIGHT, 1);
   scene.add(roomMesh);
 
   const createHangarDoor = () => {
     const group = new THREE.Group();
 
-    const doorWidth = 8.5;
-    const doorHeight = 9.0;
+    const doorWidth = BASE_DOOR_WIDTH;
+    const doorHeight = BASE_DOOR_HEIGHT;
     const panelDepth = 0.2;
     const frameDepth = 0.42;
     const frameWidth = 0.48;
@@ -1217,6 +1236,7 @@ export const initScene = (
 
     group.userData.height = doorHeight;
     group.userData.width = doorWidth;
+    group.userData.baseDimensions = { height: doorHeight, width: doorWidth };
 
     return group;
   };
@@ -2140,8 +2160,8 @@ export const initScene = (
   const createWallMirror = () => {
     const group = new THREE.Group();
 
-    const mirrorWidth = 12;
-    const mirrorHeight = 9;
+    const mirrorWidth = BASE_MIRROR_WIDTH;
+    const mirrorHeight = BASE_MIRROR_HEIGHT;
     const frameInset = 0.18;
 
     const frameMaterial = new THREE.MeshStandardMaterial({
@@ -2202,6 +2222,7 @@ export const initScene = (
     group.add(bottomAccent);
 
     group.userData.dimensions = { width: mirrorWidth, height: mirrorHeight };
+    group.userData.baseDimensions = { width: mirrorWidth, height: mirrorHeight };
     group.userData.reflector = reflector;
 
     return group;
@@ -2251,28 +2272,56 @@ export const initScene = (
   floorGrid.position.y = roomFloorY + 0.02;
   scene.add(floorGrid);
 
-  const backWallGrid = createGridLines(roomWidth, roomHeight, 20, 10, gridColor, gridOpacity);
+  const backWallGrid = createGridLines(
+    roomWidth,
+    BASE_ROOM_HEIGHT,
+    20,
+    10,
+    gridColor,
+    gridOpacity
+  );
   backWallGrid.position.z = -roomDepth / 2 + 0.02;
   scene.add(backWallGrid);
 
-  const frontWallGrid = createGridLines(roomWidth, roomHeight, 20, 10, gridColor, gridOpacity);
+  const frontWallGrid = createGridLines(
+    roomWidth,
+    BASE_ROOM_HEIGHT,
+    20,
+    10,
+    gridColor,
+    gridOpacity
+  );
   frontWallGrid.rotation.y = Math.PI;
   frontWallGrid.position.z = roomDepth / 2 - 0.02;
   scene.add(frontWallGrid);
 
-  const leftWallGrid = createGridLines(roomDepth, roomHeight, 20, 10, gridColor, gridOpacity);
+  const leftWallGrid = createGridLines(
+    roomDepth,
+    BASE_ROOM_HEIGHT,
+    20,
+    10,
+    gridColor,
+    gridOpacity
+  );
   leftWallGrid.rotation.y = Math.PI / 2;
   leftWallGrid.position.x = -roomWidth / 2 + 0.02;
   scene.add(leftWallGrid);
 
-  const rightWallGrid = createGridLines(roomDepth, roomHeight, 20, 10, gridColor, gridOpacity);
+  const rightWallGrid = createGridLines(
+    roomDepth,
+    BASE_ROOM_HEIGHT,
+    20,
+    10,
+    gridColor,
+    gridOpacity
+  );
   rightWallGrid.rotation.y = -Math.PI / 2;
   rightWallGrid.position.x = roomWidth / 2 - 0.02;
   scene.add(rightWallGrid);
 
   const wallMirror = createWallMirror();
   const mirrorDimensions = wallMirror.userData?.dimensions;
-  const mirrorHeight = mirrorDimensions?.height ?? 9;
+  const mirrorHeight = mirrorDimensions?.height ?? BASE_MIRROR_HEIGHT;
   wallMirror.position.set(
     roomWidth / 2 - 0.16,
     roomFloorY + 0.5 + mirrorHeight / 2,
@@ -2285,6 +2334,78 @@ export const initScene = (
   if (wallMirrorReflector) {
     registerReflectiveSurface(wallMirrorReflector);
   }
+
+  const updateEnvironmentForPlayerHeight = () => {
+    const heightScale = playerHeight / DEFAULT_PLAYER_HEIGHT;
+
+    roomHeight = BASE_ROOM_HEIGHT * heightScale;
+    roomFloorY = -roomHeight / 2;
+
+    roomMesh.scale.set(1, heightScale, 1);
+
+    floorGrid.position.y = roomFloorY + 0.02;
+
+    const verticalGridScale = heightScale;
+    backWallGrid.scale.y = verticalGridScale;
+    frontWallGrid.scale.y = verticalGridScale;
+    leftWallGrid.scale.y = verticalGridScale;
+    rightWallGrid.scale.y = verticalGridScale;
+
+    const doorBaseDimensions = hangarDoor.userData?.baseDimensions;
+    const baseDoorHeight = doorBaseDimensions?.height ?? BASE_DOOR_HEIGHT;
+    const baseDoorWidth = doorBaseDimensions?.width ?? BASE_DOOR_WIDTH;
+    hangarDoor.scale.setScalar(heightScale);
+    const scaledDoorHeight = baseDoorHeight * heightScale;
+    const scaledDoorWidth = baseDoorWidth * heightScale;
+    hangarDoor.userData.height = scaledDoorHeight;
+    hangarDoor.userData.width = scaledDoorWidth;
+    hangarDoor.position.y = roomFloorY + scaledDoorHeight / 2;
+
+    const mirrorBaseDimensions = wallMirror.userData?.baseDimensions;
+    const baseMirrorHeight = mirrorBaseDimensions?.height ?? BASE_MIRROR_HEIGHT;
+    const baseMirrorWidth = mirrorBaseDimensions?.width ?? BASE_MIRROR_WIDTH;
+    wallMirror.scale.setScalar(heightScale);
+    const scaledMirrorHeight = baseMirrorHeight * heightScale;
+    const scaledMirrorWidth = baseMirrorWidth * heightScale;
+    wallMirror.userData.dimensions = {
+      width: scaledMirrorWidth,
+      height: scaledMirrorHeight,
+    };
+    wallMirror.position.y = roomFloorY + 0.5 + scaledMirrorHeight / 2;
+
+    const reflector = wallMirror.userData?.reflector;
+    if (reflector) {
+      reflector.userData = reflector.userData || {};
+      reflector.userData.renderSurfaceDimensions = {
+        width: scaledMirrorWidth,
+        height: scaledMirrorHeight,
+      };
+
+      if (
+        reflector.renderTarget &&
+        typeof reflector.renderTarget.setSize === "function"
+      ) {
+        const renderTargetSize = computeReflectorRenderTargetSize(
+          scaledMirrorWidth,
+          scaledMirrorHeight
+        );
+        reflector.renderTarget.setSize(
+          renderTargetSize.width,
+          renderTargetSize.height
+        );
+      }
+    }
+
+    computerSetup.position.y = roomFloorY;
+    if (typeof computerSetup.userData?.notifyCollidersChanged === "function") {
+      computerSetup.userData.notifyCollidersChanged();
+    } else {
+      computerSetup.updateMatrixWorld(true);
+      rebuildStaticColliders();
+    }
+  };
+
+  updateEnvironmentForPlayerHeight();
 
   const raycaster = new THREE.Raycaster();
   const quickAccessInteractables = [];
@@ -2322,8 +2443,7 @@ export const initScene = (
   }
   scene.add(playerObject);
 
-  let playerHeight = DEFAULT_PLAYER_HEIGHT;
-  let playerEyeLevel = DEFAULT_PLAYER_HEIGHT;
+  let playerEyeLevel = playerHeight;
 
   const FIRST_PERSON_EYE_HEIGHT_OFFSET = -0.1;
 
@@ -2386,6 +2506,7 @@ export const initScene = (
     if (hasHeightChanged) {
       playerHeight = clampedHeight;
       playerEyeLevel = playerHeight;
+      updateEnvironmentForPlayerHeight();
     }
 
     updateFirstPersonCameraOffset();
@@ -2400,11 +2521,7 @@ export const initScene = (
     return playerHeight;
   };
 
-  const storedPlayerHeight = loadStoredPlayerHeight();
-  const initialHeight = Number.isFinite(storedPlayerHeight)
-    ? storedPlayerHeight
-    : DEFAULT_PLAYER_HEIGHT;
-  applyPlayerHeight(initialHeight, { persist: false });
+  applyPlayerHeight(initialPlayerHeight, { persist: false });
 
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
