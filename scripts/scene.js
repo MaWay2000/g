@@ -1978,7 +1978,7 @@ export const initScene = (
 
     group.userData.monitorScreen = monitorScreen;
 
-    const computerSetupScale = 2.5 / 8;
+    const computerSetupScale = (2.5 / 8) * 2;
     group.scale.setScalar(computerSetupScale);
 
     return group;
