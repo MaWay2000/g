@@ -1249,10 +1249,13 @@ export const initScene = (
     let quickAccessTextureSize = { width: 1024, height: 768 };
     let quickAccessZones = [];
 
+    const deskSizeMultiplier = 2;
     const deskHeight = 0.78 * 1.3;
     const deskTopThickness = 0.08;
-    const deskWidth = 3.2;
-    const deskDepth = 1.4;
+    const deskWidth = 3.2 * deskSizeMultiplier;
+    const deskDepth = 1.4 * deskSizeMultiplier;
+    const legThickness = 0.14 * deskSizeMultiplier;
+    const legOffset = 0.22 * deskSizeMultiplier;
 
     const deskMaterial = new THREE.MeshStandardMaterial({
       color: 0x1f2937,
@@ -1283,12 +1286,16 @@ export const initScene = (
     );
     group.add(deskCollisionVolume);
 
-    const legGeometry = new THREE.BoxGeometry(0.14, deskHeight, 0.14);
+    const legGeometry = new THREE.BoxGeometry(
+      legThickness,
+      deskHeight,
+      legThickness
+    );
     const legPositions = [
-      [-deskWidth / 2 + 0.22, deskHeight / 2, -deskDepth / 2 + 0.22],
-      [deskWidth / 2 - 0.22, deskHeight / 2, -deskDepth / 2 + 0.22],
-      [-deskWidth / 2 + 0.22, deskHeight / 2, deskDepth / 2 - 0.22],
-      [deskWidth / 2 - 0.22, deskHeight / 2, deskDepth / 2 - 0.22],
+      [-deskWidth / 2 + legOffset, deskHeight / 2, -deskDepth / 2 + legOffset],
+      [deskWidth / 2 - legOffset, deskHeight / 2, -deskDepth / 2 + legOffset],
+      [-deskWidth / 2 + legOffset, deskHeight / 2, deskDepth / 2 - legOffset],
+      [deskWidth / 2 - legOffset, deskHeight / 2, deskDepth / 2 - legOffset],
     ];
 
     legPositions.forEach(([x, y, z]) => {
@@ -1306,6 +1313,7 @@ export const initScene = (
       roughness: 0.35,
     });
 
+    const monitorScale = 2;
     const createMonitorDisplayTexture = () => {
       const width = 1024;
       const height = 768;
@@ -1672,20 +1680,20 @@ export const initScene = (
       }
     };
 
-    const screenSize = 0.98 * 2; // Double the diagonal of the square screen
+    const screenSize = 0.98 * monitorScale;
     const screenHeight = screenSize;
     const screenWidth = screenSize;
     const screenFillScale = 1.08;
-    const bezelPadding = 0.02;
+    const bezelPadding = 0.02 * monitorScale;
     const bezelWidth = screenWidth + bezelPadding * 2;
     const bezelHeight = screenHeight + bezelPadding * 2;
-    const bezelDepth = 0.04;
-    const housingBorder = 0.05;
+    const bezelDepth = 0.04 * monitorScale;
+    const housingBorder = 0.05 * monitorScale;
     const housingWidth = bezelWidth + housingBorder * 2;
     const housingHeight = bezelHeight + housingBorder * 2;
-    const housingDepth = 0.12;
-    const monitorStandNeckHeight = 0.1;
-    const monitorStandNeckPositionY = 0.44;
+    const housingDepth = 0.12 * monitorScale;
+    const monitorStandNeckHeight = 0.1 * monitorScale;
+    const monitorStandNeckPositionY = 0.44 * monitorScale;
     const monitorAttachmentHeight =
       monitorStandNeckPositionY + monitorStandNeckHeight / 2;
     const monitorCenterY = monitorAttachmentHeight + housingHeight / 2;
@@ -1741,7 +1749,7 @@ export const initScene = (
     monitorScreen.position.set(
       0,
       monitorCenterY,
-      monitorHousing.position.z + housingDepth / 2 + 0.005
+      monitorHousing.position.z + housingDepth / 2 + 0.005 * monitorScale
     );
     monitorScreen.scale.y = screenFillScale;
     monitorScreen.renderOrder = 1;
@@ -1755,7 +1763,7 @@ export const initScene = (
     const originalScreenWidth = screenWidth;
     const originalBezelWidth = bezelWidth;
     const originalHousingWidth = housingWidth;
-    const powerButtonEdgeOffset = 0.22;
+    const powerButtonEdgeOffset = 0.22 * monitorScale;
 
     const updateMonitorLayout = (aspectRatio) => {
       if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) {
@@ -1778,42 +1786,56 @@ export const initScene = (
     };
 
     const monitorStandColumn = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07, 0.09, 0.45, 24),
+      new THREE.CylinderGeometry(
+        0.07 * monitorScale,
+        0.09 * monitorScale,
+        0.45 * monitorScale,
+        24
+      ),
       new THREE.MeshStandardMaterial({
         color: 0x1f2937,
         metalness: 0.4,
         roughness: 0.35,
       })
     );
-    monitorStandColumn.position.set(0, 0.25, 0);
+    monitorStandColumn.position.set(0, 0.25 * monitorScale, 0);
     monitorGroup.add(monitorStandColumn);
 
     const monitorStandNeck = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, monitorStandNeckHeight, 0.18),
+      new THREE.BoxGeometry(
+        0.22 * monitorScale,
+        monitorStandNeckHeight,
+        0.18 * monitorScale
+      ),
       monitorMaterial
     );
-    monitorStandNeck.position.set(0, monitorStandNeckPositionY, 0.09);
+    monitorStandNeck.position.set(0, monitorStandNeckPositionY, 0.09 * monitorScale);
     monitorGroup.add(monitorStandNeck);
 
     const monitorBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.15, 0.18, 0.02, 32),
+      new THREE.CylinderGeometry(
+        0.15 * monitorScale,
+        0.18 * monitorScale,
+        0.02 * monitorScale,
+        32
+      ),
       new THREE.MeshStandardMaterial({
         color: 0x0f172a,
         metalness: 0.35,
         roughness: 0.4,
       })
     );
-    monitorBase.position.set(0, 0.01, 0);
+    monitorBase.position.set(0, 0.01 * monitorScale, 0);
     monitorGroup.add(monitorBase);
 
     const monitorPowerButton = new THREE.Mesh(
-      new THREE.CircleGeometry(0.04, 24),
+      new THREE.CircleGeometry(0.04 * monitorScale, 24),
       new THREE.MeshBasicMaterial({ color: 0x22d3ee })
     );
     monitorPowerButton.position.set(
       housingWidth / 2 - powerButtonEdgeOffset,
-      monitorCenterY - housingHeight / 2 + 0.2,
-      monitorHousing.position.z + housingDepth / 2 - 0.02
+      monitorCenterY - housingHeight / 2 + 0.2 * monitorScale,
+      monitorHousing.position.z + housingDepth / 2 - 0.02 * monitorScale
     );
     monitorGroup.add(monitorPowerButton);
 
