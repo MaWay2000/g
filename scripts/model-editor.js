@@ -1772,6 +1772,8 @@ transformControls.addEventListener("objectChange", () => {
   if (activeTransformMode === "scale") {
     enforcePositiveVerticalScale();
     keepSelectionAboveGround();
+  } else if (activeTransformMode === "translate") {
+    keepSelectionAboveGround();
   }
 });
 scene.add(transformControls);
