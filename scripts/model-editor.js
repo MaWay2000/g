@@ -69,6 +69,9 @@ const hudSizeInputs = {
   z: hudEditor?.querySelector('[data-hud-size-input="z"]'),
 };
 
+centerInputs.y?.setAttribute("min", "0");
+hudCenterInputs.y?.setAttribute("min", "0");
+
 const partsPanel = document.querySelector("[data-parts-panel]");
 const partsListElement = document.querySelector("[data-parts-list]");
 const partsEmptyState = document.querySelector("[data-parts-empty]");
