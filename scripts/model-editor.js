@@ -1743,7 +1743,7 @@ transformControls.addEventListener("dragging-changed", (event) => {
       const bounds = computeSelectionBoundingBox();
       activeTransformGroundTarget =
         bounds && Number.isFinite(bounds.min.y)
-          ? Math.max(0, bounds.min.y)
+          ? bounds.min.y
           : 0;
     } else {
       activeTransformGroundTarget = null;
@@ -2514,7 +2514,7 @@ function keepSelectionAboveGround(targetMinY = activeTransformGroundTarget) {
   }
 
   const resolvedTarget =
-    typeof targetMinY === "number" ? Math.max(0, targetMinY) : 0;
+    typeof targetMinY === "number" ? targetMinY : 0;
 
   if (!Number.isFinite(resolvedTarget) || !Number.isFinite(bounds.min.y)) {
     return;
@@ -3767,7 +3767,7 @@ function handleSizeInputChange(axis, input) {
   currentSelection.updateMatrixWorld(true);
   if (axis === "y") {
     enforcePositiveVerticalScale();
-    keepSelectionAboveGround(Math.max(0, initialMinY));
+    keepSelectionAboveGround(initialMinY);
   }
   updateHud(currentSelection);
   syncInspectorInputs();
