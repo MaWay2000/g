@@ -3728,14 +3728,6 @@ function handleCenterInputChange(axis, input) {
     return;
   }
 
-  if (axis === "y") {
-    const clampedValue = Math.max(value, 0);
-    if (clampedValue !== value) {
-      value = clampedValue;
-      input.value = clampedValue.toFixed(2);
-    }
-  }
-
   const box = reusableBoundingBox.setFromObject(currentSelection);
   const actualCenter = box.getCenter(reusableCenterVector);
   const displayCenter = getDisplayCenterFromBox(box, reusableDisplayCenterVector);
