@@ -1722,6 +1722,10 @@ const POINTER_CLICK_THRESHOLD = 5;
 const MIN_VERTICAL_SCALE = 0.01;
 const selectionBoundingBoxHelper = new THREE.Box3();
 const tempBoundingBoxHelper = new THREE.Box3();
+const reusableBoundingBox = new THREE.Box3();
+const reusableCenterVector = new THREE.Vector3();
+const reusableDisplayCenterVector = new THREE.Vector3();
+const reusableSizeVector = new THREE.Vector3();
 let pointerDownInfo = null;
 
 const transformControls = new TransformControls(camera, renderer.domElement);
@@ -2482,6 +2486,14 @@ function computeSelectionBoundingBox() {
   return hasBounds ? selectionBoundingBoxHelper : null;
 }
 
+function getDisplayCenterFromBox(box, target = new THREE.Vector3()) {
+  const result = box.getCenter(target);
+  if (Number.isFinite(box.min.y)) {
+    result.y = box.min.y;
+  }
+  return result;
+}
+
 function enforcePositiveVerticalScale() {
   if (!selectedObjects.size) {
     return;
@@ -2618,9 +2630,9 @@ function updateHud(object3D) {
   }
 
   const figureId = ensureFigureId(object3D);
-  const box = new THREE.Box3().setFromObject(object3D);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
+  const box = reusableBoundingBox.setFromObject(object3D);
+  const size = box.getSize(reusableSizeVector);
+  const center = getDisplayCenterFromBox(box, reusableDisplayCenterVector);
 
   let vertexCount = 0;
   let drawCallCount = 0;
@@ -2920,9 +2932,9 @@ function syncInspectorInputs() {
   }
 
   const figureId = ensureFigureId(currentSelection);
-  const box = new THREE.Box3().setFromObject(currentSelection);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
+  const box = reusableBoundingBox.setFromObject(currentSelection);
+  const size = box.getSize(reusableSizeVector);
+  const center = getDisplayCenterFromBox(box, reusableDisplayCenterVector);
 
   populateControlSet(inspectorControlSet, { figureId, center, size });
   populateControlSet(hudControlSet, { figureId, center, size });
@@ -3716,9 +3728,11 @@ function handleCenterInputChange(axis, input) {
     return;
   }
 
-  const box = new THREE.Box3().setFromObject(currentSelection);
-  const center = box.getCenter(new THREE.Vector3());
-  const delta = value - center[axis];
+  const box = reusableBoundingBox.setFromObject(currentSelection);
+  const actualCenter = box.getCenter(reusableCenterVector);
+  const displayCenter = getDisplayCenterFromBox(box, reusableDisplayCenterVector);
+  const currentValue = axis === "y" ? displayCenter.y : actualCenter[axis];
+  const delta = value - currentValue;
 
   if (!Number.isFinite(delta) || Math.abs(delta) < 1e-3) {
     syncInspectorInputs();
