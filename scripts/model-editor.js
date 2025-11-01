@@ -33,6 +33,7 @@ const panelButtons = Array.from(
 );
 const panelSections = Array.from(document.querySelectorAll("[data-panel]"));
 const figureIdInput = document.querySelector("[data-figure-id-input]");
+const centerActionButton = document.querySelector("[data-center-selection]");
 const centerInputs = {
   x: document.querySelector('[data-center-input="x"]'),
   y: document.querySelector('[data-center-input="y"]'),
@@ -58,6 +59,9 @@ const motionControlGroups = Array.from(
 const clockDisplay = document.querySelector("[data-clock-display]");
 const hudEditor = document.querySelector("[data-hud-editor]");
 const hudFigureIdInput = hudEditor?.querySelector("[data-hud-figure-id]");
+const hudCenterActionButton = hudEditor?.querySelector(
+  "[data-hud-center-selection]"
+);
 const hudCenterInputs = {
   x: hudEditor?.querySelector('[data-hud-center-input="x"]'),
   y: hudEditor?.querySelector('[data-hud-center-input="y"]'),
@@ -81,12 +85,14 @@ const inspectorControlSet = {
   figureIdInput,
   centerInputs,
   sizeInputs,
+  centerButton: centerActionButton,
 };
 
 const hudControlSet = {
   figureIdInput: hudFigureIdInput,
   centerInputs: hudCenterInputs,
   sizeInputs: hudSizeInputs,
+  centerButton: hudCenterActionButton,
   container: hudEditor,
   hideWhenDisabled: true,
 };
@@ -2675,6 +2681,7 @@ function resetControlSet(controlSet, placeholder = "No selection") {
     figureIdInput: controlFigureId,
     centerInputs: controlCenterInputs = {},
     sizeInputs: controlSizeInputs = {},
+    centerButton,
     container,
     hideWhenDisabled = false,
   } = controlSet;
@@ -2703,6 +2710,10 @@ function resetControlSet(controlSet, placeholder = "No selection") {
     }
   });
 
+  if (centerButton) {
+    centerButton.disabled = true;
+  }
+
   if (container && hideWhenDisabled) {
     container.hidden = true;
   }
@@ -2717,6 +2728,7 @@ function populateControlSet(controlSet, { figureId, center, size }) {
     figureIdInput: controlFigureId,
     centerInputs: controlCenterInputs = {},
     sizeInputs: controlSizeInputs = {},
+    centerButton,
     container,
     hideWhenDisabled = false,
   } = controlSet;
@@ -2746,6 +2758,10 @@ function populateControlSet(controlSet, { figureId, center, size }) {
     input.value = Number.isFinite(value) ? value.toFixed(2) : "";
     input.placeholder = "—";
   });
+
+  if (centerButton) {
+    centerButton.disabled = false;
+  }
 
   if (container && hideWhenDisabled) {
     container.hidden = false;
@@ -3805,6 +3821,19 @@ function handleSizeInputChange(axis, input) {
   scheduleHistoryCommit();
 }
 
+function handleCenterActionClick(event) {
+  if (event instanceof Event) {
+    event.preventDefault();
+  }
+
+  if (!currentSelection || selectedObjects.size !== 1) {
+    return;
+  }
+
+  focusObject(currentSelection);
+  setStatus("ready");
+}
+
 function attachCenterInputHandlers(inputs) {
   Object.entries(inputs).forEach(([axis, input]) => {
     input?.addEventListener("change", () => handleCenterInputChange(axis, input));
@@ -3828,6 +3857,10 @@ attachCenterInputHandlers(centerInputs);
 attachCenterInputHandlers(hudCenterInputs);
 attachSizeInputHandlers(sizeInputs);
 attachSizeInputHandlers(hudSizeInputs);
+
+[centerActionButton, hudCenterActionButton].forEach((button) => {
+  button?.addEventListener("click", handleCenterActionClick);
+});
 
 motionToggle?.addEventListener("change", () => {
   if (!currentSelection || selectedObjects.size !== 1) {
