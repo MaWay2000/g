@@ -3830,7 +3830,11 @@ function handleCenterActionClick(event) {
     return;
   }
 
-  focusObject(currentSelection);
+  centerObject(currentSelection);
+  currentSelection.updateMatrixWorld(true);
+  updateHud(currentSelection);
+  syncInspectorInputs();
+  scheduleHistoryCommit();
   setStatus("ready");
 }
 
