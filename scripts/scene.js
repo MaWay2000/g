@@ -3370,6 +3370,11 @@ export const initScene = (
   const ROOM_BOUNDARY_PADDING = 1e-3;
   const placementPointerEvents = ["pointerdown", "mousedown"];
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
+  const MAX_MANIFEST_PLACEMENT_DISTANCE = Math.max(
+    MIN_MANIFEST_PLACEMENT_DISTANCE,
+    roomDepth / 2 - 0.5
+  );
+  const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
   const placementPreviewBasePosition = new THREE.Vector3();
   const placementComputedPosition = new THREE.Vector3();
   const placementBoundsWorldPosition = new THREE.Vector3();
@@ -3870,8 +3875,18 @@ export const initScene = (
       }
     });
 
+    if (placement.pointerHandler) {
+      placement.pointerHandler = null;
+    }
+
+    if (placement.wheelHandler) {
+      canvas.removeEventListener("wheel", placement.wheelHandler);
+      placement.wheelHandler = null;
+    }
+
     if (placement.keydownHandler) {
       document.removeEventListener("keydown", placement.keydownHandler, true);
+      placement.keydownHandler = null;
     }
   }
 
@@ -4188,9 +4203,10 @@ export const initScene = (
       const requestedDistance = Number.isFinite(options?.distance)
         ? options.distance
         : 6;
-      const placementDistance = Math.max(
+      const placementDistance = THREE.MathUtils.clamp(
+        requestedDistance,
         MIN_MANIFEST_PLACEMENT_DISTANCE,
-        requestedDistance
+        MAX_MANIFEST_PLACEMENT_DISTANCE
       );
 
       cancelActivePlacement(
@@ -4208,6 +4224,7 @@ export const initScene = (
           previewDirection: new THREE.Vector3(),
           previewPosition: new THREE.Vector3(),
           pointerHandler: null,
+          wheelHandler: null,
           keydownHandler: null,
         };
 
@@ -4217,6 +4234,31 @@ export const initScene = (
           }
 
           finalizeActivePlacement();
+        };
+
+        placement.wheelHandler = (event) => {
+          if (event.cancelable) {
+            event.preventDefault();
+          }
+
+          if (!event.deltaY) {
+            return;
+          }
+
+          const delta =
+            Math.sign(event.deltaY) * MANIFEST_PLACEMENT_DISTANCE_STEP;
+          const nextDistance = THREE.MathUtils.clamp(
+            placement.distance + delta,
+            MIN_MANIFEST_PLACEMENT_DISTANCE,
+            MAX_MANIFEST_PLACEMENT_DISTANCE
+          );
+
+          if (nextDistance === placement.distance) {
+            return;
+          }
+
+          placement.distance = nextDistance;
+          updateActivePlacementPreview();
         };
 
         placement.keydownHandler = (event) => {
@@ -4231,6 +4273,9 @@ export const initScene = (
 
         placementPointerEvents.forEach((eventName) => {
           canvas.addEventListener(eventName, placement.pointerHandler);
+        });
+        canvas.addEventListener("wheel", placement.wheelHandler, {
+          passive: false,
         });
         document.addEventListener("keydown", placement.keydownHandler, true);
 
