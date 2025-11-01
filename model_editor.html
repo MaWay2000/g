@@ -965,6 +965,15 @@
           type="button"
           class="left-menu__link"
           role="tab"
+          data-panel-target="show-settings"
+          aria-controls="show-settings"
+        >
+          Show
+        </button>
+        <button
+          type="button"
+          class="left-menu__link"
+          role="tab"
           data-panel-target="materials"
           aria-controls="materials"
         >
@@ -1051,6 +1060,26 @@
           <button type="button" data-create-shape="sphere">Sphere</button>
           <button type="button" data-create-shape="cylinder">Cylinder</button>
           <button type="button" data-create-shape="plane">Plane</button>
+        </div>
+      </section>
+
+      <section
+        class="sidebar__section"
+        id="show-settings"
+        aria-label="Viewport guides"
+        role="tabpanel"
+        aria-live="polite"
+        data-panel
+      >
+        <h2>Show</h2>
+        <div class="control-group">
+          <label class="toggle-control">
+            <input type="checkbox" data-player-height-toggle checked />
+            <span>Player height reference</span>
+          </label>
+          <p class="info-text" data-player-height-status>
+            Player height reference is visible.
+          </p>
         </div>
       </section>
 
