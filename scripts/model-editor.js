@@ -3073,6 +3073,20 @@ function findSceneObjectFromChild(child) {
   return current.parent === sceneRoot ? current : null;
 }
 
+function isObjectVisibleInScene(object3D) {
+  let current = object3D;
+  while (current) {
+    if (current.visible === false) {
+      return false;
+    }
+    if (current === sceneRoot) {
+      break;
+    }
+    current = current.parent;
+  }
+  return true;
+}
+
 function pickSceneObject(clientX, clientY) {
   const rect = renderer.domElement.getBoundingClientRect();
   const normalizedX = ((clientX - rect.left) / rect.width) * 2 - 1;
@@ -3082,7 +3096,7 @@ function pickSceneObject(clientX, clientY) {
   const intersections = raycaster.intersectObjects(sceneRoot.children, true);
   for (const hit of intersections) {
     const candidate = findSceneObjectFromChild(hit.object);
-    if (candidate) {
+    if (candidate && isObjectVisibleInScene(candidate)) {
       return candidate;
     }
   }
@@ -3647,7 +3661,13 @@ partsListElement?.addEventListener("click", (event) => {
       renderPartsList();
       return;
     }
+    const wasVisible = object3D.visible !== false;
     object3D.visible = !object3D.visible;
+    if (wasVisible && object3D.visible === false && selectedObjects.has(object3D)) {
+      const sourceName =
+        object3D.userData?.sourceName ?? getObjectDisplayName(object3D);
+      toggleSelection(object3D, sourceName, { focus: false });
+    }
     updateVisibilityToggleButton(visibilityButton, object3D);
     return;
   }
@@ -3663,6 +3683,9 @@ partsListElement?.addEventListener("click", (event) => {
   const object3D = sceneRoot.getObjectByProperty("uuid", uuid);
   if (!object3D) {
     renderPartsList();
+    return;
+  }
+  if (!isObjectVisibleInScene(object3D)) {
     return;
   }
   const sourceName = getObjectDisplayName(object3D);
