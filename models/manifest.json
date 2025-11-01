@@ -4,6 +4,10 @@
     "label": "Table 1 (GLB)"
   },
   {
+    "path": "table2.glb",
+    "label": "Table 2 (GLB)"
+  },
+  {
     "path": "floor1.glb",
     "label": "Floor 1 (GLB)"
   }
