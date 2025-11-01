@@ -57,6 +57,8 @@ const motionControlGroups = Array.from(
   document.querySelectorAll("[data-motion-controls]")
 );
 const clockDisplay = document.querySelector("[data-clock-display]");
+const playerHeightToggle = document.querySelector("[data-player-height-toggle]");
+const playerHeightStatusLabel = document.querySelector("[data-player-height-status]");
 const hudEditor = document.querySelector("[data-hud-editor]");
 const hudFigureIdInput = hudEditor?.querySelector("[data-hud-figure-id]");
 const hudCenterActionButton = hudEditor?.querySelector(
@@ -404,6 +406,36 @@ const playerHeightMarkers = createPlayerHeightMarkers();
 playerHeightMarkers.position.set(-2.6, 0, -0.6);
 playerHeightMarkers.userData.isHelper = true;
 helperRoot.add(playerHeightMarkers);
+
+function updatePlayerHeightReferenceVisibility(isVisible) {
+  const visibility = Boolean(isVisible);
+  if (playerHeightMarkers) {
+    playerHeightMarkers.visible = visibility;
+  }
+  if (playerHeightStatusLabel) {
+    playerHeightStatusLabel.textContent = visibility
+      ? "Player height reference is visible."
+      : "Player height reference is hidden.";
+  }
+  if (playerHeightToggle && playerHeightToggle.checked !== visibility) {
+    playerHeightToggle.checked = visibility;
+  }
+}
+
+if (playerHeightToggle) {
+  updatePlayerHeightReferenceVisibility(playerHeightToggle.checked !== false);
+  playerHeightToggle.addEventListener("change", (event) => {
+    const target =
+      event.currentTarget instanceof HTMLInputElement
+        ? event.currentTarget
+        : event.target instanceof HTMLInputElement
+        ? event.target
+        : playerHeightToggle;
+    updatePlayerHeightReferenceVisibility(Boolean(target?.checked));
+  });
+} else {
+  updatePlayerHeightReferenceVisibility(true);
+}
 
 const figureIdRegistry = new Map();
 let nextFigureId = 1;
