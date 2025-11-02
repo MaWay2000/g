@@ -11,6 +11,7 @@ const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_CAMERA_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
   Math.PI / 2 - THREE.MathUtils.degToRad(1);
+const PLAYER_AVATAR_MODEL_PATH = "./models/suit.glb";
 
 const normalizePitchForPersistence = (pitch) => {
   if (!Number.isFinite(pitch)) {
@@ -2462,6 +2463,63 @@ export const initScene = (
   }
   scene.add(playerObject);
 
+  const playerAvatarContainer = new THREE.Group();
+  playerAvatarContainer.name = "PlayerAvatar";
+  playerAvatarContainer.visible = false;
+  playerObject.add(playerAvatarContainer);
+
+  let playerAvatarModel = null;
+  let playerAvatarBaseHeight = null;
+
+  const updatePlayerAvatarTransform = () => {
+    if (
+      !playerAvatarModel ||
+      !Number.isFinite(playerAvatarBaseHeight) ||
+      playerAvatarBaseHeight <= 0
+    ) {
+      return;
+    }
+
+    const scale = playerHeight / playerAvatarBaseHeight;
+    playerAvatarContainer.scale.setScalar(scale);
+    playerAvatarContainer.position.set(0, 0, 0);
+    playerAvatarContainer.visible = true;
+  };
+
+  const loadPlayerAvatar = async () => {
+    try {
+      const loadedAvatar = await loadGLTFModel(PLAYER_AVATAR_MODEL_PATH);
+      const avatarBounds = new THREE.Box3().setFromObject(loadedAvatar);
+      const avatarSize = new THREE.Vector3();
+      const avatarCenter = new THREE.Vector3();
+
+      if (!avatarBounds.isEmpty()) {
+        avatarBounds.getSize(avatarSize);
+        avatarBounds.getCenter(avatarCenter);
+        playerAvatarBaseHeight = avatarSize.y > 0 ? avatarSize.y : DEFAULT_PLAYER_HEIGHT;
+        loadedAvatar.position.x -= avatarCenter.x;
+        loadedAvatar.position.z -= avatarCenter.z;
+        loadedAvatar.position.y -= avatarBounds.min.y;
+      } else {
+        playerAvatarBaseHeight = DEFAULT_PLAYER_HEIGHT;
+        loadedAvatar.position.set(0, 0, 0);
+      }
+
+      playerAvatarContainer.clear();
+      playerAvatarModel = loadedAvatar;
+      playerAvatarContainer.add(playerAvatarModel);
+      playerAvatarModel.updateMatrixWorld(true);
+      updatePlayerAvatarTransform();
+    } catch (error) {
+      console.error("Unable to load player avatar model", error);
+      playerAvatarModel = null;
+      playerAvatarBaseHeight = null;
+      playerAvatarContainer.visible = false;
+    }
+  };
+
+  loadPlayerAvatar();
+
   let playerEyeLevel = playerHeight;
 
   const FIRST_PERSON_EYE_HEIGHT_OFFSET = -0.1;
@@ -2530,6 +2588,7 @@ export const initScene = (
       playerHeight = clampedHeight;
       playerEyeLevel = playerHeight;
       updateEnvironmentForPlayerHeight();
+      updatePlayerAvatarTransform();
     }
 
     updateFirstPersonCameraOffset();
