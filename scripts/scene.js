@@ -303,6 +303,47 @@ export const initScene = (
     }
   };
 
+  const computeWorldBoundingBox = (() => {
+    const tempBoundingBox = new THREE.Box3();
+
+    return (object, targetBox = new THREE.Box3()) => {
+      targetBox.makeEmpty();
+
+      if (!object) {
+        return targetBox;
+      }
+
+      object.updateMatrixWorld(true);
+
+      object.traverse((child) => {
+        if (!child.isMesh || !child.geometry) {
+          return;
+        }
+
+        const { geometry } = child;
+
+        if (!geometry.boundingBox) {
+          geometry.computeBoundingBox();
+        }
+
+        if (!geometry.boundingBox) {
+          return;
+        }
+
+        tempBoundingBox.copy(geometry.boundingBox);
+        tempBoundingBox.applyMatrix4(child.matrixWorld);
+
+        if (targetBox.isEmpty()) {
+          targetBox.copy(tempBoundingBox);
+        } else {
+          targetBox.union(tempBoundingBox);
+        }
+      });
+
+      return targetBox;
+    };
+  })();
+
   const loadGLTFModel = async (path) => {
     const resolvedUrl = resolveAssetUrl(path);
 
@@ -2489,7 +2530,7 @@ export const initScene = (
   const loadPlayerAvatar = async () => {
     try {
       const loadedAvatar = await loadGLTFModel(PLAYER_AVATAR_MODEL_PATH);
-      const avatarBounds = new THREE.Box3().setFromObject(loadedAvatar);
+      const avatarBounds = computeWorldBoundingBox(loadedAvatar);
       const avatarSize = new THREE.Vector3();
       const avatarCenter = new THREE.Vector3();
 
