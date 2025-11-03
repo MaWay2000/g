@@ -202,6 +202,8 @@ export const initScene = (
     onControlsUnlocked,
     onTerminalOptionSelected,
     onTerminalInteractableChange,
+    onLiftInteractableChange,
+    onLiftTravel,
     onManifestPlacementHoverChange,
     onManifestEditModeChange,
     onManifestPlacementRemoved,
@@ -1282,12 +1284,115 @@ export const initScene = (
     controlPanelGlow.renderOrder = 2;
     controlPanel.add(controlPanelGlow);
 
+    const createLiftDisplayTexture = () => {
+      const width = 256;
+      const height = 384;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.needsUpdate = true;
+
+      if (!context) {
+        return {
+          texture,
+          update: () => {},
+        };
+      }
+
+      const drawDescription = (text) => {
+        if (!text) {
+          return;
+        }
+
+        const lines = [];
+        const words = String(text).split(/\s+/).filter(Boolean);
+        const maxWidth = width - 64;
+        let currentLine = "";
+
+        context.font = "400 28px sans-serif";
+
+        words.forEach((word) => {
+          const nextLine = currentLine ? `${currentLine} ${word}` : word;
+          if (context.measureText(nextLine).width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+          } else {
+            currentLine = nextLine;
+          }
+        });
+
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+
+        const startY = height * 0.6;
+        const lineHeight = 36;
+        context.fillStyle = "rgba(148, 163, 184, 0.92)";
+        context.textAlign = "center";
+
+        lines.slice(0, 3).forEach((line, index) => {
+          context.fillText(line, width / 2, startY + index * lineHeight);
+        });
+      };
+
+      const update = ({ current, next, busy }) => {
+        const gradient = context.createLinearGradient(0, 0, width, height);
+        if (busy) {
+          gradient.addColorStop(0, "#1f2937");
+          gradient.addColorStop(1, "#111827");
+        } else {
+          gradient.addColorStop(0, "#0e1b2b");
+          gradient.addColorStop(1, "#0b1220");
+        }
+
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, width, height);
+
+        context.fillStyle = busy
+          ? "rgba(249, 115, 22, 0.12)"
+          : "rgba(34, 197, 94, 0.12)";
+        context.fillRect(12, 12, width - 24, height - 24);
+
+        const title = (current?.title || current?.id || "Unknown Deck").toUpperCase();
+        const status = busy ? "TRANSIT" : "STATIONED";
+        const nextTitle = next
+          ? `NEXT: ${(next.title || next.id || "...").toUpperCase()}`
+          : "CYCLE COMPLETE";
+
+        context.textAlign = "center";
+        context.fillStyle = busy ? "#f97316" : "#22c55e";
+        context.font = "600 34px sans-serif";
+        context.fillText(status, width / 2, height * 0.18);
+
+        context.fillStyle = "#e2e8f0";
+        context.font = "700 56px sans-serif";
+        context.fillText(title, width / 2, height * 0.36);
+
+        context.font = "500 26px sans-serif";
+        context.fillStyle = busy ? "#fbbf24" : "#38bdf8";
+        context.fillText(nextTitle, width / 2, height * 0.48);
+
+        drawDescription(current?.description ?? "");
+
+        texture.needsUpdate = true;
+      };
+
+      return { texture, update };
+    };
+
+    const { texture: liftDisplayTexture, update: updateLiftDisplayTexture } =
+      createLiftDisplayTexture();
+
     const controlScreen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.34, 0.48),
       new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
+        map: liftDisplayTexture,
         transparent: true,
-        opacity: 0.92,
+        opacity: 1,
         side: THREE.DoubleSide,
       })
     );
@@ -1303,6 +1408,20 @@ export const initScene = (
     );
     controlButton.position.set(0, -0.3, 0.1);
     controlPanel.add(controlButton);
+
+    const liftControlHitArea = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.42, 0.86),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    liftControlHitArea.position.set(0, 0.08, 0.115);
+    liftControlHitArea.userData.isLiftControl = true;
+    controlPanel.add(liftControlHitArea);
 
     const panelLight = new THREE.PointLight(
       0xf97316,
@@ -1446,6 +1565,30 @@ export const initScene = (
     liftInstructionPlate.position.set(-0.08, -0.02, 0.094);
     liftPanelGroup.add(liftInstructionPlate);
 
+    const applyLiftIndicatorState = (busy) => {
+      const indicatorMaterial = liftStatusIndicator.material;
+      const indicatorColor = busy ? 0xf97316 : 0x22c55e;
+      if (indicatorMaterial?.color) {
+        indicatorMaterial.color.setHex(indicatorColor);
+      }
+
+      liftIndicatorLight.color.setHex(indicatorColor);
+      liftIndicatorLight.intensity = busy ? 0.5 : 0.85;
+    };
+
+    const applyLiftUiState = ({ current, next, busy } = {}) => {
+      const isBusy = Boolean(busy);
+      applyLiftIndicatorState(isBusy);
+      updateLiftDisplayTexture({ current, next, busy: isBusy });
+    };
+
+    applyLiftUiState({ busy: false });
+
+    group.userData.liftUi = {
+      control: liftControlHitArea,
+      updateState: applyLiftUiState,
+    };
+
     group.userData.height = doorHeight;
     group.userData.width = doorWidth;
     group.userData.baseDimensions = { height: doorHeight, width: doorWidth };
@@ -1460,6 +1603,12 @@ export const initScene = (
     roomDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
   );
   scene.add(hangarDoor);
+
+  liftUiController = hangarDoor.userData?.liftUi ?? null;
+  const liftControl = liftUiController?.control ?? null;
+  if (liftControl) {
+    liftInteractables.push(liftControl);
+  }
 
   const createComputerSetup = () => {
     const group = new THREE.Group();
@@ -2559,6 +2708,12 @@ export const initScene = (
 
     roomMesh.scale.set(1, heightScale, 1);
 
+    liftState.floors.forEach((floor) => {
+      if (floor?.position instanceof THREE.Vector3) {
+        floor.position.y = roomFloorY;
+      }
+    });
+
     floorGrid.position.y = roomFloorY + 0.02;
 
     const verticalGridScale = heightScale;
@@ -2627,6 +2782,25 @@ export const initScene = (
   const quickAccessInteractables = [];
   const MAX_TERMINAL_INTERACTION_DISTANCE = 6.8;
 
+  const liftInteractables = [];
+  const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
+
+  let liftInteractable = false;
+
+  const updateLiftInteractableState = (canInteract) => {
+    const nextState = Boolean(canInteract);
+
+    if (liftInteractable === nextState) {
+      return;
+    }
+
+    liftInteractable = nextState;
+
+    if (typeof onLiftInteractableChange === "function") {
+      onLiftInteractableChange(nextState);
+    }
+  };
+
   let terminalInteractable = false;
 
   const updateTerminalInteractableState = (canInteract) => {
@@ -2686,6 +2860,104 @@ export const initScene = (
     roomFloorY,
     8 * ROOM_SCALE_FACTOR
   );
+
+  const liftState = {
+    floors: [],
+    currentIndex: 0,
+  };
+
+  let liftUiController = null;
+  let travelToLiftFloor = null;
+
+  const liftFrontApproachZ = roomDepth / 2 - 3 * ROOM_SCALE_FACTOR;
+  const liftRearApproachZ = -roomDepth / 2 + 3 * ROOM_SCALE_FACTOR;
+  const liftPortApproachX = -roomWidth / 4;
+
+  liftState.floors = [
+    {
+      id: "hangar-deck",
+      title: "Hangar Deck",
+      description: "Flight line staging",
+      position: new THREE.Vector3(0, roomFloorY, liftFrontApproachZ),
+    },
+    {
+      id: "operations-concourse",
+      title: "Operations Concourse",
+      description: "Command mezzanine overlook",
+      position: new THREE.Vector3(liftPortApproachX, roomFloorY, 0),
+    },
+    {
+      id: "engineering-bay",
+      title: "Engineering Bay",
+      description: "Systems maintenance hub",
+      position: new THREE.Vector3(0, roomFloorY, liftRearApproachZ),
+    },
+  ];
+
+  const getLiftFloorByIndex = (index) => {
+    if (!Array.isArray(liftState.floors) || liftState.floors.length === 0) {
+      return null;
+    }
+
+    const clampedIndex = THREE.MathUtils.euclideanModulo(
+      Number.isInteger(index) ? index : 0,
+      liftState.floors.length
+    );
+
+    return liftState.floors[clampedIndex] ?? null;
+  };
+
+  const getActiveLiftFloor = () => getLiftFloorByIndex(liftState.currentIndex);
+
+  const getNextLiftFloor = () => {
+    if (!Array.isArray(liftState.floors) || liftState.floors.length <= 1) {
+      return null;
+    }
+
+    return getLiftFloorByIndex(liftState.currentIndex + 1);
+  };
+
+  const resolveLiftFloorIndexForPosition = (position) => {
+    if (
+      !position ||
+      !Array.isArray(liftState.floors) ||
+      liftState.floors.length === 0
+    ) {
+      return 0;
+    }
+
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+
+    liftState.floors.forEach((floor, index) => {
+      if (!floor?.position) {
+        return;
+      }
+
+      const distanceSquared =
+        (position.x - floor.position.x) ** 2 +
+        (position.z - floor.position.z) ** 2;
+
+      if (distanceSquared < bestDistance) {
+        bestDistance = distanceSquared;
+        bestIndex = index;
+      }
+    });
+
+    return bestIndex;
+  };
+
+  const updateLiftUi = () => {
+    if (!liftUiController || typeof liftUiController.updateState !== "function") {
+      return;
+    }
+
+    liftUiController.updateState({
+      current: getActiveLiftFloor(),
+      next: getNextLiftFloor(),
+      busy: false,
+    });
+  };
   playerObject.position.copy(defaultPlayerPosition);
 
   let initialPitch = DEFAULT_CAMERA_PITCH;
@@ -2713,6 +2985,11 @@ export const initScene = (
   }
 
   controls.setPitch(initialPitch);
+
+  liftState.currentIndex = resolveLiftFloorIndexForPosition(
+    playerObject.position
+  );
+  updateLiftUi();
 
   const applyPlayerHeight = (newHeight, options = {}) => {
     if (!Number.isFinite(newHeight) || newHeight <= 0) {
@@ -2752,6 +3029,62 @@ export const initScene = (
   const GRAVITY = -9.81;
   const JUMP_VELOCITY = 4.5;
   const CEILING_CLEARANCE = 0.5;
+
+  travelToLiftFloor = (targetIndex, options = {}) => {
+    if (!Array.isArray(liftState.floors) || liftState.floors.length === 0) {
+      return false;
+    }
+
+    if (!Number.isInteger(targetIndex)) {
+      return false;
+    }
+
+    const clampedIndex = THREE.MathUtils.euclideanModulo(
+      targetIndex,
+      liftState.floors.length
+    );
+
+    const currentFloor = getActiveLiftFloor();
+    const nextFloor = getLiftFloorByIndex(clampedIndex);
+
+    if (!nextFloor || clampedIndex === liftState.currentIndex) {
+      updateLiftUi();
+      return false;
+    }
+
+    liftState.currentIndex = clampedIndex;
+
+    if (nextFloor.position instanceof THREE.Vector3) {
+      playerObject.position.set(
+        nextFloor.position.x,
+        Number.isFinite(nextFloor.position.y)
+          ? nextFloor.position.y
+          : roomFloorY,
+        nextFloor.position.z
+      );
+      previousPlayerPosition.copy(playerObject.position);
+    }
+
+    if (Number.isFinite(nextFloor.yaw)) {
+      controls.setYaw(nextFloor.yaw);
+    }
+
+    velocity.set(0, 0, 0);
+    verticalVelocity = 0;
+
+    updateLiftUi();
+    savePlayerState(true);
+
+    if (typeof onLiftTravel === "function") {
+      onLiftTravel({
+        from: currentFloor || null,
+        to: nextFloor,
+        reason: options?.reason || "direct",
+      });
+    }
+
+    return true;
+  };
 
   const resolvePlayerCollisions = (previousPosition) => {
     const playerPosition = controls.getObject().position;
@@ -3405,6 +3738,7 @@ export const initScene = (
     }
 
     updateTerminalInteractableState(false);
+    updateLiftInteractableState(false);
     setManifestEditModeEnabled(false);
     if (activePlacement) {
       cancelActivePlacement(
@@ -3422,6 +3756,56 @@ export const initScene = (
 
   canvas.addEventListener("click", attemptPointerLock);
   canvas.addEventListener("pointerdown", attemptPointerLock);
+
+  const getTargetedLiftControl = () => {
+    if (liftInteractables.length === 0) {
+      return null;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(
+      liftInteractables,
+      false
+    );
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const intersection = intersections.find((candidate) =>
+      candidate.object?.userData?.isLiftControl
+    );
+
+    if (
+      !intersection ||
+      intersection.distance > MAX_LIFT_INTERACTION_DISTANCE
+    ) {
+      return null;
+    }
+
+    return intersection.object;
+  };
+
+  const travelToNextLiftFloor = () => {
+    if (typeof travelToLiftFloor !== "function") {
+      return false;
+    }
+
+    if (!Array.isArray(liftState.floors) || liftState.floors.length <= 1) {
+      return false;
+    }
+
+    const nextIndex = THREE.MathUtils.euclideanModulo(
+      liftState.currentIndex + 1,
+      liftState.floors.length
+    );
+
+    if (nextIndex === liftState.currentIndex) {
+      return false;
+    }
+
+    return travelToLiftFloor(nextIndex, { reason: "cycle" });
+  };
 
   const getTargetedTerminalZone = () => {
     if (quickAccessInteractables.length === 0) {
@@ -3490,7 +3874,16 @@ export const initScene = (
   };
 
   const handleCanvasClick = () => {
-    if (!controls.isLocked || quickAccessInteractables.length === 0) {
+    if (!controls.isLocked) {
+      return;
+    }
+
+    const targetedLiftControl = getTargetedLiftControl();
+    if (targetedLiftControl && travelToNextLiftFloor()) {
+      return;
+    }
+
+    if (quickAccessInteractables.length === 0) {
       return;
     }
 
@@ -4562,6 +4955,18 @@ export const initScene = (
     ) {
       attemptPointerLock();
     }
+
+    if (
+      controls.isLocked &&
+      !event.repeat &&
+      ["KeyF", "Enter"].includes(event.code)
+    ) {
+      const targetedLiftControl = getTargetedLiftControl();
+      if (targetedLiftControl && travelToNextLiftFloor()) {
+        event.preventDefault();
+        return;
+      }
+    }
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
       event.preventDefault();
     }
@@ -4660,12 +5065,17 @@ export const initScene = (
 
 
     let matchedZone = null;
+    let matchedLiftControl = null;
 
     if (controls.isLocked) {
+      matchedLiftControl = getTargetedLiftControl();
+      updateLiftInteractableState(Boolean(matchedLiftControl));
+
       matchedZone = getTargetedTerminalZone();
       updateTerminalInteractableState(Boolean(matchedZone));
     } else {
       updateTerminalInteractableState(false);
+      updateLiftInteractableState(false);
     }
 
     const hoveredZoneId = matchedZone?.id ?? null;
@@ -4765,6 +5175,42 @@ export const initScene = (
     requestPointerLock: () => {
       attemptPointerLock();
     },
+    getLiftFloors: () =>
+      liftState.floors.map((floor) => ({
+        id: floor.id,
+        title: floor.title,
+        description: floor.description,
+      })),
+    getActiveLiftFloor: () => {
+      const current = getActiveLiftFloor();
+      if (!current) {
+        return null;
+      }
+
+      return {
+        id: current.id,
+        title: current.title,
+        description: current.description,
+      };
+    },
+    cycleLiftFloor: () => travelToNextLiftFloor(),
+    setActiveLiftFloorById: (floorId) => {
+      if (!floorId) {
+        return false;
+      }
+
+      const index = liftState.floors.findIndex(
+        (floor) => floor?.id === floorId
+      );
+
+      if (index < 0) {
+        return false;
+      }
+
+      return typeof travelToLiftFloor === "function"
+        ? travelToLiftFloor(index, { reason: "external" })
+        : false;
+    },
     dispose: () => {
       if (activePlacement) {
         cancelActivePlacement(
@@ -4781,6 +5227,7 @@ export const initScene = (
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       updateTerminalInteractableState(false);
+      updateLiftInteractableState(false);
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }

@@ -15,6 +15,7 @@ const crosshair = document.querySelector(".crosshair");
 const crosshairStates = {
   terminal: false,
   edit: false,
+  lift: false,
 };
 let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
@@ -1201,6 +1202,21 @@ const bootstrapScene = () => {
     },
     onTerminalInteractableChange(value) {
       setCrosshairSourceState("terminal", value);
+    },
+    onLiftInteractableChange(value) {
+      setCrosshairSourceState("lift", value);
+    },
+    onLiftTravel(event) {
+      playTerminalInteractionSound();
+      const destination = event?.to ?? null;
+      const floorTitle = destination?.title || destination?.id || "New deck";
+      const detail = destination?.description
+        ? `${floorTitle} – ${destination.description}`
+        : floorTitle;
+      showTerminalToast({
+        title: "Lift arrival",
+        description: detail,
+      });
     },
     onManifestPlacementHoverChange: handleManifestPlacementHoverChange,
     onManifestEditModeChange: handleManifestEditModeChange,
