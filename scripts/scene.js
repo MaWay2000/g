@@ -1242,18 +1242,45 @@ export const initScene = (
       group.add(bolt);
     });
 
+    const controlPanelMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x111b1f),
+      roughness: 0.42,
+      metalness: 0.48,
+      emissive: new THREE.Color(0x0f172a),
+      emissiveIntensity: 0.45,
+    });
+
     const controlPanel = new THREE.Mesh(
       new THREE.BoxGeometry(0.6, 1.4, 0.18),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x0a1213),
-        roughness: 0.48,
-        metalness: 0.4,
-        emissive: new THREE.Color(0x040d0d),
-        emissiveIntensity: 0.25,
-      })
+      controlPanelMaterial
     );
     controlPanel.position.set(doorWidth / 2 + frameWidth * 0.95, 0.1, 0.12);
     group.add(controlPanel);
+
+    const controlPanelEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(controlPanel.geometry),
+      new THREE.LineBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.75,
+      })
+    );
+    controlPanelEdges.scale.setScalar(1.01);
+    controlPanel.add(controlPanelEdges);
+
+    const controlPanelGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.74, 1.62),
+      new THREE.MeshBasicMaterial({
+        color: 0x0ea5e9,
+        transparent: true,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    controlPanelGlow.position.set(0, 0, 0.1);
+    controlPanelGlow.renderOrder = 2;
+    controlPanel.add(controlPanelGlow);
 
     const controlScreen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.34, 0.48),
@@ -1279,11 +1306,15 @@ export const initScene = (
 
     const panelLight = new THREE.PointLight(
       0xf97316,
-      0.35,
-      4.5 * ROOM_SCALE_FACTOR,
-      2
+      0.85,
+      5.5 * ROOM_SCALE_FACTOR,
+      1.6
     );
-    panelLight.position.set(controlPanel.position.x, controlPanel.position.y + 0.3, 0.4);
+    panelLight.position.set(
+      controlPanel.position.x,
+      controlPanel.position.y + 0.3,
+      0.42
+    );
     group.add(panelLight);
 
     const liftPanelGroup = new THREE.Group();
@@ -1294,26 +1325,41 @@ export const initScene = (
     );
     group.add(liftPanelGroup);
 
+    const liftPanelBaseMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f172a),
+      roughness: 0.54,
+      metalness: 0.46,
+      emissive: new THREE.Color(0x0b1120),
+      emissiveIntensity: 0.35,
+    });
+
     const liftPanelBase = new THREE.Mesh(
       new THREE.BoxGeometry(0.42, 1.12, 0.16),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x111827),
-        roughness: 0.62,
-        metalness: 0.38,
-      })
+      liftPanelBaseMaterial
     );
     liftPanelBase.castShadow = true;
     liftPanelBase.receiveShadow = true;
     liftPanelGroup.add(liftPanelBase);
 
+    const liftPanelEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(liftPanelBase.geometry),
+      new THREE.LineBasicMaterial({
+        color: 0x22d3ee,
+        transparent: true,
+        opacity: 0.7,
+      })
+    );
+    liftPanelEdges.scale.setScalar(1.01);
+    liftPanelBase.add(liftPanelEdges);
+
     const liftPanelInset = new THREE.Mesh(
       new THREE.BoxGeometry(0.34, 0.94, 0.04),
       new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x0f172a),
-        roughness: 0.46,
-        metalness: 0.52,
-        emissive: new THREE.Color(0x040d21),
-        emissiveIntensity: 0.25,
+        color: new THREE.Color(0x17223a),
+        roughness: 0.42,
+        metalness: 0.58,
+        emissive: new THREE.Color(0x0e1d37),
+        emissiveIntensity: 0.55,
       })
     );
     liftPanelInset.position.set(0, 0, 0.06);
@@ -1345,9 +1391,9 @@ export const initScene = (
     const liftToggleSwitch = new THREE.Mesh(
       new THREE.BoxGeometry(0.05, 0.16, 0.02),
       new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x22d3ee),
+        color: new THREE.Color(0x38bdf8),
         emissive: new THREE.Color(0x0ea5e9),
-        emissiveIntensity: 0.65,
+        emissiveIntensity: 0.85,
       })
     );
     liftToggleSwitch.position.set(0, -0.08, 0.14);
@@ -1358,6 +1404,8 @@ export const initScene = (
       new THREE.CircleGeometry(0.055, 24),
       new THREE.MeshBasicMaterial({
         color: 0x22c55e,
+        opacity: 0.95,
+        transparent: true,
       })
     );
     liftStatusIndicator.position.set(0.1, 0.08, 0.1);
@@ -1365,12 +1413,26 @@ export const initScene = (
 
     const liftIndicatorLight = new THREE.PointLight(
       0x22c55e,
-      0.28,
-      3.2 * ROOM_SCALE_FACTOR,
-      2
+      0.6,
+      3.6 * ROOM_SCALE_FACTOR,
+      1.6
     );
     liftIndicatorLight.position.set(0.1, 0.08, 0.16);
     liftPanelGroup.add(liftIndicatorLight);
+
+    const liftPanelGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.56, 1.36),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.16,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    liftPanelGlow.position.set(0, 0, 0.1);
+    liftPanelGlow.renderOrder = 2;
+    liftPanelGroup.add(liftPanelGlow);
 
     const liftInstructionPlate = new THREE.Mesh(
       new THREE.PlaneGeometry(0.18, 0.12),
