@@ -757,6 +757,43 @@ export const initScene = (
       return texture;
     };
 
+    const createPanelLabelTexture = (textLines) => {
+      const canvasSize = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#0b1214";
+      ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+      ctx.strokeStyle = "#1f2937";
+      ctx.lineWidth = 12;
+      ctx.strokeRect(10, 10, canvasSize - 20, canvasSize - 20);
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#cbd5f5";
+
+      const lines = Array.isArray(textLines) ? textLines : [textLines];
+      const totalLines = lines.length;
+      const baseFontSize = 74;
+
+      lines.forEach((line, index) => {
+        const fontSize =
+          totalLines > 1 ? baseFontSize - (totalLines - 1) * 8 : baseFontSize;
+        ctx.font = `700 ${fontSize}px sans-serif`;
+        const yOffset =
+          canvasSize / 2 + (index - (totalLines - 1) / 2) * (fontSize + 4);
+        ctx.fillText(line.toUpperCase(), canvasSize / 2, yOffset);
+      });
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.needsUpdate = true;
+      return texture;
+    };
+
     const createGrungeTexture = () => {
       const size = 256;
       const canvas = document.createElement("canvas");
@@ -1248,6 +1285,104 @@ export const initScene = (
     );
     panelLight.position.set(controlPanel.position.x, controlPanel.position.y + 0.3, 0.4);
     group.add(panelLight);
+
+    const liftPanelGroup = new THREE.Group();
+    liftPanelGroup.position.set(
+      -doorWidth / 2 - frameWidth * 0.82,
+      -0.18,
+      0.14
+    );
+    group.add(liftPanelGroup);
+
+    const liftPanelBase = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, 1.12, 0.16),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x111827),
+        roughness: 0.62,
+        metalness: 0.38,
+      })
+    );
+    liftPanelBase.castShadow = true;
+    liftPanelBase.receiveShadow = true;
+    liftPanelGroup.add(liftPanelBase);
+
+    const liftPanelInset = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.94, 0.04),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0f172a),
+        roughness: 0.46,
+        metalness: 0.52,
+        emissive: new THREE.Color(0x040d21),
+        emissiveIntensity: 0.25,
+      })
+    );
+    liftPanelInset.position.set(0, 0, 0.06);
+    liftPanelGroup.add(liftPanelInset);
+
+    const liftPanelLabel = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.26, 0.32),
+      new THREE.MeshBasicMaterial({
+        map: createPanelLabelTexture(["LIFT", "DOOR"]),
+        transparent: true,
+        side: THREE.DoubleSide,
+      })
+    );
+    liftPanelLabel.position.set(0, 0.28, 0.095);
+    liftPanelGroup.add(liftPanelLabel);
+
+    const liftToggleHousing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 0.05, 24),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x1f2937),
+        roughness: 0.45,
+        metalness: 0.75,
+      })
+    );
+    liftToggleHousing.rotation.x = Math.PI / 2;
+    liftToggleHousing.position.set(0, -0.12, 0.08);
+    liftPanelGroup.add(liftToggleHousing);
+
+    const liftToggleSwitch = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.16, 0.02),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x22d3ee),
+        emissive: new THREE.Color(0x0ea5e9),
+        emissiveIntensity: 0.65,
+      })
+    );
+    liftToggleSwitch.position.set(0, -0.08, 0.14);
+    liftToggleSwitch.rotation.x = THREE.MathUtils.degToRad(-18);
+    liftPanelGroup.add(liftToggleSwitch);
+
+    const liftStatusIndicator = new THREE.Mesh(
+      new THREE.CircleGeometry(0.055, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0x22c55e,
+      })
+    );
+    liftStatusIndicator.position.set(0.1, 0.08, 0.1);
+    liftPanelGroup.add(liftStatusIndicator);
+
+    const liftIndicatorLight = new THREE.PointLight(
+      0x22c55e,
+      0.28,
+      3.2 * ROOM_SCALE_FACTOR,
+      2
+    );
+    liftIndicatorLight.position.set(0.1, 0.08, 0.16);
+    liftPanelGroup.add(liftIndicatorLight);
+
+    const liftInstructionPlate = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.18, 0.12),
+      new THREE.MeshBasicMaterial({
+        map: createPanelLabelTexture(["ACCESS"]),
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+      })
+    );
+    liftInstructionPlate.position.set(-0.08, -0.02, 0.094);
+    liftPanelGroup.add(liftInstructionPlate);
 
     group.userData.height = doorHeight;
     group.userData.width = doorWidth;
