@@ -12,6 +12,8 @@ const DEFAULT_CAMERA_PITCH = 0;
 const MAX_RESTORABLE_PITCH =
   Math.PI / 2 - THREE.MathUtils.degToRad(1);
 const PLAYER_AVATAR_MODEL_PATH = "./models/suit.glb";
+const PLAYER_AVATAR_SHOWCASE_COUNT = 100;
+const PLAYER_AVATAR_SHOWCASE_COLUMNS = 10;
 
 const normalizePitchForPersistence = (pitch) => {
   if (!Number.isFinite(pitch)) {
@@ -2458,6 +2460,7 @@ export const initScene = (
     }
 
     computerSetup.position.y = roomFloorY;
+    playerAvatarShowcaseGroup.position.y = roomFloorY;
     if (typeof computerSetup.userData?.notifyCollidersChanged === "function") {
       computerSetup.userData.notifyCollidersChanged();
     } else {
@@ -2504,6 +2507,20 @@ export const initScene = (
   }
   scene.add(playerObject);
 
+  const PLAYER_AVATAR_SHOWCASE_BASE_Z =
+    -roomDepth / 2 + 6 * ROOM_SCALE_FACTOR;
+  const playerAvatarShowcaseGroup = new THREE.Group();
+  playerAvatarShowcaseGroup.name = "PlayerAvatarShowcase";
+  playerAvatarShowcaseGroup.visible = false;
+  playerAvatarShowcaseGroup.position.set(
+    0,
+    roomFloorY,
+    PLAYER_AVATAR_SHOWCASE_BASE_Z
+  );
+  scene.add(playerAvatarShowcaseGroup);
+
+  let isPlayerAvatarShowcasePopulated = false;
+
   const playerAvatarContainer = new THREE.Group();
   playerAvatarContainer.name = "PlayerAvatar";
   playerAvatarContainer.visible = false;
@@ -2525,6 +2542,46 @@ export const initScene = (
     playerAvatarContainer.scale.setScalar(scale);
     playerAvatarContainer.position.set(0, 0, 0);
     playerAvatarContainer.visible = true;
+
+    if (isPlayerAvatarShowcasePopulated) {
+      playerAvatarShowcaseGroup.scale.setScalar(scale);
+      playerAvatarShowcaseGroup.visible = true;
+    }
+  };
+
+  const populatePlayerAvatarShowcase = (prototype, avatarDimensions) => {
+    if (!prototype || isPlayerAvatarShowcasePopulated) {
+      return;
+    }
+
+    const columns = Math.max(
+      1,
+      Math.min(PLAYER_AVATAR_SHOWCASE_COLUMNS, PLAYER_AVATAR_SHOWCASE_COUNT)
+    );
+    const rows = Math.ceil(PLAYER_AVATAR_SHOWCASE_COUNT / columns);
+
+    const width = Number.isFinite(avatarDimensions?.x) ? avatarDimensions.x : 0;
+    const depth = Number.isFinite(avatarDimensions?.z) ? avatarDimensions.z : 0;
+
+    const fallbackSpan = DEFAULT_PLAYER_HEIGHT * 0.35;
+    const spacingX = Math.max(width, fallbackSpan) * 1.35;
+    const spacingZ = Math.max(depth, fallbackSpan) * 1.5;
+
+    playerAvatarShowcaseGroup.clear();
+
+    for (let index = 0; index < PLAYER_AVATAR_SHOWCASE_COUNT; index += 1) {
+      const clone = prototype.clone(true);
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      const offsetX = (column - (columns - 1) / 2) * spacingX;
+      const offsetZ = (row - (rows - 1) / 2) * spacingZ;
+
+      clone.position.set(offsetX, 0, offsetZ);
+      playerAvatarShowcaseGroup.add(clone);
+    }
+
+    playerAvatarShowcaseGroup.visible = true;
+    isPlayerAvatarShowcasePopulated = true;
   };
 
   const loadPlayerAvatar = async () => {
@@ -2550,12 +2607,16 @@ export const initScene = (
       playerAvatarModel = loadedAvatar;
       playerAvatarContainer.add(playerAvatarModel);
       playerAvatarModel.updateMatrixWorld(true);
+      populatePlayerAvatarShowcase(playerAvatarModel, avatarSize);
       updatePlayerAvatarTransform();
     } catch (error) {
       console.error("Unable to load player avatar model", error);
       playerAvatarModel = null;
       playerAvatarBaseHeight = null;
       playerAvatarContainer.visible = false;
+      playerAvatarShowcaseGroup.clear();
+      playerAvatarShowcaseGroup.visible = false;
+      isPlayerAvatarShowcasePopulated = false;
     }
   };
 
