@@ -103,9 +103,16 @@ const modelPaletteClose = modelPalette?.querySelector(
 
 const quickAccessModalTemplates = {
   default: document.getElementById("quick-access-modal-default"),
+  lift: document.getElementById("quick-access-modal-lift"),
   news: document.getElementById("quick-access-modal-news"),
   weather: document.getElementById("quick-access-modal-weather"),
   missions: document.getElementById("quick-access-modal-missions"),
+};
+
+const LIFT_MODAL_OPTION = {
+  id: "lift",
+  title: "Lift control",
+  description: "Select your destination deck.",
 };
 
 const modalFocusableSelectors =
@@ -191,6 +198,7 @@ let quickAccessModalClose = null;
 let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let sceneController = null;
+let liftModalActive = false;
 
 const attemptToRestorePointerLock = () => {
   const controls = sceneController?.controls;
@@ -444,11 +452,149 @@ const getModalTemplateForOption = (optionId) => {
 };
 
 const getModalLabelForOption = (option) => {
+  if (option?.id === LIFT_MODAL_OPTION.id) {
+    return "Lift navigation panel";
+  }
+
   if (option?.title) {
     return `${option.title} terminal briefing`;
   }
 
   return "Terminal information panel";
+};
+
+const getLiftModalElements = () => {
+  if (!quickAccessModalContent) {
+    return { list: null, empty: null };
+  }
+
+  return {
+    list: quickAccessModalContent.querySelector("[data-lift-modal-floor-list]"),
+    empty: quickAccessModalContent.querySelector("[data-lift-modal-empty]"),
+  };
+};
+
+const handleLiftModalFloorButtonClick = (event) => {
+  if (!(event?.currentTarget instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const button = event.currentTarget;
+  const floorId = button.dataset.floorId;
+
+  if (!floorId || !sceneController?.setActiveLiftFloorById) {
+    return;
+  }
+
+  if (!sceneController.setActiveLiftFloorById(floorId)) {
+    return;
+  }
+
+  closeQuickAccessModal();
+};
+
+const updateLiftModalActiveState = () => {
+  if (!liftModalActive || !quickAccessModalContent) {
+    return;
+  }
+
+  const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
+  const buttons = quickAccessModalContent.querySelectorAll(
+    "[data-lift-modal-floor-option]"
+  );
+
+  buttons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const isActive = button.dataset.floorId === activeFloorId;
+    button.setAttribute("aria-current", isActive ? "true" : "false");
+    button.disabled = isActive;
+    const status = button.querySelector(".lift-selector__status");
+    if (status instanceof HTMLElement) {
+      status.hidden = !isActive;
+    }
+  });
+};
+
+const renderLiftModalFloors = () => {
+  if (!liftModalActive) {
+    return;
+  }
+
+  const { list, empty } = getLiftModalElements();
+
+  if (!(list instanceof HTMLElement)) {
+    return;
+  }
+
+  list.innerHTML = "";
+  const floors = sceneController?.getLiftFloors?.() ?? [];
+  const hasFloors = Array.isArray(floors) && floors.length > 0;
+
+  if (empty instanceof HTMLElement) {
+    empty.hidden = hasFloors;
+  }
+
+  if (!hasFloors) {
+    return;
+  }
+
+  floors.forEach((floor) => {
+    if (!floor) {
+      return;
+    }
+
+    const item = document.createElement("li");
+    item.className = "lift-selector__item";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lift-selector__button";
+    button.setAttribute("data-lift-modal-floor-option", "");
+
+    if (typeof floor.id === "string" && floor.id.trim() !== "") {
+      button.dataset.floorId = floor.id.trim();
+    }
+
+    const title = document.createElement("span");
+    title.className = "lift-selector__title";
+    title.textContent =
+      typeof floor.title === "string" && floor.title.trim() !== ""
+        ? floor.title.trim()
+        : "Unlabeled deck";
+    button.appendChild(title);
+
+    if (typeof floor.description === "string" && floor.description.trim() !== "") {
+      const description = document.createElement("span");
+      description.className = "lift-selector__description";
+      description.textContent = floor.description.trim();
+      button.appendChild(description);
+    }
+
+    const status = document.createElement("span");
+    status.className = "lift-selector__status";
+    status.textContent = "Current deck";
+    status.hidden = true;
+    button.appendChild(status);
+
+    button.addEventListener("click", handleLiftModalFloorButtonClick);
+    item.appendChild(button);
+    list.appendChild(item);
+  });
+
+  updateLiftModalActiveState();
+};
+
+const initializeQuickAccessModalContent = (option) => {
+  liftModalActive = option?.id === LIFT_MODAL_OPTION.id;
+
+  if (liftModalActive) {
+    renderLiftModalFloors();
+  }
 };
 
 const isFocusableElementVisible = (element) => {
@@ -974,6 +1120,7 @@ const finishClosingQuickAccessModal = () => {
     return;
   }
 
+  liftModalActive = false;
   quickAccessModal.hidden = true;
   quickAccessModalContent.innerHTML = "";
   stopQuickAccessMatrix();
@@ -1050,6 +1197,7 @@ const openQuickAccessModal = (option) => {
   quickAccessModalContent.innerHTML = "";
   quickAccessModalContent.appendChild(template.content.cloneNode(true));
   quickAccessModalContent.scrollTop = 0;
+  initializeQuickAccessModalContent(option);
 
   quickAccessModalClose = quickAccessModalDialog.querySelector(
     ".quick-access-modal__close"
@@ -1078,6 +1226,10 @@ const openQuickAccessModal = (option) => {
   if (quickAccessModalClose instanceof HTMLElement) {
     quickAccessModalClose.focus({ preventScroll: true });
   }
+};
+
+const openLiftModal = () => {
+  openQuickAccessModal(LIFT_MODAL_OPTION);
 };
 
 if (quickAccessModal instanceof HTMLElement) {
@@ -1203,6 +1355,10 @@ const bootstrapScene = () => {
     onTerminalInteractableChange(value) {
       setCrosshairSourceState("terminal", value);
     },
+    onLiftControlInteract() {
+      playTerminalInteractionSound();
+      openLiftModal();
+    },
     onLiftInteractableChange(value) {
       setCrosshairSourceState("lift", value);
     },
@@ -1217,6 +1373,7 @@ const bootstrapScene = () => {
         title: "Lift arrival",
         description: detail,
       });
+      updateLiftModalActiveState();
     },
     onManifestPlacementHoverChange: handleManifestPlacementHoverChange,
     onManifestEditModeChange: handleManifestEditModeChange,
