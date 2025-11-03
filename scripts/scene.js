@@ -233,6 +233,9 @@ export const initScene = (
   const gltfCache = new Map();
   const objCache = new Map();
 
+  let liftUiController = null;
+  const liftInteractables = [];
+
   const defaultImportedMaterial = new THREE.MeshStandardMaterial({
     color: new THREE.Color(0x1f2937),
     roughness: 0.64,
@@ -2782,7 +2785,6 @@ export const initScene = (
   const quickAccessInteractables = [];
   const MAX_TERMINAL_INTERACTION_DISTANCE = 6.8;
 
-  const liftInteractables = [];
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
 
   let liftInteractable = false;
@@ -2866,7 +2868,6 @@ export const initScene = (
     currentIndex: 0,
   };
 
-  let liftUiController = null;
   let travelToLiftFloor = null;
 
   const liftFrontApproachZ = roomDepth / 2 - 3 * ROOM_SCALE_FACTOR;
