@@ -202,6 +202,7 @@ export const initScene = (
     onControlsUnlocked,
     onTerminalOptionSelected,
     onTerminalInteractableChange,
+    onLiftControlInteract,
     onLiftInteractableChange,
     onLiftTravel,
     onManifestPlacementHoverChange,
@@ -3880,7 +3881,13 @@ export const initScene = (
     }
 
     const targetedLiftControl = getTargetedLiftControl();
-    if (targetedLiftControl && travelToNextLiftFloor()) {
+    if (targetedLiftControl) {
+      if (typeof onLiftControlInteract === "function") {
+        if (controls.isLocked) {
+          controls.unlock();
+        }
+        onLiftControlInteract({ control: targetedLiftControl });
+      }
       return;
     }
 
