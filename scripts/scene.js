@@ -2703,6 +2703,11 @@ export const initScene = (
     registerReflectiveSurface(wallMirrorReflector);
   }
 
+  const liftState = {
+    floors: [],
+    currentIndex: 0,
+  };
+
   const updateEnvironmentForPlayerHeight = () => {
     const heightScale = playerHeight / DEFAULT_PLAYER_HEIGHT;
 
@@ -2862,11 +2867,6 @@ export const initScene = (
     roomFloorY,
     8 * ROOM_SCALE_FACTOR
   );
-
-  const liftState = {
-    floors: [],
-    currentIndex: 0,
-  };
 
   let travelToLiftFloor = null;
 
