@@ -240,26 +240,58 @@ export const initScene = (
   const environmentHeightAdjusters = [];
 
   const registerEnvironmentHeightAdjuster = (adjuster) => {
-    if (typeof adjuster === "function") {
-      environmentHeightAdjusters.push(adjuster);
+    if (typeof adjuster !== "function") {
+      return () => {};
     }
+
+    environmentHeightAdjusters.push(adjuster);
+
+    return () => {
+      const index = environmentHeightAdjusters.indexOf(adjuster);
+      if (index >= 0) {
+        environmentHeightAdjusters.splice(index, 1);
+      }
+    };
   };
 
   const registerLiftDoor = (door) => {
     if (!door || registeredLiftDoors.includes(door)) {
-      return;
+      return () => {};
     }
 
     registeredLiftDoors.push(door);
 
-    const controller = door.userData?.liftUi;
+    const controller = door.userData?.liftUi ?? null;
+    let registeredControl = null;
+
     if (controller) {
       liftUiControllers.add(controller);
       const control = controller.control ?? null;
       if (control && !liftInteractables.includes(control)) {
         liftInteractables.push(control);
+        registeredControl = control;
+      } else if (control) {
+        registeredControl = control;
       }
     }
+
+    return () => {
+      const doorIndex = registeredLiftDoors.indexOf(door);
+      if (doorIndex >= 0) {
+        registeredLiftDoors.splice(doorIndex, 1);
+      }
+
+      if (controller) {
+        liftUiControllers.delete(controller);
+      }
+
+      if (registeredControl) {
+        const controlIndex = liftInteractables.indexOf(registeredControl);
+        if (controlIndex >= 0) {
+          liftInteractables.splice(controlIndex, 1);
+        }
+      }
+    };
   };
 
   const createFloorBounds = (
@@ -594,6 +626,54 @@ export const initScene = (
           box.min.sub(padding);
           box.max.add(padding);
         }
+      }
+    });
+  };
+
+  const disposeObject3D = (object) => {
+    if (!object) {
+      return;
+    }
+
+    const disposedMaterials = new Set();
+
+    object.traverse((child) => {
+      if (!child) {
+        return;
+      }
+
+      if (typeof child.userData?.dispose === "function") {
+        try {
+          child.userData.dispose();
+        } catch (error) {
+          console.warn("Failed to dispose object userData", error);
+        }
+      }
+
+      const { geometry, material } = child;
+
+      if (geometry && typeof geometry.dispose === "function") {
+        geometry.dispose();
+      }
+
+      if (Array.isArray(material)) {
+        material.forEach((entry) => {
+          if (
+            entry &&
+            typeof entry.dispose === "function" &&
+            !disposedMaterials.has(entry)
+          ) {
+            entry.dispose();
+            disposedMaterials.add(entry);
+          }
+        });
+      } else if (
+        material &&
+        typeof material.dispose === "function" &&
+        !disposedMaterials.has(material)
+      ) {
+        material.dispose();
+        disposedMaterials.add(material);
       }
     });
   };
@@ -3275,100 +3355,275 @@ export const initScene = (
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
 
-  const operationsConcourseEnvironment = createOperationsConcourseEnvironment();
-  operationsConcourseEnvironment.group.position.set(
-    roomWidth * 3.2,
-    0,
-    0
-  );
-  scene.add(operationsConcourseEnvironment.group);
-  registerEnvironmentHeightAdjuster(
-    operationsConcourseEnvironment.updateForRoomHeight
-  );
-  registerLiftDoor(operationsConcourseEnvironment.liftDoor);
-  const operationsDeckFloorPosition = new THREE.Vector3().copy(
-    operationsConcourseEnvironment.group.position
-  );
-  if (
-    operationsConcourseEnvironment.teleportOffset instanceof THREE.Vector3
-  ) {
-    operationsDeckFloorPosition.add(operationsConcourseEnvironment.teleportOffset);
-  }
-  operationsDeckFloorPosition.y = roomFloorY;
-  const operationsDeckFloorBounds =
-    translateBoundsToWorld(
-      operationsConcourseEnvironment.bounds,
-      operationsConcourseEnvironment.group.position
-    ) ??
-    translateBoundsToWorld(
-      createFloorBounds(roomWidth * 1.35, roomDepth * 0.85, {
-        paddingX: 0.75,
-        paddingZ: 0.75,
-      }),
-      operationsConcourseEnvironment.group.position
-    );
+  const createLazyDeckEnvironment = ({
+    id,
+    title,
+    description,
+    yaw = 0,
+    groupPosition,
+    localFloorBounds,
+    teleportOffset,
+    createEnvironment,
+  }) => {
+    const origin = groupPosition.clone();
+    const localBounds = localFloorBounds || null;
+    const worldBounds = localBounds
+      ? translateBoundsToWorld(localBounds, origin)
+      : null;
 
-  const engineeringBayEnvironment = createEngineeringBayEnvironment();
-  engineeringBayEnvironment.group.position.set(
+    const teleport = teleportOffset instanceof THREE.Vector3
+      ? teleportOffset.clone()
+      : null;
+
+    const floorPosition = new THREE.Vector3().copy(origin);
+    if (teleport) {
+      floorPosition.add(teleport);
+    }
+    floorPosition.y = roomFloorY;
+
+    let state = null;
+
+    const load = () => {
+      if (state?.group) {
+        if (!state.group.parent) {
+          scene.add(state.group);
+          state.group.updateMatrixWorld(true);
+        }
+        return state;
+      }
+
+      let environment = null;
+
+      try {
+        environment = createEnvironment();
+      } catch (error) {
+        console.warn(`Unable to create environment for ${id}`, error);
+        return null;
+      }
+
+      const group = environment?.group;
+
+      if (!group) {
+        return null;
+      }
+
+      group.position.copy(origin);
+      scene.add(group);
+      group.updateMatrixWorld(true);
+
+      let colliderSource = null;
+
+      if (Array.isArray(environment?.colliderDescriptors)) {
+        colliderSource = environment.colliderDescriptors;
+      } else if (Array.isArray(group.userData?.colliderDescriptors)) {
+        colliderSource = group.userData.colliderDescriptors;
+      }
+
+      let registeredColliders = null;
+      if (Array.isArray(colliderSource) && colliderSource.length > 0) {
+        registeredColliders = registerColliderDescriptors(colliderSource);
+      }
+
+      let unregisterHeightAdjuster = null;
+      if (typeof environment?.updateForRoomHeight === "function") {
+        unregisterHeightAdjuster = registerEnvironmentHeightAdjuster(
+          environment.updateForRoomHeight
+        );
+        try {
+          environment.updateForRoomHeight({
+            roomFloorY,
+            heightScale: playerHeight / DEFAULT_PLAYER_HEIGHT,
+          });
+        } catch (error) {
+          console.warn(
+            `Unable to update environment height for ${id}`,
+            error
+          );
+        }
+      }
+
+      let unregisterLiftDoor = null;
+      if (environment?.liftDoor) {
+        unregisterLiftDoor = registerLiftDoor(environment.liftDoor);
+      }
+
+      state = {
+        group,
+        unregisterHeightAdjuster,
+        unregisterLiftDoor,
+        registeredColliders,
+      };
+
+      updateEnvironmentForPlayerHeight();
+      rebuildStaticColliders();
+
+      return state;
+    };
+
+    const unload = () => {
+      if (!state?.group) {
+        return;
+      }
+
+      if (typeof state.unregisterHeightAdjuster === "function") {
+        state.unregisterHeightAdjuster();
+      }
+
+      if (typeof state.unregisterLiftDoor === "function") {
+        state.unregisterLiftDoor();
+      }
+
+      if (
+        Array.isArray(state.registeredColliders) &&
+        state.registeredColliders.length > 0
+      ) {
+        unregisterColliderDescriptors(state.registeredColliders);
+      }
+
+      scene.remove(state.group);
+      disposeObject3D(state.group);
+
+      state = null;
+
+      rebuildStaticColliders();
+    };
+
+    return {
+      id,
+      title,
+      description,
+      yaw,
+      position: floorPosition,
+      bounds: worldBounds,
+      load,
+      unload,
+      isLoaded: () => Boolean(state?.group),
+    };
+  };
+
+  const operationsDeckGroupPosition = new THREE.Vector3(roomWidth * 3.2, 0, 0);
+  const operationsDeckLocalBounds = createFloorBounds(
+    roomWidth * 1.35,
+    roomDepth * 0.85,
+    {
+      paddingX: 0.75,
+      paddingZ: 0.75,
+    }
+  );
+  const operationsDeckTeleportOffset = new THREE.Vector3(
+    0,
+    0,
+    (roomDepth * 0.85) / 2 - 1.8
+  );
+
+  const engineeringDeckGroupPosition = new THREE.Vector3(
     -roomWidth * 3.4,
     0,
     0
   );
-  scene.add(engineeringBayEnvironment.group);
-  registerEnvironmentHeightAdjuster(
-    engineeringBayEnvironment.updateForRoomHeight
+  const engineeringDeckLocalBounds = createFloorBounds(
+    roomWidth * 1.5,
+    roomDepth * 0.8,
+    {
+      paddingX: 0.75,
+      paddingZ: 0.75,
+    }
   );
-  registerLiftDoor(engineeringBayEnvironment.liftDoor);
-  const engineeringDeckFloorPosition = new THREE.Vector3().copy(
-    engineeringBayEnvironment.group.position
+  const engineeringDeckTeleportOffset = new THREE.Vector3(
+    0,
+    0,
+    -(roomDepth * 0.8) / 2 + 1.8
   );
-  if (engineeringBayEnvironment.teleportOffset instanceof THREE.Vector3) {
-    engineeringDeckFloorPosition.add(engineeringBayEnvironment.teleportOffset);
-  }
-  engineeringDeckFloorPosition.y = roomFloorY;
-  const engineeringDeckFloorBounds =
-    translateBoundsToWorld(
-      engineeringBayEnvironment.bounds,
-      engineeringBayEnvironment.group.position
-    ) ??
-    translateBoundsToWorld(
-      createFloorBounds(roomWidth * 1.5, roomDepth * 0.8, {
-        paddingX: 0.75,
-        paddingZ: 0.75,
-      }),
-      engineeringBayEnvironment.group.position
-    );
 
-  const exteriorOutpostEnvironment = createExteriorOutpostEnvironment();
-  exteriorOutpostEnvironment.group.position.set(
+  const exteriorDeckGroupPosition = new THREE.Vector3(
     0,
     0,
     -roomDepth * 3.6
   );
-  scene.add(exteriorOutpostEnvironment.group);
-  registerEnvironmentHeightAdjuster(
-    exteriorOutpostEnvironment.updateForRoomHeight
+  const exteriorDeckLocalBounds = createFloorBounds(
+    roomWidth * 1.8,
+    roomDepth * 1.15,
+    {
+      paddingX: 1.1,
+      paddingZ: 1.6,
+    }
   );
-  registerLiftDoor(exteriorOutpostEnvironment.liftDoor);
-  const exteriorDeckFloorPosition = new THREE.Vector3().copy(
-    exteriorOutpostEnvironment.group.position
+  const exteriorDeckTeleportOffset = new THREE.Vector3(
+    -roomWidth / 3,
+    0,
+    -(roomDepth * 1.15) / 2 + 1.9
   );
-  if (exteriorOutpostEnvironment.teleportOffset instanceof THREE.Vector3) {
-    exteriorDeckFloorPosition.add(exteriorOutpostEnvironment.teleportOffset);
-  }
-  exteriorDeckFloorPosition.y = roomFloorY;
-  const exteriorDeckFloorBounds =
-    translateBoundsToWorld(
-      exteriorOutpostEnvironment.bounds,
-      exteriorOutpostEnvironment.group.position
-    ) ??
-    translateBoundsToWorld(
-      createFloorBounds(roomWidth * 1.8, roomDepth * 1.15, {
-        paddingX: 1.1,
-        paddingZ: 1.6,
-      }),
-      exteriorOutpostEnvironment.group.position
-    );
+
+  const deckEnvironments = [
+    createLazyDeckEnvironment({
+      id: "operations-concourse",
+      title: "Operations Concourse",
+      description: "Command mezzanine overlook",
+      yaw: Math.PI,
+      groupPosition: operationsDeckGroupPosition,
+      localFloorBounds: operationsDeckLocalBounds,
+      teleportOffset: operationsDeckTeleportOffset,
+      createEnvironment: createOperationsConcourseEnvironment,
+    }),
+    createLazyDeckEnvironment({
+      id: "engineering-bay",
+      title: "Engineering Bay",
+      description: "Systems maintenance hub",
+      yaw: 0,
+      groupPosition: engineeringDeckGroupPosition,
+      localFloorBounds: engineeringDeckLocalBounds,
+      teleportOffset: engineeringDeckTeleportOffset,
+      createEnvironment: createEngineeringBayEnvironment,
+    }),
+    createLazyDeckEnvironment({
+      id: "exterior-outpost",
+      title: "Exterior Outpost",
+      description: "Observation ridge overlook",
+      yaw: 0,
+      groupPosition: exteriorDeckGroupPosition,
+      localFloorBounds: exteriorDeckLocalBounds,
+      teleportOffset: exteriorDeckTeleportOffset,
+      createEnvironment: createExteriorOutpostEnvironment,
+    }),
+  ];
+
+  const deckEnvironmentMap = new Map(
+    deckEnvironments.map((environment) => [environment.id, environment])
+  );
+
+  const activateDeckEnvironment = (floorId) => {
+    deckEnvironmentMap.forEach((environment, environmentId) => {
+      if (environmentId === floorId) {
+        environment.load();
+      } else {
+        environment.unload();
+      }
+    });
+  };
+
+  const operationsDeckEnvironment = deckEnvironmentMap.get(
+    "operations-concourse"
+  );
+  const engineeringDeckEnvironment = deckEnvironmentMap.get("engineering-bay");
+  const exteriorDeckEnvironment = deckEnvironmentMap.get("exterior-outpost");
+
+  const operationsDeckFloorPosition =
+    operationsDeckEnvironment?.position instanceof THREE.Vector3
+      ? operationsDeckEnvironment.position
+      : null;
+  const engineeringDeckFloorPosition =
+    engineeringDeckEnvironment?.position instanceof THREE.Vector3
+      ? engineeringDeckEnvironment.position
+      : null;
+  const exteriorDeckFloorPosition =
+    exteriorDeckEnvironment?.position instanceof THREE.Vector3
+      ? exteriorDeckEnvironment.position
+      : null;
+
+  const operationsDeckFloorBounds = operationsDeckEnvironment?.bounds ?? null;
+  const engineeringDeckFloorBounds =
+    engineeringDeckEnvironment?.bounds ?? null;
+  const exteriorDeckFloorBounds = exteriorDeckEnvironment?.bounds ?? null;
 
 
   const computeReflectorRenderTargetSize = (surfaceWidth, surfaceHeight) => {
@@ -3968,6 +4223,9 @@ export const initScene = (
   );
   updateLiftUi();
 
+  const initialActiveFloor = getActiveLiftFloor();
+  activateDeckEnvironment(initialActiveFloor?.id ?? null);
+
   const applyPlayerHeight = (newHeight, options = {}) => {
     if (!Number.isFinite(newHeight) || newHeight <= 0) {
       return playerHeight;
@@ -4028,6 +4286,8 @@ export const initScene = (
       updateLiftUi();
       return false;
     }
+
+    activateDeckEnvironment(nextFloor.id ?? null);
 
     liftState.currentIndex = clampedIndex;
 
@@ -6253,6 +6513,7 @@ export const initScene = (
         lastUpdatedDisplay.userData.dispose();
       }
       savePlayerState(true);
+      activateDeckEnvironment(null);
       colliderDescriptors.length = 0;
     },
   };
