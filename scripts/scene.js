@@ -1678,6 +1678,16 @@ export const initScene = (
   hangarDoor.userData.floorOffset = 0;
   registerLiftDoor(hangarDoor);
 
+  const exteriorAccessDoor = createHangarDoor();
+  exteriorAccessDoor.position.set(
+    -roomWidth / 3,
+    -roomHeight / 2 + (exteriorAccessDoor.userData.height ?? 0) / 2,
+    -roomDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
+  );
+  scene.add(exteriorAccessDoor);
+  exteriorAccessDoor.userData.floorOffset = 0;
+  registerLiftDoor(exteriorAccessDoor);
+
   const createComputerSetup = () => {
     const group = new THREE.Group();
 
@@ -2844,6 +2854,287 @@ export const initScene = (
     };
   };
 
+  const createExteriorOutpostEnvironment = () => {
+    const group = new THREE.Group();
+
+    const plazaWidth = roomWidth * 1.8;
+    const plazaDepth = roomDepth * 1.15;
+    const terrainThickness = 0.4;
+
+    const floorBounds = createFloorBounds(plazaWidth, plazaDepth, {
+      paddingX: 1.1,
+      paddingZ: 1.6,
+    });
+
+    const terrainMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f1c24),
+      roughness: 0.95,
+      metalness: 0.04,
+    });
+
+    const terrain = new THREE.Mesh(
+      new THREE.BoxGeometry(plazaWidth, terrainThickness, plazaDepth),
+      terrainMaterial
+    );
+    terrain.position.y = roomFloorY - terrainThickness / 2;
+    group.add(terrain);
+
+    const walkwayMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x334155),
+      roughness: 0.55,
+      metalness: 0.28,
+    });
+
+    const walkway = new THREE.Mesh(
+      new THREE.BoxGeometry(plazaWidth * 0.7, 0.12, plazaDepth * 0.38),
+      walkwayMaterial
+    );
+    walkway.position.set(-roomWidth / 6, roomFloorY + 0.06, -plazaDepth * 0.15);
+    group.add(walkway);
+
+    const overlookMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1e293b),
+      roughness: 0.48,
+      metalness: 0.35,
+      emissive: new THREE.Color(0x0f172a),
+      emissiveIntensity: 0.25,
+    });
+
+    const overlook = new THREE.Mesh(
+      new THREE.CylinderGeometry(plazaWidth * 0.28, plazaWidth * 0.32, 0.18, 48),
+      overlookMaterial
+    );
+    overlook.position.set(-roomWidth / 6, roomFloorY + 0.09, plazaDepth * 0.1);
+    group.add(overlook);
+
+    const perimeterMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x94a3b8),
+      roughness: 0.4,
+      metalness: 0.6,
+      emissive: new THREE.Color(0x1d4ed8),
+      emissiveIntensity: 0.2,
+    });
+
+    const sideRailLength = plazaDepth * 0.55;
+    const railHeight = 1.18;
+    const starboardRail = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, railHeight, sideRailLength),
+      perimeterMaterial
+    );
+    starboardRail.position.set(
+      plazaWidth / 2 - 0.45,
+      roomFloorY + railHeight / 2,
+      sideRailLength / 2 - plazaDepth * 0.05
+    );
+    group.add(starboardRail);
+
+    const portRail = starboardRail.clone();
+    portRail.position.x = -plazaWidth / 2 + 0.38;
+    group.add(portRail);
+
+    const forwardRail = new THREE.Mesh(
+      new THREE.BoxGeometry(plazaWidth * 0.72, 0.12, 0.12),
+      perimeterMaterial
+    );
+    forwardRail.position.set(-roomWidth / 6, roomFloorY + 1.05, plazaDepth * 0.32);
+    group.add(forwardRail);
+
+    const accentLight = new THREE.PointLight(0x38bdf8, 0.5, plazaDepth * 1.2, 2);
+    accentLight.position.set(-roomWidth / 6, roomFloorY + 2.2, plazaDepth * 0.26);
+    group.add(accentLight);
+
+    const planterMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f172a),
+      roughness: 0.4,
+      metalness: 0.25,
+    });
+
+    const foliageMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0ea5e9),
+      emissive: new THREE.Color(0x22d3ee),
+      emissiveIntensity: 0.9,
+      roughness: 0.3,
+      metalness: 0.1,
+    });
+
+    const adjustableEntries = [];
+
+    const createPlanter = (x, z, radius) => {
+      const planter = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius * 1.08, 0.32, 24),
+        planterMaterial
+      );
+      planter.position.set(x, roomFloorY + 0.16, z);
+      group.add(planter);
+
+      const foliage = new THREE.Mesh(
+        new THREE.SphereGeometry(radius * 0.9, 24, 16),
+        foliageMaterial
+      );
+      foliage.position.set(x, roomFloorY + 0.65, z);
+      group.add(foliage);
+
+      adjustableEntries.push({ object: planter, offset: 0.16 });
+      adjustableEntries.push({ object: foliage, offset: 0.65 });
+    };
+
+    createPlanter(-roomWidth / 6 - 1, -plazaDepth * 0.05, 0.38);
+    createPlanter(-roomWidth / 6 + 1, -plazaDepth * 0.05, 0.36);
+    createPlanter(-roomWidth / 6, plazaDepth * 0.22, 0.48);
+
+    const postMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1f2937),
+      roughness: 0.35,
+      metalness: 0.25,
+    });
+
+    const lampMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0xfacc15),
+      emissive: new THREE.Color(0xfcd34d),
+      emissiveIntensity: 1.25,
+      roughness: 0.2,
+    });
+
+    const lightPosts = [];
+
+    const createLightPost = (x, z) => {
+      const postGroup = new THREE.Group();
+
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 1.4, 12),
+        postMaterial
+      );
+      post.position.y = 0.7;
+      postGroup.add(post);
+
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), lampMaterial);
+      lamp.position.y = 1.4;
+      postGroup.add(lamp);
+
+      const light = new THREE.PointLight(0xfcd34d, 0.9, 8, 2);
+      light.position.y = 1.4;
+      postGroup.add(light);
+
+      postGroup.position.set(x, roomFloorY, z);
+      group.add(postGroup);
+
+      lightPosts.push(postGroup);
+    };
+
+    const lightSpacing = plazaDepth * 0.2;
+    [-1, 0, 1].forEach((offset) => {
+      createLightPost(-roomWidth / 6 - 0.95, -plazaDepth * 0.05 + offset * lightSpacing);
+      createLightPost(-roomWidth / 6 + 0.95, -plazaDepth * 0.05 + offset * lightSpacing);
+    });
+
+    const ridgeMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0b1220),
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+
+    const ridge = new THREE.Mesh(
+      new THREE.CylinderGeometry(plazaWidth, plazaWidth * 1.2, 1.2, 64, 1, true),
+      ridgeMaterial
+    );
+    ridge.rotation.x = Math.PI / 2;
+    ridge.position.set(0, roomFloorY + 0.2, plazaDepth / 2 - 0.8);
+    group.add(ridge);
+
+    const horizonGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(plazaWidth * 1.5, 4.5),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.12,
+      })
+    );
+    horizonGlow.position.set(0, roomFloorY + 2.6, plazaDepth / 2 - 0.4);
+    group.add(horizonGlow);
+
+    const nebula = new THREE.Mesh(
+      new THREE.RingGeometry(plazaWidth * 0.35, plazaWidth * 0.7, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.DoubleSide,
+      })
+    );
+    nebula.position.set(-roomWidth / 6, roomFloorY + 3.6, plazaDepth * 0.38);
+    nebula.rotation.x = -Math.PI / 3;
+    group.add(nebula);
+
+    const skyRadius = plazaWidth * 2.8;
+    const skyDome = new THREE.Mesh(
+      new THREE.SphereGeometry(skyRadius, 48, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x01060c,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.BackSide,
+      })
+    );
+    skyDome.position.set(0, roomFloorY + skyRadius * 0.3, 0);
+    group.add(skyDome);
+
+    const ambientLight = new THREE.AmbientLight(0x0f172a, 0.6);
+    group.add(ambientLight);
+
+    const horizonLight = new THREE.DirectionalLight(0x38bdf8, 0.25);
+    horizonLight.position.set(-2.5, roomFloorY + 3.2, 4.6);
+    group.add(horizonLight);
+
+    const liftDoor = createHangarDoor();
+    liftDoor.position.set(
+      -roomWidth / 3,
+      roomFloorY + (liftDoor.userData.height ?? 0) / 2,
+      -plazaDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
+    );
+    liftDoor.userData.floorOffset = 0;
+    group.add(liftDoor);
+
+    adjustableEntries.push({ object: terrain, offset: -terrainThickness / 2 });
+    adjustableEntries.push({ object: walkway, offset: 0.06 });
+    adjustableEntries.push({ object: overlook, offset: 0.09 });
+    adjustableEntries.push({ object: starboardRail, offset: railHeight / 2 });
+    adjustableEntries.push({ object: portRail, offset: railHeight / 2 });
+    adjustableEntries.push({ object: forwardRail, offset: 1.05 });
+    adjustableEntries.push({ object: accentLight, offset: 2.2 });
+    adjustableEntries.push({ object: ridge, offset: 0.2 });
+    adjustableEntries.push({ object: horizonGlow, offset: 2.6 });
+    adjustableEntries.push({ object: nebula, offset: 3.6 });
+
+    const updateForRoomHeight = ({ roomFloorY }) => {
+      adjustableEntries.forEach(({ object, offset }) => {
+        if (object) {
+          object.position.y = roomFloorY + offset;
+        }
+      });
+
+      lightPosts.forEach((postGroup) => {
+        postGroup.position.y = roomFloorY;
+      });
+
+      horizonLight.position.y = roomFloorY + 3.2;
+      skyDome.position.y = roomFloorY + skyRadius * 0.3;
+    };
+
+    const teleportOffset = new THREE.Vector3(
+      -roomWidth / 3,
+      0,
+      -plazaDepth / 2 + 1.9
+    );
+
+    return {
+      group,
+      liftDoor,
+      updateForRoomHeight,
+      teleportOffset,
+      bounds: floorBounds,
+    };
+  };
+
   const createLastUpdatedDisplay = () => {
     const displayGroup = new THREE.Group();
 
@@ -3046,6 +3337,37 @@ export const initScene = (
         paddingZ: 0.75,
       }),
       engineeringBayEnvironment.group.position
+    );
+
+  const exteriorOutpostEnvironment = createExteriorOutpostEnvironment();
+  exteriorOutpostEnvironment.group.position.set(
+    0,
+    0,
+    -roomDepth * 3.6
+  );
+  scene.add(exteriorOutpostEnvironment.group);
+  registerEnvironmentHeightAdjuster(
+    exteriorOutpostEnvironment.updateForRoomHeight
+  );
+  registerLiftDoor(exteriorOutpostEnvironment.liftDoor);
+  const exteriorDeckFloorPosition = new THREE.Vector3().copy(
+    exteriorOutpostEnvironment.group.position
+  );
+  if (exteriorOutpostEnvironment.teleportOffset instanceof THREE.Vector3) {
+    exteriorDeckFloorPosition.add(exteriorOutpostEnvironment.teleportOffset);
+  }
+  exteriorDeckFloorPosition.y = roomFloorY;
+  const exteriorDeckFloorBounds =
+    translateBoundsToWorld(
+      exteriorOutpostEnvironment.bounds,
+      exteriorOutpostEnvironment.group.position
+    ) ??
+    translateBoundsToWorld(
+      createFloorBounds(roomWidth * 1.8, roomDepth * 1.15, {
+        paddingX: 1.1,
+        paddingZ: 1.6,
+      }),
+      exteriorOutpostEnvironment.group.position
     );
 
 
@@ -3452,6 +3774,12 @@ export const initScene = (
     liftRearApproachZ
   );
 
+  const exteriorDeckFloorPositionFallback = new THREE.Vector3(
+    -roomWidth / 3,
+    roomFloorY,
+    -roomDepth * 3.6 - (roomDepth * 1.15) / 2 + 1.9
+  );
+
   const resolvedOperationsFloorPosition =
     operationsDeckFloorPosition instanceof THREE.Vector3
       ? operationsDeckFloorPosition
@@ -3461,6 +3789,11 @@ export const initScene = (
     engineeringDeckFloorPosition instanceof THREE.Vector3
       ? engineeringDeckFloorPosition
       : engineeringDeckFloorPositionFallback;
+
+  const resolvedExteriorFloorPosition =
+    exteriorDeckFloorPosition instanceof THREE.Vector3
+      ? exteriorDeckFloorPosition
+      : exteriorDeckFloorPositionFallback;
 
   const hangarDeckFloorBounds = createFloorBounds(roomWidth, roomDepth, {
     paddingX: 1,
@@ -3487,6 +3820,17 @@ export const initScene = (
     ) ??
     hangarDeckFloorBounds;
 
+  const resolvedExteriorFloorBounds =
+    exteriorDeckFloorBounds ??
+    translateBoundsToWorld(
+      createFloorBounds(roomWidth * 1.8, roomDepth * 1.15, {
+        paddingX: 1.1,
+        paddingZ: 1.6,
+      }),
+      exteriorDeckFloorPositionFallback
+    ) ??
+    hangarDeckFloorBounds;
+
   liftState.floors = [
     {
       id: "hangar-deck",
@@ -3510,6 +3854,14 @@ export const initScene = (
       position: resolvedEngineeringFloorPosition,
       yaw: 0,
       bounds: resolvedEngineeringFloorBounds,
+    },
+    {
+      id: "exterior-outpost",
+      title: "Exterior Outpost",
+      description: "Observation ridge overlook",
+      position: resolvedExteriorFloorPosition,
+      yaw: 0,
+      bounds: resolvedExteriorFloorBounds,
     },
   ];
 
