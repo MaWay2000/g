@@ -262,6 +262,49 @@ export const initScene = (
     }
   };
 
+  const createFloorBounds = (
+    width,
+    depth,
+    { paddingX = 1, paddingZ = 1 } = {}
+  ) => {
+    const safePaddingX = Number.isFinite(paddingX) ? paddingX : 0;
+    const safePaddingZ = Number.isFinite(paddingZ) ? paddingZ : 0;
+    const halfWidth = Math.max(0, width / 2 - safePaddingX);
+    const halfDepth = Math.max(0, depth / 2 - safePaddingZ);
+
+    return {
+      minX: -halfWidth,
+      maxX: halfWidth,
+      minZ: -halfDepth,
+      maxZ: halfDepth,
+    };
+  };
+
+  const translateBoundsToWorld = (bounds, origin) => {
+    if (!bounds) {
+      return null;
+    }
+
+    const offsetX = Number.isFinite(origin?.x) ? origin.x : 0;
+    const offsetZ = Number.isFinite(origin?.z) ? origin.z : 0;
+
+    const minX = Number.isFinite(bounds.minX) ? bounds.minX + offsetX : null;
+    const maxX = Number.isFinite(bounds.maxX) ? bounds.maxX + offsetX : null;
+    const minZ = Number.isFinite(bounds.minZ) ? bounds.minZ + offsetZ : null;
+    const maxZ = Number.isFinite(bounds.maxZ) ? bounds.maxZ + offsetZ : null;
+
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(minZ) ||
+      !Number.isFinite(maxZ)
+    ) {
+      return null;
+    }
+
+    return { minX, maxX, minZ, maxZ };
+  };
+
   const defaultImportedMaterial = new THREE.MeshStandardMaterial({
     color: new THREE.Color(0x1f2937),
     roughness: 0.64,
@@ -2397,6 +2440,11 @@ export const initScene = (
     const deckDepth = roomDepth * 0.85;
     const deckThickness = 0.45;
 
+    const floorBounds = createFloorBounds(deckWidth, deckDepth, {
+      paddingX: 0.75,
+      paddingZ: 0.75,
+    });
+
     const deckMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0f1d33),
       roughness: 0.62,
@@ -2575,6 +2623,7 @@ export const initScene = (
       liftDoor,
       updateForRoomHeight,
       teleportOffset,
+      bounds: floorBounds,
     };
   };
 
@@ -2584,6 +2633,11 @@ export const initScene = (
     const bayWidth = roomWidth * 1.5;
     const bayDepth = roomDepth * 0.8;
     const floorThickness = 0.5;
+
+    const floorBounds = createFloorBounds(bayWidth, bayDepth, {
+      paddingX: 0.75,
+      paddingZ: 0.75,
+    });
 
     const floorMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x101722),
@@ -2786,6 +2840,7 @@ export const initScene = (
       liftDoor,
       updateForRoomHeight,
       teleportOffset,
+      bounds: floorBounds,
     };
   };
 
@@ -2949,6 +3004,18 @@ export const initScene = (
     operationsDeckFloorPosition.add(operationsConcourseEnvironment.teleportOffset);
   }
   operationsDeckFloorPosition.y = roomFloorY;
+  const operationsDeckFloorBounds =
+    translateBoundsToWorld(
+      operationsConcourseEnvironment.bounds,
+      operationsConcourseEnvironment.group.position
+    ) ??
+    translateBoundsToWorld(
+      createFloorBounds(roomWidth * 1.35, roomDepth * 0.85, {
+        paddingX: 0.75,
+        paddingZ: 0.75,
+      }),
+      operationsConcourseEnvironment.group.position
+    );
 
   const engineeringBayEnvironment = createEngineeringBayEnvironment();
   engineeringBayEnvironment.group.position.set(
@@ -2968,6 +3035,18 @@ export const initScene = (
     engineeringDeckFloorPosition.add(engineeringBayEnvironment.teleportOffset);
   }
   engineeringDeckFloorPosition.y = roomFloorY;
+  const engineeringDeckFloorBounds =
+    translateBoundsToWorld(
+      engineeringBayEnvironment.bounds,
+      engineeringBayEnvironment.group.position
+    ) ??
+    translateBoundsToWorld(
+      createFloorBounds(roomWidth * 1.5, roomDepth * 0.8, {
+        paddingX: 0.75,
+        paddingZ: 0.75,
+      }),
+      engineeringBayEnvironment.group.position
+    );
 
 
   const computeReflectorRenderTargetSize = (surfaceWidth, surfaceHeight) => {
@@ -3383,12 +3462,38 @@ export const initScene = (
       ? engineeringDeckFloorPosition
       : engineeringDeckFloorPositionFallback;
 
+  const hangarDeckFloorBounds = createFloorBounds(roomWidth, roomDepth, {
+    paddingX: 1,
+    paddingZ: 1,
+  });
+  const resolvedOperationsFloorBounds =
+    operationsDeckFloorBounds ??
+    translateBoundsToWorld(
+      createFloorBounds(roomWidth * 1.35, roomDepth * 0.85, {
+        paddingX: 0.75,
+        paddingZ: 0.75,
+      }),
+      operationsDeckFloorPositionFallback
+    ) ??
+    hangarDeckFloorBounds;
+  const resolvedEngineeringFloorBounds =
+    engineeringDeckFloorBounds ??
+    translateBoundsToWorld(
+      createFloorBounds(roomWidth * 1.5, roomDepth * 0.8, {
+        paddingX: 0.75,
+        paddingZ: 0.75,
+      }),
+      engineeringDeckFloorPositionFallback
+    ) ??
+    hangarDeckFloorBounds;
+
   liftState.floors = [
     {
       id: "hangar-deck",
       title: "Hangar Deck",
       description: "Flight line staging",
       position: hangarDeckFloorPosition,
+      bounds: hangarDeckFloorBounds,
     },
     {
       id: "operations-concourse",
@@ -3396,6 +3501,7 @@ export const initScene = (
       description: "Command mezzanine overlook",
       position: resolvedOperationsFloorPosition,
       yaw: Math.PI,
+      bounds: resolvedOperationsFloorBounds,
     },
     {
       id: "engineering-bay",
@@ -3403,6 +3509,7 @@ export const initScene = (
       description: "Systems maintenance hub",
       position: resolvedEngineeringFloorPosition,
       yaw: 0,
+      bounds: resolvedEngineeringFloorBounds,
     },
   ];
 
@@ -3580,8 +3687,10 @@ export const initScene = (
           : roomFloorY,
         nextFloor.position.z
       );
-      previousPlayerPosition.copy(playerObject.position);
     }
+
+    clampWithinActiveFloor();
+    previousPlayerPosition.copy(playerObject.position);
 
     if (Number.isFinite(nextFloor.yaw)) {
       controls.setYaw(nextFloor.yaw);
@@ -5503,12 +5612,48 @@ export const initScene = (
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("keyup", onKeyUp);
 
-  const clampWithinRoom = () => {
+  function clampWithinActiveFloor() {
     const player = controls.getObject().position;
-    const halfWidth = roomWidth / 2 - 1;
-    const halfDepth = roomDepth / 2 - 1;
-    player.x = THREE.MathUtils.clamp(player.x, -halfWidth, halfWidth);
-    player.z = THREE.MathUtils.clamp(player.z, -halfDepth, halfDepth);
+    const activeFloor = getLiftFloorByIndex(liftState.currentIndex);
+    const bounds = activeFloor?.bounds ?? hangarDeckFloorBounds;
+
+    const resolveAxisBounds = (minKey, maxKey) => {
+      const fallbackBounds = hangarDeckFloorBounds;
+      const minValue = Number.isFinite(bounds?.[minKey])
+        ? bounds[minKey]
+        : Number.isFinite(fallbackBounds?.[minKey])
+        ? fallbackBounds[minKey]
+        : null;
+      const maxValue = Number.isFinite(bounds?.[maxKey])
+        ? bounds[maxKey]
+        : Number.isFinite(fallbackBounds?.[maxKey])
+        ? fallbackBounds[maxKey]
+        : null;
+
+      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+        return null;
+      }
+
+      const min = Math.min(minValue, maxValue);
+      const max = Math.max(minValue, maxValue);
+
+      if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        return null;
+      }
+
+      return { min, max };
+    };
+
+    const xBounds = resolveAxisBounds("minX", "maxX");
+    if (xBounds) {
+      player.x = THREE.MathUtils.clamp(player.x, xBounds.min, xBounds.max);
+    }
+
+    const zBounds = resolveAxisBounds("minZ", "maxZ");
+    if (zBounds) {
+      player.z = THREE.MathUtils.clamp(player.z, zBounds.min, zBounds.max);
+    }
+
     const minY = roomFloorY;
     const maxHeadY = roomFloorY + roomHeight - CEILING_CLEARANCE;
     const maxY = Math.max(minY, maxHeadY - playerHeight);
@@ -5525,9 +5670,9 @@ export const initScene = (
         verticalVelocity = 0;
       }
     }
-  };
+  }
 
-  clampWithinRoom();
+  clampWithinActiveFloor();
 
   const animate = () => {
     requestAnimationFrame(animate);
@@ -5581,7 +5726,7 @@ export const initScene = (
     verticalVelocity += GRAVITY * delta;
     playerObject.position.y += verticalVelocity * delta;
 
-    clampWithinRoom();
+    clampWithinActiveFloor();
 
     if (shouldResolveCollisions) {
       resolvePlayerCollisions(previousPlayerPosition);
