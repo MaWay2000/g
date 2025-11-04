@@ -234,8 +234,33 @@ export const initScene = (
   const gltfCache = new Map();
   const objCache = new Map();
 
-  let liftUiController = null;
   const liftInteractables = [];
+  const liftUiControllers = new Set();
+  const registeredLiftDoors = [];
+  const environmentHeightAdjusters = [];
+
+  const registerEnvironmentHeightAdjuster = (adjuster) => {
+    if (typeof adjuster === "function") {
+      environmentHeightAdjusters.push(adjuster);
+    }
+  };
+
+  const registerLiftDoor = (door) => {
+    if (!door || registeredLiftDoors.includes(door)) {
+      return;
+    }
+
+    registeredLiftDoors.push(door);
+
+    const controller = door.userData?.liftUi;
+    if (controller) {
+      liftUiControllers.add(controller);
+      const control = controller.control ?? null;
+      if (control && !liftInteractables.includes(control)) {
+        liftInteractables.push(control);
+      }
+    }
+  };
 
   const defaultImportedMaterial = new THREE.MeshStandardMaterial({
     color: new THREE.Color(0x1f2937),
@@ -1607,12 +1632,8 @@ export const initScene = (
     roomDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
   );
   scene.add(hangarDoor);
-
-  liftUiController = hangarDoor.userData?.liftUi ?? null;
-  const liftControl = liftUiController?.control ?? null;
-  if (liftControl) {
-    liftInteractables.push(liftControl);
-  }
+  hangarDoor.userData.floorOffset = 0;
+  registerLiftDoor(hangarDoor);
 
   const createComputerSetup = () => {
     const group = new THREE.Group();
@@ -2369,6 +2390,405 @@ export const initScene = (
     return group;
   };
 
+  const createOperationsConcourseEnvironment = () => {
+    const group = new THREE.Group();
+
+    const deckWidth = roomWidth * 1.35;
+    const deckDepth = roomDepth * 0.85;
+    const deckThickness = 0.45;
+
+    const deckMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f1d33),
+      roughness: 0.62,
+      metalness: 0.22,
+    });
+
+    const deck = new THREE.Mesh(
+      new THREE.BoxGeometry(deckWidth, deckThickness, deckDepth),
+      deckMaterial
+    );
+    deck.position.y = roomFloorY - deckThickness / 2;
+    group.add(deck);
+
+    const catwalkWidth = deckWidth * 0.68;
+    const catwalkDepth = deckDepth * 0.92;
+
+    const catwalkMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1f3b5a),
+      roughness: 0.45,
+      metalness: 0.35,
+    });
+
+    const catwalk = new THREE.Mesh(
+      new THREE.BoxGeometry(catwalkWidth, 0.12, catwalkDepth),
+      catwalkMaterial
+    );
+    catwalk.position.y = roomFloorY + 0.18;
+    group.add(catwalk);
+
+    const railingMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x38bdf8),
+      emissive: new THREE.Color(0x1d4ed8),
+      emissiveIntensity: 0.6,
+      roughness: 0.35,
+      metalness: 0.25,
+    });
+
+    const railHeight = 1.1;
+    const railThickness = 0.08;
+
+    const createSideRail = (direction) => {
+      const rail = new THREE.Mesh(
+        new THREE.BoxGeometry(railThickness, railHeight, catwalkDepth),
+        railingMaterial
+      );
+      rail.position.set(
+        (catwalkWidth / 2 - railThickness / 2) * direction,
+        roomFloorY + 0.55,
+        0
+      );
+      return rail;
+    };
+
+    const leftRail = createSideRail(1);
+    group.add(leftRail);
+    const rightRail = createSideRail(-1);
+    group.add(rightRail);
+
+    const frontRail = new THREE.Mesh(
+      new THREE.BoxGeometry(catwalkWidth, railHeight, railThickness),
+      railingMaterial
+    );
+    frontRail.position.set(
+      0,
+      roomFloorY + 0.55,
+      catwalkDepth / 2 - railThickness / 2
+    );
+    group.add(frontRail);
+
+    const rearRail = frontRail.clone();
+    rearRail.position.z *= -1;
+    group.add(rearRail);
+
+    const holoBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.65, 0.4, 32),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x111f32),
+        roughness: 0.35,
+        metalness: 0.6,
+      })
+    );
+    holoBase.position.set(0, roomFloorY + 0.32, -deckDepth * 0.15);
+    group.add(holoBase);
+
+    const holoEmitter = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.05, 1.05, 0.08, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x60a5fa,
+        transparent: true,
+        opacity: 0.45,
+        side: THREE.DoubleSide,
+      })
+    );
+    holoEmitter.position.set(0, roomFloorY + 0.58, -deckDepth * 0.15);
+    group.add(holoEmitter);
+
+    const holoColumn = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.35, 1.4, 16, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.28,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    holoColumn.position.set(0, roomFloorY + 1.25, -deckDepth * 0.15);
+    group.add(holoColumn);
+
+    const briefingLight = new THREE.PointLight(0x60a5fa, 1.1, deckDepth * 1.2, 2);
+    briefingLight.position.set(0, roomFloorY + 2.2, -deckDepth * 0.18);
+    group.add(briefingLight);
+
+    const statusDisplay = new THREE.Mesh(
+      new THREE.PlaneGeometry(catwalkWidth * 0.9, 1.8),
+      new THREE.MeshBasicMaterial({
+        color: 0x1d4ed8,
+        transparent: true,
+        opacity: 0.75,
+      })
+    );
+    statusDisplay.position.set(0, roomFloorY + 1.6, -deckDepth / 2 + 0.05);
+    group.add(statusDisplay);
+
+    const statusGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(catwalkWidth * 0.95, 1.9),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    statusGlow.position.set(0, roomFloorY + 1.6, -deckDepth / 2 + 0.07);
+    group.add(statusGlow);
+
+    const liftDoor = createHangarDoor();
+    liftDoor.position.set(
+      0,
+      roomFloorY + (liftDoor.userData.height ?? 0) / 2,
+      deckDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
+    );
+    liftDoor.rotation.y = Math.PI;
+    liftDoor.userData.floorOffset = 0;
+    group.add(liftDoor);
+
+    const adjustableEntries = [
+      { object: deck, offset: -deckThickness / 2 },
+      { object: catwalk, offset: 0.18 },
+      { object: leftRail, offset: 0.55 },
+      { object: rightRail, offset: 0.55 },
+      { object: frontRail, offset: 0.55 },
+      { object: rearRail, offset: 0.55 },
+      { object: holoBase, offset: 0.32 },
+      { object: holoEmitter, offset: 0.58 },
+      { object: holoColumn, offset: 1.25 },
+      { object: statusDisplay, offset: 1.6 },
+      { object: statusGlow, offset: 1.6 },
+    ];
+
+    const updateForRoomHeight = ({ roomFloorY }) => {
+      adjustableEntries.forEach(({ object, offset }) => {
+        if (object) {
+          object.position.y = roomFloorY + offset;
+        }
+      });
+      briefingLight.position.y = roomFloorY + 2.2;
+    };
+
+    const teleportOffset = new THREE.Vector3(0, 0, deckDepth / 2 - 1.8);
+
+    return {
+      group,
+      liftDoor,
+      updateForRoomHeight,
+      teleportOffset,
+    };
+  };
+
+  const createEngineeringBayEnvironment = () => {
+    const group = new THREE.Group();
+
+    const bayWidth = roomWidth * 1.5;
+    const bayDepth = roomDepth * 0.8;
+    const floorThickness = 0.5;
+
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x101722),
+      roughness: 0.7,
+      metalness: 0.18,
+    });
+
+    const floor = new THREE.Mesh(
+      new THREE.BoxGeometry(bayWidth, floorThickness, bayDepth),
+      floorMaterial
+    );
+    floor.position.y = roomFloorY - floorThickness / 2;
+    group.add(floor);
+
+    const pitMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f172a),
+      roughness: 0.45,
+      metalness: 0.55,
+    });
+
+    const pitWidth = bayWidth * 0.5;
+    const pitDepth = bayDepth * 0.4;
+    const maintenancePit = new THREE.Mesh(
+      new THREE.BoxGeometry(pitWidth, 0.6, pitDepth),
+      pitMaterial
+    );
+    maintenancePit.position.set(0, roomFloorY - 0.3, 0);
+    group.add(maintenancePit);
+
+    const catwalkMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1f2937),
+      roughness: 0.5,
+      metalness: 0.2,
+    });
+
+    const gantry = new THREE.Mesh(
+      new THREE.BoxGeometry(bayWidth * 0.7, 0.12, 0.6),
+      catwalkMaterial
+    );
+    gantry.position.set(0, roomFloorY + 0.18, 0);
+    group.add(gantry);
+
+    const beamMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x4b5563),
+      roughness: 0.38,
+      metalness: 0.62,
+    });
+
+    const createSupportBeam = (x, z) => {
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 2.6, 0.18),
+        beamMaterial
+      );
+      beam.position.set(x, roomFloorY + 1.3, z);
+      return beam;
+    };
+
+    const beamOffsetX = bayWidth / 2 - 0.4;
+    const beamOffsetZ = bayDepth / 2 - 0.4;
+    const beams = [
+      createSupportBeam(beamOffsetX, beamOffsetZ),
+      createSupportBeam(-beamOffsetX, beamOffsetZ),
+      createSupportBeam(beamOffsetX, -beamOffsetZ),
+      createSupportBeam(-beamOffsetX, -beamOffsetZ),
+    ];
+    beams.forEach((beam) => group.add(beam));
+
+    const pipeMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x374151),
+      metalness: 0.7,
+      roughness: 0.28,
+    });
+
+    const coolantPipe = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, bayWidth * 0.9, 24),
+      pipeMaterial
+    );
+    coolantPipe.rotation.z = Math.PI / 2;
+    coolantPipe.position.set(0, roomFloorY + 1.1, -bayDepth / 2 + 0.55);
+    group.add(coolantPipe);
+
+    const returnPipe = coolantPipe.clone();
+    returnPipe.position.z = bayDepth / 2 - 0.55;
+    group.add(returnPipe);
+
+    const generatorMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1f2933),
+      roughness: 0.3,
+      metalness: 0.65,
+      emissive: new THREE.Color(0x0f172a),
+      emissiveIntensity: 0.2,
+    });
+
+    const generatorHousing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.6, 0.8, 1.1, 24),
+      generatorMaterial
+    );
+    generatorHousing.position.set(0, roomFloorY + 0.55, -bayDepth * 0.18);
+    group.add(generatorHousing);
+
+    const generatorCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.35, 0.35, 0.9, 24),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0f172a),
+        emissive: new THREE.Color(0x22d3ee),
+        emissiveIntensity: 1.1,
+        metalness: 0.35,
+        roughness: 0.25,
+      })
+    );
+    generatorCore.position.set(0, roomFloorY + 0.55, -bayDepth * 0.18);
+    group.add(generatorCore);
+
+    const energyPulse = new THREE.Mesh(
+      new THREE.SphereGeometry(0.42, 24, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        transparent: true,
+        opacity: 0.35,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    energyPulse.position.copy(generatorCore.position);
+    group.add(energyPulse);
+
+    const engineeringLight = new THREE.PointLight(
+      0x22d3ee,
+      1.3,
+      bayDepth * 1.4,
+      2
+    );
+    engineeringLight.position.set(0, roomFloorY + 1.8, -bayDepth * 0.18);
+    group.add(engineeringLight);
+
+    const maintenanceConsole = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.75, 0.4),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x1f2a37),
+        roughness: 0.4,
+        metalness: 0.5,
+        emissive: new THREE.Color(0x0c4a6e),
+        emissiveIntensity: 0.3,
+      })
+    );
+    maintenanceConsole.position.set(0, roomFloorY + 0.55, bayDepth / 2 - 0.6);
+    group.add(maintenanceConsole);
+
+    const consoleScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.95, 0.45),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.75,
+      })
+    );
+    consoleScreen.position.set(0, roomFloorY + 0.72, bayDepth / 2 - 0.38);
+    consoleScreen.rotation.x = -THREE.MathUtils.degToRad(12);
+    group.add(consoleScreen);
+
+    const liftDoor = createHangarDoor();
+    liftDoor.position.set(
+      0,
+      roomFloorY + (liftDoor.userData.height ?? 0) / 2,
+      -bayDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
+    );
+    liftDoor.userData.floorOffset = 0;
+    group.add(liftDoor);
+
+    const adjustableEntries = [
+      { object: floor, offset: -floorThickness / 2 },
+      { object: maintenancePit, offset: -0.3 },
+      { object: gantry, offset: 0.18 },
+      { object: generatorHousing, offset: 0.55 },
+      { object: generatorCore, offset: 0.55 },
+      { object: energyPulse, offset: 0.55 },
+      { object: maintenanceConsole, offset: 0.55 },
+      { object: consoleScreen, offset: 0.72 },
+      { object: coolantPipe, offset: 1.1 },
+      { object: returnPipe, offset: 1.1 },
+    ];
+
+    beams.forEach((beam) => {
+      adjustableEntries.push({ object: beam, offset: 1.3 });
+    });
+
+    const updateForRoomHeight = ({ roomFloorY }) => {
+      adjustableEntries.forEach(({ object, offset }) => {
+        if (object) {
+          object.position.y = roomFloorY + offset;
+        }
+      });
+      engineeringLight.position.y = roomFloorY + 1.8;
+    };
+
+    const teleportOffset = new THREE.Vector3(0, 0, -bayDepth / 2 + 1.8);
+
+    return {
+      group,
+      liftDoor,
+      updateForRoomHeight,
+      teleportOffset,
+    };
+  };
+
   const createLastUpdatedDisplay = () => {
     const displayGroup = new THREE.Group();
 
@@ -2508,6 +2928,46 @@ export const initScene = (
   );
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   scene.add(lastUpdatedDisplay);
+
+  const operationsConcourseEnvironment = createOperationsConcourseEnvironment();
+  operationsConcourseEnvironment.group.position.set(
+    roomWidth * 3.2,
+    0,
+    0
+  );
+  scene.add(operationsConcourseEnvironment.group);
+  registerEnvironmentHeightAdjuster(
+    operationsConcourseEnvironment.updateForRoomHeight
+  );
+  registerLiftDoor(operationsConcourseEnvironment.liftDoor);
+  const operationsDeckFloorPosition = new THREE.Vector3().copy(
+    operationsConcourseEnvironment.group.position
+  );
+  if (
+    operationsConcourseEnvironment.teleportOffset instanceof THREE.Vector3
+  ) {
+    operationsDeckFloorPosition.add(operationsConcourseEnvironment.teleportOffset);
+  }
+  operationsDeckFloorPosition.y = roomFloorY;
+
+  const engineeringBayEnvironment = createEngineeringBayEnvironment();
+  engineeringBayEnvironment.group.position.set(
+    -roomWidth * 3.4,
+    0,
+    0
+  );
+  scene.add(engineeringBayEnvironment.group);
+  registerEnvironmentHeightAdjuster(
+    engineeringBayEnvironment.updateForRoomHeight
+  );
+  registerLiftDoor(engineeringBayEnvironment.liftDoor);
+  const engineeringDeckFloorPosition = new THREE.Vector3().copy(
+    engineeringBayEnvironment.group.position
+  );
+  if (engineeringBayEnvironment.teleportOffset instanceof THREE.Vector3) {
+    engineeringDeckFloorPosition.add(engineeringBayEnvironment.teleportOffset);
+  }
+  engineeringDeckFloorPosition.y = roomFloorY;
 
 
   const computeReflectorRenderTargetSize = (surfaceWidth, surfaceHeight) => {
@@ -2731,15 +3191,27 @@ export const initScene = (
     leftWallGrid.scale.y = verticalGridScale;
     rightWallGrid.scale.y = verticalGridScale;
 
-    const doorBaseDimensions = hangarDoor.userData?.baseDimensions;
-    const baseDoorHeight = doorBaseDimensions?.height ?? BASE_DOOR_HEIGHT;
-    const baseDoorWidth = doorBaseDimensions?.width ?? BASE_DOOR_WIDTH;
-    hangarDoor.scale.setScalar(heightScale);
-    const scaledDoorHeight = baseDoorHeight * heightScale;
-    const scaledDoorWidth = baseDoorWidth * heightScale;
-    hangarDoor.userData.height = scaledDoorHeight;
-    hangarDoor.userData.width = scaledDoorWidth;
-    hangarDoor.position.y = roomFloorY + scaledDoorHeight / 2;
+    registeredLiftDoors.forEach((door) => {
+      if (!door) {
+        return;
+      }
+
+      const baseDimensions = door.userData?.baseDimensions;
+      const baseDoorHeight = baseDimensions?.height ?? BASE_DOOR_HEIGHT;
+      const baseDoorWidth = baseDimensions?.width ?? BASE_DOOR_WIDTH;
+
+      door.scale.setScalar(heightScale);
+      const scaledDoorHeight = baseDoorHeight * heightScale;
+      const scaledDoorWidth = baseDoorWidth * heightScale;
+      door.userData.height = scaledDoorHeight;
+      door.userData.width = scaledDoorWidth;
+
+      const floorOffset = Number.isFinite(door.userData?.floorOffset)
+        ? door.userData.floorOffset
+        : 0;
+
+      door.position.y = roomFloorY + scaledDoorHeight / 2 + floorOffset;
+    });
 
     const mirrorBaseDimensions = wallMirror.userData?.baseDimensions;
     const baseMirrorHeight = mirrorBaseDimensions?.height ?? BASE_MIRROR_HEIGHT;
@@ -2783,6 +3255,14 @@ export const initScene = (
       computerSetup.updateMatrixWorld(true);
       rebuildStaticColliders();
     }
+
+    environmentHeightAdjusters.forEach((adjuster) => {
+      try {
+        adjuster({ roomFloorY, heightScale });
+      } catch (error) {
+        console.warn("Unable to update environment for player height", error);
+      }
+    });
   };
 
   updateEnvironmentForPlayerHeight();
@@ -2875,24 +3355,54 @@ export const initScene = (
   const liftRearApproachZ = -roomDepth / 2 + 3 * ROOM_SCALE_FACTOR;
   const liftPortApproachX = -roomWidth / 4;
 
+  const hangarDeckFloorPosition = new THREE.Vector3(
+    0,
+    roomFloorY,
+    liftFrontApproachZ
+  );
+
+  const operationsDeckFloorPositionFallback = new THREE.Vector3(
+    liftPortApproachX,
+    roomFloorY,
+    0
+  );
+
+  const engineeringDeckFloorPositionFallback = new THREE.Vector3(
+    0,
+    roomFloorY,
+    liftRearApproachZ
+  );
+
+  const resolvedOperationsFloorPosition =
+    operationsDeckFloorPosition instanceof THREE.Vector3
+      ? operationsDeckFloorPosition
+      : operationsDeckFloorPositionFallback;
+
+  const resolvedEngineeringFloorPosition =
+    engineeringDeckFloorPosition instanceof THREE.Vector3
+      ? engineeringDeckFloorPosition
+      : engineeringDeckFloorPositionFallback;
+
   liftState.floors = [
     {
       id: "hangar-deck",
       title: "Hangar Deck",
       description: "Flight line staging",
-      position: new THREE.Vector3(0, roomFloorY, liftFrontApproachZ),
+      position: hangarDeckFloorPosition,
     },
     {
       id: "operations-concourse",
       title: "Operations Concourse",
       description: "Command mezzanine overlook",
-      position: new THREE.Vector3(liftPortApproachX, roomFloorY, 0),
+      position: resolvedOperationsFloorPosition,
+      yaw: Math.PI,
     },
     {
       id: "engineering-bay",
       title: "Engineering Bay",
       description: "Systems maintenance hub",
-      position: new THREE.Vector3(0, roomFloorY, liftRearApproachZ),
+      position: resolvedEngineeringFloorPosition,
+      yaw: 0,
     },
   ];
 
@@ -2950,14 +3460,20 @@ export const initScene = (
   };
 
   const updateLiftUi = () => {
-    if (!liftUiController || typeof liftUiController.updateState !== "function") {
+    if (liftUiControllers.size === 0) {
       return;
     }
 
-    liftUiController.updateState({
+    const state = {
       current: getActiveLiftFloor(),
       next: getNextLiftFloor(),
       busy: false,
+    };
+
+    liftUiControllers.forEach((controller) => {
+      if (controller && typeof controller.updateState === "function") {
+        controller.updateState(state);
+      }
     });
   };
   playerObject.position.copy(defaultPlayerPosition);
