@@ -807,6 +807,24 @@ export const initScene = (
   const BASE_ROOM_DEPTH = 60 * ROOM_SCALE_FACTOR;
   const BASE_DOOR_WIDTH = 8.5 * ROOM_SCALE_FACTOR;
   const BASE_DOOR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
+  const DEFAULT_DOOR_THEME = {
+    accentColor: 0x991b1b,
+    accentEmissiveColor: 0x240303,
+    seamGlowColor: 0xf87171,
+    doorLightColor: 0xf97316,
+    overheadLightColor: 0xf97316,
+    emblemColor: 0x991b1b,
+    emblemEmissiveColor: 0x250404,
+  };
+  const SHARED_ROOM_DOOR_THEME = {
+    accentColor: 0x2563eb,
+    accentEmissiveColor: 0x10243f,
+    seamGlowColor: 0x38bdf8,
+    doorLightColor: 0x38bdf8,
+    overheadLightColor: 0x2563eb,
+    emblemColor: 0x2563eb,
+    emblemEmissiveColor: 0x10243f,
+  };
   const BASE_MIRROR_WIDTH = 12 * ROOM_SCALE_FACTOR;
   const BASE_MIRROR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
 
@@ -874,7 +892,8 @@ export const initScene = (
   roomMesh.scale.set(1, roomHeight / BASE_ROOM_HEIGHT, 1);
   hangarDeckEnvironmentGroup.add(roomMesh);
 
-  const createHangarDoor = () => {
+  const createHangarDoor = (themeOverrides = {}) => {
+    const theme = { ...DEFAULT_DOOR_THEME, ...themeOverrides };
     const group = new THREE.Group();
 
     const doorWidth = BASE_DOOR_WIDTH;
@@ -1104,10 +1123,10 @@ export const initScene = (
     group.add(seam);
 
     const trimAccentMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x991b1b),
+      color: new THREE.Color(theme.accentColor),
       metalness: 0.4,
       roughness: 0.38,
-      emissive: new THREE.Color(0x240303),
+      emissive: new THREE.Color(theme.accentEmissiveColor),
       emissiveIntensity: 0.28,
     });
 
@@ -1126,7 +1145,7 @@ export const initScene = (
     group.add(lowerAccentPlate);
 
     const seamGlowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xf87171,
+      color: theme.seamGlowColor,
       transparent: true,
       opacity: 0.82,
       side: THREE.DoubleSide,
@@ -1150,11 +1169,16 @@ export const initScene = (
     bottomPanelGlow.position.y = -doorHeight * 0.44;
     group.add(bottomPanelGlow);
 
-    const doorLight = new THREE.PointLight(0xf97316, 0.55, 9, 2);
+    const doorLight = new THREE.PointLight(theme.doorLightColor, 0.55, 9, 2);
     doorLight.position.set(0, doorHeight / 2 - 0.2, 0.32);
     group.add(doorLight);
 
-    const overheadBeacon = new THREE.PointLight(0xf97316, 0.4, 8, 2);
+    const overheadBeacon = new THREE.PointLight(
+      theme.overheadLightColor ?? theme.doorLightColor,
+      0.4,
+      8,
+      2
+    );
     overheadBeacon.position.set(0, doorHeight / 2 + lintelHeight / 2, 0.22);
     group.add(overheadBeacon);
 
@@ -1307,10 +1331,10 @@ export const initScene = (
     createVent(panelWidth * 0.25);
 
     const emblemMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x991b1b),
+      color: new THREE.Color(theme.emblemColor),
       metalness: 0.45,
       roughness: 0.35,
-      emissive: new THREE.Color(0x250404),
+      emissive: new THREE.Color(theme.emblemEmissiveColor),
       emissiveIntensity: 0.25,
     });
 
@@ -1698,7 +1722,7 @@ export const initScene = (
     return group;
   };
 
-  const hangarDoor = createHangarDoor();
+  const hangarDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
   hangarDoor.position.set(
     0,
     -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
@@ -1707,16 +1731,6 @@ export const initScene = (
   hangarDeckEnvironmentGroup.add(hangarDoor);
   hangarDoor.userData.floorOffset = 0;
   registerLiftDoor(hangarDoor);
-
-  const exteriorAccessDoor = createHangarDoor();
-  exteriorAccessDoor.position.set(
-    -roomWidth / 3,
-    -roomHeight / 2 + (exteriorAccessDoor.userData.height ?? 0) / 2,
-    -roomDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
-  );
-  hangarDeckEnvironmentGroup.add(exteriorAccessDoor);
-  exteriorAccessDoor.userData.floorOffset = 0;
-  registerLiftDoor(exteriorAccessDoor);
 
   const createComputerSetup = () => {
     const group = new THREE.Group();
@@ -2623,7 +2637,7 @@ export const initScene = (
     statusGlow.position.set(0, roomFloorY + 1.6, -deckDepth / 2 + 0.07);
     group.add(statusGlow);
 
-    const liftDoor = createHangarDoor();
+    const liftDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
     liftDoor.position.set(
       0,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
@@ -2838,7 +2852,7 @@ export const initScene = (
     consoleScreen.rotation.x = -THREE.MathUtils.degToRad(12);
     group.add(consoleScreen);
 
-    const liftDoor = createHangarDoor();
+    const liftDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
     liftDoor.position.set(
       0,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
@@ -3115,7 +3129,7 @@ export const initScene = (
     horizonLight.position.set(-2.5, roomFloorY + 3.2, 4.6);
     group.add(horizonLight);
 
-    const liftDoor = createHangarDoor();
+    const liftDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
     liftDoor.position.set(
       -roomWidth / 3,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
