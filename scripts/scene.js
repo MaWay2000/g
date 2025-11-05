@@ -1122,28 +1122,6 @@ export const initScene = (
     );
     group.add(seam);
 
-    const trimAccentMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(theme.accentColor),
-      metalness: 0.4,
-      roughness: 0.38,
-      emissive: new THREE.Color(theme.accentEmissiveColor),
-      emissiveIntensity: 0.28,
-    });
-
-    const accentPlateGeometry = new THREE.BoxGeometry(panelWidth * 0.9, 0.24, 0.1);
-    const topAccentPlate = new THREE.Mesh(accentPlateGeometry, trimAccentMaterial);
-    topAccentPlate.position.set(0, doorHeight * 0.28, panelDepth / 2 + 0.05);
-    group.add(topAccentPlate);
-
-    const midAccentPlate = topAccentPlate.clone();
-    midAccentPlate.position.y = 0;
-    midAccentPlate.scale.set(1.04, 0.9, 1);
-    group.add(midAccentPlate);
-
-    const lowerAccentPlate = topAccentPlate.clone();
-    lowerAccentPlate.position.y = -doorHeight * 0.28;
-    group.add(lowerAccentPlate);
-
     const seamGlowMaterial = new THREE.MeshBasicMaterial({
       color: theme.seamGlowColor,
       transparent: true,
@@ -1423,10 +1401,10 @@ export const initScene = (
     });
     panelLabelMaterial.toneMapped = false;
     const panelLabel = new THREE.Mesh(
-      new THREE.PlaneGeometry(controlPanelWidth * 0.82, 0.32),
+      new THREE.PlaneGeometry(controlPanelWidth * 1.1, 0.4),
       panelLabelMaterial
     );
-    panelLabel.position.set(0, controlPanelHeight / 2 + 0.24, 0.115);
+    panelLabel.position.set(0, controlPanelHeight / 2 + 0.3, 0.115);
     controlPanel.add(panelLabel);
 
     const createLiftDisplayTexture = () => {
@@ -1485,59 +1463,7 @@ export const initScene = (
         return fontSize;
       };
 
-      const drawDescription = (text) => {
-        if (!text) {
-          return;
-        }
-
-        const lines = [];
-        const words = String(text).split(/\s+/).filter(Boolean);
-        const maxWidth = width - 72;
-        let currentLine = "";
-
-        context.font = "400 28px sans-serif";
-
-        words.forEach((word) => {
-          const nextLine = currentLine ? `${currentLine} ${word}` : word;
-          if (context.measureText(nextLine).width > maxWidth && currentLine) {
-            lines.push(currentLine);
-            currentLine = word;
-          } else {
-            currentLine = nextLine;
-          }
-        });
-
-        if (currentLine) {
-          lines.push(currentLine);
-        }
-
-        const startY = height * 0.64;
-        const renderedLines = lines.slice(0, 3);
-        const lineFontSizes = renderedLines.map((line) => {
-          let fontSize = 26;
-          context.font = `400 ${fontSize}px sans-serif`;
-          while (fontSize > 18 && context.measureText(line).width > maxWidth) {
-            fontSize -= 1;
-            context.font = `400 ${fontSize}px sans-serif`;
-          }
-          return fontSize;
-        });
-
-        const lineHeight = Math.max(...lineFontSizes, 24) + 6;
-
-        context.save();
-        context.fillStyle = "rgba(148, 163, 184, 0.92)";
-        context.textAlign = "center";
-        context.textBaseline = "top";
-
-        renderedLines.forEach((line, index) => {
-          const fontSize = lineFontSizes[index];
-          context.font = `400 ${fontSize}px sans-serif`;
-          context.fillText(line, width / 2, startY + index * lineHeight);
-        });
-
-        context.restore();
-      };
+      const drawDescription = () => {};
 
       const update = ({ current, next, busy }) => {
         const gradient = context.createLinearGradient(0, 0, width, height);
