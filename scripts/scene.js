@@ -817,6 +817,15 @@ export const initScene = (
     emblemEmissiveColor: 0x250404,
   };
   const SHARED_ROOM_DOOR_THEME = {
+    accentColor: 0x9f1239,
+    accentEmissiveColor: 0x3f0712,
+    seamGlowColor: 0x3b82f6,
+    doorLightColor: 0x38bdf8,
+    overheadLightColor: 0x60a5fa,
+    emblemColor: 0x9f1239,
+    emblemEmissiveColor: 0x3f0712,
+  };
+  const COMMAND_CENTER_DOOR_THEME = {
     accentColor: 0x2563eb,
     accentEmissiveColor: 0x10243f,
     seamGlowColor: 0x38bdf8,
@@ -2576,7 +2585,7 @@ export const initScene = (
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
-    const exteriorExitDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
+    const exteriorExitDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
     exteriorExitDoor.position.set(
       0,
       roomFloorY + (exteriorExitDoor.userData.height ?? 0) / 2,
