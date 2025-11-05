@@ -833,6 +833,10 @@ export const initScene = (
     metalness: 0.06,
   });
 
+  const hangarDeckEnvironmentGroup = new THREE.Group();
+  hangarDeckEnvironmentGroup.name = "HangarDeckEnvironment";
+  scene.add(hangarDeckEnvironmentGroup);
+
   const roomGeometry = new THREE.BoxGeometry(
     roomWidth,
     BASE_ROOM_HEIGHT,
@@ -868,7 +872,7 @@ export const initScene = (
 
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   roomMesh.scale.set(1, roomHeight / BASE_ROOM_HEIGHT, 1);
-  scene.add(roomMesh);
+  hangarDeckEnvironmentGroup.add(roomMesh);
 
   const createHangarDoor = () => {
     const group = new THREE.Group();
@@ -1754,7 +1758,7 @@ export const initScene = (
     -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
     roomDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
   );
-  scene.add(hangarDoor);
+  hangarDeckEnvironmentGroup.add(hangarDoor);
   hangarDoor.userData.floorOffset = 0;
   registerLiftDoor(hangarDoor);
 
@@ -1764,7 +1768,7 @@ export const initScene = (
     -roomHeight / 2 + (exteriorAccessDoor.userData.height ?? 0) / 2,
     -roomDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
   );
-  scene.add(exteriorAccessDoor);
+  hangarDeckEnvironmentGroup.add(exteriorAccessDoor);
   exteriorAccessDoor.userData.floorOffset = 0;
   registerLiftDoor(exteriorAccessDoor);
 
@@ -3339,7 +3343,7 @@ export const initScene = (
     });
   }
 
-  scene.add(computerSetup);
+  hangarDeckEnvironmentGroup.add(computerSetup);
   computerSetup.updateMatrixWorld(true);
   rebuildStaticColliders();
   if (typeof computerSetup.userData?.notifyCollidersChanged === "function") {
@@ -3353,7 +3357,7 @@ export const initScene = (
     0
   );
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
-  scene.add(lastUpdatedDisplay);
+  hangarDeckEnvironmentGroup.add(lastUpdatedDisplay);
 
   const createLazyDeckEnvironment = ({
     id,
@@ -3592,6 +3596,9 @@ export const initScene = (
   );
 
   const activateDeckEnvironment = (floorId) => {
+    const hangarDeckActive = !floorId || floorId === "hangar-deck";
+    hangarDeckEnvironmentGroup.visible = hangarDeckActive;
+
     deckEnvironmentMap.forEach((environment, environmentId) => {
       if (environmentId === floorId) {
         environment.load();
@@ -3755,7 +3762,7 @@ export const initScene = (
   const floorGrid = createGridLines(roomWidth, roomDepth, 20, 20, gridColor, gridOpacity);
   floorGrid.rotation.x = -Math.PI / 2;
   floorGrid.position.y = roomFloorY + 0.02;
-  scene.add(floorGrid);
+  hangarDeckEnvironmentGroup.add(floorGrid);
 
   const backWallGrid = createGridLines(
     roomWidth,
@@ -3766,7 +3773,7 @@ export const initScene = (
     gridOpacity
   );
   backWallGrid.position.z = -roomDepth / 2 + 0.02;
-  scene.add(backWallGrid);
+  hangarDeckEnvironmentGroup.add(backWallGrid);
 
   const frontWallGrid = createGridLines(
     roomWidth,
@@ -3778,7 +3785,7 @@ export const initScene = (
   );
   frontWallGrid.rotation.y = Math.PI;
   frontWallGrid.position.z = roomDepth / 2 - 0.02;
-  scene.add(frontWallGrid);
+  hangarDeckEnvironmentGroup.add(frontWallGrid);
 
   const leftWallGrid = createGridLines(
     roomDepth,
@@ -3790,7 +3797,7 @@ export const initScene = (
   );
   leftWallGrid.rotation.y = Math.PI / 2;
   leftWallGrid.position.x = -roomWidth / 2 + 0.02;
-  scene.add(leftWallGrid);
+  hangarDeckEnvironmentGroup.add(leftWallGrid);
 
   const rightWallGrid = createGridLines(
     roomDepth,
@@ -3802,7 +3809,7 @@ export const initScene = (
   );
   rightWallGrid.rotation.y = -Math.PI / 2;
   rightWallGrid.position.x = roomWidth / 2 - 0.02;
-  scene.add(rightWallGrid);
+  hangarDeckEnvironmentGroup.add(rightWallGrid);
 
   const wallMirror = createWallMirror();
   const mirrorDimensions = wallMirror.userData?.dimensions;
@@ -3813,7 +3820,7 @@ export const initScene = (
     6 * ROOM_SCALE_FACTOR
   );
   wallMirror.rotation.y = -Math.PI / 2;
-  scene.add(wallMirror);
+  hangarDeckEnvironmentGroup.add(wallMirror);
 
   const wallMirrorReflector = wallMirror.userData?.reflector;
   if (wallMirrorReflector) {
