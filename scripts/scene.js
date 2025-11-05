@@ -925,11 +925,14 @@ export const initScene = (
 
       const lines = Array.isArray(textLines) ? textLines : [textLines];
       const totalLines = lines.length;
-      const baseFontSize = 74;
+      const baseFontSize = 74 / 1.5;
+      const lineSpacingReduction = 8 / 1.5;
 
       lines.forEach((line, index) => {
         const fontSize =
-          totalLines > 1 ? baseFontSize - (totalLines - 1) * 8 : baseFontSize;
+          totalLines > 1
+            ? baseFontSize - (totalLines - 1) * lineSpacingReduction
+            : baseFontSize;
         ctx.font = `700 ${fontSize}px sans-serif`;
         const yOffset =
           canvasSize / 2 + (index - (totalLines - 1) / 2) * (fontSize + 4);
@@ -1463,7 +1466,25 @@ export const initScene = (
         return fontSize;
       };
 
-      const drawDescription = () => {};
+      const drawDescription = (text, busyState) => {
+        const description =
+          typeof text === "string" ? text.trim().toUpperCase() : "";
+
+        if (!description) {
+          return;
+        }
+
+        const descriptionFontSize = fitText(description, {
+          weight: "500",
+          baseSize: 30,
+          minSize: 20,
+          maxWidth: width - 72,
+        });
+
+        context.font = `500 ${descriptionFontSize}px sans-serif`;
+        context.fillStyle = busyState ? "#fbbf24" : "#38bdf8";
+        context.fillText(description, width / 2, height * 0.56);
+      };
 
       const update = ({ current, next, busy }) => {
         const gradient = context.createLinearGradient(0, 0, width, height);
@@ -1483,11 +1504,16 @@ export const initScene = (
           : "rgba(34, 197, 94, 0.12)";
         context.fillRect(12, 12, width - 24, height - 24);
 
-        const title = (current?.title || current?.id || "Unknown Deck").toUpperCase();
+        const rawTitle = current?.title || current?.id || "Unknown Deck";
+        const titleWords = rawTitle
+          .toString()
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((word) => word.toUpperCase());
+        const resolvedTitleWords =
+          titleWords.length > 0 ? titleWords : ["UNKNOWN", "DECK"];
         const status = busy ? "TRANSIT" : "STATIONED";
-        const nextTitle = next
-          ? `NEXT: ${(next.title || next.id || "...").toUpperCase()}`
-          : "CYCLE COMPLETE";
 
         context.textAlign = "center";
         context.textBaseline = "middle";
@@ -1501,26 +1527,25 @@ export const initScene = (
         context.font = `600 ${statusFontSize}px sans-serif`;
         context.fillText(status, width / 2, height * 0.18);
 
-        const titleFontSize = fitText(title, {
+        const longestTitleWord = resolvedTitleWords.reduce(
+          (longest, word) => (longest.length >= word.length ? longest : word),
+          resolvedTitleWords[0]
+        );
+        const titleFontSize = fitText(longestTitleWord, {
           weight: "700",
           baseSize: 60,
           minSize: 34,
         });
         context.fillStyle = "#e2e8f0";
         context.font = `700 ${titleFontSize}px sans-serif`;
-        context.fillText(title, width / 2, height * 0.36);
-
-        const nextFontSize = fitText(nextTitle, {
-          weight: "500",
-          baseSize: 30,
-          minSize: 20,
-          maxWidth: width - 72,
+        const totalTitleLines = resolvedTitleWords.length;
+        resolvedTitleWords.forEach((word, index) => {
+          const lineOffset = index - (totalTitleLines - 1) / 2;
+          const lineY = height * 0.36 + lineOffset * titleFontSize * 1.15;
+          context.fillText(word, width / 2, lineY);
         });
-        context.font = `500 ${nextFontSize}px sans-serif`;
-        context.fillStyle = busy ? "#fbbf24" : "#38bdf8";
-        context.fillText(nextTitle, width / 2, height * 0.52);
 
-        drawDescription(current?.description ?? "");
+        drawDescription(current?.description ?? "", busy);
 
         texture.needsUpdate = true;
       };
