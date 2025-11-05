@@ -1411,8 +1411,8 @@ export const initScene = (
     controlPanel.add(controlPanelGlow);
 
     const createLiftDisplayTexture = () => {
-      const width = 256;
-      const height = 384;
+      const width = 320;
+      const height = 480;
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -1429,6 +1429,43 @@ export const initScene = (
         };
       }
 
+      const fitText = (
+        text,
+        {
+          weight = "400",
+          baseSize = 28,
+          minSize = 18,
+          maxWidth = width - 64,
+        } = {}
+      ) => {
+        const content = typeof text === "string" ? text : String(text || "");
+        let fontSize = Number.isFinite(baseSize) ? baseSize : 28;
+        const minimum = Math.max(10, minSize || 10);
+        const resolvedMaxWidth = Number.isFinite(maxWidth)
+          ? maxWidth
+          : width - 64;
+
+        const setFont = () => {
+          context.font = `${weight} ${fontSize}px sans-serif`;
+        };
+
+        setFont();
+
+        if (!content) {
+          return fontSize;
+        }
+
+        while (
+          fontSize > minimum &&
+          context.measureText(content).width > resolvedMaxWidth
+        ) {
+          fontSize -= 2;
+          setFont();
+        }
+
+        return fontSize;
+      };
+
       const drawDescription = (text) => {
         if (!text) {
           return;
@@ -1436,7 +1473,7 @@ export const initScene = (
 
         const lines = [];
         const words = String(text).split(/\s+/).filter(Boolean);
-        const maxWidth = width - 64;
+        const maxWidth = width - 72;
         let currentLine = "";
 
         context.font = "400 28px sans-serif";
@@ -1455,14 +1492,32 @@ export const initScene = (
           lines.push(currentLine);
         }
 
-        const startY = height * 0.6;
-        const lineHeight = 36;
+        const startY = height * 0.64;
+        const renderedLines = lines.slice(0, 3);
+        const lineFontSizes = renderedLines.map((line) => {
+          let fontSize = 26;
+          context.font = `400 ${fontSize}px sans-serif`;
+          while (fontSize > 18 && context.measureText(line).width > maxWidth) {
+            fontSize -= 1;
+            context.font = `400 ${fontSize}px sans-serif`;
+          }
+          return fontSize;
+        });
+
+        const lineHeight = Math.max(...lineFontSizes, 24) + 6;
+
+        context.save();
         context.fillStyle = "rgba(148, 163, 184, 0.92)";
         context.textAlign = "center";
+        context.textBaseline = "top";
 
-        lines.slice(0, 3).forEach((line, index) => {
+        renderedLines.forEach((line, index) => {
+          const fontSize = lineFontSizes[index];
+          context.font = `400 ${fontSize}px sans-serif`;
           context.fillText(line, width / 2, startY + index * lineHeight);
         });
+
+        context.restore();
       };
 
       const update = ({ current, next, busy }) => {
@@ -1490,17 +1545,35 @@ export const initScene = (
           : "CYCLE COMPLETE";
 
         context.textAlign = "center";
+        context.textBaseline = "middle";
+
+        const statusFontSize = fitText(status, {
+          weight: "600",
+          baseSize: 36,
+          minSize: 24,
+        });
         context.fillStyle = busy ? "#f97316" : "#22c55e";
-        context.font = "600 34px sans-serif";
+        context.font = `600 ${statusFontSize}px sans-serif`;
         context.fillText(status, width / 2, height * 0.18);
 
+        const titleFontSize = fitText(title, {
+          weight: "700",
+          baseSize: 60,
+          minSize: 34,
+        });
         context.fillStyle = "#e2e8f0";
-        context.font = "700 56px sans-serif";
+        context.font = `700 ${titleFontSize}px sans-serif`;
         context.fillText(title, width / 2, height * 0.36);
 
-        context.font = "500 26px sans-serif";
+        const nextFontSize = fitText(nextTitle, {
+          weight: "500",
+          baseSize: 30,
+          minSize: 20,
+          maxWidth: width - 72,
+        });
+        context.font = `500 ${nextFontSize}px sans-serif`;
         context.fillStyle = busy ? "#fbbf24" : "#38bdf8";
-        context.fillText(nextTitle, width / 2, height * 0.48);
+        context.fillText(nextTitle, width / 2, height * 0.52);
 
         drawDescription(current?.description ?? "");
 
@@ -1514,7 +1587,7 @@ export const initScene = (
       createLiftDisplayTexture();
 
     const controlScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.34, 0.48),
+      new THREE.PlaneGeometry(0.38, 0.54),
       new THREE.MeshBasicMaterial({
         map: liftDisplayTexture,
         transparent: true,
@@ -1522,21 +1595,11 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    controlScreen.position.set(0, 0.28, 0.11);
+    controlScreen.position.set(0, 0.3, 0.11);
     controlPanel.add(controlScreen);
 
-    const controlButton = new THREE.Mesh(
-      new THREE.CircleGeometry(0.08, 32),
-      new THREE.MeshBasicMaterial({
-        color: 0xf97316,
-        side: THREE.DoubleSide,
-      })
-    );
-    controlButton.position.set(0, -0.3, 0.1);
-    controlPanel.add(controlButton);
-
     const liftControlHitArea = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.42, 0.86),
+      new THREE.PlaneGeometry(0.46, 0.94),
       new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
@@ -1545,12 +1608,12 @@ export const initScene = (
         depthWrite: false,
       })
     );
-    liftControlHitArea.position.set(0, 0.08, 0.115);
+    liftControlHitArea.position.set(0, 0.1, 0.115);
     liftControlHitArea.userData.isLiftControl = true;
     controlPanel.add(liftControlHitArea);
 
     const panelLight = new THREE.PointLight(
-      0xf97316,
+      0x38bdf8,
       0.85,
       5.5 * ROOM_SCALE_FACTOR,
       1.6
@@ -2647,6 +2710,15 @@ export const initScene = (
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
+    const exteriorExitDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
+    exteriorExitDoor.position.set(
+      0,
+      roomFloorY + (exteriorExitDoor.userData.height ?? 0) / 2,
+      -deckDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
+    );
+    exteriorExitDoor.userData.floorOffset = 0;
+    group.add(exteriorExitDoor);
+
     const adjustableEntries = [
       { object: deck, offset: -deckThickness / 2 },
       { object: catwalk, offset: 0.18 },
@@ -2675,6 +2747,7 @@ export const initScene = (
     return {
       group,
       liftDoor,
+      liftDoors: [liftDoor, exteriorExitDoor],
       updateForRoomHeight,
       teleportOffset,
       bounds: floorBounds,
@@ -3407,8 +3480,34 @@ export const initScene = (
       }
 
       let unregisterLiftDoor = null;
+      const doorsToRegister = [];
+
       if (environment?.liftDoor) {
-        unregisterLiftDoor = registerLiftDoor(environment.liftDoor);
+        doorsToRegister.push(environment.liftDoor);
+      }
+
+      if (Array.isArray(environment?.liftDoors)) {
+        environment.liftDoors.forEach((door) => {
+          if (door && !doorsToRegister.includes(door)) {
+            doorsToRegister.push(door);
+          }
+        });
+      }
+
+      if (doorsToRegister.length > 0) {
+        const unregisterFns = doorsToRegister
+          .map((door) => registerLiftDoor(door))
+          .filter((fn) => typeof fn === "function");
+
+        unregisterLiftDoor = () => {
+          unregisterFns.forEach((fn) => {
+            try {
+              fn();
+            } catch (error) {
+              console.warn("Unable to unregister lift door", error);
+            }
+          });
+        };
       }
 
       state = {
@@ -3521,8 +3620,8 @@ export const initScene = (
   const deckEnvironments = [
     createLazyDeckEnvironment({
       id: "operations-concourse",
-      title: "Operations Concourse",
-      description: "Command mezzanine overlook",
+      title: "Outside Exit",
+      description: "External Hatch",
       yaw: Math.PI,
       groupPosition: operationsDeckGroupPosition,
       localFloorBounds: operationsDeckLocalBounds,
@@ -4063,8 +4162,8 @@ export const initScene = (
     },
     {
       id: "operations-concourse",
-      title: "Operations Concourse",
-      description: "Command mezzanine overlook",
+      title: "Outside Exit",
+      description: "External Hatch",
       position: resolvedOperationsFloorPosition,
       yaw: Math.PI,
       bounds: resolvedOperationsFloorBounds,
