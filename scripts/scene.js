@@ -236,6 +236,7 @@ export const initScene = (
 
   const liftInteractables = [];
   const liftUiControllers = new Set();
+  let notifyLiftUiControllersChanged = () => {};
   const registeredLiftDoors = [];
   const environmentHeightAdjusters = [];
 
@@ -273,6 +274,12 @@ export const initScene = (
       } else if (control) {
         registeredControl = control;
       }
+
+      try {
+        notifyLiftUiControllersChanged();
+      } catch (error) {
+        console.warn("Unable to sync lift UI state", error);
+      }
     }
 
     return () => {
@@ -290,6 +297,12 @@ export const initScene = (
         if (controlIndex >= 0) {
           liftInteractables.splice(controlIndex, 1);
         }
+      }
+
+      try {
+        notifyLiftUiControllersChanged();
+      } catch (error) {
+        console.warn("Unable to sync lift UI state", error);
       }
     };
   };
@@ -4089,6 +4102,9 @@ export const initScene = (
         controller.updateState(state);
       }
     });
+  };
+  notifyLiftUiControllersChanged = () => {
+    updateLiftUi();
   };
   playerObject.position.copy(defaultPlayerPosition);
 
