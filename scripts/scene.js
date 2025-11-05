@@ -4096,7 +4096,7 @@ export const initScene = (
   liftState.floors = [
     {
       id: "hangar-deck",
-      title: "Hangar Deck",
+      title: "Command Center",
       description: "Flight line staging",
       position: hangarDeckFloorPosition,
       bounds: hangarDeckFloorBounds,
