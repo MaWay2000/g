@@ -3866,7 +3866,7 @@ export const initScene = (
 
   const raycaster = new THREE.Raycaster();
   const quickAccessInteractables = [];
-  const MAX_TERMINAL_INTERACTION_DISTANCE = 6.8;
+  const MAX_TERMINAL_INTERACTION_DISTANCE = 4.5;
 
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
 
@@ -5098,7 +5098,11 @@ export const initScene = (
     backward: false,
     left: false,
     right: false,
+    running: false,
   };
+
+  const BASE_MOVEMENT_ACCELERATION = 20;
+  const RUN_SPEED_MULTIPLIER = 1.75;
 
   let movementEnabled = true;
 
@@ -6075,6 +6079,7 @@ export const initScene = (
       movementState.backward = false;
       movementState.left = false;
       movementState.right = false;
+      movementState.running = false;
       velocity.set(0, 0, 0);
       verticalVelocity = 0;
       jumpRequested = false;
@@ -6092,6 +6097,10 @@ export const initScene = (
     }
 
     switch (code) {
+      case "ShiftLeft":
+      case "ShiftRight":
+        movementState.running = value;
+        break;
       case "ArrowUp":
       case "KeyW":
         movementState.forward = value;
@@ -6245,12 +6254,16 @@ export const initScene = (
         direction.normalize();
       }
 
+      const appliedAcceleration = movementState.running
+        ? BASE_MOVEMENT_ACCELERATION * RUN_SPEED_MULTIPLIER
+        : BASE_MOVEMENT_ACCELERATION;
+
       if (movementState.forward || movementState.backward) {
-        velocity.z -= direction.z * 20 * delta;
+        velocity.z -= direction.z * appliedAcceleration * delta;
       }
 
       if (movementState.left || movementState.right) {
-        velocity.x -= direction.x * 20 * delta;
+        velocity.x -= direction.x * appliedAcceleration * delta;
       }
 
       if (controls.isLocked) {
