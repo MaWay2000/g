@@ -816,15 +816,6 @@ export const initScene = (
     emblemColor: 0x991b1b,
     emblemEmissiveColor: 0x250404,
   };
-  const SHARED_ROOM_DOOR_THEME = {
-    accentColor: 0x9f1239,
-    accentEmissiveColor: 0x3f0712,
-    seamGlowColor: 0x3b82f6,
-    doorLightColor: 0x38bdf8,
-    overheadLightColor: 0x60a5fa,
-    emblemColor: 0x9f1239,
-    emblemEmissiveColor: 0x3f0712,
-  };
   const COMMAND_CENTER_DOOR_THEME = {
     accentColor: 0x2563eb,
     accentEmissiveColor: 0x10243f,
@@ -1393,7 +1384,12 @@ export const initScene = (
       new THREE.BoxGeometry(controlPanelWidth, controlPanelHeight, 0.18),
       controlPanelMaterial
     );
-    controlPanel.position.set(doorWidth / 2 + frameWidth * 0.95, 0.1, 0.12);
+    const controlPanelFrontOffset = frameDepth / 2 + 0.08;
+    controlPanel.position.set(
+      doorWidth / 2 + frameWidth * 0.95,
+      0.1,
+      controlPanelFrontOffset
+    );
     group.add(controlPanel);
 
     const controlPanelEdges = new THREE.LineSegments(
@@ -1420,6 +1416,18 @@ export const initScene = (
     controlPanelGlow.position.set(0, 0, 0.1);
     controlPanelGlow.renderOrder = 2;
     controlPanel.add(controlPanelGlow);
+
+    const panelLabelMaterial = new THREE.MeshBasicMaterial({
+      map: createPanelLabelTexture(["LIFT", "ACCESS"]),
+      transparent: true,
+    });
+    panelLabelMaterial.toneMapped = false;
+    const panelLabel = new THREE.Mesh(
+      new THREE.PlaneGeometry(controlPanelWidth * 0.82, 0.32),
+      panelLabelMaterial
+    );
+    panelLabel.position.set(0, controlPanelHeight / 2 + 0.24, 0.115);
+    controlPanel.add(panelLabel);
 
     const createLiftDisplayTexture = () => {
       const width = 320;
@@ -1660,7 +1668,7 @@ export const initScene = (
     return group;
   };
 
-  const hangarDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
+  const hangarDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
   hangarDoor.position.set(
     0,
     -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
@@ -2575,7 +2583,7 @@ export const initScene = (
     statusGlow.position.set(0, roomFloorY + 1.6, -deckDepth / 2 + 0.07);
     group.add(statusGlow);
 
-    const liftDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
+    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
     liftDoor.position.set(
       0,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
@@ -2800,7 +2808,7 @@ export const initScene = (
     consoleScreen.rotation.x = -THREE.MathUtils.degToRad(12);
     group.add(consoleScreen);
 
-    const liftDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
+    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
     liftDoor.position.set(
       0,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
@@ -3077,7 +3085,7 @@ export const initScene = (
     horizonLight.position.set(-2.5, roomFloorY + 3.2, 4.6);
     group.add(horizonLight);
 
-    const liftDoor = createHangarDoor(SHARED_ROOM_DOOR_THEME);
+    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
     liftDoor.position.set(
       -roomWidth / 3,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
@@ -3866,7 +3874,7 @@ export const initScene = (
 
   const raycaster = new THREE.Raycaster();
   const quickAccessInteractables = [];
-  const MAX_TERMINAL_INTERACTION_DISTANCE = 4.5;
+  const MAX_TERMINAL_INTERACTION_DISTANCE = 1.5;
 
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
 
