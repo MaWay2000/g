@@ -1378,8 +1378,10 @@ export const initScene = (
       emissiveIntensity: 0.45,
     });
 
+    const controlPanelWidth = 0.6;
+    const controlPanelHeight = 1.4;
     const controlPanel = new THREE.Mesh(
-      new THREE.BoxGeometry(0.6, 1.4, 0.18),
+      new THREE.BoxGeometry(controlPanelWidth, controlPanelHeight, 0.18),
       controlPanelMaterial
     );
     controlPanel.position.set(doorWidth / 2 + frameWidth * 0.95, 0.1, 0.12);
@@ -1586,8 +1588,11 @@ export const initScene = (
     const { texture: liftDisplayTexture, update: updateLiftDisplayTexture } =
       createLiftDisplayTexture();
 
+    const controlScreenInset = 0.02;
+    const controlScreenWidth = controlPanelWidth - controlScreenInset * 2;
+    const controlScreenHeight = controlPanelHeight - controlScreenInset * 2;
     const controlScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.38, 0.54),
+      new THREE.PlaneGeometry(controlScreenWidth, controlScreenHeight),
       new THREE.MeshBasicMaterial({
         map: liftDisplayTexture,
         transparent: true,
@@ -1595,11 +1600,14 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    controlScreen.position.set(0, 0.3, 0.11);
+    controlScreen.position.set(0, 0, 0.11);
     controlPanel.add(controlScreen);
 
     const liftControlHitArea = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.46, 0.94),
+      new THREE.PlaneGeometry(
+        controlScreenWidth + 0.04,
+        controlScreenHeight + 0.04
+      ),
       new THREE.MeshBasicMaterial({
         color: 0xffffff,
         transparent: true,
@@ -1608,7 +1616,7 @@ export const initScene = (
         depthWrite: false,
       })
     );
-    liftControlHitArea.position.set(0, 0.1, 0.115);
+    liftControlHitArea.position.set(0, 0, 0.115);
     liftControlHitArea.userData.isLiftControl = true;
     controlPanel.add(liftControlHitArea);
 
@@ -1625,150 +1633,8 @@ export const initScene = (
     );
     group.add(panelLight);
 
-    const liftPanelGroup = new THREE.Group();
-    liftPanelGroup.position.set(
-      -doorWidth / 2 - frameWidth * 0.82,
-      -0.18,
-      0.14
-    );
-    group.add(liftPanelGroup);
-
-    const liftPanelBaseMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0f172a),
-      roughness: 0.54,
-      metalness: 0.46,
-      emissive: new THREE.Color(0x0b1120),
-      emissiveIntensity: 0.35,
-    });
-
-    const liftPanelBase = new THREE.Mesh(
-      new THREE.BoxGeometry(0.42, 1.12, 0.16),
-      liftPanelBaseMaterial
-    );
-    liftPanelBase.castShadow = true;
-    liftPanelBase.receiveShadow = true;
-    liftPanelGroup.add(liftPanelBase);
-
-    const liftPanelEdges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(liftPanelBase.geometry),
-      new THREE.LineBasicMaterial({
-        color: 0x22d3ee,
-        transparent: true,
-        opacity: 0.7,
-      })
-    );
-    liftPanelEdges.scale.setScalar(1.01);
-    liftPanelBase.add(liftPanelEdges);
-
-    const liftPanelInset = new THREE.Mesh(
-      new THREE.BoxGeometry(0.34, 0.94, 0.04),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x17223a),
-        roughness: 0.42,
-        metalness: 0.58,
-        emissive: new THREE.Color(0x0e1d37),
-        emissiveIntensity: 0.55,
-      })
-    );
-    liftPanelInset.position.set(0, 0, 0.06);
-    liftPanelGroup.add(liftPanelInset);
-
-    const liftPanelLabel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.26, 0.32),
-      new THREE.MeshBasicMaterial({
-        map: createPanelLabelTexture(["LIFT", "DOOR"]),
-        transparent: true,
-        side: THREE.DoubleSide,
-      })
-    );
-    liftPanelLabel.position.set(0, 0.28, 0.095);
-    liftPanelGroup.add(liftPanelLabel);
-
-    const liftToggleHousing = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.045, 0.045, 0.05, 24),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x1f2937),
-        roughness: 0.45,
-        metalness: 0.75,
-      })
-    );
-    liftToggleHousing.rotation.x = Math.PI / 2;
-    liftToggleHousing.position.set(0, -0.12, 0.08);
-    liftPanelGroup.add(liftToggleHousing);
-
-    const liftToggleSwitch = new THREE.Mesh(
-      new THREE.BoxGeometry(0.05, 0.16, 0.02),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x38bdf8),
-        emissive: new THREE.Color(0x0ea5e9),
-        emissiveIntensity: 0.85,
-      })
-    );
-    liftToggleSwitch.position.set(0, -0.08, 0.14);
-    liftToggleSwitch.rotation.x = THREE.MathUtils.degToRad(-18);
-    liftPanelGroup.add(liftToggleSwitch);
-
-    const liftStatusIndicator = new THREE.Mesh(
-      new THREE.CircleGeometry(0.055, 24),
-      new THREE.MeshBasicMaterial({
-        color: 0x22c55e,
-        opacity: 0.95,
-        transparent: true,
-      })
-    );
-    liftStatusIndicator.position.set(0.1, 0.08, 0.1);
-    liftPanelGroup.add(liftStatusIndicator);
-
-    const liftIndicatorLight = new THREE.PointLight(
-      0x22c55e,
-      0.6,
-      3.6 * ROOM_SCALE_FACTOR,
-      1.6
-    );
-    liftIndicatorLight.position.set(0.1, 0.08, 0.16);
-    liftPanelGroup.add(liftIndicatorLight);
-
-    const liftPanelGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.56, 1.36),
-      new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
-        transparent: true,
-        opacity: 0.16,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    liftPanelGlow.position.set(0, 0, 0.1);
-    liftPanelGlow.renderOrder = 2;
-    liftPanelGroup.add(liftPanelGlow);
-
-    const liftInstructionPlate = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.18, 0.12),
-      new THREE.MeshBasicMaterial({
-        map: createPanelLabelTexture(["ACCESS"]),
-        transparent: true,
-        opacity: 0.9,
-        side: THREE.DoubleSide,
-      })
-    );
-    liftInstructionPlate.position.set(-0.08, -0.02, 0.094);
-    liftPanelGroup.add(liftInstructionPlate);
-
-    const applyLiftIndicatorState = (busy) => {
-      const indicatorMaterial = liftStatusIndicator.material;
-      const indicatorColor = busy ? 0xf97316 : 0x22c55e;
-      if (indicatorMaterial?.color) {
-        indicatorMaterial.color.setHex(indicatorColor);
-      }
-
-      liftIndicatorLight.color.setHex(indicatorColor);
-      liftIndicatorLight.intensity = busy ? 0.5 : 0.85;
-    };
-
     const applyLiftUiState = ({ current, next, busy } = {}) => {
-      const isBusy = Boolean(busy);
-      applyLiftIndicatorState(isBusy);
-      updateLiftDisplayTexture({ current, next, busy: isBusy });
+      updateLiftDisplayTexture({ current, next, busy: Boolean(busy) });
     };
 
     applyLiftUiState({ busy: false });
