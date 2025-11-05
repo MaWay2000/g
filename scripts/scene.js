@@ -886,35 +886,6 @@ export const initScene = (
     const thresholdHeight = 0.28;
     const seamGap = 0.22;
 
-    const createHazardStripeTexture = () => {
-      const size = 256;
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#0f1010";
-      ctx.fillRect(0, 0, size, size);
-      const stripeWidth = size / 3.2;
-      ctx.fillStyle = "#facc15";
-      for (let offset = -size; offset < size * 2; offset += stripeWidth * 2) {
-        ctx.beginPath();
-        ctx.moveTo(offset, 0);
-        ctx.lineTo(offset + stripeWidth, 0);
-        ctx.lineTo(offset, size);
-        ctx.lineTo(offset - stripeWidth, size);
-        ctx.closePath();
-        ctx.fill();
-      }
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(2.5, 1.2);
-      texture.rotation = -Math.PI / 5;
-      texture.center.set(0.5, 0.5);
-      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      return texture;
-    };
-
     const createPanelLabelTexture = (textLines) => {
       const canvasSize = 256;
       const canvas = document.createElement("canvas");
@@ -1012,31 +983,6 @@ export const initScene = (
     const rightFrame = leftFrame.clone();
     rightFrame.position.x = doorWidth / 2 + frameWidth / 2;
     group.add(rightFrame);
-
-    const hazardTexture = createHazardStripeTexture();
-    const hazardMaterial = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      metalness: 0.35,
-      roughness: 0.55,
-      map: hazardTexture,
-    });
-
-    const hazardPlateThickness = 0.08;
-    const hazardTop = new THREE.Mesh(
-      new THREE.BoxGeometry(doorWidth + frameWidth * 2.8, lintelHeight * 0.72, hazardPlateThickness),
-      hazardMaterial
-    );
-    hazardTop.position.set(0, doorHeight / 2 + lintelHeight * 0.75, frameDepth / 2 + hazardPlateThickness / 2);
-    group.add(hazardTop);
-
-    const hazardSideGeometry = new THREE.BoxGeometry(frameWidth * 0.9, doorHeight * 0.95, hazardPlateThickness);
-    const hazardLeft = new THREE.Mesh(hazardSideGeometry, hazardMaterial);
-    hazardLeft.position.set(-doorWidth / 2 - frameWidth * 0.85, 0, frameDepth / 2 + hazardPlateThickness / 2);
-    group.add(hazardLeft);
-
-    const hazardRight = hazardLeft.clone();
-    hazardRight.position.x *= -1;
-    group.add(hazardRight);
 
     const trimMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x7f1d1d),
