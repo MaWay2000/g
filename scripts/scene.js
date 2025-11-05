@@ -3,197 +3,18 @@ import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/
 import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/OBJLoader.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
+import {
+  DEFAULT_CAMERA_PITCH,
+  DEFAULT_PLAYER_HEIGHT,
+  loadStoredPlayerHeight,
+  loadStoredPlayerState,
+  normalizePitchForPersistence,
+  persistPlayerHeight,
+  persistPlayerState,
+  resetPlayerStateCache,
+} from "./player-state-storage.js";
 
-export const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
-export const DEFAULT_PLAYER_HEIGHT = 1.8;
-const PLAYER_HEIGHT_STORAGE_KEY = `${PLAYER_STATE_STORAGE_KEY}.height`;
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
-const DEFAULT_CAMERA_PITCH = 0;
-const MAX_RESTORABLE_PITCH =
-  Math.PI / 2 - THREE.MathUtils.degToRad(1);
-
-const normalizePitchForPersistence = (pitch) => {
-  if (!Number.isFinite(pitch)) {
-    return null;
-  }
-
-  const normalized =
-    THREE.MathUtils.euclideanModulo(pitch + Math.PI, Math.PI * 2) - Math.PI;
-
-  if (Math.abs(normalized) >= MAX_RESTORABLE_PITCH) {
-    return null;
-  }
-
-  return normalized;
-};
-
-const getPlayerStateStorage = (() => {
-  let resolved = false;
-  let storage = null;
-
-  return () => {
-    if (resolved) {
-      return storage;
-    }
-
-    resolved = true;
-
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    try {
-      storage = window.localStorage;
-      if (storage) {
-        const probeKey = `${PLAYER_STATE_STORAGE_KEY}.probe`;
-        storage.setItem(probeKey, "1");
-        storage.removeItem(probeKey);
-      }
-    } catch (error) {
-      console.warn("Unable to access localStorage for player state", error);
-      storage = null;
-    }
-
-    return storage;
-  };
-})();
-
-export const clearStoredPlayerState = () => {
-  const storage = getPlayerStateStorage();
-
-  if (!storage) {
-    return false;
-  }
-
-  try {
-    storage.removeItem(PLAYER_STATE_STORAGE_KEY);
-    storage.removeItem(PLAYER_HEIGHT_STORAGE_KEY);
-    lastSerializedPlayerHeight = null;
-    return true;
-  } catch (error) {
-    console.warn("Unable to clear stored player state", error);
-  }
-
-  return false;
-};
-
-let lastSerializedPlayerHeight = null;
-
-const loadStoredPlayerHeight = () => {
-  const storage = getPlayerStateStorage();
-
-  if (!storage) {
-    return null;
-  }
-
-  try {
-    const rawValue = storage.getItem(PLAYER_HEIGHT_STORAGE_KEY);
-
-    if (typeof rawValue !== "string" || rawValue.trim() === "") {
-      return null;
-    }
-
-    const normalizedValue = rawValue.trim();
-    const parsedValue = Number.parseFloat(normalizedValue);
-
-    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
-      return null;
-    }
-
-    lastSerializedPlayerHeight = normalizedValue;
-    return parsedValue;
-  } catch (error) {
-    console.warn("Unable to read stored player height", error);
-  }
-
-  return null;
-};
-
-const persistPlayerHeight = (height) => {
-  if (!Number.isFinite(height) || height <= 0) {
-    return;
-  }
-
-  const storage = getPlayerStateStorage();
-
-  if (!storage) {
-    return;
-  }
-
-  const serializedHeight = (Math.round(height * 1000) / 1000).toString();
-
-  if (serializedHeight === lastSerializedPlayerHeight) {
-    return;
-  }
-
-  try {
-    storage.setItem(PLAYER_HEIGHT_STORAGE_KEY, serializedHeight);
-    lastSerializedPlayerHeight = serializedHeight;
-  } catch (error) {
-    console.warn("Unable to persist player height", error);
-  }
-};
-
-const loadStoredPlayerState = () => {
-  const storage = getPlayerStateStorage();
-
-  if (!storage) {
-    return null;
-  }
-
-  let serialized = null;
-
-  try {
-    serialized = storage.getItem(PLAYER_STATE_STORAGE_KEY);
-  } catch (error) {
-    console.warn("Unable to read stored player state", error);
-    return null;
-  }
-
-  if (!serialized) {
-    return null;
-  }
-
-  try {
-    const data = JSON.parse(serialized);
-    const position = data?.position;
-    const quaternion = data?.quaternion;
-    const isFiniteNumber = (value) =>
-      typeof value === "number" && Number.isFinite(value);
-
-    if (
-      !position ||
-      !quaternion ||
-      !isFiniteNumber(position.x) ||
-      !isFiniteNumber(position.y) ||
-      !isFiniteNumber(position.z) ||
-      !isFiniteNumber(quaternion.x) ||
-      !isFiniteNumber(quaternion.y) ||
-      !isFiniteNumber(quaternion.z) ||
-      !isFiniteNumber(quaternion.w)
-    ) {
-      return null;
-    }
-
-    const pitch = normalizePitchForPersistence(data?.pitch);
-    const hasPitch = pitch !== null;
-    return {
-      position: new THREE.Vector3(position.x, position.y, position.z),
-      quaternion: new THREE.Quaternion(
-        quaternion.x,
-        quaternion.y,
-        quaternion.z,
-        quaternion.w
-      ),
-      pitch: hasPitch ? pitch : null,
-      serialized,
-    };
-  } catch (error) {
-    console.warn("Unable to parse stored player state", error);
-  }
-
-  return null;
-};
 
 export const initScene = (
   canvas,
@@ -3879,7 +3700,6 @@ export const initScene = (
   }
 
   const storedPlayerState = loadStoredPlayerState();
-  let lastSerializedPlayerState = storedPlayerState?.serialized ?? null;
   let isPlayerStatePersistenceEnabled = true;
   const storedOrientationEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
@@ -4341,24 +4161,8 @@ export const initScene = (
       return;
     }
 
-    const storage = getPlayerStateStorage();
-
-    if (!storage) {
-      return;
-    }
-
     const serialized = serializePlayerState();
-
-    if (!force && serialized === lastSerializedPlayerState) {
-      return;
-    }
-
-    try {
-      storage.setItem(PLAYER_STATE_STORAGE_KEY, serialized);
-      lastSerializedPlayerState = serialized;
-    } catch (error) {
-      console.warn("Unable to save player state", error);
-    }
+    persistPlayerState(serialized, { force });
   };
 
   const handleVisibilityChange = () => {
@@ -6367,7 +6171,7 @@ export const initScene = (
       }
 
       isPlayerStatePersistenceEnabled = nextEnabled;
-      lastSerializedPlayerState = null;
+      resetPlayerStateCache();
       return previousEnabled;
     },
     placeModelFromManifestEntry,

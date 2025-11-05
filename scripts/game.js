@@ -1,9 +1,9 @@
 import { logout } from "./auth.js";
+import { initScene } from "./scene.js";
 import {
   DEFAULT_PLAYER_HEIGHT,
   clearStoredPlayerState,
-  initScene,
-} from "./scene.js";
+} from "./player-state-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
