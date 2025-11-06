@@ -1,58 +1,13 @@
-const TERRAIN_TYPES = [
-  {
-    id: "void",
-    label: "Void",
-    description: "Unusable space. Treated as off-map.",
-    color: "transparent",
-  },
-  {
-    id: "path",
-    label: "Packed Trail",
-    description: "Primary traversal route for vehicles or foot traffic.",
-    color: "#eab308",
-  },
-  {
-    id: "grass",
-    label: "Wild Grass",
-    description: "Open exploration space with light vegetation.",
-    color: "#4ade80",
-  },
-  {
-    id: "rock",
-    label: "Rock Plate",
-    description: "Impassable rocky terrain or structures.",
-    color: "#94a3b8",
-  },
-  {
-    id: "water",
-    label: "Water",
-    description: "Bodies of water, rivers, or flood zones.",
-    color: "#60a5fa",
-  },
-  {
-    id: "hazard",
-    label: "Hazard",
-    description: "High-risk area that requires protection to traverse.",
-    color: "#f87171",
-  },
-  {
-    id: "point",
-    label: "Point of Interest",
-    description: "Interactive or narrative focal point.",
-    color: "#f472b6",
-  },
-];
-
-const DEFAULT_MAP = {
-  name: "outside-yard",
-  region: "perimeter",
-  notes: "",
-  width: 16,
-  height: 12,
-  cells: Array.from({ length: 16 * 12 }, () => "grass"),
-};
-
-const LOCAL_STORAGE_KEY = "dustyNova.mapMaker.savedMap";
+import {
+  OUTSIDE_TERRAIN_TYPES as TERRAIN_TYPES,
+  OUTSIDE_MAP_LOCAL_STORAGE_KEY as LOCAL_STORAGE_KEY,
+  clampOutsideMapDimension,
+  getOutsideTerrainById as getTerrainById,
+  createDefaultOutsideMap,
+  normalizeOutsideMap,
+  tryGetOutsideMapStorage,
+  saveOutsideMapToStorage,
+} from "./outside-map.js";
 
 let cachedLocalStorage;
 const localSaveFeedbackTimers = {
@@ -60,16 +15,9 @@ const localSaveFeedbackTimers = {
   restore: null,
 };
 
-const clone = (value) => {
-  if (typeof globalThis.structuredClone === "function") {
-    return globalThis.structuredClone(value);
-  }
-  return JSON.parse(JSON.stringify(value));
-};
-
 const state = {
   terrain: TERRAIN_TYPES[1],
-  map: clone(DEFAULT_MAP),
+  map: createDefaultOutsideMap(),
   isPointerDown: false,
   pointerTerrain: null,
 };
@@ -104,12 +52,7 @@ function getLocalStorage() {
   if (cachedLocalStorage !== undefined) {
     return cachedLocalStorage;
   }
-  try {
-    cachedLocalStorage = window.localStorage;
-  } catch (error) {
-    console.warn("Local storage is unavailable", error);
-    cachedLocalStorage = null;
-  }
+  cachedLocalStorage = tryGetOutsideMapStorage();
   return cachedLocalStorage;
 }
 
@@ -191,7 +134,7 @@ function saveMapToLocalStorage() {
     return false;
   }
   try {
-    storage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state.map));
+    saveOutsideMapToStorage(state.map, storage);
   } catch (error) {
     console.error("Failed to save map locally", error);
     alert("Unable to save the map locally. Check storage permissions or space.");
@@ -264,14 +207,6 @@ function restoreMapFromLocalStorage({
   return true;
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function getTerrainById(id) {
-  return TERRAIN_TYPES.find((terrain) => terrain.id === id) ?? TERRAIN_TYPES[0];
-}
-
 function setTerrain(terrain) {
   state.terrain = terrain;
   renderPalette();
@@ -303,8 +238,8 @@ function updateMetadataDisplays() {
 }
 
 function resizeMap(width, height) {
-  const clampedWidth = clamp(Math.floor(width), 1, 200);
-  const clampedHeight = clamp(Math.floor(height), 1, 200);
+  const clampedWidth = clampOutsideMapDimension(width);
+  const clampedHeight = clampOutsideMapDimension(height);
   if (
     clampedWidth === state.map.width &&
     clampedHeight === state.map.height
@@ -426,31 +361,9 @@ function updateJsonPreview() {
 }
 
 function applyImportedMap(mapDefinition) {
-  if (!mapDefinition || typeof mapDefinition !== "object") {
-    throw new Error("Invalid map definition");
-  }
-  const width = clamp(Number.parseInt(mapDefinition.width, 10), 1, 200);
-  const height = clamp(Number.parseInt(mapDefinition.height, 10), 1, 200);
-  const cells = Array.isArray(mapDefinition.cells)
-    ? mapDefinition.cells.slice(0, width * height).map((value) => {
-        const terrain = getTerrainById(String(value));
-        return terrain.id;
-      })
-    : [];
+  const normalized = normalizeOutsideMap(mapDefinition);
 
-  if (cells.length < width * height) {
-    const missing = width * height - cells.length;
-    cells.push(...Array.from({ length: missing }, () => TERRAIN_TYPES[0].id));
-  }
-
-  state.map = {
-    name: String(mapDefinition.name ?? ""),
-    region: String(mapDefinition.region ?? ""),
-    notes: String(mapDefinition.notes ?? ""),
-    width,
-    height,
-    cells,
-  };
+  state.map = normalized;
 
   updateMetadataDisplays();
   renderGrid();
@@ -458,7 +371,7 @@ function applyImportedMap(mapDefinition) {
 }
 
 function resetMap() {
-  state.map = clone(DEFAULT_MAP);
+  state.map = createDefaultOutsideMap();
   setTerrain(TERRAIN_TYPES[1]);
   updateMetadataDisplays();
   renderGrid();

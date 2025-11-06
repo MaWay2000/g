@@ -28,6 +28,12 @@ import {
   unregisterColliderDescriptors,
   rebuildStaticColliders,
 } from "./physics/colliders.js";
+import {
+  createDefaultOutsideMap,
+  loadOutsideMapFromStorage,
+  normalizeOutsideMap,
+  getOutsideTerrainById,
+} from "./outside-map.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 
@@ -389,6 +395,96 @@ export const initScene = (
   };
   const BASE_MIRROR_WIDTH = 12 * ROOM_SCALE_FACTOR;
   const BASE_MIRROR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
+
+  const DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE = {
+    color: 0x1f2937,
+    roughness: 0.75,
+    metalness: 0.2,
+    height: 0.05,
+    elevationOffset: 0,
+  };
+
+  const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
+    [
+      "void",
+      {
+        color: 0x0b1220,
+        roughness: 0.92,
+        metalness: 0.04,
+        height: 0.035,
+        elevationOffset: -0.025,
+      },
+    ],
+    [
+      "path",
+      {
+        color: 0xfacc15,
+        roughness: 0.45,
+        metalness: 0.28,
+        height: 0.05,
+        elevationOffset: 0.008,
+        emissive: 0xfff1a1,
+        emissiveIntensity: 0.1,
+      },
+    ],
+    [
+      "grass",
+      {
+        color: 0x16a34a,
+        roughness: 0.88,
+        metalness: 0.05,
+        height: 0.06,
+        elevationOffset: 0.012,
+      },
+    ],
+    [
+      "rock",
+      {
+        color: 0x94a3b8,
+        roughness: 0.6,
+        metalness: 0.45,
+        height: 0.085,
+        elevationOffset: 0.02,
+      },
+    ],
+    [
+      "water",
+      {
+        color: 0x38bdf8,
+        roughness: 0.2,
+        metalness: 0.65,
+        height: 0.035,
+        elevationOffset: -0.05,
+        opacity: 0.6,
+        emissive: 0x0ea5e9,
+        emissiveIntensity: 0.4,
+      },
+    ],
+    [
+      "hazard",
+      {
+        color: 0xf97316,
+        roughness: 0.38,
+        metalness: 0.5,
+        height: 0.05,
+        elevationOffset: 0.01,
+        emissive: 0xff4d6d,
+        emissiveIntensity: 0.32,
+      },
+    ],
+    [
+      "point",
+      {
+        color: 0xf472b6,
+        roughness: 0.35,
+        metalness: 0.62,
+        height: 0.055,
+        elevationOffset: 0.015,
+        emissive: 0xdb2777,
+        emissiveIntensity: 0.45,
+      },
+    ],
+  ]);
 
   const roomWidth = BASE_ROOM_WIDTH;
   const roomDepth = BASE_ROOM_DEPTH;
@@ -2296,6 +2392,199 @@ export const initScene = (
   const createOperationsExteriorEnvironment = () => {
     const group = new THREE.Group();
 
+    const buildOutsideTerrainFromMap = (mapDefinition, walkwayBackEdge) => {
+      if (!mapDefinition || typeof mapDefinition !== "object") {
+        return null;
+      }
+
+      let normalizedMap = null;
+      try {
+        normalizedMap = normalizeOutsideMap(mapDefinition);
+      } catch (error) {
+        console.warn("Unable to normalize outside map definition", error);
+        return null;
+      }
+
+      const width = Math.max(1, Number.parseInt(normalizedMap.width, 10));
+      const height = Math.max(1, Number.parseInt(normalizedMap.height, 10));
+      const totalCells = width * height;
+      const rawCells = Array.isArray(normalizedMap.cells)
+        ? normalizedMap.cells.slice(0, totalCells)
+        : [];
+
+      while (rawCells.length < totalCells) {
+        rawCells.push("void");
+      }
+
+      const desiredWorldWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 1.4;
+      const desiredWorldDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 2.3;
+      const minCellSize = ROOM_SCALE_FACTOR * 0.9;
+      const maxCellSize = ROOM_SCALE_FACTOR * 2.4;
+      const computedCellSize = Math.min(
+        desiredWorldWidth / width,
+        desiredWorldDepth / height
+      );
+      const cellSize = THREE.MathUtils.clamp(
+        Number.isFinite(computedCellSize) && computedCellSize > 0
+          ? computedCellSize
+          : minCellSize,
+        minCellSize,
+        maxCellSize
+      );
+
+      const mapWorldWidth = width * cellSize;
+      const mapWorldDepth = height * cellSize;
+      const mapFrontEdge = walkwayBackEdge;
+      const mapBackEdge = mapFrontEdge - mapWorldDepth;
+      const mapCenterZ = (mapFrontEdge + mapBackEdge) / 2;
+      const mapLeftEdge = -mapWorldWidth / 2;
+      const mapRightEdge = mapLeftEdge + mapWorldWidth;
+
+      const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
+      const mapGroup = new THREE.Group();
+      mapGroup.name = "operations-exterior-outside-map";
+
+      const base = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          mapWorldWidth + cellSize * 0.6,
+          0.08,
+          mapWorldDepth + cellSize * 0.6
+        ),
+        new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0x0b1220),
+          roughness: 0.88,
+          metalness: 0.06,
+        })
+      );
+      base.position.set(0, roomFloorY - 0.04, mapCenterZ);
+      mapGroup.add(base);
+
+      const adjustable = [{ object: base, offset: -0.04 }];
+      const terrainMaterials = new Map();
+
+      const getMaterialForTerrain = (terrainId) => {
+        if (terrainMaterials.has(terrainId)) {
+          return terrainMaterials.get(terrainId);
+        }
+
+        const terrainStyle =
+          OUTSIDE_TERRAIN_TILE_STYLES.get(terrainId) ||
+          DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+        const terrain = getOutsideTerrainById(terrainId);
+        const material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(
+            terrainStyle.color ?? terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.color
+          ),
+          roughness:
+            terrainStyle.roughness ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.roughness,
+          metalness:
+            terrainStyle.metalness ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.metalness,
+          emissive: new THREE.Color(terrainStyle.emissive ?? 0x000000),
+          emissiveIntensity: terrainStyle.emissiveIntensity ?? 0,
+          transparent:
+            typeof terrainStyle.opacity === "number" &&
+            terrainStyle.opacity < 1,
+          opacity: terrainStyle.opacity ?? 1,
+        });
+        terrainMaterials.set(terrainId, material);
+        return material;
+      };
+
+      for (let row = 0; row < height; row += 1) {
+        for (let column = 0; column < width; column += 1) {
+          const index = row * width + column;
+          const terrainId = String(rawCells[index] ?? "void");
+          const resolvedTerrain = getOutsideTerrainById(terrainId);
+          const style =
+            OUTSIDE_TERRAIN_TILE_STYLES.get(resolvedTerrain.id) ||
+            DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+          const tileHeight = style.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
+          const elevationOffset =
+            style.elevationOffset ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.elevationOffset ?? 0;
+
+          const tile = new THREE.Mesh(
+            tileGeometry,
+            getMaterialForTerrain(resolvedTerrain.id)
+          );
+          tile.scale.set(cellSize, tileHeight, cellSize);
+          tile.position.set(
+            mapLeftEdge + column * cellSize + cellSize / 2,
+            roomFloorY - tileHeight / 2 + elevationOffset,
+            mapFrontEdge - row * cellSize - cellSize / 2
+          );
+          tile.castShadow = false;
+          tile.receiveShadow = false;
+          mapGroup.add(tile);
+          adjustable.push({
+            object: tile,
+            offset: tile.position.y - roomFloorY,
+          });
+
+          if (resolvedTerrain.id === "point") {
+            const markerMaterial = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(style.emissive ?? 0xdb2777),
+              emissive: new THREE.Color(style.emissive ?? 0xdb2777),
+              emissiveIntensity: (style.emissiveIntensity ?? 0.45) * 1.2,
+              roughness: 0.35,
+              metalness: 0.75,
+              transparent: true,
+              opacity: 0.85,
+            });
+            const marker = new THREE.Mesh(
+              new THREE.ConeGeometry(cellSize * 0.28, cellSize * 0.9, 16),
+              markerMaterial
+            );
+            marker.position.set(0, tileHeight / 2 + cellSize * 0.5, 0);
+            tile.add(marker);
+          } else if (resolvedTerrain.id === "hazard") {
+            const beaconMaterial = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(style.emissive ?? 0xff4d6d),
+              emissive: new THREE.Color(style.emissive ?? 0xff4d6d),
+              emissiveIntensity: (style.emissiveIntensity ?? 0.32) * 1.4,
+              roughness: 0.3,
+              metalness: 0.7,
+              transparent: true,
+              opacity: 0.8,
+            });
+            const beacon = new THREE.Mesh(
+              new THREE.CylinderGeometry(
+                cellSize * 0.14,
+                cellSize * 0.14,
+                cellSize * 0.9,
+                16
+              ),
+              beaconMaterial
+            );
+            beacon.position.set(0, tileHeight / 2 + cellSize * 0.45, 0);
+            tile.add(beacon);
+
+            const hazardLight = new THREE.PointLight(
+              0xff6b6b,
+              0.6,
+              cellSize * 4.8,
+              2
+            );
+            hazardLight.position.set(0, tileHeight / 2 + cellSize * 0.6, 0);
+            tile.add(hazardLight);
+          }
+        }
+      }
+
+      return {
+        group: mapGroup,
+        bounds: {
+          minX: mapLeftEdge,
+          maxX: mapRightEdge,
+          minZ: mapBackEdge,
+          maxZ: mapFrontEdge,
+        },
+        adjustableEntries: adjustable,
+      };
+    };
+
+    const mapAdjustableEntries = [];
+    let outsideMapBounds = null;
+
     const platformThickness = 0.42;
     const platformMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x101c21),
@@ -2332,6 +2621,44 @@ export const initScene = (
       -OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.08
     );
     group.add(walkway);
+
+    let storedOutsideMap = null;
+    try {
+      storedOutsideMap = loadOutsideMapFromStorage();
+    } catch (error) {
+      console.warn("Unable to load stored outside map", error);
+    }
+    if (!storedOutsideMap) {
+      storedOutsideMap = createDefaultOutsideMap();
+    }
+
+    const walkwayDepth = Number.isFinite(walkway.geometry?.parameters?.depth)
+      ? walkway.geometry.parameters.depth
+      : OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.42;
+    const walkwayBackEdge = walkway.position.z - walkwayDepth / 2;
+
+    let builtOutsideTerrain = null;
+    try {
+      builtOutsideTerrain = buildOutsideTerrainFromMap(
+        storedOutsideMap,
+        walkwayBackEdge
+      );
+    } catch (error) {
+      console.warn("Unable to build exterior terrain from map", error);
+    }
+
+    if (builtOutsideTerrain?.group) {
+      group.add(builtOutsideTerrain.group);
+    }
+    if (Array.isArray(builtOutsideTerrain?.adjustableEntries)) {
+      mapAdjustableEntries.push(...builtOutsideTerrain.adjustableEntries);
+    }
+    if (
+      builtOutsideTerrain?.bounds &&
+      typeof builtOutsideTerrain.bounds === "object"
+    ) {
+      outsideMapBounds = builtOutsideTerrain.bounds;
+    }
 
     const terraceMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x1d3a42),
@@ -2575,6 +2902,68 @@ export const initScene = (
       { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
     ];
 
+    if (mapAdjustableEntries.length > 0) {
+      adjustableEntries.push(...mapAdjustableEntries);
+    }
+
+    const walkwayHalfWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH / 2;
+    const walkwayHalfDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
+
+    const walkwayMinX = -walkwayHalfWidth;
+    const walkwayMaxX = walkwayHalfWidth;
+    const walkwayMinZ = -walkwayHalfDepth;
+    const walkwayMaxZ = walkwayHalfDepth;
+
+    const mapMinX = Number.isFinite(outsideMapBounds?.minX)
+      ? outsideMapBounds.minX
+      : walkwayMinX;
+    const mapMaxX = Number.isFinite(outsideMapBounds?.maxX)
+      ? outsideMapBounds.maxX
+      : walkwayMaxX;
+    const mapMinZ = Number.isFinite(outsideMapBounds?.minZ)
+      ? outsideMapBounds.minZ
+      : walkwayMinZ;
+    const mapMaxZ = Number.isFinite(outsideMapBounds?.maxZ)
+      ? outsideMapBounds.maxZ
+      : walkwayMaxZ;
+
+    const combinedMinX = Math.min(walkwayMinX, mapMinX);
+    const combinedMaxX = Math.max(walkwayMaxX, mapMaxX);
+    const combinedMinZ = Math.min(walkwayMinZ, mapMinZ);
+    const combinedMaxZ = Math.max(walkwayMaxZ, mapMaxZ);
+
+    const boundsMarginX = 0.9;
+    const boundsMarginZ = 0.9;
+
+    let boundsMinX = combinedMinX + boundsMarginX;
+    let boundsMaxX = combinedMaxX - boundsMarginX;
+    if (boundsMaxX <= boundsMinX) {
+      boundsMinX = combinedMinX;
+      boundsMaxX = combinedMaxX;
+    }
+
+    let boundsMinZ = combinedMinZ + boundsMarginZ;
+    let boundsMaxZ = combinedMaxZ - boundsMarginZ;
+    if (boundsMaxZ <= boundsMinZ) {
+      boundsMinZ = combinedMinZ;
+      boundsMaxZ = combinedMaxZ;
+    }
+
+    const environmentLocalBounds = {
+      minX: boundsMinX,
+      maxX: boundsMaxX,
+      minZ: boundsMinZ,
+      maxZ: boundsMaxZ,
+    };
+
+    const resolvedEnvironmentBounds =
+      Number.isFinite(environmentLocalBounds.minX) &&
+      Number.isFinite(environmentLocalBounds.maxX) &&
+      Number.isFinite(environmentLocalBounds.minZ) &&
+      Number.isFinite(environmentLocalBounds.maxZ)
+        ? environmentLocalBounds
+        : operationsExteriorLocalBounds;
+
     const updateForRoomHeight = ({ roomFloorY }) => {
       adjustableEntries.forEach(({ object, offset }) => {
         if (object) {
@@ -2591,7 +2980,7 @@ export const initScene = (
       liftDoors: [returnDoor],
       updateForRoomHeight,
       teleportOffset,
-      bounds: operationsExteriorLocalBounds,
+      bounds: resolvedEnvironmentBounds,
     };
   };
 
@@ -3248,6 +3637,7 @@ export const initScene = (
     const worldBounds = localBounds
       ? translateBoundsToWorld(localBounds, origin)
       : null;
+    let resolvedBounds = worldBounds;
 
     const teleport = teleportOffset instanceof THREE.Vector3
       ? teleportOffset.clone()
@@ -3300,6 +3690,31 @@ export const initScene = (
       let registeredColliders = null;
       if (Array.isArray(colliderSource) && colliderSource.length > 0) {
         registeredColliders = registerColliderDescriptors(colliderSource);
+      }
+
+      let environmentBounds = null;
+      if (
+        environment?.bounds &&
+        typeof environment.bounds === "object" &&
+        environment.bounds !== null
+      ) {
+        environmentBounds = environment.bounds;
+      } else if (
+        group.userData?.bounds &&
+        typeof group.userData.bounds === "object" &&
+        group.userData.bounds !== null
+      ) {
+        environmentBounds = group.userData.bounds;
+      }
+
+      if (environmentBounds) {
+        const translatedBounds = translateBoundsToWorld(
+          environmentBounds,
+          origin
+        );
+        resolvedBounds = translatedBounds ?? worldBounds;
+      } else {
+        resolvedBounds = worldBounds;
       }
 
       let unregisterHeightAdjuster = null;
@@ -3356,6 +3771,7 @@ export const initScene = (
         unregisterHeightAdjuster,
         unregisterLiftDoor,
         registeredColliders,
+        bounds: resolvedBounds,
       };
 
       updateEnvironmentForPlayerHeight();
@@ -3388,6 +3804,7 @@ export const initScene = (
       disposeObject3D(state.group);
 
       state = null;
+      resolvedBounds = worldBounds;
 
       rebuildStaticColliders();
     };
@@ -3398,7 +3815,9 @@ export const initScene = (
       description,
       yaw,
       position: floorPosition,
-      bounds: worldBounds,
+      get bounds() {
+        return resolvedBounds;
+      },
       load,
       unload,
       getGroup: () => state?.group ?? null,
