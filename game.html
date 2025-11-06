@@ -1140,6 +1140,75 @@
       </section>
     </template>
 
+    <template id="quick-access-modal-map">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header">
+        <p class="quick-access-modal__eyebrow">Terminal quick access</p>
+        <h2 class="quick-access-modal__title">Expedition Atlas</h2>
+        <p class="quick-access-modal__subtitle">
+          Chart the safest outside route and tag high-yield supply zones before you depart.
+        </p>
+      </header>
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Traverse routes</h3>
+        <ul class="quick-access-modal__list">
+          <li class="quick-access-modal__list-item">
+            Exit the command center, cut across the windbreak, then follow the canyon ridge to
+            the survey beacon.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Use the basalt overhangs as cover when dust squalls spike; visibility drops below
+            30 meters.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Log new mineral pockets on return—cartography drones sync with this map
+            automatically.
+          </li>
+        </ul>
+      </section>
+      <hr class="quick-access-modal__divider" />
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Resource caches</h3>
+        <div class="quick-access-modal__card-grid">
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag">Secure</p>
+            <h3>West Mesa Depot</h3>
+            <p>Stocked with canisters and med-patches. Ideal first stop before deeper sorties.</p>
+          </article>
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag" data-status="critical">Contested</p>
+            <h3>Riftline Crater</h3>
+            <p>High-grade ore detected, but scavenger activity confirmed. Travel in pairs.</p>
+          </article>
+          <article class="quick-access-modal__card">
+            <p class="quick-access-modal__status-tag">Surveyed</p>
+            <h3>Glacier Hollow</h3>
+            <p>Water ice vents exposed at dawn cycle; mark extraction slots before thaw.</p>
+          </article>
+        </div>
+      </section>
+      <hr class="quick-access-modal__divider" />
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Field advisories</h3>
+        <ul class="quick-access-modal__list">
+          <li class="quick-access-modal__list-item">
+            Calibrate your scanner at the survey beacon—updated grid coordinates push to squad
+            HUDs instantly.
+          </li>
+          <li class="quick-access-modal__list-item">
+            Keep one pack free for emergency salvage; command wants intact tech hauled back.
+          </li>
+        </ul>
+      </section>
+    </template>
+
     <script type="importmap">
       {
         "imports": {
