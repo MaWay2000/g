@@ -52,6 +52,14 @@ const DEFAULT_MAP = {
   cells: Array.from({ length: 16 * 12 }, () => "grass"),
 };
 
+const LOCAL_STORAGE_KEY = "dustyNova.mapMaker.savedMap";
+
+let cachedLocalStorage;
+const localSaveFeedbackTimers = {
+  save: null,
+  restore: null,
+};
+
 const clone = (value) => {
   if (typeof globalThis.structuredClone === "function") {
     return globalThis.structuredClone(value);
@@ -86,9 +94,175 @@ const elements = {
   resetButton: document.getElementById("resetButton"),
   copyButton: document.getElementById("copyButton"),
   downloadButton: document.getElementById("downloadButton"),
+  saveLocalButton: document.getElementById("saveLocalButton"),
+  restoreLocalButton: document.getElementById("restoreLocalButton"),
   fileInput: document.getElementById("fileInput"),
   loadFileButton: document.getElementById("loadFileButton"),
 };
+
+function getLocalStorage() {
+  if (cachedLocalStorage !== undefined) {
+    return cachedLocalStorage;
+  }
+  try {
+    cachedLocalStorage = window.localStorage;
+  } catch (error) {
+    console.warn("Local storage is unavailable", error);
+    cachedLocalStorage = null;
+  }
+  return cachedLocalStorage;
+}
+
+function resetButtonLabel(button, timerKey) {
+  if (!button) {
+    return;
+  }
+  const defaultLabel =
+    button.dataset?.defaultLabel && button.dataset.defaultLabel.length > 0
+      ? button.dataset.defaultLabel
+      : button.textContent;
+  button.textContent = defaultLabel;
+  if (timerKey && timerKey in localSaveFeedbackTimers) {
+    const timerId = localSaveFeedbackTimers[timerKey];
+    if (typeof timerId === "number") {
+      window.clearTimeout(timerId);
+      localSaveFeedbackTimers[timerKey] = null;
+    }
+  }
+}
+
+function setTemporaryButtonLabel(button, label, timerKey, duration = 1500) {
+  if (!button) {
+    return;
+  }
+  if (button.dataset) {
+    button.dataset.defaultLabel =
+      button.dataset.defaultLabel || button.textContent || label;
+  }
+  button.textContent = label;
+  if (!timerKey || !(timerKey in localSaveFeedbackTimers)) {
+    return;
+  }
+  const previousTimer = localSaveFeedbackTimers[timerKey];
+  if (typeof previousTimer === "number") {
+    window.clearTimeout(previousTimer);
+  }
+  localSaveFeedbackTimers[timerKey] = window.setTimeout(() => {
+    resetButtonLabel(button, timerKey);
+  }, duration);
+}
+
+function updateLocalSaveButtonsState() {
+  const storage = getLocalStorage();
+  let hasStorage = Boolean(storage);
+  let hasSavedMap = false;
+
+  if (hasStorage) {
+    try {
+      hasSavedMap = Boolean(storage.getItem(LOCAL_STORAGE_KEY));
+    } catch (error) {
+      console.warn("Unable to read saved map from local storage", error);
+      hasStorage = false;
+      hasSavedMap = false;
+    }
+  }
+
+  if (elements.saveLocalButton) {
+    elements.saveLocalButton.disabled = !hasStorage;
+    if (!hasStorage) {
+      resetButtonLabel(elements.saveLocalButton, "save");
+    }
+  }
+
+  if (elements.restoreLocalButton) {
+    elements.restoreLocalButton.disabled = !hasStorage || !hasSavedMap;
+    if (!hasStorage || !hasSavedMap) {
+      resetButtonLabel(elements.restoreLocalButton, "restore");
+    }
+  }
+}
+
+function saveMapToLocalStorage() {
+  const storage = getLocalStorage();
+  if (!storage) {
+    alert(
+      "Local saving is unavailable in this browser. Try a different browser or enable storage permissions."
+    );
+    return false;
+  }
+  try {
+    storage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state.map));
+  } catch (error) {
+    console.error("Failed to save map locally", error);
+    alert("Unable to save the map locally. Check storage permissions or space.");
+    updateLocalSaveButtonsState();
+    return false;
+  }
+
+  setTemporaryButtonLabel(elements.saveLocalButton, "Saved", "save");
+  updateLocalSaveButtonsState();
+  return true;
+}
+
+function restoreMapFromLocalStorage({
+  showAlertOnMissing = true,
+  showFeedback = true,
+} = {}) {
+  const storage = getLocalStorage();
+  if (!storage) {
+    if (showAlertOnMissing) {
+      alert(
+        "Local saves are unavailable in this browser. Try a different browser or enable storage permissions."
+      );
+    }
+    updateLocalSaveButtonsState();
+    return false;
+  }
+
+  let serialized = null;
+  try {
+    serialized = storage.getItem(LOCAL_STORAGE_KEY);
+  } catch (error) {
+    console.error("Unable to read saved map", error);
+    if (showAlertOnMissing) {
+      alert("Unable to access the saved map. Storage may be restricted.");
+    }
+    updateLocalSaveButtonsState();
+    return false;
+  }
+
+  if (!serialized) {
+    if (showAlertOnMissing) {
+      alert("No saved map found. Save a map locally first.");
+    }
+    updateLocalSaveButtonsState();
+    return false;
+  }
+
+  try {
+    const parsed = JSON.parse(serialized);
+    applyImportedMap(parsed);
+  } catch (error) {
+    console.error("Saved map is invalid", error);
+    storage.removeItem(LOCAL_STORAGE_KEY);
+    if (showAlertOnMissing) {
+      alert("Unable to load the saved map. The data may be corrupted.");
+    }
+    updateLocalSaveButtonsState();
+    return false;
+  }
+
+  if (showFeedback) {
+    setTemporaryButtonLabel(
+      elements.restoreLocalButton,
+      "Loaded",
+      "restore"
+    );
+  }
+
+  updateLocalSaveButtonsState();
+  return true;
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -348,6 +522,26 @@ function initControls() {
   updateMetadataDisplays();
   updateJsonPreview();
 
+  if (elements.saveLocalButton?.dataset) {
+    elements.saveLocalButton.dataset.defaultLabel =
+      elements.saveLocalButton.dataset.defaultLabel ||
+      elements.saveLocalButton.textContent ||
+      "Save locally";
+  }
+
+  if (elements.restoreLocalButton?.dataset) {
+    elements.restoreLocalButton.dataset.defaultLabel =
+      elements.restoreLocalButton.dataset.defaultLabel ||
+      elements.restoreLocalButton.textContent ||
+      "Load local save";
+  }
+
+  updateLocalSaveButtonsState();
+  restoreMapFromLocalStorage({
+    showAlertOnMissing: false,
+    showFeedback: false,
+  });
+
   elements.mapNameInput.addEventListener("input", (event) => {
     updateMapMetadata({ name: event.target.value });
   });
@@ -400,6 +594,18 @@ function initControls() {
   elements.downloadButton.addEventListener("click", () => {
     downloadJson();
   });
+
+  if (elements.saveLocalButton) {
+    elements.saveLocalButton.addEventListener("click", () => {
+      saveMapToLocalStorage();
+    });
+  }
+
+  if (elements.restoreLocalButton) {
+    elements.restoreLocalButton.addEventListener("click", () => {
+      restoreMapFromLocalStorage({ showAlertOnMissing: true, showFeedback: true });
+    });
+  }
 
   elements.loadFileButton.addEventListener("click", () => {
     elements.fileInput.click();

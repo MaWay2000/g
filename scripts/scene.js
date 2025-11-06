@@ -2124,6 +2124,15 @@ export const initScene = (
     const exteriorDoorHeight =
       exteriorExitDoor.userData?.height ?? BASE_DOOR_HEIGHT;
 
+    const portalTeleportTrigger = {
+      destinationFloorId: "operations-exterior",
+      localZThreshold: exteriorExitDoor.position.z - 0.6,
+      halfWidth: Math.max(exteriorDoorWidth / 2 + 0.45, 1.2),
+      minY: roomFloorY - 0.4,
+      maxY: roomFloorY + exteriorDoorHeight + 0.4,
+    };
+    group.userData.portalTeleportTrigger = portalTeleportTrigger;
+
     const portalLandingMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0b171a),
       roughness: 0.64,
@@ -2240,6 +2249,20 @@ export const initScene = (
         }
       });
       briefingLight.position.y = roomFloorY + 2.2;
+      if (portalTeleportTrigger) {
+        const doorWidth = Number.isFinite(exteriorExitDoor.userData?.width)
+          ? exteriorExitDoor.userData.width
+          : exteriorDoorWidth;
+        const doorHeight = Number.isFinite(exteriorExitDoor.userData?.height)
+          ? exteriorExitDoor.userData.height
+          : exteriorDoorHeight;
+        portalTeleportTrigger.halfWidth = Math.max(
+          doorWidth / 2 + 0.45,
+          doorWidth * 0.6
+        );
+        portalTeleportTrigger.minY = roomFloorY - 0.4;
+        portalTeleportTrigger.maxY = roomFloorY + doorHeight + 0.4;
+      }
     };
 
     const teleportOffset = new THREE.Vector3(0, 0, deckDepth / 2 - 1.8);
@@ -3378,6 +3401,7 @@ export const initScene = (
       bounds: worldBounds,
       load,
       unload,
+      getGroup: () => state?.group ?? null,
       isLoaded: () => Boolean(state?.group),
     };
   };
@@ -3509,6 +3533,9 @@ export const initScene = (
   );
   const engineeringDeckEnvironment = deckEnvironmentMap.get("engineering-bay");
   const exteriorDeckEnvironment = deckEnvironmentMap.get("exterior-outpost");
+
+  const operationsConcourseTeleportProbe = new THREE.Vector3();
+  let operationsConcourseTeleportCooldown = 0;
 
   const operationsDeckFloorPosition =
     operationsDeckEnvironment?.position instanceof THREE.Vector3
@@ -4068,6 +4095,14 @@ export const initScene = (
 
   const getActiveLiftFloor = () => getLiftFloorByIndex(liftState.currentIndex);
 
+  const findLiftFloorIndexById = (floorId) => {
+    if (!floorId || !Array.isArray(liftState.floors)) {
+      return -1;
+    }
+
+    return liftState.floors.findIndex((floor) => floor?.id === floorId);
+  };
+
   const getNextLiftFloor = () => {
     if (!Array.isArray(liftState.floors) || liftState.floors.length <= 1) {
       return null;
@@ -4259,6 +4294,85 @@ export const initScene = (
     }
 
     return true;
+  };
+
+  const updateOperationsConcourseTeleport = (delta) => {
+    operationsConcourseTeleportCooldown = Math.max(
+      operationsConcourseTeleportCooldown - delta,
+      0
+    );
+
+    if (!controls.isLocked) {
+      return;
+    }
+
+    const activeFloor = getActiveLiftFloor();
+    if (activeFloor?.id !== "operations-concourse") {
+      return;
+    }
+
+    if (
+      !operationsDeckEnvironment?.isLoaded?.() ||
+      typeof travelToLiftFloor !== "function"
+    ) {
+      return;
+    }
+
+    const group = operationsDeckEnvironment.getGroup?.();
+    const trigger = group?.userData?.portalTeleportTrigger;
+
+    if (!group || !trigger) {
+      return;
+    }
+
+    if (operationsConcourseTeleportCooldown > 0) {
+      return;
+    }
+
+    const destinationId = trigger.destinationFloorId;
+    if (!destinationId) {
+      return;
+    }
+
+    const halfWidth = Number.isFinite(trigger.halfWidth)
+      ? trigger.halfWidth
+      : null;
+    const minY = Number.isFinite(trigger.minY) ? trigger.minY : null;
+    const maxY = Number.isFinite(trigger.maxY) ? trigger.maxY : null;
+    const localZThreshold = Number.isFinite(trigger.localZThreshold)
+      ? trigger.localZThreshold
+      : null;
+
+    if (localZThreshold === null) {
+      return;
+    }
+
+    operationsConcourseTeleportProbe.copy(controls.getObject().position);
+    group.worldToLocal(operationsConcourseTeleportProbe);
+
+    const withinX =
+      halfWidth === null ||
+      Math.abs(operationsConcourseTeleportProbe.x) <= halfWidth;
+    const withinY =
+      minY === null ||
+      maxY === null ||
+      (operationsConcourseTeleportProbe.y >= minY &&
+        operationsConcourseTeleportProbe.y <= maxY);
+    const beyondDoor =
+      operationsConcourseTeleportProbe.z <= localZThreshold;
+
+    if (!withinX || !withinY || !beyondDoor) {
+      return;
+    }
+
+    const destinationIndex = findLiftFloorIndexById(destinationId);
+    if (destinationIndex < 0) {
+      return;
+    }
+
+    if (travelToLiftFloor(destinationIndex, { reason: "portal" })) {
+      operationsConcourseTeleportCooldown = 1.2;
+    }
   };
 
   const resolvePlayerCollisions = (previousPosition) => {
@@ -4932,6 +5046,7 @@ export const initScene = (
 
     updateManifestEditModeHover();
     updateActivePlacementPreview();
+    updateOperationsConcourseTeleport(delta);
 
     renderer.render(scene, camera);
   };
