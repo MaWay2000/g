@@ -1356,9 +1356,19 @@ const bootstrapScene = () => {
     onTerminalInteractableChange(value) {
       setCrosshairSourceState("terminal", value);
     },
-    onLiftControlInteract() {
+    onLiftControlInteract({ control } = {}) {
+      const destinationId = control?.userData?.liftFloorId ?? null;
+
+      if (destinationId && sceneController?.setActiveLiftFloorById) {
+        const traveled = sceneController.setActiveLiftFloorById(destinationId);
+        if (traveled) {
+          return false;
+        }
+      }
+
       playTerminalInteractionSound();
       openLiftModal();
+      return true;
     },
     onLiftInteractableChange(value) {
       setCrosshairSourceState("lift", value);
