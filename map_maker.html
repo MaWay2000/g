@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Outside Map Maker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --slate-950: #020617;
+        --slate-900: #0f172a;
+        --slate-800: #1e293b;
+        --slate-700: #334155;
+        --slate-600: #475569;
+        --slate-500: #64748b;
+        --slate-200: #e2e8f0;
+        --sky-300: #7dd3fc;
+        --green-400: #34d399;
+        --amber-400: #fbbf24;
+        --red-400: #f87171;
+        --cell-size: 42px;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top, var(--slate-800), var(--slate-950) 70%);
+        color: var(--slate-200);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-areas:
+          "header header"
+          "sidebar main";
+        gap: 0;
+        background: transparent;
+      }
+
+      header {
+        grid-area: header;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.25rem 1.75rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+        background: linear-gradient(
+          180deg,
+          rgba(15, 23, 42, 0.92),
+          rgba(15, 23, 42, 0.65)
+        );
+        backdrop-filter: blur(18px);
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+
+      .header-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .header-actions button,
+      .header-actions a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.55rem 0.95rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.6);
+        color: inherit;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 160ms ease, border-color 160ms ease,
+          background 160ms ease;
+      }
+
+      .header-actions button:hover,
+      .header-actions button:focus-visible,
+      .header-actions a:hover,
+      .header-actions a:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(148, 163, 184, 0.6);
+        background: rgba(56, 189, 248, 0.2);
+      }
+
+      .sidebar {
+        grid-area: sidebar;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        padding: 1.5rem 1.75rem 2rem;
+        border-right: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(15, 23, 42, 0.55);
+        overflow-y: auto;
+      }
+
+      .sidebar-section h2 {
+        margin: 0 0 0.65rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.86);
+      }
+
+      .sidebar-section p {
+        margin: 0 0 0.75rem;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: rgba(226, 232, 240, 0.72);
+      }
+
+      .control-group {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .control {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+
+      .control label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: rgba(226, 232, 240, 0.7);
+      }
+
+      .control input[type="number"],
+      .control input[type="text"],
+      .control textarea,
+      .control select {
+        padding: 0.55rem 0.65rem;
+        border-radius: 0.65rem;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(2, 6, 23, 0.55);
+        color: inherit;
+        font-size: 0.85rem;
+        transition: border-color 160ms ease, background 160ms ease;
+      }
+
+      .control textarea {
+        min-height: 140px;
+        resize: vertical;
+      }
+
+      .control input:focus-visible,
+      .control textarea:focus-visible,
+      .control select:focus-visible {
+        outline: none;
+        border-color: rgba(56, 189, 248, 0.6);
+        background: rgba(15, 23, 42, 0.8);
+      }
+
+      .terrain-palette {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 0.65rem;
+      }
+
+      .terrain-button {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.65rem 0.75rem;
+        border-radius: 0.75rem;
+        border: 1px solid transparent;
+        background: rgba(2, 6, 23, 0.6);
+        cursor: pointer;
+        text-align: left;
+        transition: transform 140ms ease, border-color 140ms ease;
+      }
+
+      .terrain-button:hover,
+      .terrain-button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(56, 189, 248, 0.5);
+        outline: none;
+      }
+
+      .terrain-button[data-active="true"] {
+        border-color: rgba(129, 140, 248, 0.8);
+        background: rgba(129, 140, 248, 0.25);
+      }
+
+      .terrain-swatch {
+        width: 1.6rem;
+        height: 1.6rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(15, 23, 42, 0.4);
+        flex-shrink: 0;
+      }
+
+      .main {
+        grid-area: main;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        overflow: hidden;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.9rem;
+        padding: 1.25rem 1.75rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(15, 23, 42, 0.6);
+      }
+
+      .toolbar label {
+        font-size: 0.8rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.75);
+      }
+
+      .toolbar input[type="range"] {
+        width: 140px;
+      }
+
+      .toolbar .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.75);
+      }
+
+      .workspace {
+        position: relative;
+        overflow: auto;
+        padding: 1.75rem;
+      }
+
+      .map-stage {
+        position: relative;
+        display: inline-flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        background: rgba(2, 6, 23, 0.6);
+        border-radius: 1.25rem;
+        padding: 1.25rem 1.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: 0 24px 48px rgba(2, 6, 23, 0.35);
+      }
+
+      .map-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        font-size: 0.85rem;
+        color: rgba(226, 232, 240, 0.75);
+      }
+
+      .map-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--width), var(--cell-size));
+        grid-template-rows: repeat(var(--height), var(--cell-size));
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        border-radius: 0.9rem;
+        overflow: hidden;
+        background: rgba(15, 23, 42, 0.65);
+        position: relative;
+        user-select: none;
+      }
+
+      .map-grid[data-show-grid="true"]::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image: linear-gradient(
+            to right,
+            rgba(15, 23, 42, 0.2) 1px,
+            transparent 1px
+          ),
+          linear-gradient(to bottom, rgba(15, 23, 42, 0.2) 1px, transparent 1px);
+        background-size: var(--cell-size) var(--cell-size);
+      }
+
+      .map-cell {
+        width: var(--cell-size);
+        height: var(--cell-size);
+        border: none;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        position: relative;
+        cursor: pointer;
+      }
+
+      .map-cell::after {
+        content: "";
+        position: absolute;
+        inset: 4px;
+        border-radius: 0.6rem;
+        background: var(--cell-color, transparent);
+        transition: transform 120ms ease, box-shadow 120ms ease;
+      }
+
+      .map-cell:hover::after,
+      .map-cell:focus-visible::after {
+        transform: translateZ(0) scale(0.96);
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.45);
+      }
+
+      .map-cell[data-terrain="void"]::after {
+        border: 1px dashed rgba(148, 163, 184, 0.35);
+        background: transparent;
+      }
+
+      .map-cell[data-active="true"]::after {
+        box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.6);
+      }
+
+      .json-output {
+        font-family: "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+        font-size: 0.8rem;
+        line-height: 1.5;
+        background: rgba(2, 6, 23, 0.75);
+        border-radius: 0.85rem;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        padding: 0.85rem 1rem;
+        color: rgba(226, 232, 240, 0.85);
+        max-height: 240px;
+        overflow: auto;
+      }
+
+      .json-output code {
+        white-space: pre;
+      }
+
+      .actions-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .actions-row button {
+        padding: 0.6rem 1rem;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(2, 6, 23, 0.6);
+        color: inherit;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease,
+          background 120ms ease;
+      }
+
+      .actions-row button:hover,
+      .actions-row button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(129, 140, 248, 0.6);
+        background: rgba(129, 140, 248, 0.25);
+        outline: none;
+      }
+
+      .actions-row button[data-variant="primary"] {
+        background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(129, 140, 248, 0.3));
+        border-color: rgba(56, 189, 248, 0.55);
+      }
+
+      .actions-row button[data-variant="danger"] {
+        border-color: rgba(248, 113, 113, 0.5);
+        background: rgba(248, 113, 113, 0.18);
+      }
+
+      .hint {
+        font-size: 0.75rem;
+        color: rgba(226, 232, 240, 0.6);
+      }
+
+      @media (max-width: 1080px) {
+        body {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto auto minmax(0, 1fr);
+          grid-template-areas:
+            "header"
+            "sidebar"
+            "main";
+        }
+
+        .sidebar {
+          border-right: none;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .workspace {
+          padding: 1.5rem;
+        }
+      }
+
+      @media (max-width: 640px) {
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .header-actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Outside Map Maker</h1>
+      <div class="hint">Design, resize, and export your exterior exploration zones.</div>
+      <div class="header-actions">
+        <button id="loadFileButton" type="button">Import file</button>
+        <button id="downloadButton" type="button">Download JSON</button>
+        <button id="copyButton" type="button">Copy JSON</button>
+      </div>
+      <input type="file" id="fileInput" accept="application/json" hidden />
+    </header>
+
+    <aside class="sidebar">
+      <section class="sidebar-section">
+        <h2>Terrain Palette</h2>
+        <p>Select a terrain type, then click or drag on the map to paint cells.</p>
+        <div class="terrain-palette" id="terrainPalette"></div>
+      </section>
+
+      <section class="sidebar-section">
+        <h2>Map Settings</h2>
+        <div class="control-group">
+          <div class="control">
+            <label for="mapNameInput">Map name</label>
+            <input id="mapNameInput" type="text" placeholder="Outside perimeter" />
+          </div>
+          <div class="control">
+            <label for="regionInput">Region identifier</label>
+            <input id="regionInput" type="text" placeholder="perimeter_north" />
+          </div>
+          <div class="control">
+            <label for="mapNotesInput">Designer notes</label>
+            <textarea id="mapNotesInput" placeholder="Describe key landmarks, hazards, or traversal rules."></textarea>
+          </div>
+          <div class="control">
+            <label>Dimensions</label>
+            <div class="actions-row">
+              <input id="widthInput" type="number" min="1" max="200" step="1" />
+              ×
+              <input id="heightInput" type="number" min="1" max="200" step="1" />
+              <button id="resizeButton" type="button" data-variant="primary">Apply size</button>
+            </div>
+            <div class="hint">Current map keeps existing terrain within new bounds.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sidebar-section">
+        <h2>Import JSON</h2>
+        <p>Paste an exported map definition to replace the current layout.</p>
+        <div class="control">
+          <label for="importTextarea">Map JSON</label>
+          <textarea id="importTextarea" placeholder="{ &quot;name&quot;: &quot;outside-yard&quot;, &quot;width&quot;: 24, ... }"></textarea>
+        </div>
+        <div class="actions-row">
+          <button id="importButton" type="button">Load JSON</button>
+          <button id="resetButton" type="button" data-variant="danger">Reset map</button>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <div class="toolbar">
+        <label for="cellSizeRange">Cell size</label>
+        <input id="cellSizeRange" type="range" min="28" max="80" step="4" value="42" />
+        <label class="toggle"
+          ><input id="gridToggle" type="checkbox" checked /> show grid</label
+        >
+        <div class="hint">Hold Shift while painting to erase (void terrain).</div>
+      </div>
+      <div class="workspace">
+        <div class="map-stage">
+          <div class="map-info">
+            <div><strong>Map:</strong> <span id="mapNameDisplay">Untitled</span></div>
+            <div><strong>Region:</strong> <span id="mapRegionDisplay">—</span></div>
+            <div>
+              <strong>Size:</strong>
+              <span id="mapSizeDisplay">0 × 0</span>
+            </div>
+          </div>
+          <div
+            id="mapGrid"
+            class="map-grid"
+            role="grid"
+            aria-label="Map grid"
+            data-show-grid="true"
+          ></div>
+          <section class="sidebar-section">
+            <h2>Live JSON</h2>
+            <div class="json-output" aria-live="polite">
+              <code id="jsonPreview"></code>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="scripts/map-maker.js"></script>
+  </body>
+</html>
