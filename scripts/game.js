@@ -107,6 +107,7 @@ const quickAccessModalTemplates = {
   news: document.getElementById("quick-access-modal-news"),
   weather: document.getElementById("quick-access-modal-weather"),
   missions: document.getElementById("quick-access-modal-missions"),
+  map: document.getElementById("quick-access-modal-map"),
 };
 
 const LIFT_MODAL_OPTION = {

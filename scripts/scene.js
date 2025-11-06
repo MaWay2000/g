@@ -1281,16 +1281,21 @@ export const initScene = (
           title: "MISSIONS",
           description: "Active assignments",
         },
+        {
+          id: "map",
+          title: "MAP",
+          description: "Expedition routes & caches",
+        },
       ];
 
       const bezelInset = 48;
       const optionHeight = 132;
-      const optionSpacing = 28;
+      const optionSpacing = 24;
 
       const computeQuickAccessZones = () => {
         const optionX = bezelInset + 40;
         const optionWidth = width - optionX * 2;
-        let optionY = bezelInset + 184;
+        let optionY = bezelInset + 120;
 
         return quickAccessOptionDefinitions.map((definition) => {
           const zone = {
