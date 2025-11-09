@@ -808,19 +808,6 @@ export const initScene = (
     bottomPanelGlow.position.y = -doorHeight * 0.44;
     group.add(bottomPanelGlow);
 
-    const doorLight = new THREE.PointLight(theme.doorLightColor, 0.55, 9, 2);
-    doorLight.position.set(0, doorHeight / 2 - 0.2, 0.32);
-    group.add(doorLight);
-
-    const overheadBeacon = new THREE.PointLight(
-      theme.overheadLightColor ?? theme.doorLightColor,
-      0.4,
-      8,
-      2
-    );
-    overheadBeacon.position.set(0, doorHeight / 2 + lintelHeight / 2, 0.22);
-    group.add(overheadBeacon);
-
     const windowFrameMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x1c2527),
       metalness: 0.6,
@@ -922,13 +909,25 @@ export const initScene = (
       rearGlow.position.z = -panelDepth / 2 + 0.02;
       group.add(rearGlow);
 
-      const exteriorLight = new THREE.PointLight(0x9bdcfb, 0.6, 6, 2);
-      exteriorLight.position.set(centerX, windowY, 0.4);
-      group.add(exteriorLight);
+      const windowHaloMaterial = new THREE.MeshBasicMaterial({
+        color: 0x9bdcfb,
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
 
-      const interiorLight = exteriorLight.clone();
-      interiorLight.position.z = -0.4;
-      group.add(interiorLight);
+      const windowHalo = new THREE.Mesh(
+        new THREE.PlaneGeometry(windowOpeningWidth * 0.95, windowOpeningHeight * 0.95),
+        windowHaloMaterial
+      );
+      windowHalo.position.set(centerX, windowY, 0.25);
+      group.add(windowHalo);
+
+      const rearHalo = windowHalo.clone();
+      rearHalo.position.z = -0.25;
+      group.add(rearHalo);
     };
 
     createWindow(-panelWidth * 0.25);
@@ -2558,14 +2557,20 @@ export const initScene = (
             beacon.position.set(0, tileHeight / 2 + cellSize * 0.45, 0);
             tile.add(beacon);
 
-            const hazardLight = new THREE.PointLight(
-              0xff6b6b,
-              0.6,
-              cellSize * 4.8,
-              2
+            const hazardGlow = new THREE.Mesh(
+              new THREE.PlaneGeometry(cellSize * 0.9, cellSize * 0.9),
+              new THREE.MeshBasicMaterial({
+                color: style.emissive ?? 0xff6b6b,
+                transparent: true,
+                opacity: 0.3,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+              })
             );
-            hazardLight.position.set(0, tileHeight / 2 + cellSize * 0.6, 0);
-            tile.add(hazardLight);
+            hazardGlow.position.set(0, tileHeight / 2 + cellSize * 0.65, 0);
+            hazardGlow.rotation.x = -Math.PI / 2;
+            tile.add(hazardGlow);
           }
         }
       }
@@ -2768,9 +2773,20 @@ export const initScene = (
     );
     group.add(beacon);
 
-    const beaconLight = new THREE.PointLight(0x5eead4, 0.9, 8, 2);
-    beaconLight.position.y = 0.8;
-    beacon.add(beaconLight);
+    const beaconGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.9, 0.9),
+      new THREE.MeshBasicMaterial({
+        color: 0x5eead4,
+        transparent: true,
+        opacity: 0.25,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    beaconGlow.position.set(0, 0.8, 0);
+    beaconGlow.rotation.x = -Math.PI / 2;
+    beacon.add(beaconGlow);
 
     const ridgeMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x091115),
@@ -2815,13 +2831,23 @@ export const initScene = (
     );
     group.add(canopy);
 
-    const accentLight = new THREE.PointLight(0x5eead4, 0.6, 11, 2);
-    accentLight.position.set(
+    const accentGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.8, 1.8),
+      new THREE.MeshBasicMaterial({
+        color: 0x5eead4,
+        transparent: true,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    accentGlow.position.set(
       -OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.28,
       roomFloorY + 1.4,
       -OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.2
     );
-    group.add(accentLight);
+    group.add(accentGlow);
 
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
     group.add(ambient);
@@ -2896,7 +2922,7 @@ export const initScene = (
       { object: beacon, offset: 1.1 },
       { object: ridge, offset: 0.28 },
       { object: canopy, offset: 3.2 },
-      { object: accentLight, offset: 1.4 },
+      { object: accentGlow, offset: 1.4 },
       { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
       { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
       { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
@@ -3286,9 +3312,19 @@ export const initScene = (
     forwardRail.position.set(-roomWidth / 6, roomFloorY + 1.05, plazaDepth * 0.32);
     group.add(forwardRail);
 
-    const accentLight = new THREE.PointLight(0x38bdf8, 0.5, plazaDepth * 1.2, 2);
-    accentLight.position.set(-roomWidth / 6, roomFloorY + 2.2, plazaDepth * 0.26);
-    group.add(accentLight);
+    const accentGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 2.4),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    accentGlow.position.set(-roomWidth / 6, roomFloorY + 2.2, plazaDepth * 0.26);
+    group.add(accentGlow);
 
     const planterMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0f172a),
@@ -3358,9 +3394,20 @@ export const initScene = (
       lamp.position.y = 1.4;
       postGroup.add(lamp);
 
-      const light = new THREE.PointLight(0xfcd34d, 0.9, 8, 2);
-      light.position.y = 1.4;
-      postGroup.add(light);
+      const lampGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.8, 0.8),
+        new THREE.MeshBasicMaterial({
+          color: 0xfcd34d,
+          transparent: true,
+          opacity: 0.28,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      lampGlow.position.set(0, 1.4, 0);
+      lampGlow.rotation.x = -Math.PI / 2;
+      postGroup.add(lampGlow);
 
       postGroup.position.set(x, roomFloorY, z);
       group.add(postGroup);
@@ -3447,7 +3494,7 @@ export const initScene = (
     adjustableEntries.push({ object: starboardRail, offset: railHeight / 2 });
     adjustableEntries.push({ object: portRail, offset: railHeight / 2 });
     adjustableEntries.push({ object: forwardRail, offset: 1.05 });
-    adjustableEntries.push({ object: accentLight, offset: 2.2 });
+    adjustableEntries.push({ object: accentGlow, offset: 2.2 });
     adjustableEntries.push({ object: ridge, offset: 0.2 });
     adjustableEntries.push({ object: horizonGlow, offset: 2.6 });
     adjustableEntries.push({ object: nebula, offset: 3.6 });
