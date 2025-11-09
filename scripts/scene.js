@@ -2392,7 +2392,7 @@ export const initScene = (
   const createOperationsExteriorEnvironment = () => {
     const group = new THREE.Group();
 
-    const buildOutsideTerrainFromMap = (mapDefinition, walkwayBackEdge) => {
+    const buildOutsideTerrainFromMap = (mapDefinition, walkwayFrontEdge) => {
       if (!mapDefinition || typeof mapDefinition !== "object") {
         return null;
       }
@@ -2434,9 +2434,9 @@ export const initScene = (
 
       const mapWorldWidth = width * cellSize;
       const mapWorldDepth = height * cellSize;
-      const mapFrontEdge = walkwayBackEdge;
-      const mapBackEdge = mapFrontEdge - mapWorldDepth;
-      const mapCenterZ = (mapFrontEdge + mapBackEdge) / 2;
+      const mapNearEdge = walkwayFrontEdge;
+      const mapFarEdge = mapNearEdge + mapWorldDepth;
+      const mapCenterZ = (mapNearEdge + mapFarEdge) / 2;
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
 
@@ -2510,7 +2510,7 @@ export const initScene = (
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
             roomFloorY - tileHeight / 2 + elevationOffset,
-            mapFrontEdge - row * cellSize - cellSize / 2
+            mapNearEdge + row * cellSize + cellSize / 2
           );
           tile.castShadow = false;
           tile.receiveShadow = false;
@@ -2575,8 +2575,8 @@ export const initScene = (
         bounds: {
           minX: mapLeftEdge,
           maxX: mapRightEdge,
-          minZ: mapBackEdge,
-          maxZ: mapFrontEdge,
+          minZ: Math.min(mapNearEdge, mapFarEdge),
+          maxZ: Math.max(mapNearEdge, mapFarEdge),
         },
         adjustableEntries: adjustable,
       };
@@ -2635,13 +2635,13 @@ export const initScene = (
     const walkwayDepth = Number.isFinite(walkway.geometry?.parameters?.depth)
       ? walkway.geometry.parameters.depth
       : OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.42;
-    const walkwayBackEdge = walkway.position.z - walkwayDepth / 2;
+    const walkwayFrontEdge = walkway.position.z + walkwayDepth / 2;
 
     let builtOutsideTerrain = null;
     try {
       builtOutsideTerrain = buildOutsideTerrainFromMap(
         storedOutsideMap,
-        walkwayBackEdge
+        walkwayFrontEdge
       );
     } catch (error) {
       console.warn("Unable to build exterior terrain from map", error);
