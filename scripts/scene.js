@@ -2665,200 +2665,18 @@ export const initScene = (
       outsideMapBounds = builtOutsideTerrain.bounds;
     }
 
-    const terraceMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x1d3a42),
-      roughness: 0.48,
-      metalness: 0.38,
-      emissive: new THREE.Color(0x0b1f23),
-      emissiveIntensity: 0.25,
-    });
-    const terrace = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.28,
-        OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.34,
-        0.2,
-        48
-      ),
-      terraceMaterial
-    );
-    terrace.position.set(
-      0,
-      roomFloorY + 0.1,
-      OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.16
-    );
-    group.add(terrace);
-
-    const railMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x5eead4),
-      roughness: 0.34,
-      metalness: 0.58,
-      emissive: new THREE.Color(0x0f766e),
-      emissiveIntensity: 0.4,
-    });
-    const railHeight = 1.2;
-    const railThickness = 0.12;
-
-    const portRail = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        railThickness,
-        railHeight,
-        OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.52
-      ),
-      railMaterial
-    );
-    portRail.position.set(
-      -OPERATIONS_EXTERIOR_PLATFORM_WIDTH / 2 + 0.48,
-      roomFloorY + railHeight / 2,
-      0
-    );
-    group.add(portRail);
-
-    const starboardRail = portRail.clone();
-    starboardRail.position.x *= -1;
-    group.add(starboardRail);
-
-    const forwardRail = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.72,
-        railHeight,
-        railThickness
-      ),
-      railMaterial
-    );
-    forwardRail.position.set(
-      0,
-      roomFloorY + railHeight / 2,
-      OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 - 0.42
-    );
-    group.add(forwardRail);
-
-    const vistaShield = new THREE.Mesh(
-      new THREE.PlaneGeometry(
-        OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.68,
-        railHeight * 0.88
-      ),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x1f9c98),
-        transparent: true,
-        opacity: 0.32,
-        emissive: new THREE.Color(0x155e5a),
-        emissiveIntensity: 0.55,
-        side: THREE.DoubleSide,
-        metalness: 0.4,
-        roughness: 0.2,
-      })
-    );
-    vistaShield.position.set(
-      0,
-      roomFloorY + railHeight * 0.72,
-      OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 - 0.38
-    );
-    group.add(vistaShield);
-
-    const beaconMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0e7490),
-      metalness: 0.52,
-      roughness: 0.34,
-      emissive: new THREE.Color(0x051f26),
-      emissiveIntensity: 0.4,
-    });
-    const beacon = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.34, 0.42, 2.2, 24),
-      beaconMaterial
-    );
-    beacon.position.set(
-      OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.3,
-      roomFloorY + 1.1,
-      -OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.18
-    );
-    group.add(beacon);
-
-    const beaconGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.9, 0.9),
-      new THREE.MeshBasicMaterial({
-        color: 0x5eead4,
-        transparent: true,
-        opacity: 0.25,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      })
-    );
-    beaconGlow.position.set(0, 0.8, 0);
-    beaconGlow.rotation.x = -Math.PI / 2;
-    beacon.add(beaconGlow);
-
-    const ridgeMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x091115),
-      roughness: 0.88,
-      metalness: 0.06,
-    });
-    const ridge = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 1.1,
-        OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 1.3,
-        1.2,
-        64,
-        1,
-        true
-      ),
-      ridgeMaterial
-    );
-    ridge.rotation.x = Math.PI / 2;
-    ridge.position.set(0, roomFloorY + 0.28, OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 - 0.6);
-    group.add(ridge);
-
-    const canopyMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x020b0d),
-      transparent: true,
-      opacity: 0.9,
-      side: THREE.DoubleSide,
-      roughness: 0.72,
-      metalness: 0.08,
-    });
-    const canopy = new THREE.Mesh(
-      new THREE.PlaneGeometry(
-        OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 1.25,
-        OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.85
-      ),
-      canopyMaterial
-    );
-    canopy.rotation.x = -Math.PI / 3;
-    canopy.position.set(
-      0,
-      roomFloorY + 3.2,
-      OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.24
-    );
-    group.add(canopy);
-
-    const accentGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.8, 1.8),
-      new THREE.MeshBasicMaterial({
-        color: 0x5eead4,
-        transparent: true,
-        opacity: 0.18,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      })
-    );
-    accentGlow.position.set(
-      -OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.28,
-      roomFloorY + 1.4,
-      -OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.2
-    );
-    group.add(accentGlow);
-
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
     group.add(ambient);
 
     const returnDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
+    const returnDoorZ =
+      -OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 + 0.32 * ROOM_SCALE_FACTOR;
     returnDoor.position.set(
       0,
       roomFloorY + (returnDoor.userData.height ?? 0) / 2,
-      OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 - 0.32 * ROOM_SCALE_FACTOR
+      returnDoorZ
     );
-    returnDoor.rotation.y = Math.PI;
+    returnDoor.rotation.y = 0;
     returnDoor.userData.floorOffset = 0;
     group.add(returnDoor);
 
@@ -2878,7 +2696,7 @@ export const initScene = (
     returnDoorControl.position.set(
       0,
       roomFloorY + returnDoorHeight * 0.56,
-      OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 - 0.38
+      returnDoorZ + 0.3
     );
     returnDoorControl.userData.isLiftControl = true;
     returnDoorControl.userData.liftFloorId = "operations-concourse";
@@ -2899,7 +2717,7 @@ export const initScene = (
     returnDoorHalo.position.set(
       0,
       roomFloorY + returnDoorHeight * 0.6,
-      OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 - 0.42
+      returnDoorZ + 0.34
     );
     group.add(returnDoorHalo);
 
@@ -2914,15 +2732,6 @@ export const initScene = (
     const adjustableEntries = [
       { object: platform, offset: -platformThickness / 2 },
       { object: walkway, offset: 0.06 },
-      { object: terrace, offset: 0.1 },
-      { object: portRail, offset: railHeight / 2 },
-      { object: starboardRail, offset: railHeight / 2 },
-      { object: forwardRail, offset: railHeight / 2 },
-      { object: vistaShield, offset: railHeight * 0.72 },
-      { object: beacon, offset: 1.1 },
-      { object: ridge, offset: 0.28 },
-      { object: canopy, offset: 3.2 },
-      { object: accentGlow, offset: 1.4 },
       { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
       { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
       { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
