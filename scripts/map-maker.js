@@ -22,6 +22,11 @@ const state = {
   pointerTerrain: null,
 };
 
+const VOID_TERRAIN_ID = TERRAIN_TYPES[0]?.id ?? "void";
+const RANDOM_TERRAIN_POOL = TERRAIN_TYPES.filter(
+  (terrain) => terrain.id !== VOID_TERRAIN_ID
+);
+
 const elements = {
   palette: document.getElementById("terrainPalette"),
   mapGrid: document.getElementById("mapGrid"),
@@ -39,6 +44,7 @@ const elements = {
   mapSizeDisplay: document.getElementById("mapSizeDisplay"),
   importTextarea: document.getElementById("importTextarea"),
   importButton: document.getElementById("importButton"),
+  generateButton: document.getElementById("generateButton"),
   resetButton: document.getElementById("resetButton"),
   copyButton: document.getElementById("copyButton"),
   downloadButton: document.getElementById("downloadButton"),
@@ -378,6 +384,21 @@ function resetMap() {
   updateJsonPreview();
 }
 
+function generateRandomMap() {
+  const pool = RANDOM_TERRAIN_POOL.length > 0 ? RANDOM_TERRAIN_POOL : TERRAIN_TYPES;
+  if (pool.length === 0) {
+    return;
+  }
+
+  state.map.cells = state.map.cells.map(() => {
+    const randomIndex = Math.floor(Math.random() * pool.length);
+    return pool[randomIndex].id;
+  });
+
+  renderGrid();
+  updateJsonPreview();
+}
+
 function downloadJson() {
   const blob = new Blob([JSON.stringify(state.map, null, 2)], {
     type: "application/json",
@@ -493,6 +514,12 @@ function initControls() {
       alert("Paste a valid JSON map definition.");
     }
   });
+
+  if (elements.generateButton) {
+    elements.generateButton.addEventListener("click", () => {
+      generateRandomMap();
+    });
+  }
 
   elements.resetButton.addEventListener("click", () => {
     if (confirm("Reset map to default layout?")) {
