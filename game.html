@@ -114,6 +114,117 @@
         opacity: 0;
       }
 
+      .resource-tool-indicator {
+        position: fixed;
+        bottom: clamp(1.5rem, 4vw, 2.75rem);
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: clamp(0.65rem, 2vw, 1rem);
+        padding: clamp(0.75rem, 2vw, 1rem) clamp(1.15rem, 4vw, 1.6rem);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.82);
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        box-shadow: 0 22px 54px rgba(8, 47, 73, 0.45);
+        backdrop-filter: blur(10px);
+        pointer-events: none;
+        color: rgba(226, 232, 240, 0.95);
+        min-width: clamp(240px, 36vw, 320px);
+        z-index: 3;
+      }
+
+      .resource-tool-indicator__icon {
+        position: relative;
+        width: clamp(46px, 7vw, 56px);
+        height: clamp(46px, 7vw, 56px);
+        border-radius: 50%;
+        background: radial-gradient(
+            68% 68% at 30% 30%,
+            rgba(96, 165, 250, 0.6),
+            rgba(56, 189, 248, 0.25) 45%,
+            rgba(15, 23, 42, 0.35) 100%
+          ),
+          rgba(30, 41, 59, 0.75);
+        box-shadow: 0 0 22px rgba(14, 165, 233, 0.4) inset,
+          0 0 34px rgba(59, 130, 246, 0.35);
+        overflow: hidden;
+      }
+
+      .resource-tool-indicator__icon::before {
+        content: "";
+        position: absolute;
+        inset: 12px 18px 8px 22px;
+        background: linear-gradient(180deg, #fb923c, #f97316 75%, #92400e);
+        border-radius: 10px;
+        transform: rotate(36deg);
+        box-shadow: 0 6px 14px rgba(249, 115, 22, 0.45);
+      }
+
+      .resource-tool-indicator__icon::after {
+        content: "";
+        position: absolute;
+        inset: 8px 26px 18px 4px;
+        background: linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(148, 163, 184, 0.3));
+        border-radius: 18px 20px 6px 6px;
+        transform: rotate(36deg);
+        box-shadow: 0 8px 18px rgba(148, 163, 184, 0.42);
+      }
+
+      .resource-tool-indicator__spark {
+        position: absolute;
+        inset: 12px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(190, 242, 100, 0.45),
+          rgba(96, 165, 250, 0) 65%
+        );
+        animation: resource-tool-spark 2.8s ease-in-out infinite;
+        mix-blend-mode: screen;
+      }
+
+      .resource-tool-indicator__text {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+
+      .resource-tool-indicator__eyebrow {
+        margin: 0;
+        font-size: 0.7rem;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .resource-tool-indicator__label {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #f8fafc;
+        letter-spacing: 0.05em;
+      }
+
+      .resource-tool-indicator__description {
+        margin: 0;
+        font-size: 0.82rem;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      @keyframes resource-tool-spark {
+        0%,
+        100% {
+          transform: scale(0.85) rotate(0deg);
+          opacity: 0.7;
+        }
+
+        50% {
+          transform: scale(1.12) rotate(12deg);
+          opacity: 1;
+        }
+      }
+
       .ui-overlay {
         position: fixed;
         inset: 0;
@@ -835,6 +946,19 @@
           Reset Progress
         </button>
         <button class="logout" type="button" data-logout-button>Log out</button>
+      </div>
+
+      <div class="resource-tool-indicator" aria-hidden="true">
+        <div class="resource-tool-indicator__icon" aria-hidden="true">
+          <span class="resource-tool-indicator__spark" aria-hidden="true"></span>
+        </div>
+        <div class="resource-tool-indicator__text">
+          <p class="resource-tool-indicator__eyebrow">Resource tool</p>
+          <p class="resource-tool-indicator__label">Photon Cutter</p>
+          <p class="resource-tool-indicator__description">
+            Equipped for custom map harvesting.
+          </p>
+        </div>
       </div>
 
       <div class="status-region">
