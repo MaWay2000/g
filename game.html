@@ -723,6 +723,240 @@
         color: #fecaca;
       }
 
+      .inventory-panel {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 240ms ease;
+        z-index: 130;
+      }
+
+      .inventory-panel[hidden] {
+        display: none;
+      }
+
+      .inventory-panel.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .inventory-panel__backdrop {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+            0deg,
+            rgba(15, 23, 42, 0.92),
+            rgba(15, 23, 42, 0.84)
+          ),
+          rgba(8, 47, 73, 0.65);
+        opacity: 0;
+        transition: opacity 240ms ease;
+      }
+
+      .inventory-panel.is-open .inventory-panel__backdrop {
+        opacity: 1;
+      }
+
+      .inventory-panel__dialog {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: min(92vw, 640px);
+        max-height: min(86vh, 760px);
+        background: rgba(15, 23, 42, 0.95);
+        border-radius: clamp(1.4rem, 3vw, 2.2rem);
+        border: 1px solid rgba(94, 234, 212, 0.25);
+        box-shadow: 0 42px 96px rgba(8, 47, 73, 0.55);
+        padding: clamp(1.4rem, 4vw, 2.2rem);
+        color: rgba(226, 232, 240, 0.96);
+        overflow: hidden;
+        transform: translateY(18px) scale(0.97);
+        opacity: 0;
+        transition: transform 260ms ease, opacity 260ms ease;
+        isolation: isolate;
+      }
+
+      .inventory-panel.is-open .inventory-panel__dialog {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+
+      .inventory-panel__close {
+        position: absolute;
+        top: clamp(1rem, 3vw, 1.4rem);
+        right: clamp(1rem, 3vw, 1.4rem);
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(94, 234, 212, 0.4);
+        background: rgba(15, 23, 42, 0.85);
+        color: rgba(226, 232, 240, 0.9);
+        font-size: 1.6rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background 160ms ease, transform 160ms ease, color 160ms ease;
+      }
+
+      .inventory-panel__close:hover,
+      .inventory-panel__close:focus-visible {
+        background: rgba(16, 185, 129, 0.16);
+        color: rgba(226, 232, 240, 1);
+        transform: translateY(-1px);
+        outline: none;
+      }
+
+      .inventory-panel__header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        margin-bottom: clamp(1.2rem, 3vw, 1.6rem);
+      }
+
+      .inventory-panel__eyebrow {
+        margin: 0;
+        font-size: 0.72rem;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.88);
+      }
+
+      .inventory-panel__title {
+        margin: 0;
+        font-size: clamp(1.45rem, 4vw, 1.95rem);
+        font-weight: 700;
+      }
+
+      .inventory-panel__subtitle {
+        margin: 0;
+        font-size: clamp(0.9rem, 2.2vw, 1rem);
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .inventory-panel__summary {
+        margin: 0 0 clamp(1rem, 2.5vw, 1.35rem);
+        font-size: 0.95rem;
+        color: rgba(94, 234, 212, 0.92);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .inventory-panel__body {
+        position: relative;
+        flex: 1 1 auto;
+        overflow: auto;
+        padding-right: clamp(0.2rem, 1vw, 0.35rem);
+        display: flex;
+        flex-direction: column;
+        gap: clamp(0.75rem, 2vw, 1rem);
+      }
+
+      .inventory-panel__empty {
+        margin: 0;
+        padding: clamp(1.2rem, 3vw, 1.6rem);
+        border-radius: clamp(1.2rem, 3vw, 1.6rem);
+        background: rgba(30, 41, 59, 0.7);
+        border: 1px dashed rgba(148, 163, 184, 0.35);
+        color: rgba(148, 163, 184, 0.92);
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+
+      .inventory-panel__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(0.75rem, 2vw, 1rem);
+      }
+
+      .inventory-panel__list:empty {
+        display: none;
+      }
+
+      .inventory-panel__item {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: clamp(0.65rem, 2vw, 0.9rem);
+        padding: clamp(0.9rem, 2.4vw, 1.1rem) clamp(1.1rem, 3vw, 1.4rem);
+        border-radius: clamp(1rem, 2.6vw, 1.4rem);
+        background: linear-gradient(
+            135deg,
+            rgba(16, 185, 129, 0.12),
+            rgba(56, 189, 248, 0.08)
+          ),
+          rgba(15, 23, 42, 0.82);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        box-shadow: 0 18px 40px rgba(8, 47, 73, 0.35);
+      }
+
+      .inventory-panel__symbol {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: clamp(52px, 8vw, 64px);
+        height: clamp(52px, 8vw, 64px);
+        border-radius: 18px;
+        background: radial-gradient(circle at 35% 30%, #0ea5e9, #0369a1 65%);
+        color: rgba(226, 232, 240, 0.98);
+        font-size: clamp(1.35rem, 4vw, 1.8rem);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.22),
+          0 12px 24px rgba(7, 89, 133, 0.32);
+      }
+
+      .inventory-panel__details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .inventory-panel__name {
+        margin: 0;
+        font-size: clamp(1.05rem, 2.8vw, 1.2rem);
+        font-weight: 600;
+        color: rgba(241, 245, 249, 0.96);
+      }
+
+      .inventory-panel__meta {
+        margin: 0;
+        font-size: 0.85rem;
+        color: rgba(148, 163, 184, 0.8);
+      }
+
+      .inventory-panel__count {
+        font-size: clamp(1.05rem, 2.6vw, 1.25rem);
+        font-weight: 700;
+        color: rgba(249, 250, 251, 0.95);
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.18);
+        border: 1px solid rgba(94, 234, 212, 0.35);
+        min-width: 3.25rem;
+        text-align: center;
+      }
+
+      @media (max-width: 600px) {
+        .inventory-panel__dialog {
+          width: min(96vw, 540px);
+        }
+
+        .inventory-panel__item {
+          grid-template-columns: minmax(48px, 18%) 1fr;
+          grid-auto-flow: row;
+        }
+
+        .inventory-panel__count {
+          justify-self: start;
+        }
+      }
+
       .model-palette {
         position: fixed;
         inset: 0;
@@ -991,6 +1225,7 @@
         </p>
         <p>Press V to toggle between first- and third-person views.</p>
         <p>Press B to open the model manifest and place a model nearby.</p>
+        <p>Press I to open your field inventory and review collected resources.</p>
       </div>
     </div>
 
@@ -1004,6 +1239,44 @@
         aria-label="Terminal information panel"
       >
         <div class="quick-access-modal__content" role="document"></div>
+      </div>
+    </div>
+
+    <div class="inventory-panel" data-inventory-panel hidden aria-hidden="true">
+      <div class="inventory-panel__backdrop" data-inventory-close></div>
+      <div
+        class="inventory-panel__dialog"
+        data-inventory-dialog
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="inventoryPanelTitle"
+      >
+        <button
+          class="inventory-panel__close"
+          type="button"
+          data-inventory-close
+          data-inventory-close-button
+          aria-label="Close inventory"
+        >
+          &times;
+        </button>
+        <header class="inventory-panel__header">
+          <p class="inventory-panel__eyebrow">Field inventory</p>
+          <h2 class="inventory-panel__title" id="inventoryPanelTitle">
+            Collected resources
+          </h2>
+          <p class="inventory-panel__subtitle">
+            Press I to close the inventory or resume mining operations.
+          </p>
+        </header>
+        <p class="inventory-panel__summary" data-inventory-summary>Inventory empty</p>
+        <div class="inventory-panel__body">
+          <p class="inventory-panel__empty" data-inventory-empty>
+            Your inventory is empty. Use the resource tool on the custom map to harvest
+            materials.
+          </p>
+          <ul class="inventory-panel__list" data-inventory-list role="list"></ul>
+        </div>
       </div>
     </div>
 
