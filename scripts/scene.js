@@ -5167,7 +5167,15 @@ export const initScene = (
   function clampWithinActiveFloor() {
     const player = controls.getObject().position;
     const activeFloor = getLiftFloorByIndex(liftState.currentIndex);
-    const bounds = activeFloor?.bounds ?? hangarDeckFloorBounds;
+    const activeFloorId =
+      typeof activeFloor?.id === "string" ? activeFloor.id : null;
+    const activeEnvironment = activeFloorId
+      ? deckEnvironmentMap.get(activeFloorId)
+      : null;
+    const bounds =
+      activeEnvironment?.bounds ??
+      activeFloor?.bounds ??
+      hangarDeckFloorBounds;
 
     const resolveAxisBounds = (minKey, maxKey) => {
       const fallbackBounds = hangarDeckFloorBounds;
