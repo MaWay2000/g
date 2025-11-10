@@ -22,6 +22,35 @@ const state = {
   pointerTerrain: null,
 };
 
+const UNKNOWN_HP_LABEL = "Unknown";
+
+function formatTerrainHp(terrain) {
+  if (!terrain || typeof terrain.hp !== "number" || terrain.hp < 0) {
+    return UNKNOWN_HP_LABEL;
+  }
+
+  return `${terrain.hp}s`;
+}
+
+function formatTerrainElement(terrain) {
+  const element = terrain?.element;
+  if (!element) {
+    return null;
+  }
+
+  const { symbol, name } = element;
+  if (symbol && name) {
+    return `${symbol} (${name})`;
+  }
+  if (symbol) {
+    return symbol;
+  }
+  if (name) {
+    return name;
+  }
+  return null;
+}
+
 const VOID_TERRAIN_ID = TERRAIN_TYPES[0]?.id ?? "void";
 const RANDOM_TERRAIN_POOL = TERRAIN_TYPES.filter(
   (terrain) => terrain.id !== VOID_TERRAIN_ID
@@ -280,11 +309,20 @@ function renderPalette() {
     button.type = "button";
     button.className = "terrain-button";
     button.dataset.active = String(state.terrain.id === terrain.id);
+    const elementLabel = formatTerrainElement(terrain);
+    const hpLabel = formatTerrainHp(terrain);
+    const details = [terrain.description];
+    if (hpLabel !== UNKNOWN_HP_LABEL) {
+      details.push(`HP: ${hpLabel}`);
+    }
+    if (elementLabel) {
+      details.push(`Element: ${elementLabel}`);
+    }
     button.innerHTML = `
       <span class="terrain-swatch" style="background:${terrain.color}"></span>
       <span>
         <strong>${terrain.label}</strong><br />
-        <small>${terrain.description}</small>
+        <small>${details.join(" · ")}</small>
       </span>
     `;
     button.addEventListener("click", () => setTerrain(terrain));
@@ -306,7 +344,16 @@ function renderGrid() {
     cell.dataset.index = index;
     cell.dataset.terrain = terrain.id;
     cell.style.setProperty("--cell-color", terrain.color);
-    cell.setAttribute("aria-label", `Cell ${index + 1}, ${terrain.label}`);
+    const ariaParts = [`Cell ${index + 1}`, terrain.label];
+    const hpLabel = formatTerrainHp(terrain);
+    if (hpLabel !== UNKNOWN_HP_LABEL) {
+      ariaParts.push(`HP ${hpLabel}`);
+    }
+    const elementLabel = formatTerrainElement(terrain);
+    if (elementLabel) {
+      ariaParts.push(`Element ${elementLabel}`);
+    }
+    cell.setAttribute("aria-label", ariaParts.join(", "));
     cell.addEventListener("pointerdown", handleCellPointerDown);
     cell.addEventListener("pointerenter", handleCellPointerEnter);
     cell.addEventListener("click", (event) => event.preventDefault());
@@ -330,7 +377,16 @@ function paintCell(index, terrainId) {
     const terrain = getTerrainById(terrainId);
     cell.dataset.terrain = terrain.id;
     cell.style.setProperty("--cell-color", terrain.color);
-    cell.setAttribute("aria-label", `Cell ${index + 1}, ${terrain.label}`);
+    const ariaParts = [`Cell ${index + 1}`, terrain.label];
+    const hpLabel = formatTerrainHp(terrain);
+    if (hpLabel !== UNKNOWN_HP_LABEL) {
+      ariaParts.push(`HP ${hpLabel}`);
+    }
+    const elementLabel = formatTerrainElement(terrain);
+    if (elementLabel) {
+      ariaParts.push(`Element ${elementLabel}`);
+    }
+    cell.setAttribute("aria-label", ariaParts.join(", "));
   }
   updateJsonPreview();
 }
