@@ -34,6 +34,7 @@ import {
   normalizeOutsideMap,
   getOutsideTerrainById,
 } from "./outside-map.js";
+import { samplePeriodicElement } from "./data/periodic-elements.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 
@@ -50,6 +51,7 @@ export const initScene = (
     onManifestPlacementHoverChange,
     onManifestEditModeChange,
     onManifestPlacementRemoved,
+    onResourceCollected,
   } = {}
 ) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -78,6 +80,21 @@ export const initScene = (
   let notifyLiftUiControllersChanged = () => {};
   const registeredLiftDoors = [];
   const environmentHeightAdjusters = [];
+  const resourceTargetsByEnvironment = new Map();
+  let activeResourceTargets = [];
+
+  const getResourceTargetsForFloor = (floorId) => {
+    if (!floorId) {
+      return [];
+    }
+
+    const targets = resourceTargetsByEnvironment.get(floorId);
+    if (!Array.isArray(targets)) {
+      return [];
+    }
+
+    return targets;
+  };
 
   const registerEnvironmentHeightAdjuster = (adjuster) => {
     if (typeof adjuster !== "function") {
@@ -2464,6 +2481,7 @@ export const initScene = (
       mapGroup.add(base);
 
       const adjustable = [{ object: base, offset: -0.04 }];
+      const resourceTargets = [];
       const terrainMaterials = new Map();
 
       const getMaterialForTerrain = (terrainId) => {
@@ -2523,6 +2541,16 @@ export const initScene = (
             object: tile,
             offset: tile.position.y - roomFloorY,
           });
+
+          if (resolvedTerrain.id !== "void") {
+            tile.userData.isResourceTarget = true;
+            tile.userData.terrainId = resolvedTerrain.id;
+            tile.userData.terrainLabel =
+              typeof resolvedTerrain.label === "string"
+                ? resolvedTerrain.label
+                : resolvedTerrain.id;
+            resourceTargets.push(tile);
+          }
 
           if (resolvedTerrain.id === "point") {
             const markerMaterial = new THREE.MeshStandardMaterial({
@@ -2589,10 +2617,12 @@ export const initScene = (
           maxZ: Math.max(mapNearEdge, mapFarEdge),
         },
         adjustableEntries: adjustable,
+        resourceTargets,
       };
     };
 
     const mapAdjustableEntries = [];
+    const environmentResourceTargets = [];
     let outsideMapBounds = null;
 
     const platformThickness = 0.42;
@@ -2662,6 +2692,13 @@ export const initScene = (
     }
     if (Array.isArray(builtOutsideTerrain?.adjustableEntries)) {
       mapAdjustableEntries.push(...builtOutsideTerrain.adjustableEntries);
+    }
+    if (Array.isArray(builtOutsideTerrain?.resourceTargets)) {
+      environmentResourceTargets.push(
+        ...builtOutsideTerrain.resourceTargets.filter((target) =>
+          target && target.isObject3D
+        )
+      );
     }
     if (
       builtOutsideTerrain?.bounds &&
@@ -2878,6 +2915,7 @@ export const initScene = (
       updateForRoomHeight,
       teleportOffset,
       bounds: resolvedEnvironmentBounds,
+      resourceTargets: environmentResourceTargets,
     };
   };
 
@@ -3684,12 +3722,21 @@ export const initScene = (
         };
       }
 
+      const resourceTargets = Array.isArray(environment?.resourceTargets)
+        ? environment.resourceTargets.filter(
+            (target) => target && target.isObject3D
+          )
+        : [];
+
+      resourceTargetsByEnvironment.set(id, resourceTargets);
+
       state = {
         group,
         unregisterHeightAdjuster,
         unregisterLiftDoor,
         registeredColliders,
         bounds: resolvedBounds,
+        resourceTargets,
       };
 
       updateEnvironmentForPlayerHeight();
@@ -3717,6 +3764,8 @@ export const initScene = (
       ) {
         unregisterColliderDescriptors(state.registeredColliders);
       }
+
+      resourceTargetsByEnvironment.delete(id);
 
       scene.remove(state.group);
       disposeObject3D(state.group);
@@ -3860,6 +3909,8 @@ export const initScene = (
         environment.unload();
       }
     });
+
+    refreshActiveResourceTargets(floorId ?? null);
   };
 
   const operationsDeckEnvironment = deckEnvironmentMap.get(
@@ -4379,6 +4430,91 @@ export const initScene = (
   const resourceToolLight = new THREE.PointLight(0x38bdf8, 0, 2.6, 2);
   resourceToolLight.position.set(0.28, -0.02, -0.24);
   resourceToolGroup.add(resourceToolLight);
+  const RESOURCE_TOOL_MAX_DISTANCE = 7;
+
+  const findResourceTarget = (object) => {
+    let current = object;
+
+    while (current) {
+      if (current.userData?.isResourceTarget) {
+        return current;
+      }
+
+      current = current.parent;
+    }
+
+    return null;
+  };
+
+  const handleResourceToolActionEvent = () => {
+    if (!controls.isLocked) {
+      return;
+    }
+
+    if (!Array.isArray(activeResourceTargets) || activeResourceTargets.length === 0) {
+      return;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(activeResourceTargets, true);
+
+    if (intersections.length === 0) {
+      return;
+    }
+
+    const intersection = intersections.find((candidate) =>
+      findResourceTarget(candidate.object)
+    );
+
+    if (!intersection) {
+      return;
+    }
+
+    if (
+      !Number.isFinite(intersection.distance) ||
+      intersection.distance > RESOURCE_TOOL_MAX_DISTANCE
+    ) {
+      return;
+    }
+
+    const targetObject = findResourceTarget(intersection.object);
+
+    if (!targetObject) {
+      return;
+    }
+
+    const element = samplePeriodicElement();
+
+    if (!element) {
+      return;
+    }
+
+    const detail = {
+      element: {
+        number: element.number,
+        symbol: element.symbol,
+        name: element.name,
+      },
+      terrain: {
+        id: targetObject.userData?.terrainId ?? null,
+        label: targetObject.userData?.terrainLabel ?? null,
+      },
+      position: {
+        x: intersection.point.x,
+        y: intersection.point.y,
+        z: intersection.point.z,
+      },
+      distance: intersection.distance,
+    };
+
+    if (typeof onResourceCollected === "function") {
+      try {
+        onResourceCollected(detail);
+      } catch (error) {
+        console.warn("Unable to notify resource collection", error);
+      }
+    }
+  };
 
   camera.add(resourceToolGroup);
 
@@ -4643,6 +4779,22 @@ export const initScene = (
 
   const getActiveLiftFloor = () => getLiftFloorByIndex(liftState.currentIndex);
 
+  function refreshActiveResourceTargets(targetFloorId) {
+    let resolvedFloorId = targetFloorId;
+
+    if (typeof resolvedFloorId === "undefined") {
+      const activeFloor = getActiveLiftFloor();
+      resolvedFloorId = activeFloor?.id ?? null;
+    }
+
+    if (!resolvedFloorId) {
+      activeResourceTargets = [];
+      return;
+    }
+
+    activeResourceTargets = getResourceTargetsForFloor(resolvedFloorId);
+  }
+
   const findLiftFloorIndexById = (floorId) => {
     if (!floorId || !Array.isArray(liftState.floors)) {
       return -1;
@@ -4809,6 +4961,7 @@ export const initScene = (
     activateDeckEnvironment(nextFloor.id ?? null);
 
     liftState.currentIndex = clampedIndex;
+    refreshActiveResourceTargets(nextFloor.id ?? null);
 
     if (nextFloor.position instanceof THREE.Vector3) {
       playerObject.position.set(
@@ -5112,6 +5265,7 @@ export const initScene = (
 
   canvas.addEventListener("click", attemptPointerLock);
   canvas.addEventListener("pointerdown", attemptPointerLock);
+  canvas.addEventListener("resource-tool:action", handleResourceToolActionEvent);
   document.addEventListener("mousedown", handlePrimaryActionDown);
   document.addEventListener("mouseup", handlePrimaryActionUp);
 
@@ -5802,6 +5956,10 @@ export const initScene = (
       canvas.removeEventListener("click", attemptPointerLock);
       canvas.removeEventListener("click", handleCanvasClick);
       canvas.removeEventListener("pointerdown", attemptPointerLock);
+      canvas.removeEventListener(
+        "resource-tool:action",
+        handleResourceToolActionEvent
+      );
       document.removeEventListener("mousedown", handlePrimaryActionDown);
       document.removeEventListener("mouseup", handlePrimaryActionUp);
       document.removeEventListener("keydown", onKeyDown);
@@ -5828,6 +5986,8 @@ export const initScene = (
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
+      resourceTargetsByEnvironment.clear();
+      activeResourceTargets = [];
       savePlayerState(true);
       activateDeckEnvironment(null);
       colliderDescriptors.length = 0;
