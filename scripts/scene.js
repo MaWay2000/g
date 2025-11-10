@@ -4393,11 +4393,13 @@ export const initScene = (
     cooldown: 0,
     recoil: 0,
   };
+  let primaryActionHeld = false;
 
   const resetResourceToolState = () => {
     resourceToolState.beamTimer = 0;
     resourceToolState.cooldown = 0;
     resourceToolState.recoil = 0;
+    primaryActionHeld = false;
     if (resourceToolBeamMaterial) {
       resourceToolBeamMaterial.opacity = 0;
     }
@@ -4446,7 +4448,16 @@ export const initScene = (
       return;
     }
 
+    primaryActionHeld = true;
     triggerResourceToolAction();
+  };
+
+  const handlePrimaryActionUp = (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    primaryActionHeld = false;
   };
 
   let playerEyeLevel = playerHeight;
@@ -5102,6 +5113,7 @@ export const initScene = (
   canvas.addEventListener("click", attemptPointerLock);
   canvas.addEventListener("pointerdown", attemptPointerLock);
   document.addEventListener("mousedown", handlePrimaryActionDown);
+  document.addEventListener("mouseup", handlePrimaryActionUp);
 
   const getTargetedLiftControl = () => {
     if (liftInteractables.length === 0) {
@@ -5510,6 +5522,14 @@ export const initScene = (
       );
     }
 
+    if (
+      resourceToolState.cooldown <= 0 &&
+      controls.isLocked &&
+      primaryActionHeld
+    ) {
+      triggerResourceToolAction();
+    }
+
     if (resourceToolState.beamTimer > 0) {
       resourceToolState.beamTimer = Math.max(
         0,
@@ -5783,6 +5803,7 @@ export const initScene = (
       canvas.removeEventListener("click", handleCanvasClick);
       canvas.removeEventListener("pointerdown", attemptPointerLock);
       document.removeEventListener("mousedown", handlePrimaryActionDown);
+      document.removeEventListener("mouseup", handlePrimaryActionUp);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
