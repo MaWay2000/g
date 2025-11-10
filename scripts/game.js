@@ -1389,6 +1389,35 @@ const bootstrapScene = () => {
     onManifestPlacementHoverChange: handleManifestPlacementHoverChange,
     onManifestEditModeChange: handleManifestEditModeChange,
     onManifestPlacementRemoved: handleManifestPlacementRemoved,
+    onResourceCollected(detail) {
+      const element = detail?.element ?? {};
+      const terrainLabel = detail?.terrain?.label ?? null;
+      const { symbol, name } = element;
+      const atomicNumber = Number.isFinite(element.number)
+        ? element.number
+        : null;
+      const label =
+        symbol && name
+          ? `${symbol} (${name})`
+          : symbol || name || "Unknown element";
+      const segments = [];
+      if (label) {
+        segments.push(label);
+      }
+      if (atomicNumber !== null) {
+        segments.push(`Atomic #${atomicNumber}`);
+      }
+      let description = segments.join(" – ");
+      if (terrainLabel) {
+        description = description
+          ? `${description} • ${terrainLabel}`
+          : terrainLabel;
+      }
+      showTerminalToast({
+        title: "Resource collected",
+        description: description || "Resource extracted.",
+      });
+    },
   });
 
   sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
