@@ -2423,13 +2423,18 @@ export const initScene = (
         desiredWorldWidth / width,
         desiredWorldDepth / height
       );
-      const cellSize = THREE.MathUtils.clamp(
+      const fallbackCellSize = THREE.MathUtils.clamp(
         Number.isFinite(computedCellSize) && computedCellSize > 0
           ? computedCellSize
           : minCellSize,
         minCellSize,
         maxCellSize
       );
+      const desiredCellSize = ROOM_SCALE_FACTOR * 4;
+      const cellSize =
+        Number.isFinite(desiredCellSize) && desiredCellSize > 0
+          ? desiredCellSize
+          : fallbackCellSize;
 
       const mapWorldWidth = width * cellSize;
       const mapWorldDepth = height * cellSize;
