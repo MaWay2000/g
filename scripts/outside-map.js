@@ -47,6 +47,18 @@ export const OUTSIDE_TERRAIN_TYPES = [
     color: "#f87171",
   },
   {
+    id: "tunnel",
+    label: "Tunnel",
+    description: "Underground access route connecting separate spaces.",
+    color: "#fdba74",
+  },
+  {
+    id: "mountain",
+    label: "Mountains",
+    description: "Impassable elevated range that defines map boundaries.",
+    color: "#475569",
+  },
+  {
     id: "point",
     label: "Point of Interest",
     description: "Interactive or narrative focal point.",
