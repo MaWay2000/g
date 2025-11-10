@@ -402,7 +402,6 @@ export const initScene = (
     metalness: 0.2,
     height: 0.05,
     elevationOffset: 0,
-    isWalkable: true,
   };
 
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
@@ -414,7 +413,6 @@ export const initScene = (
         metalness: 0.04,
         height: 0.035,
         elevationOffset: -0.025,
-        isWalkable: false,
       },
     ],
     [
@@ -427,7 +425,6 @@ export const initScene = (
         elevationOffset: 0.008,
         emissive: 0xfff1a1,
         emissiveIntensity: 0.1,
-        isWalkable: true,
       },
     ],
     [
@@ -438,7 +435,6 @@ export const initScene = (
         metalness: 0.05,
         height: 0.06,
         elevationOffset: 0.012,
-        isWalkable: true,
       },
     ],
     [
@@ -449,7 +445,6 @@ export const initScene = (
         metalness: 0.45,
         height: 0.085,
         elevationOffset: 0.02,
-        isWalkable: false,
       },
     ],
     [
@@ -463,7 +458,6 @@ export const initScene = (
         opacity: 0.6,
         emissive: 0x0ea5e9,
         emissiveIntensity: 0.4,
-        isWalkable: false,
       },
     ],
     [
@@ -476,7 +470,6 @@ export const initScene = (
         elevationOffset: 0.01,
         emissive: 0xff4d6d,
         emissiveIntensity: 0.32,
-        isWalkable: false,
       },
     ],
     [
@@ -489,29 +482,6 @@ export const initScene = (
         elevationOffset: 0.015,
         emissive: 0xdb2777,
         emissiveIntensity: 0.45,
-        isWalkable: true,
-      },
-    ],
-    [
-      "tunnel",
-      {
-        color: 0xfdba74,
-        roughness: 0.55,
-        metalness: 0.28,
-        height: 0.045,
-        elevationOffset: 0.006,
-        isWalkable: true,
-      },
-    ],
-    [
-      "mountain",
-      {
-        color: 0x334155,
-        roughness: 0.68,
-        metalness: 0.22,
-        height: 0.16,
-        elevationOffset: 0.08,
-        isWalkable: false,
       },
     ],
   ]);
@@ -2494,7 +2464,6 @@ export const initScene = (
       mapGroup.add(base);
 
       const adjustable = [{ object: base, offset: -0.04 }];
-      const colliderEntries = [];
       const terrainMaterials = new Map();
 
       const getMaterialForTerrain = (terrainId) => {
@@ -2554,13 +2523,6 @@ export const initScene = (
             object: tile,
             offset: tile.position.y - roomFloorY,
           });
-
-          const isWalkable = style.isWalkable ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.isWalkable;
-          if (!isWalkable) {
-            colliderEntries.push({
-              object: tile,
-            });
-          }
 
           if (resolvedTerrain.id === "point") {
             const markerMaterial = new THREE.MeshStandardMaterial({
@@ -2627,12 +2589,10 @@ export const initScene = (
           maxZ: Math.max(mapNearEdge, mapFarEdge),
         },
         adjustableEntries: adjustable,
-        colliderDescriptors: colliderEntries,
       };
     };
 
     const mapAdjustableEntries = [];
-    const mapColliderDescriptors = [];
     let outsideMapBounds = null;
 
     const platformThickness = 0.42;
@@ -2702,9 +2662,6 @@ export const initScene = (
     }
     if (Array.isArray(builtOutsideTerrain?.adjustableEntries)) {
       mapAdjustableEntries.push(...builtOutsideTerrain.adjustableEntries);
-    }
-    if (Array.isArray(builtOutsideTerrain?.colliderDescriptors)) {
-      mapColliderDescriptors.push(...builtOutsideTerrain.colliderDescriptors);
     }
     if (
       builtOutsideTerrain?.bounds &&
@@ -2846,21 +2803,6 @@ export const initScene = (
       adjustableEntries.push(...mapAdjustableEntries);
     }
 
-    const colliderDescriptors = [];
-
-    colliderDescriptors.push({
-      object: returnDoor,
-      padding: new THREE.Vector3(0.2, 0, 0.2),
-    });
-
-    walkwayWalls.forEach((wall) => {
-      colliderDescriptors.push({ object: wall });
-    });
-
-    if (mapColliderDescriptors.length > 0) {
-      colliderDescriptors.push(...mapColliderDescriptors);
-    }
-
     const walkwayHalfWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH / 2;
     const walkwayHalfDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
 
@@ -2936,7 +2878,6 @@ export const initScene = (
       updateForRoomHeight,
       teleportOffset,
       bounds: resolvedEnvironmentBounds,
-      colliderDescriptors,
     };
   };
 
