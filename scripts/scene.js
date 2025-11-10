@@ -4249,6 +4249,206 @@ export const initScene = (
   }
   scene.add(playerObject);
 
+  const resourceToolGroup = new THREE.Group();
+  resourceToolGroup.name = "ResourceTool";
+  resourceToolGroup.visible = false;
+
+  const resourceToolBasePosition = new THREE.Vector3(0.45, -0.38, -0.72);
+  const resourceToolBaseRotation = new THREE.Euler(-0.28, 0.42, 0.08, "XYZ");
+  resourceToolGroup.position.copy(resourceToolBasePosition);
+  resourceToolGroup.rotation.copy(resourceToolBaseRotation);
+
+  const resourceToolGeometries = [];
+  const resourceToolMaterials = [];
+
+  const trackResourceToolGeometry = (geometry) => {
+    if (geometry && !resourceToolGeometries.includes(geometry)) {
+      resourceToolGeometries.push(geometry);
+    }
+  };
+
+  const trackResourceToolMaterial = (material) => {
+    if (!material) {
+      return;
+    }
+
+    if (Array.isArray(material)) {
+      material.forEach(trackResourceToolMaterial);
+      return;
+    }
+
+    if (!resourceToolMaterials.includes(material)) {
+      resourceToolMaterials.push(material);
+    }
+  };
+
+  const registerResourceToolMesh = (mesh) => {
+    if (!mesh) {
+      return null;
+    }
+
+    trackResourceToolGeometry(mesh.geometry);
+    trackResourceToolMaterial(mesh.material);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    resourceToolGroup.add(mesh);
+    return mesh;
+  };
+
+  const resourceToolHandle = registerResourceToolMesh(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.28, 0.12),
+      new THREE.MeshStandardMaterial({
+        color: 0x111827,
+        roughness: 0.6,
+        metalness: 0.1,
+      })
+    )
+  );
+  if (resourceToolHandle) {
+    resourceToolHandle.position.set(-0.12, -0.12, -0.04);
+  }
+
+  const resourceToolBody = registerResourceToolMesh(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.14, 0.46),
+      new THREE.MeshStandardMaterial({
+        color: 0x1d4ed8,
+        emissive: 0x38bdf8,
+        emissiveIntensity: 0.35,
+        metalness: 0.65,
+        roughness: 0.28,
+      })
+    )
+  );
+  if (resourceToolBody) {
+    resourceToolBody.position.set(0.06, -0.01, 0.02);
+  }
+
+  const resourceToolEmitter = registerResourceToolMesh(
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.26, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xf97316,
+        emissive: 0xf59e0b,
+        emissiveIntensity: 0.55,
+        metalness: 0.35,
+        roughness: 0.22,
+      })
+    )
+  );
+  if (resourceToolEmitter) {
+    resourceToolEmitter.rotation.z = Math.PI / 2;
+    resourceToolEmitter.position.set(0.28, -0.02, 0.14);
+  }
+
+  const RESOURCE_TOOL_BEAM_LENGTH = 1.8;
+  const resourceToolBeamMaterial = new THREE.MeshBasicMaterial({
+    color: 0x7dd3fc,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  trackResourceToolMaterial(resourceToolBeamMaterial);
+  const resourceToolBeam = registerResourceToolMesh(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(0.07, 0.07, RESOURCE_TOOL_BEAM_LENGTH),
+      resourceToolBeamMaterial
+    )
+  );
+  if (resourceToolBeam) {
+    resourceToolBeam.position.set(0.3, -0.03, -RESOURCE_TOOL_BEAM_LENGTH / 2 - 0.12);
+  }
+
+  const resourceToolGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xfacc15,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  trackResourceToolMaterial(resourceToolGlowMaterial);
+  const resourceToolGlow = registerResourceToolMesh(
+    new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), resourceToolGlowMaterial)
+  );
+  if (resourceToolGlow) {
+    resourceToolGlow.position.set(0.28, -0.02, -0.2);
+  }
+
+  const resourceToolLight = new THREE.PointLight(0x38bdf8, 0, 2.6, 2);
+  resourceToolLight.position.set(0.28, -0.02, -0.24);
+  resourceToolGroup.add(resourceToolLight);
+
+  camera.add(resourceToolGroup);
+
+  const RESOURCE_TOOL_ACTION_DURATION = 0.24;
+  const RESOURCE_TOOL_ACTION_COOLDOWN = 0.12;
+  const RESOURCE_TOOL_RECOIL_RECOVERY = 6;
+  const RESOURCE_TOOL_IDLE_SWAY = 0.015;
+  const RESOURCE_TOOL_IDLE_SWAY_SPEED = 2.1;
+  const RESOURCE_TOOL_IDLE_BOB_SPEED = 1.4;
+  const resourceToolState = {
+    beamTimer: 0,
+    cooldown: 0,
+    recoil: 0,
+  };
+
+  const resetResourceToolState = () => {
+    resourceToolState.beamTimer = 0;
+    resourceToolState.cooldown = 0;
+    resourceToolState.recoil = 0;
+    if (resourceToolBeamMaterial) {
+      resourceToolBeamMaterial.opacity = 0;
+    }
+    if (resourceToolGlowMaterial) {
+      resourceToolGlowMaterial.opacity = 0;
+    }
+    if (resourceToolGlow) {
+      resourceToolGlow.scale.set(1, 1, 1);
+    }
+    resourceToolLight.intensity = 0;
+    resourceToolLight.distance = 2.6;
+    resourceToolGroup.position.copy(resourceToolBasePosition);
+    resourceToolGroup.rotation.copy(resourceToolBaseRotation);
+  };
+
+  resetResourceToolState();
+  resourceToolGroup.visible = controls.isLocked;
+
+  const triggerResourceToolAction = () => {
+    if (resourceToolState.cooldown > 0) {
+      return false;
+    }
+
+    resourceToolState.cooldown = RESOURCE_TOOL_ACTION_COOLDOWN;
+    resourceToolState.beamTimer = RESOURCE_TOOL_ACTION_DURATION;
+    resourceToolState.recoil = 1;
+
+    try {
+      const actionEvent = new CustomEvent("resource-tool:action", {
+        detail: { timestamp: performance.now() },
+      });
+      canvas.dispatchEvent(actionEvent);
+    } catch (error) {
+      console.warn("Unable to dispatch resource tool action event", error);
+    }
+
+    return true;
+  };
+
+  const handlePrimaryActionDown = (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    if (!controls.isLocked) {
+      return;
+    }
+
+    triggerResourceToolAction();
+  };
+
   let playerEyeLevel = playerHeight;
 
   const FIRST_PERSON_EYE_HEIGHT_OFFSET = -0.1;
@@ -4870,12 +5070,18 @@ export const initScene = (
   } = manifestPlacementManager;
 
   controls.addEventListener("lock", () => {
+    resourceToolGroup.visible = true;
+    resetResourceToolState();
+
     if (typeof onControlsLocked === "function") {
       onControlsLocked();
     }
   });
 
   controls.addEventListener("unlock", () => {
+    resourceToolGroup.visible = false;
+    resetResourceToolState();
+
     if (typeof onControlsUnlocked === "function") {
       onControlsUnlocked();
     }
@@ -4895,6 +5101,7 @@ export const initScene = (
 
   canvas.addEventListener("click", attemptPointerLock);
   canvas.addEventListener("pointerdown", attemptPointerLock);
+  document.addEventListener("mousedown", handlePrimaryActionDown);
 
   const getTargetedLiftControl = () => {
     if (liftInteractables.length === 0) {
@@ -5291,10 +5498,76 @@ export const initScene = (
 
   clampWithinActiveFloor();
 
+  const updateResourceTool = (delta, elapsedTime) => {
+    if (!resourceToolGroup) {
+      return;
+    }
+
+    if (resourceToolState.cooldown > 0) {
+      resourceToolState.cooldown = Math.max(
+        0,
+        resourceToolState.cooldown - delta
+      );
+    }
+
+    if (resourceToolState.beamTimer > 0) {
+      resourceToolState.beamTimer = Math.max(
+        0,
+        resourceToolState.beamTimer - delta
+      );
+    }
+
+    if (resourceToolState.recoil > 0) {
+      resourceToolState.recoil = Math.max(
+        0,
+        resourceToolState.recoil - delta * RESOURCE_TOOL_RECOIL_RECOVERY
+      );
+    }
+
+    const rawBeamProgress =
+      RESOURCE_TOOL_ACTION_DURATION > 0
+        ? resourceToolState.beamTimer / RESOURCE_TOOL_ACTION_DURATION
+        : 0;
+    const beamProgress = THREE.MathUtils.clamp(rawBeamProgress, 0, 1);
+
+    if (resourceToolBeamMaterial) {
+      resourceToolBeamMaterial.opacity =
+        resourceToolGroup.visible && beamProgress > 0 ? 0.85 * beamProgress : 0;
+    }
+
+    if (resourceToolGlowMaterial) {
+      const glowOpacity =
+        resourceToolGroup.visible && beamProgress > 0 ? 0.75 * beamProgress : 0;
+      resourceToolGlowMaterial.opacity = glowOpacity;
+      if (resourceToolGlow) {
+        const scale = 1 + beamProgress * 0.6;
+        resourceToolGlow.scale.set(scale, scale, scale);
+      }
+    }
+
+    resourceToolLight.intensity = beamProgress * 4;
+    resourceToolLight.distance = 1.6 + beamProgress * 2;
+
+    const idleSway = Math.sin(elapsedTime * RESOURCE_TOOL_IDLE_SWAY_SPEED);
+    const idleBob = Math.cos(elapsedTime * RESOURCE_TOOL_IDLE_BOB_SPEED);
+
+    resourceToolGroup.position.copy(resourceToolBasePosition);
+    resourceToolGroup.position.x += idleSway * RESOURCE_TOOL_IDLE_SWAY * 0.45;
+    resourceToolGroup.position.y += idleBob * RESOURCE_TOOL_IDLE_SWAY * 0.6;
+    resourceToolGroup.position.z += resourceToolState.recoil * 0.06;
+
+    resourceToolGroup.rotation.set(
+      resourceToolBaseRotation.x - resourceToolState.recoil * 0.35 + idleBob * 0.08,
+      resourceToolBaseRotation.y + idleSway * 0.25,
+      resourceToolBaseRotation.z + idleSway * 0.45
+    );
+  };
+
   const animate = () => {
     requestAnimationFrame(animate);
 
     const delta = clock.getDelta();
+    const elapsedTime = clock.elapsedTime;
     let shouldResolveCollisions = false;
 
     if (movementEnabled) {
@@ -5392,6 +5665,7 @@ export const initScene = (
     updateManifestEditModeHover();
     updateActivePlacementPreview();
     updateOperationsConcourseTeleport(delta);
+    updateResourceTool(delta, elapsedTime);
 
     renderer.render(scene, camera);
   };
@@ -5508,12 +5782,28 @@ export const initScene = (
       canvas.removeEventListener("click", attemptPointerLock);
       canvas.removeEventListener("click", handleCanvasClick);
       canvas.removeEventListener("pointerdown", attemptPointerLock);
+      document.removeEventListener("mousedown", handlePrimaryActionDown);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       updateTerminalInteractableState(false);
       updateLiftInteractableState(false);
+      if (resourceToolGroup.parent) {
+        resourceToolGroup.parent.remove(resourceToolGroup);
+      }
+      resourceToolGeometries.forEach((geometry) => {
+        if (geometry && typeof geometry.dispose === "function") {
+          geometry.dispose();
+        }
+      });
+      resourceToolMaterials.forEach((material) => {
+        if (material && typeof material.dispose === "function") {
+          material.dispose();
+        }
+      });
+      resourceToolGeometries.length = 0;
+      resourceToolMaterials.length = 0;
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
