@@ -12,6 +12,11 @@ const resetButton = document.querySelector("[data-reset-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
 const crosshair = document.querySelector(".crosshair");
+const quickSlotBar = document.querySelector("[data-quick-slot-bar]");
+const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
+const resourceToolDescription = document.querySelector(
+  "[data-resource-tool-description]"
+);
 const crosshairStates = {
   terminal: false,
   edit: false,
@@ -118,6 +123,295 @@ const quickAccessModalTemplates = {
   missions: document.getElementById("quick-access-modal-missions"),
   map: document.getElementById("quick-access-modal-map"),
 };
+
+const quickSlotDefinitions = [
+  {
+    id: "digger",
+    label: "Digger",
+    description: "Standard issue excavation module.",
+  },
+  {
+    id: "photon-cutter",
+    label: "Photon Cutter",
+    description: "Equipped for custom map harvesting.",
+  },
+  {
+    id: "arc-welder",
+    label: "Arc Welder",
+    description: "Fuses structural panels in the field.",
+  },
+  {
+    id: "geo-scanner",
+    label: "Geo Scanner",
+    description: "Reveals hidden mineral signatures nearby.",
+  },
+  {
+    id: "pulse-barrier",
+    label: "Pulse Barrier",
+    description: "Deploys a short-lived kinetic shield.",
+  },
+  {
+    id: "gravity-well",
+    label: "Gravity Well",
+    description: "Pins unstable debris for safe recovery.",
+  },
+  {
+    id: "terraform-spike",
+    label: "Terraform Spike",
+    description: "Reshapes local terrain on impact.",
+  },
+  {
+    id: "chrono-anchor",
+    label: "Chrono Anchor",
+    description: "Stabilizes temporal distortions briefly.",
+  },
+  {
+    id: "seismic-charge",
+    label: "Seismic Charge",
+    description: "Breaks dense rock formations cleanly.",
+  },
+  {
+    id: "aurora-lance",
+    label: "Aurora Lance",
+    description: "Channels a focused burst of plasma energy.",
+  },
+];
+
+const quickSlotState = {
+  slots: quickSlotDefinitions,
+  selectedIndex: 0,
+};
+
+const quickSlotKeyMap = {
+  Digit1: 0,
+  Digit2: 1,
+  Digit3: 2,
+  Digit4: 3,
+  Digit5: 4,
+  Digit6: 5,
+  Digit7: 6,
+  Digit8: 7,
+  Digit9: 8,
+  Digit0: 9,
+  Numpad1: 0,
+  Numpad2: 1,
+  Numpad3: 2,
+  Numpad4: 3,
+  Numpad5: 4,
+  Numpad6: 5,
+  Numpad7: 6,
+  Numpad8: 7,
+  Numpad9: 8,
+  Numpad0: 9,
+};
+
+const getQuickSlotNumber = (index) => (index === 9 ? "10" : String(index + 1));
+
+const updateResourceToolIndicator = (slot) => {
+  const labelText =
+    typeof slot?.label === "string" && slot.label.trim() !== ""
+      ? slot.label.trim()
+      : "Unassigned slot";
+  const descriptionText =
+    typeof slot?.description === "string" && slot.description.trim() !== ""
+      ? slot.description.trim()
+      : "Assign an item or ability to this slot.";
+
+  if (resourceToolLabel instanceof HTMLElement) {
+    resourceToolLabel.textContent = labelText;
+  }
+
+  if (resourceToolDescription instanceof HTMLElement) {
+    resourceToolDescription.textContent = descriptionText;
+  }
+};
+
+const updateQuickSlotUi = () => {
+  if (quickSlotBar instanceof HTMLElement) {
+    const buttons = quickSlotBar.querySelectorAll(".quick-slot-bar__slot");
+
+    buttons.forEach((button) => {
+      if (!(button instanceof HTMLElement)) {
+        return;
+      }
+
+      const index = Number.parseInt(button.dataset.quickSlotIndex ?? "", 10);
+      const isSelected = index === quickSlotState.selectedIndex;
+
+      if (isSelected) {
+        button.dataset.selected = "true";
+        button.setAttribute("aria-current", "true");
+      } else {
+        delete button.dataset.selected;
+        button.removeAttribute("aria-current");
+      }
+    });
+  }
+
+  updateResourceToolIndicator(
+    quickSlotState.slots[quickSlotState.selectedIndex] ?? null
+  );
+};
+
+const renderQuickSlotBar = () => {
+  if (!(quickSlotBar instanceof HTMLElement)) {
+    updateResourceToolIndicator(
+      quickSlotState.slots[quickSlotState.selectedIndex] ?? null
+    );
+    return;
+  }
+
+  quickSlotBar.innerHTML = "";
+
+  const fragment = document.createDocumentFragment();
+
+  quickSlotState.slots.forEach((slot, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "quick-slot-bar__slot";
+    button.dataset.quickSlotIndex = String(index);
+    button.setAttribute("role", "listitem");
+
+    const key = document.createElement("span");
+    key.className = "quick-slot-bar__slot-key";
+    key.textContent = getQuickSlotNumber(index);
+    button.appendChild(key);
+
+    const label = document.createElement("span");
+    label.className = "quick-slot-bar__slot-label";
+    label.textContent =
+      typeof slot?.label === "string" && slot.label.trim() !== ""
+        ? slot.label.trim()
+        : "Empty";
+    button.appendChild(label);
+
+    const ariaLabel =
+      typeof slot?.label === "string" && slot.label.trim() !== ""
+        ? `${slot.label.trim()} — slot ${getQuickSlotNumber(index)}`
+        : `Empty slot ${getQuickSlotNumber(index)}`;
+    button.setAttribute("aria-label", ariaLabel);
+    button.title =
+      typeof slot?.label === "string" && slot.label.trim() !== ""
+        ? slot.label.trim()
+        : `Slot ${getQuickSlotNumber(index)}`;
+
+    fragment.appendChild(button);
+  });
+
+  quickSlotBar.appendChild(fragment);
+  updateQuickSlotUi();
+};
+
+const dispatchQuickSlotChangeEvent = (index) => {
+  if (!(canvas instanceof HTMLElement)) {
+    return;
+  }
+
+  const slot = quickSlotState.slots[index] ?? null;
+
+  try {
+    const event = new CustomEvent("quick-slot:change", {
+      detail: {
+        index,
+        slot,
+      },
+    });
+
+    canvas.dispatchEvent(event);
+  } catch (error) {
+    console.warn("Unable to dispatch quick slot change event", error);
+  }
+};
+
+const selectQuickSlot = (index, { userInitiated = false } = {}) => {
+  if (!Number.isInteger(index) || index < 0 || index >= quickSlotState.slots.length) {
+    return;
+  }
+
+  if (quickSlotState.selectedIndex === index) {
+    if (userInitiated) {
+      dispatchQuickSlotChangeEvent(index);
+    }
+
+    return;
+  }
+
+  quickSlotState.selectedIndex = index;
+  updateQuickSlotUi();
+  dispatchQuickSlotChangeEvent(index);
+};
+
+const shouldIgnoreQuickSlotHotkey = (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName;
+
+  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+
+  return target.isContentEditable;
+};
+
+const handleQuickSlotBarClick = (event) => {
+  const button =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-quick-slot-index]")
+      : null;
+
+  if (!(button instanceof HTMLElement)) {
+    return;
+  }
+
+  const index = Number.parseInt(button.dataset.quickSlotIndex ?? "", 10);
+
+  if (Number.isNaN(index)) {
+    return;
+  }
+
+  event.preventDefault();
+  selectQuickSlot(index, { userInitiated: true });
+};
+
+const handleQuickSlotHotkey = (event) => {
+  if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
+    return;
+  }
+
+  let index = quickSlotKeyMap[event.code];
+
+  if (typeof index !== "number") {
+    const key = event.key;
+
+    if (key === "0") {
+      index = 9;
+    } else if (/^[1-9]$/.test(key)) {
+      index = Number.parseInt(key, 10) - 1;
+    }
+  }
+
+  if (typeof index !== "number") {
+    return;
+  }
+
+  if (shouldIgnoreQuickSlotHotkey(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  selectQuickSlot(index, { userInitiated: true });
+};
+
+if (quickSlotBar instanceof HTMLElement) {
+  quickSlotBar.addEventListener("click", handleQuickSlotBarClick);
+}
+
+renderQuickSlotBar();
+dispatchQuickSlotChangeEvent(quickSlotState.selectedIndex);
 
 const LIFT_MODAL_OPTION = {
   id: "lift",
@@ -1681,6 +1975,7 @@ if (modelPalette instanceof HTMLElement) {
   });
 }
 
+document.addEventListener("keydown", handleQuickSlotHotkey);
 document.addEventListener("keydown", handleInventoryHotkey);
 document.addEventListener("keydown", handleModelPaletteHotkey);
 
