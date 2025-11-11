@@ -4446,12 +4446,40 @@ export const initScene = (
     return null;
   };
 
-  const handleResourceToolActionEvent = () => {
+  const handleResourceToolActionEvent = (event) => {
+    const markActionFailed = () => {
+      resourceToolState.cooldown = 0;
+      resourceToolState.beamTimer = 0;
+      resourceToolState.recoil = 0;
+      resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+
+      if (resourceToolBeamMaterial) {
+        resourceToolBeamMaterial.opacity = 0;
+      }
+
+      if (resourceToolGlowMaterial) {
+        resourceToolGlowMaterial.opacity = 0;
+      }
+
+      if (resourceToolGlow) {
+        resourceToolGlow.scale.set(1, 1, 1);
+      }
+
+      resourceToolLight.intensity = 0;
+      resourceToolLight.distance = 2.6;
+
+      if (event?.detail) {
+        event.detail.success = false;
+      }
+    };
+
     if (!controls.isLocked) {
+      markActionFailed();
       return;
     }
 
     if (!Array.isArray(activeResourceTargets) || activeResourceTargets.length === 0) {
+      markActionFailed();
       return;
     }
 
@@ -4459,6 +4487,7 @@ export const initScene = (
     const intersections = raycaster.intersectObjects(activeResourceTargets, true);
 
     if (intersections.length === 0) {
+      markActionFailed();
       return;
     }
 
@@ -4467,6 +4496,7 @@ export const initScene = (
     );
 
     if (!intersection) {
+      markActionFailed();
       return;
     }
 
@@ -4474,20 +4504,30 @@ export const initScene = (
       !Number.isFinite(intersection.distance) ||
       intersection.distance > RESOURCE_TOOL_MAX_DISTANCE
     ) {
+      markActionFailed();
       return;
     }
 
     const targetObject = findResourceTarget(intersection.object);
 
     if (!targetObject) {
+      markActionFailed();
       return;
     }
 
     const element = samplePeriodicElement();
 
     if (!element) {
+      markActionFailed();
       return;
     }
+
+    const actionDuration = computeResourceToolActionDuration(element.number);
+
+    resourceToolState.actionDuration = actionDuration;
+    resourceToolState.cooldown = actionDuration;
+    resourceToolState.beamTimer = actionDuration;
+    resourceToolState.recoil = 1;
 
     const detail = {
       element: {
@@ -4505,7 +4545,13 @@ export const initScene = (
         z: intersection.point.z,
       },
       distance: intersection.distance,
+      actionDuration,
     };
+
+    if (event?.detail) {
+      event.detail.success = true;
+      event.detail.actionDuration = actionDuration;
+    }
 
     if (typeof onResourceCollected === "function") {
       try {
@@ -4518,9 +4564,22 @@ export const initScene = (
 
   camera.add(resourceToolGroup);
 
-  const RESOURCE_TOOL_ACTION_DURATION = 0.24;
-  const RESOURCE_TOOL_ACTION_COOLDOWN = 0.12;
+  const RESOURCE_TOOL_BASE_ACTION_DURATION = 10;
+  const RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER = 1.6;
   const RESOURCE_TOOL_RECOIL_RECOVERY = 6;
+
+  const computeResourceToolActionDuration = (atomicNumber) => {
+    if (!Number.isFinite(atomicNumber) || atomicNumber <= 0) {
+      return RESOURCE_TOOL_BASE_ACTION_DURATION;
+    }
+
+    const exponent = Math.max(0, atomicNumber - 1);
+    const duration =
+      RESOURCE_TOOL_BASE_ACTION_DURATION *
+      RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER ** exponent;
+
+    return Number.isFinite(duration) ? duration : Number.MAX_SAFE_INTEGER;
+  };
   const RESOURCE_TOOL_IDLE_SWAY = 0.015;
   const RESOURCE_TOOL_IDLE_SWAY_SPEED = 2.1;
   const RESOURCE_TOOL_IDLE_BOB_SPEED = 1.4;
@@ -4528,6 +4587,7 @@ export const initScene = (
     beamTimer: 0,
     cooldown: 0,
     recoil: 0,
+    actionDuration: RESOURCE_TOOL_BASE_ACTION_DURATION,
   };
   let primaryActionHeld = false;
 
@@ -4535,6 +4595,7 @@ export const initScene = (
     resourceToolState.beamTimer = 0;
     resourceToolState.cooldown = 0;
     resourceToolState.recoil = 0;
+    resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
     primaryActionHeld = false;
     if (resourceToolBeamMaterial) {
       resourceToolBeamMaterial.opacity = 0;
@@ -4559,20 +4620,18 @@ export const initScene = (
       return false;
     }
 
-    resourceToolState.cooldown = RESOURCE_TOOL_ACTION_COOLDOWN;
-    resourceToolState.beamTimer = RESOURCE_TOOL_ACTION_DURATION;
-    resourceToolState.recoil = 1;
-
     try {
       const actionEvent = new CustomEvent("resource-tool:action", {
-        detail: { timestamp: performance.now() },
+        detail: { timestamp: performance.now(), success: false },
       });
       canvas.dispatchEvent(actionEvent);
+
+      return Boolean(actionEvent?.detail?.success);
     } catch (error) {
       console.warn("Unable to dispatch resource tool action event", error);
     }
 
-    return true;
+    return false;
   };
 
   const handlePrimaryActionDown = (event) => {
@@ -5698,9 +5757,10 @@ export const initScene = (
       );
     }
 
+    const actionDuration = resourceToolState.actionDuration;
     const rawBeamProgress =
-      RESOURCE_TOOL_ACTION_DURATION > 0
-        ? resourceToolState.beamTimer / RESOURCE_TOOL_ACTION_DURATION
+      Number.isFinite(actionDuration) && actionDuration > 0
+        ? resourceToolState.beamTimer / actionDuration
         : 0;
     const beamProgress = THREE.MathUtils.clamp(rawBeamProgress, 0, 1);
 
