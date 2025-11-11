@@ -87,6 +87,15 @@ const quickAccessModalMatrix = quickAccessModal?.querySelector(
   ".quick-access-modal__matrix"
 );
 
+const inventoryPanel = document.querySelector("[data-inventory-panel]");
+const inventoryDialog = inventoryPanel?.querySelector("[data-inventory-dialog]");
+const inventoryList = inventoryPanel?.querySelector("[data-inventory-list]");
+const inventoryEmptyState = inventoryPanel?.querySelector("[data-inventory-empty]");
+const inventorySummary = inventoryPanel?.querySelector("[data-inventory-summary]");
+const inventoryCloseButton = inventoryPanel?.querySelector(
+  "[data-inventory-close-button]"
+);
+
 const modelPalette = document.querySelector("[data-model-palette]");
 const modelPaletteDialog = modelPalette?.querySelector(
   "[data-model-palette-dialog]"
@@ -200,6 +209,14 @@ let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let sceneController = null;
 let liftModalActive = false;
+
+const inventoryState = {
+  entries: [],
+  entryMap: new Map(),
+};
+let inventoryWasPointerLocked = false;
+let lastInventoryFocusedElement = null;
+let inventoryCloseFallbackId = 0;
 
 const attemptToRestorePointerLock = () => {
   const controls = sceneController?.controls;
@@ -615,6 +632,393 @@ const isModelPaletteOpen = () =>
   modelPalette instanceof HTMLElement &&
   modelPalette.dataset.open === "true" &&
   modelPalette.hidden !== true;
+
+const isInventoryOpen = () =>
+  inventoryPanel instanceof HTMLElement &&
+  inventoryPanel.dataset.open === "true" &&
+  inventoryPanel.hidden !== true;
+
+const sanitizeInventoryElement = (element = {}) => {
+  const symbol =
+    typeof element.symbol === "string" ? element.symbol.trim() : "";
+  const name = typeof element.name === "string" ? element.name.trim() : "";
+  const number = Number.isFinite(element.number) ? element.number : null;
+
+  return { symbol, name, number };
+};
+
+const getInventoryEntryKey = (element) => {
+  const symbolKey = element.symbol ? element.symbol.toUpperCase() : "";
+  const nameKey = element.name ? element.name.toLowerCase() : "";
+  const numberKey = element.number !== null ? element.number : "";
+  return `${symbolKey}|${nameKey}|${numberKey}`;
+};
+
+const updateInventorySummary = () => {
+  if (!(inventorySummary instanceof HTMLElement)) {
+    return;
+  }
+
+  const total = inventoryState.entries.reduce(
+    (sum, entry) => sum + entry.count,
+    0
+  );
+
+  if (total === 0) {
+    inventorySummary.textContent = "Inventory empty";
+  } else if (total === 1) {
+    inventorySummary.textContent = "1 resource collected";
+  } else {
+    inventorySummary.textContent = `${total} resources collected`;
+  }
+};
+
+const renderInventoryEntries = () => {
+  if (!(inventoryList instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryList.innerHTML = "";
+
+  const entries = inventoryState.entries
+    .slice()
+    .sort((a, b) => b.lastCollectedAt - a.lastCollectedAt);
+
+  if (entries.length === 0) {
+    inventoryList.hidden = true;
+
+    if (inventoryEmptyState instanceof HTMLElement) {
+      inventoryEmptyState.hidden = false;
+    }
+
+    return;
+  }
+
+  inventoryList.hidden = false;
+
+  if (inventoryEmptyState instanceof HTMLElement) {
+    inventoryEmptyState.hidden = true;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  entries.forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = "inventory-panel__item";
+
+    const symbolElement = document.createElement("span");
+    symbolElement.className = "inventory-panel__symbol";
+    symbolElement.textContent = entry.element.symbol || "???";
+    item.appendChild(symbolElement);
+
+    const details = document.createElement("div");
+    details.className = "inventory-panel__details";
+
+    const nameElement = document.createElement("p");
+    nameElement.className = "inventory-panel__name";
+    nameElement.textContent =
+      entry.element.name || entry.element.symbol || "Unknown resource";
+    details.appendChild(nameElement);
+
+    const metaElement = document.createElement("p");
+    metaElement.className = "inventory-panel__meta";
+
+    const metaSegments = [];
+
+    if (entry.element.number !== null) {
+      metaSegments.push(`Atomic #${entry.element.number}`);
+    }
+
+    if (entry.lastTerrain) {
+      metaSegments.push(entry.lastTerrain);
+    } else if (entry.terrains.size > 1) {
+      metaSegments.push("Multiple sites");
+    }
+
+    if (metaSegments.length > 0) {
+      metaElement.textContent = metaSegments.join(" • ");
+    } else {
+      metaElement.hidden = true;
+    }
+
+    details.appendChild(metaElement);
+    item.appendChild(details);
+
+    const countElement = document.createElement("span");
+    countElement.className = "inventory-panel__count";
+    countElement.textContent = `×${entry.count}`;
+    item.appendChild(countElement);
+
+    fragment.appendChild(item);
+  });
+
+  inventoryList.appendChild(fragment);
+};
+
+const refreshInventoryUi = () => {
+  renderInventoryEntries();
+  updateInventorySummary();
+};
+
+const recordInventoryResource = (detail) => {
+  const elementDetails = sanitizeInventoryElement(detail?.element ?? {});
+
+  if (
+    !elementDetails.symbol &&
+    !elementDetails.name &&
+    elementDetails.number === null
+  ) {
+    elementDetails.name = "Unknown resource";
+  }
+
+  const key = getInventoryEntryKey(elementDetails);
+  let entry = inventoryState.entryMap.get(key);
+
+  if (!entry) {
+    entry = {
+      key,
+      element: { ...elementDetails },
+      count: 0,
+      terrains: new Set(),
+      lastTerrain: null,
+      lastCollectedAt: 0,
+    };
+
+    inventoryState.entryMap.set(key, entry);
+    inventoryState.entries.push(entry);
+  } else {
+    if (!entry.element.symbol && elementDetails.symbol) {
+      entry.element.symbol = elementDetails.symbol;
+    }
+
+    if (!entry.element.name && elementDetails.name) {
+      entry.element.name = elementDetails.name;
+    }
+
+    if (entry.element.number === null && elementDetails.number !== null) {
+      entry.element.number = elementDetails.number;
+    }
+  }
+
+  entry.count += 1;
+
+  const terrainLabel =
+    typeof detail?.terrain?.label === "string"
+      ? detail.terrain.label.trim()
+      : "";
+
+  if (terrainLabel) {
+    entry.terrains.add(terrainLabel);
+    entry.lastTerrain = terrainLabel;
+  }
+
+  const timestamp =
+    typeof performance !== "undefined" &&
+    typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+  entry.lastCollectedAt = timestamp;
+
+  refreshInventoryUi();
+};
+
+const trapFocusWithinInventoryPanel = (event) => {
+  if (!(inventoryDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  const focusableElements = Array.from(
+    inventoryDialog.querySelectorAll(modalFocusableSelectors)
+  ).filter(
+    (element) =>
+      element instanceof HTMLElement &&
+      !element.hasAttribute("disabled") &&
+      element.getAttribute("aria-hidden") !== "true" &&
+      element.tabIndex !== -1 &&
+      isFocusableElementVisible(element)
+  );
+
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const [firstElement] = focusableElements;
+  const lastElement = focusableElements[focusableElements.length - 1];
+  const { activeElement } = document;
+
+  if (event.shiftKey) {
+    if (activeElement === firstElement || !inventoryDialog.contains(activeElement)) {
+      event.preventDefault();
+      lastElement.focus({ preventScroll: true });
+    }
+
+    return;
+  }
+
+  if (activeElement === lastElement || !inventoryDialog.contains(activeElement)) {
+    event.preventDefault();
+    firstElement.focus({ preventScroll: true });
+  }
+};
+
+function handleInventoryPanelKeydown(event) {
+  if (!isInventoryOpen()) {
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeInventoryPanel();
+  } else if (event.key === "Tab") {
+    trapFocusWithinInventoryPanel(event);
+  }
+}
+
+const finishClosingInventoryPanel = ({ restoreFocus = true } = {}) => {
+  if (!(inventoryPanel instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryPanel.hidden = true;
+  inventoryPanel.dataset.open = "false";
+  inventoryPanel.classList.remove("is-open");
+  inventoryPanel.setAttribute("aria-hidden", "true");
+  window.clearTimeout(inventoryCloseFallbackId);
+  inventoryCloseFallbackId = 0;
+
+  updateBodyModalState(false);
+  document.removeEventListener("keydown", handleInventoryPanelKeydown, true);
+  sceneController?.setMovementEnabled(true);
+
+  const elementToRefocus = restoreFocus ? lastInventoryFocusedElement : null;
+  lastInventoryFocusedElement = null;
+
+  if (elementToRefocus instanceof HTMLElement) {
+    elementToRefocus.focus({ preventScroll: true });
+  }
+
+  if (inventoryWasPointerLocked) {
+    attemptToRestorePointerLock();
+  }
+
+  inventoryWasPointerLocked = false;
+};
+
+const openInventoryPanel = () => {
+  if (
+    !(inventoryPanel instanceof HTMLElement) ||
+    !(inventoryDialog instanceof HTMLElement)
+  ) {
+    return;
+  }
+
+  if (isInventoryOpen()) {
+    return;
+  }
+
+  inventoryWasPointerLocked = Boolean(sceneController?.unlockPointerLock?.());
+  sceneController?.setMovementEnabled(false);
+  hideTerminalToast();
+
+  lastInventoryFocusedElement =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  inventoryPanel.hidden = false;
+  inventoryPanel.dataset.open = "true";
+  inventoryPanel.setAttribute("aria-hidden", "false");
+  window.clearTimeout(inventoryCloseFallbackId);
+  inventoryCloseFallbackId = 0;
+
+  updateBodyModalState(true);
+  document.addEventListener("keydown", handleInventoryPanelKeydown, true);
+
+  requestAnimationFrame(() => {
+    inventoryPanel.classList.add("is-open");
+  });
+
+  if (inventoryCloseButton instanceof HTMLElement) {
+    inventoryCloseButton.focus({ preventScroll: true });
+  }
+};
+
+const closeInventoryPanel = ({ restoreFocus = true } = {}) => {
+  if (!isInventoryOpen() || !(inventoryPanel instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryPanel.classList.remove("is-open");
+  inventoryPanel.setAttribute("aria-hidden", "true");
+
+  const handleTransitionEnd = (event) => {
+    if (event.target !== inventoryPanel) {
+      return;
+    }
+
+    inventoryPanel.removeEventListener("transitionend", handleTransitionEnd);
+    finishClosingInventoryPanel({ restoreFocus });
+  };
+
+  inventoryPanel.addEventListener("transitionend", handleTransitionEnd);
+  inventoryCloseFallbackId = window.setTimeout(() => {
+    inventoryPanel.removeEventListener("transitionend", handleTransitionEnd);
+    finishClosingInventoryPanel({ restoreFocus });
+  }, 320);
+};
+
+const shouldIgnoreInventoryHotkey = (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (inventoryPanel instanceof HTMLElement && inventoryPanel.contains(target)) {
+    return false;
+  }
+
+  const tagName = target.tagName;
+
+  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+
+  return target.isContentEditable;
+};
+
+const handleInventoryHotkey = (event) => {
+  if (event.code !== "KeyI" || event.repeat) {
+    return;
+  }
+
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    return;
+  }
+
+  if (shouldIgnoreInventoryHotkey(event)) {
+    return;
+  }
+
+  const inventoryCurrentlyOpen = isInventoryOpen();
+
+  if (
+    !inventoryCurrentlyOpen &&
+    ((quickAccessModal instanceof HTMLElement && !quickAccessModal.hidden) ||
+      isModelPaletteOpen())
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (inventoryCurrentlyOpen) {
+    closeInventoryPanel();
+  } else {
+    openInventoryPanel();
+  }
+};
+
+refreshInventoryUi();
 
 const setModelPaletteStatus = (message, { isError = false } = {}) => {
   if (!(modelPaletteStatus instanceof HTMLElement)) {
@@ -1247,6 +1651,22 @@ if (quickAccessModal instanceof HTMLElement) {
   });
 }
 
+if (inventoryPanel instanceof HTMLElement) {
+  inventoryPanel.addEventListener("click", (event) => {
+    const target =
+      event.target instanceof HTMLElement
+        ? event.target.closest("[data-inventory-close]")
+        : null;
+
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    closeInventoryPanel();
+  });
+}
+
 if (modelPalette instanceof HTMLElement) {
   modelPalette.addEventListener("click", (event) => {
     const target =
@@ -1261,6 +1681,7 @@ if (modelPalette instanceof HTMLElement) {
   });
 }
 
+document.addEventListener("keydown", handleInventoryHotkey);
 document.addEventListener("keydown", handleModelPaletteHotkey);
 
 const hideTerminalToast = () => {
@@ -1396,6 +1817,7 @@ const bootstrapScene = () => {
       const atomicNumber = Number.isFinite(element.number)
         ? element.number
         : null;
+      recordInventoryResource(detail);
       const label =
         symbol && name
           ? `${symbol} (${name})`
