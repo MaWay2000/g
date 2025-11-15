@@ -98,6 +98,9 @@ const quickAccessModalMatrix = quickAccessModal?.querySelector(
 
 const inventoryPanel = document.querySelector("[data-inventory-panel]");
 const inventoryDialog = inventoryPanel?.querySelector("[data-inventory-dialog]");
+const inventoryDragHandle = inventoryPanel?.querySelector(
+  "[data-inventory-drag-handle]"
+);
 const inventoryList = inventoryPanel?.querySelector("[data-inventory-list]");
 const inventoryEmptyState = inventoryPanel?.querySelector("[data-inventory-empty]");
 const inventorySummary = inventoryPanel?.querySelector("[data-inventory-summary]");
@@ -578,6 +581,20 @@ const inventoryState = {
   entries: [],
   entryMap: new Map(),
 };
+const INVENTORY_SLOT_COUNT = 100;
+const INVENTORY_PANEL_MARGIN = 24;
+const inventoryLayoutState = {
+  position: null,
+  dragging: false,
+  pointerId: null,
+  offsetX: 0,
+  offsetY: 0,
+  dimensions: {
+    width: 0,
+    height: 0,
+  },
+};
+let inventoryResizeAnimationFrameId = 0;
 const INVENTORY_STORAGE_KEY = "dustyNova.inventory";
 const getInventoryStorage = (() => {
   let resolved = false;
@@ -1084,96 +1101,367 @@ const renderInventoryEntries = () => {
     .slice()
     .sort((a, b) => b.lastCollectedAt - a.lastCollectedAt);
 
-  if (entries.length === 0) {
-    inventoryList.hidden = true;
-
-    if (inventoryEmptyState instanceof HTMLElement) {
-      inventoryEmptyState.hidden = false;
-    }
-
-    return;
-  }
-
   inventoryList.hidden = false;
 
   if (inventoryEmptyState instanceof HTMLElement) {
-    inventoryEmptyState.hidden = true;
+    inventoryEmptyState.hidden = entries.length !== 0;
   }
 
   const fragment = document.createDocumentFragment();
 
-  entries.forEach((entry) => {
+  for (let slotIndex = 0; slotIndex < INVENTORY_SLOT_COUNT; slotIndex += 1) {
+    const entry = entries[slotIndex] ?? null;
     const item = document.createElement("li");
-    item.className = "inventory-panel__item";
-    item.tabIndex = 0;
 
-    const symbolElement = document.createElement("span");
-    symbolElement.className = "inventory-panel__symbol";
-    symbolElement.textContent = entry.element.symbol || "???";
-    item.appendChild(symbolElement);
+    if (entry) {
+      item.className = "inventory-panel__item";
+      item.tabIndex = 0;
 
-    const countElement = document.createElement("span");
-    countElement.className = "inventory-panel__count";
-    countElement.textContent = `×${entry.count}`;
-    item.appendChild(countElement);
+      const symbolElement = document.createElement("span");
+      symbolElement.className = "inventory-panel__symbol";
+      symbolElement.textContent = entry.element.symbol || "???";
+      item.appendChild(symbolElement);
 
-    const infoElement = document.createElement("div");
-    infoElement.className = "inventory-panel__info";
+      const countElement = document.createElement("span");
+      countElement.className = "inventory-panel__count";
+      countElement.textContent = `×${entry.count}`;
+      item.appendChild(countElement);
 
-    const nameElement = document.createElement("p");
-    nameElement.className = "inventory-panel__name";
-    nameElement.textContent =
-      entry.element.name || entry.element.symbol || "Unknown resource";
-    infoElement.appendChild(nameElement);
+      const infoElement = document.createElement("div");
+      infoElement.className = "inventory-panel__info";
 
-    const metaElement = document.createElement("p");
-    metaElement.className = "inventory-panel__meta";
+      const nameElement = document.createElement("p");
+      nameElement.className = "inventory-panel__name";
+      nameElement.textContent =
+        entry.element.name || entry.element.symbol || "Unknown resource";
+      infoElement.appendChild(nameElement);
 
-    const metaSegments = [];
+      const metaElement = document.createElement("p");
+      metaElement.className = "inventory-panel__meta";
 
-    if (entry.element.number !== null) {
-      metaSegments.push(`Atomic #${entry.element.number}`);
-    }
+      const metaSegments = [];
 
-    if (entry.lastTerrain) {
-      metaSegments.push(entry.lastTerrain);
-    } else if (entry.terrains.size > 1) {
-      metaSegments.push("Multiple sites");
-    }
+      if (entry.element.number !== null) {
+        metaSegments.push(`Atomic #${entry.element.number}`);
+      }
 
-    if (metaSegments.length > 0) {
-      metaElement.textContent = metaSegments.join(" • ");
+      if (entry.lastTerrain) {
+        metaSegments.push(entry.lastTerrain);
+      } else if (entry.terrains.size > 1) {
+        metaSegments.push("Multiple sites");
+      }
+
+      if (metaSegments.length > 0) {
+        metaElement.textContent = metaSegments.join(" • ");
+      } else {
+        metaElement.hidden = true;
+      }
+
+      infoElement.appendChild(metaElement);
+      item.appendChild(infoElement);
+
+      const resourceLabelSegments = [];
+      const resourceName = nameElement.textContent;
+      if (resourceName) {
+        resourceLabelSegments.push(resourceName);
+      }
+
+      if (entry.count === 1) {
+        resourceLabelSegments.push("1 collected");
+      } else if (entry.count > 1) {
+        resourceLabelSegments.push(`${entry.count} collected`);
+      }
+
+      if (metaSegments.length > 0) {
+        resourceLabelSegments.push(metaSegments.join(", "));
+      }
+
+      if (resourceLabelSegments.length > 0) {
+        const label = resourceLabelSegments.join(", ");
+        item.setAttribute("aria-label", label);
+        item.title = resourceLabelSegments.join(" • ");
+      }
     } else {
-      metaElement.hidden = true;
-    }
+      item.className = "inventory-panel__item inventory-panel__item--empty";
+      item.tabIndex = -1;
+      item.setAttribute("aria-hidden", "true");
 
-    infoElement.appendChild(metaElement);
-    item.appendChild(infoElement);
-
-    const resourceLabelSegments = [];
-    const resourceName = nameElement.textContent;
-    if (resourceName) {
-      resourceLabelSegments.push(resourceName);
-    }
-
-    if (entry.count === 1) {
-      resourceLabelSegments.push("1 collected");
-    } else if (entry.count > 1) {
-      resourceLabelSegments.push(`${entry.count} collected`);
-    }
-
-    if (metaSegments.length > 0) {
-      resourceLabelSegments.push(metaSegments.join(", "));
-    }
-
-    if (resourceLabelSegments.length > 0) {
-      item.setAttribute("aria-label", resourceLabelSegments.join(", "));
+      const placeholder = document.createElement("span");
+      placeholder.className = "inventory-panel__empty-slot";
+      placeholder.textContent = "Empty";
+      item.appendChild(placeholder);
     }
 
     fragment.appendChild(item);
-  });
+  }
 
   inventoryList.appendChild(fragment);
+};
+
+const getInventoryPanelDimensions = () => {
+  let { width, height } = inventoryLayoutState.dimensions;
+
+  if (inventoryDialog instanceof HTMLElement) {
+    const rect = inventoryDialog.getBoundingClientRect();
+
+    if (rect.width > 0 && rect.height > 0) {
+      width = rect.width;
+      height = rect.height;
+      inventoryLayoutState.dimensions.width = rect.width;
+      inventoryLayoutState.dimensions.height = rect.height;
+    }
+  }
+
+  return {
+    width,
+    height,
+  };
+};
+
+const clampInventoryPanelPosition = (left, top, width, height) => {
+  const docElement =
+    typeof document !== "undefined" ? document.documentElement : null;
+  const viewportWidth = Math.max(
+    0,
+    typeof window !== "undefined" && Number.isFinite(window.innerWidth)
+      ? window.innerWidth
+      : 0,
+    docElement && Number.isFinite(docElement.clientWidth)
+      ? docElement.clientWidth
+      : 0
+  );
+  const viewportHeight = Math.max(
+    0,
+    typeof window !== "undefined" && Number.isFinite(window.innerHeight)
+      ? window.innerHeight
+      : 0,
+    docElement && Number.isFinite(docElement.clientHeight)
+      ? docElement.clientHeight
+      : 0
+  );
+
+  const margin = Math.max(
+    0,
+    Math.min(
+      INVENTORY_PANEL_MARGIN,
+      Math.min(viewportWidth, viewportHeight) / 2
+    )
+  );
+  let nextLeft = Math.round(Number.isFinite(left) ? left : 0);
+  let nextTop = Math.round(Number.isFinite(top) ? top : 0);
+
+  if (width > 0 && viewportWidth > 0) {
+    const maxLeft = Math.max(margin, viewportWidth - width - margin);
+    nextLeft = Math.min(Math.max(nextLeft, margin), maxLeft);
+  }
+
+  if (height > 0 && viewportHeight > 0) {
+    const maxTop = Math.max(margin, viewportHeight - height - margin);
+    nextTop = Math.min(Math.max(nextTop, margin), maxTop);
+  }
+
+  return {
+    left: nextLeft,
+    top: nextTop,
+  };
+};
+
+const setInventoryPanelPosition = (
+  left,
+  top,
+  { clamp = true, updateState = true } = {}
+) => {
+  if (!(inventoryPanel instanceof HTMLElement)) {
+    return;
+  }
+
+  if (!Number.isFinite(left) || !Number.isFinite(top)) {
+    return;
+  }
+
+  const dimensions = getInventoryPanelDimensions();
+  let nextLeft = Math.round(left);
+  let nextTop = Math.round(top);
+
+  if (clamp && dimensions.width > 0 && dimensions.height > 0) {
+    const clamped = clampInventoryPanelPosition(
+      nextLeft,
+      nextTop,
+      dimensions.width,
+      dimensions.height
+    );
+    nextLeft = clamped.left;
+    nextTop = clamped.top;
+  }
+
+  inventoryPanel.style.setProperty("--inventory-panel-left", `${nextLeft}px`);
+  inventoryPanel.style.setProperty("--inventory-panel-top", `${nextTop}px`);
+  inventoryPanel.style.setProperty("--inventory-panel-translate-x", "0px");
+  inventoryPanel.style.setProperty("--inventory-panel-translate-y", "0px");
+  inventoryPanel.classList.add("has-custom-position");
+
+  if (updateState) {
+    inventoryLayoutState.position = {
+      left: nextLeft,
+      top: nextTop,
+    };
+  }
+};
+
+const clearInventoryPanelPositionStyles = () => {
+  if (!(inventoryPanel instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryPanel.style.removeProperty("--inventory-panel-left");
+  inventoryPanel.style.removeProperty("--inventory-panel-top");
+  inventoryPanel.style.removeProperty("--inventory-panel-translate-x");
+  inventoryPanel.style.removeProperty("--inventory-panel-translate-y");
+  inventoryPanel.classList.remove("has-custom-position");
+  inventoryLayoutState.position = null;
+};
+
+const ensureInventoryPanelPosition = ({ clamp = true } = {}) => {
+  if (!inventoryLayoutState.position) {
+    clearInventoryPanelPositionStyles();
+    return;
+  }
+
+  setInventoryPanelPosition(
+    inventoryLayoutState.position.left,
+    inventoryLayoutState.position.top,
+    {
+      clamp,
+      updateState: true,
+    }
+  );
+};
+
+const removeInventoryDragListeners = () => {
+  window.removeEventListener("pointermove", handleInventoryDragPointerMove);
+  window.removeEventListener("pointerup", handleInventoryDragPointerUp);
+  window.removeEventListener("pointercancel", handleInventoryDragPointerUp);
+};
+
+const handleInventoryDragPointerMove = (event) => {
+  if (
+    !inventoryLayoutState.dragging ||
+    event.pointerId !== inventoryLayoutState.pointerId
+  ) {
+    return;
+  }
+
+  const nextLeft = event.clientX - inventoryLayoutState.offsetX;
+  const nextTop = event.clientY - inventoryLayoutState.offsetY;
+
+  setInventoryPanelPosition(nextLeft, nextTop, {
+    clamp: true,
+    updateState: true,
+  });
+};
+
+const handleInventoryDragPointerUp = (event) => {
+  if (
+    !inventoryLayoutState.dragging ||
+    event.pointerId !== inventoryLayoutState.pointerId
+  ) {
+    return;
+  }
+
+  removeInventoryDragListeners();
+  inventoryLayoutState.dragging = false;
+  inventoryLayoutState.pointerId = null;
+
+  if (inventoryDialog instanceof HTMLElement) {
+    inventoryDialog.classList.remove("is-dragging");
+  }
+
+  if (inventoryDragHandle instanceof HTMLElement) {
+    inventoryDragHandle.classList.remove("is-dragging");
+  }
+
+  if (inventoryPanel instanceof HTMLElement) {
+    inventoryPanel.classList.remove("is-dragging");
+  }
+
+  if (inventoryLayoutState.position) {
+    setInventoryPanelPosition(
+      inventoryLayoutState.position.left,
+      inventoryLayoutState.position.top,
+      { clamp: true, updateState: true }
+    );
+    schedulePersistInventoryState();
+  }
+};
+
+const handleInventoryDragPointerDown = (event) => {
+  if (!(inventoryDragHandle instanceof HTMLElement)) {
+    return;
+  }
+
+  if (!(inventoryDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  if (typeof event.button === "number" && event.button !== 0) {
+    return;
+  }
+
+  if (inventoryLayoutState.dragging) {
+    return;
+  }
+
+  const panelIsOpen =
+    inventoryPanel instanceof HTMLElement &&
+    inventoryPanel.dataset.open === "true" &&
+    inventoryPanel.hidden !== true;
+
+  if (!panelIsOpen) {
+    return;
+  }
+
+  const rect = inventoryDialog.getBoundingClientRect();
+
+  inventoryLayoutState.dragging = true;
+  inventoryLayoutState.pointerId = event.pointerId;
+  inventoryLayoutState.offsetX = event.clientX - rect.left;
+  inventoryLayoutState.offsetY = event.clientY - rect.top;
+  inventoryLayoutState.dimensions.width = rect.width;
+  inventoryLayoutState.dimensions.height = rect.height;
+
+  if (inventoryDialog instanceof HTMLElement) {
+    inventoryDialog.classList.add("is-dragging");
+  }
+
+  if (inventoryDragHandle instanceof HTMLElement) {
+    inventoryDragHandle.classList.add("is-dragging");
+  }
+
+  if (inventoryPanel instanceof HTMLElement) {
+    inventoryPanel.classList.add("is-dragging");
+  }
+
+  removeInventoryDragListeners();
+  window.addEventListener("pointermove", handleInventoryDragPointerMove);
+  window.addEventListener("pointerup", handleInventoryDragPointerUp);
+  window.addEventListener("pointercancel", handleInventoryDragPointerUp);
+
+  event.preventDefault();
+};
+
+const handleInventoryWindowResize = () => {
+  if (!inventoryLayoutState.position) {
+    return;
+  }
+
+  if (inventoryResizeAnimationFrameId) {
+    return;
+  }
+
+  inventoryResizeAnimationFrameId = window.requestAnimationFrame(() => {
+    inventoryResizeAnimationFrameId = 0;
+    ensureInventoryPanelPosition({ clamp: true });
+  });
 };
 
 const refreshInventoryUi = () => {
@@ -1249,6 +1537,12 @@ const serializeInventoryStateForPersistence = () => ({
     lastTerrain: entry.lastTerrain,
     lastCollectedAt: entry.lastCollectedAt,
   })),
+  layout: inventoryLayoutState.position
+    ? {
+        left: Math.round(inventoryLayoutState.position.left),
+        top: Math.round(inventoryLayoutState.position.top),
+      }
+    : null,
 });
 
 const persistInventoryState = () => {
@@ -1310,6 +1604,23 @@ const restoreInventoryStateFromStorage = () => {
 
   try {
     const data = JSON.parse(serialized);
+
+    if (data && typeof data === "object" && "layout" in data) {
+      if (
+        data.layout &&
+        Number.isFinite(data.layout.left) &&
+        Number.isFinite(data.layout.top)
+      ) {
+        const left = Math.round(data.layout.left);
+        const top = Math.round(data.layout.top);
+        setInventoryPanelPosition(left, top, {
+          clamp: false,
+          updateState: true,
+        });
+      } else if (data.layout === null) {
+        clearInventoryPanelPositionStyles();
+      }
+    }
 
     if (data && Array.isArray(data.entries)) {
       const aggregatedEntries = [];
@@ -1530,6 +1841,19 @@ const finishClosingInventoryPanel = ({ restoreFocus = true } = {}) => {
   }
 
   inventoryWasPointerLocked = false;
+  inventoryLayoutState.dragging = false;
+  inventoryLayoutState.pointerId = null;
+  removeInventoryDragListeners();
+
+  if (inventoryDialog instanceof HTMLElement) {
+    inventoryDialog.classList.remove("is-dragging");
+  }
+
+  if (inventoryDragHandle instanceof HTMLElement) {
+    inventoryDragHandle.classList.remove("is-dragging");
+  }
+
+  inventoryPanel.classList.remove("is-dragging");
 };
 
 const openInventoryPanel = () => {
@@ -1562,6 +1886,7 @@ const openInventoryPanel = () => {
   document.addEventListener("keydown", handleInventoryPanelKeydown, true);
 
   requestAnimationFrame(() => {
+    ensureInventoryPanelPosition({ clamp: true });
     inventoryPanel.classList.add("is-open");
   });
 
@@ -2278,6 +2603,19 @@ if (quickAccessModal instanceof HTMLElement) {
       closeQuickAccessModal();
     }
   });
+}
+
+if (inventoryDragHandle instanceof HTMLElement) {
+  inventoryDragHandle.addEventListener(
+    "pointerdown",
+    handleInventoryDragPointerDown,
+    { passive: false }
+  );
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", handleInventoryWindowResize);
+  window.addEventListener("orientationchange", handleInventoryWindowResize);
 }
 
 if (inventoryPanel instanceof HTMLElement) {
