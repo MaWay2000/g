@@ -585,16 +585,20 @@ let lastFocusedElement = null;
 let sceneController = null;
 let liftModalActive = false;
 
+const INVENTORY_SLOT_COUNT = 100;
+
+const createEmptyInventorySlotOrder = () =>
+  new Array(INVENTORY_SLOT_COUNT).fill(null);
+
 const inventoryState = {
   entries: [],
   entryMap: new Map(),
-  customOrder: [],
+  customOrder: createEmptyInventorySlotOrder(),
 };
 
 const inventoryTooltipState = {
   activeItem: null,
 };
-const INVENTORY_SLOT_COUNT = 100;
 const INVENTORY_PANEL_MARGIN = 24;
 const inventoryLayoutState = {
   position: null,
@@ -615,6 +619,43 @@ const inventoryReorderState = {
 let inventoryResizeAnimationFrameId = 0;
 const INVENTORY_TOOLTIP_MARGIN = 16;
 const INVENTORY_STORAGE_KEY = "dustyNova.inventory";
+
+const normalizeInventoryCustomOrder = () => {
+  if (!Array.isArray(inventoryState.customOrder)) {
+    inventoryState.customOrder = createEmptyInventorySlotOrder();
+  }
+
+  if (inventoryState.customOrder.length !== INVENTORY_SLOT_COUNT) {
+    const nextOrder = createEmptyInventorySlotOrder();
+    const limit = Math.min(
+      inventoryState.customOrder.length,
+      INVENTORY_SLOT_COUNT
+    );
+
+    for (let index = 0; index < limit; index += 1) {
+      nextOrder[index] = inventoryState.customOrder[index];
+    }
+
+    inventoryState.customOrder = nextOrder;
+  }
+
+  const seenKeys = new Set();
+
+  for (let index = 0; index < inventoryState.customOrder.length; index += 1) {
+    const key = inventoryState.customOrder[index];
+
+    if (
+      typeof key === "string" &&
+      key.trim() !== "" &&
+      !seenKeys.has(key)
+    ) {
+      seenKeys.add(key);
+      continue;
+    }
+
+    inventoryState.customOrder[index] = null;
+  }
+};
 
 const getInventoryItemElement = (element) => {
   if (!(element instanceof HTMLElement)) {
@@ -860,26 +901,30 @@ const reorderInventoryEntriesBySlot = (sourceSlotIndex, targetSlotIndex) => {
     return;
   }
 
-  const orderedEntries = getOrderedInventoryEntries();
+  normalizeInventoryCustomOrder();
 
   if (
     sourceSlotIndex < 0 ||
-    sourceSlotIndex >= orderedEntries.length ||
-    targetSlotIndex < 0
+    sourceSlotIndex >= INVENTORY_SLOT_COUNT ||
+    targetSlotIndex < 0 ||
+    targetSlotIndex >= INVENTORY_SLOT_COUNT
   ) {
     return;
   }
 
-  const [movedEntry] = orderedEntries.splice(sourceSlotIndex, 1);
+  const slots = inventoryState.customOrder.slice();
+  const movedKey = slots[sourceSlotIndex];
 
-  if (!movedEntry) {
+  if (typeof movedKey !== "string") {
     return;
   }
 
-  const insertionIndex = Math.min(targetSlotIndex, orderedEntries.length);
-  orderedEntries.splice(insertionIndex, 0, movedEntry);
+  const targetKey = slots[targetSlotIndex];
 
-  inventoryState.customOrder = orderedEntries.map((entry) => entry.key);
+  slots[sourceSlotIndex] = targetKey ?? null;
+  slots[targetSlotIndex] = movedKey;
+
+  inventoryState.customOrder = slots;
   refreshInventoryUi();
   schedulePersistInventoryState();
 };
@@ -1475,57 +1520,57 @@ const updateInventorySummary = () => {
 };
 
 const getOrderedInventoryEntries = () => {
-  const entries = inventoryState.entries.slice();
-
-  if (!Array.isArray(inventoryState.customOrder)) {
-    inventoryState.customOrder = [];
+  if (inventoryState.entries.length === 0) {
+    inventoryState.customOrder = createEmptyInventorySlotOrder();
+    return createEmptyInventorySlotOrder();
   }
 
-  if (entries.length === 0) {
-    if (inventoryState.customOrder.length !== 0) {
-      inventoryState.customOrder = [];
+  const entryMap = new Map(
+    inventoryState.entries.map((entry) => [entry.key, entry])
+  );
+
+  normalizeInventoryCustomOrder();
+
+  const slotEntries = createEmptyInventorySlotOrder();
+
+  for (let slotIndex = 0; slotIndex < inventoryState.customOrder.length; slotIndex += 1) {
+    const key = inventoryState.customOrder[slotIndex];
+
+    if (typeof key !== "string") {
+      continue;
     }
 
-    return entries;
-  }
-
-  const entryMap = new Map(entries.map((entry) => [entry.key, entry]));
-  const seenOrderKeys = new Set();
-  const orderedKeys = [];
-
-  inventoryState.customOrder.forEach((key) => {
-    if (!entryMap.has(key) || seenOrderKeys.has(key)) {
-      return;
-    }
-
-    seenOrderKeys.add(key);
-    orderedKeys.push(key);
-  });
-
-  if (orderedKeys.length !== inventoryState.customOrder.length) {
-    inventoryState.customOrder = orderedKeys;
-  }
-
-  if (orderedKeys.length === 0) {
-    return entries.sort((a, b) => b.lastCollectedAt - a.lastCollectedAt);
-  }
-
-  const orderedEntries = [];
-
-  orderedKeys.forEach((key) => {
     const entry = entryMap.get(key);
 
-    if (entry) {
-      orderedEntries.push(entry);
-      entryMap.delete(key);
+    if (!entry) {
+      inventoryState.customOrder[slotIndex] = null;
+      continue;
     }
-  });
+
+    slotEntries[slotIndex] = entry;
+    entryMap.delete(key);
+  }
 
   const remainingEntries = Array.from(entryMap.values()).sort(
     (a, b) => b.lastCollectedAt - a.lastCollectedAt
   );
 
-  return orderedEntries.concat(remainingEntries);
+  for (let slotIndex = 0; slotIndex < slotEntries.length; slotIndex += 1) {
+    if (slotEntries[slotIndex] || remainingEntries.length === 0) {
+      continue;
+    }
+
+    const entry = remainingEntries.shift();
+
+    if (!entry) {
+      break;
+    }
+
+    slotEntries[slotIndex] = entry;
+    inventoryState.customOrder[slotIndex] = entry.key;
+  }
+
+  return slotEntries;
 };
 
 const renderInventoryEntries = () => {
@@ -1536,18 +1581,19 @@ const renderInventoryEntries = () => {
   hideInventoryTooltip();
   inventoryList.innerHTML = "";
 
-  const entries = getOrderedInventoryEntries();
+  const slotEntries = getOrderedInventoryEntries();
+  const hasEntries = inventoryState.entries.length > 0;
 
   inventoryList.hidden = false;
 
   if (inventoryEmptyState instanceof HTMLElement) {
-    inventoryEmptyState.hidden = entries.length !== 0;
+    inventoryEmptyState.hidden = hasEntries;
   }
 
   const fragment = document.createDocumentFragment();
 
   for (let slotIndex = 0; slotIndex < INVENTORY_SLOT_COUNT; slotIndex += 1) {
-    const entry = entries[slotIndex] ?? null;
+    const entry = slotEntries[slotIndex] ?? null;
     const item = document.createElement("li");
 
     item.dataset.inventorySlot = String(slotIndex);
@@ -1964,19 +2010,25 @@ const normalizeStoredInventoryEntry = (rawEntry) => {
 };
 
 const serializeInventoryStateForPersistence = () => {
-  const order = [];
+  normalizeInventoryCustomOrder();
 
-  if (Array.isArray(inventoryState.customOrder)) {
-    const seenOrderKeys = new Set();
+  const order = inventoryState.customOrder.slice();
 
-    inventoryState.customOrder.forEach((key) => {
-      if (!inventoryState.entryMap.has(key) || seenOrderKeys.has(key)) {
-        return;
-      }
+  for (let index = 0; index < order.length; index += 1) {
+    const key = order[index];
 
-      seenOrderKeys.add(key);
-      order.push(key);
-    });
+    if (
+      typeof key === "string" &&
+      inventoryState.entryMap.has(key)
+    ) {
+      continue;
+    }
+
+    order[index] = null;
+  }
+
+  while (order.length > 0 && order[order.length - 1] === null) {
+    order.pop();
   }
 
   return {
@@ -2130,24 +2182,36 @@ const restoreInventoryStateFromStorage = () => {
         });
 
         if (Array.isArray(data.order)) {
+          const restoredOrder = createEmptyInventorySlotOrder();
           const seenOrderKeys = new Set();
+          const limit = Math.min(data.order.length, INVENTORY_SLOT_COUNT);
 
-          inventoryState.customOrder = data.order.filter((key) => {
-            if (!inventoryState.entryMap.has(key) || seenOrderKeys.has(key)) {
-              return false;
+          for (let index = 0; index < limit; index += 1) {
+            const key = data.order[index];
+
+            if (
+              typeof key !== "string" ||
+              !inventoryState.entryMap.has(key) ||
+              seenOrderKeys.has(key)
+            ) {
+              continue;
             }
 
+            restoredOrder[index] = key;
             seenOrderKeys.add(key);
-            return true;
-          });
+          }
+
+          inventoryState.customOrder = restoredOrder;
         } else {
-          inventoryState.customOrder = [];
+          inventoryState.customOrder = createEmptyInventorySlotOrder();
         }
+
+        normalizeInventoryCustomOrder();
 
         restored = true;
       }
     } else {
-      inventoryState.customOrder = [];
+      inventoryState.customOrder = createEmptyInventorySlotOrder();
     }
   } catch (error) {
     console.warn("Unable to parse stored inventory state", error);
