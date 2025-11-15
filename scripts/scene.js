@@ -4644,6 +4644,7 @@ export const initScene = (
         ...baseDetail,
         found: false,
       });
+      continueResourceToolIfHeld();
       return;
     }
 
@@ -4658,6 +4659,7 @@ export const initScene = (
         ...baseDetail,
         found: false,
       });
+      continueResourceToolIfHeld();
       return;
     }
 
@@ -4674,6 +4676,7 @@ export const initScene = (
       },
       found: true,
     });
+    continueResourceToolIfHeld();
   }
 
   function notifyResourceSessionCancelled(reason) {
@@ -4797,6 +4800,26 @@ export const initScene = (
 
     return false;
   };
+
+  function continueResourceToolIfHeld() {
+    if (!primaryActionHeld) {
+      return;
+    }
+
+    if (!controls.isLocked) {
+      return;
+    }
+
+    if (resourceToolState.cooldown > 0) {
+      return;
+    }
+
+    if (activeResourceSession.isActive) {
+      return;
+    }
+
+    triggerResourceToolAction();
+  }
 
   const handlePrimaryActionDown = (event) => {
     if (event.button !== 0) {
