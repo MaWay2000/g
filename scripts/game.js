@@ -578,6 +578,40 @@ const inventoryState = {
   entries: [],
   entryMap: new Map(),
 };
+const INVENTORY_STORAGE_KEY = "dustyNova.inventory";
+const getInventoryStorage = (() => {
+  let resolved = false;
+  let storage = null;
+
+  return () => {
+    if (resolved) {
+      return storage;
+    }
+
+    resolved = true;
+
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    try {
+      storage = window.localStorage;
+
+      if (storage) {
+        const probeKey = `${INVENTORY_STORAGE_KEY}.probe`;
+        storage.setItem(probeKey, "1");
+        storage.removeItem(probeKey);
+      }
+    } catch (error) {
+      console.warn("Unable to access localStorage for inventory", error);
+      storage = null;
+    }
+
+    return storage;
+  };
+})();
+let persistInventoryStateTimeoutId = 0;
+let lastSerializedInventoryState = null;
 let inventoryWasPointerLocked = false;
 let lastInventoryFocusedElement = null;
 let inventoryCloseFallbackId = 0;
@@ -1126,6 +1160,205 @@ const refreshInventoryUi = () => {
   updateInventorySummary();
 };
 
+const normalizeTerrainLabel = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized === "" ? null : normalized;
+};
+
+const normalizeStoredInventoryEntry = (rawEntry) => {
+  if (!rawEntry || typeof rawEntry !== "object") {
+    return null;
+  }
+
+  const element = sanitizeInventoryElement(rawEntry.element);
+  const count = Number.isFinite(rawEntry.count)
+    ? Math.max(0, Math.floor(rawEntry.count))
+    : 0;
+
+  if (count <= 0) {
+    return null;
+  }
+
+  const terrains = new Set();
+
+  if (Array.isArray(rawEntry.terrains)) {
+    rawEntry.terrains.forEach((terrain) => {
+      const normalized = normalizeTerrainLabel(terrain);
+
+      if (normalized) {
+        terrains.add(normalized);
+      }
+    });
+  }
+
+  let lastTerrain = normalizeTerrainLabel(rawEntry.lastTerrain);
+
+  if (lastTerrain) {
+    terrains.add(lastTerrain);
+  } else {
+    lastTerrain = null;
+  }
+
+  const lastCollectedAt = Number.isFinite(rawEntry.lastCollectedAt)
+    ? rawEntry.lastCollectedAt
+    : 0;
+
+  const key = getInventoryEntryKey(element);
+
+  return {
+    key,
+    element: { ...element },
+    count,
+    terrains,
+    lastTerrain,
+    lastCollectedAt,
+  };
+};
+
+const serializeInventoryStateForPersistence = () => ({
+  entries: inventoryState.entries.map((entry) => ({
+    key: entry.key,
+    element: { ...entry.element },
+    count: entry.count,
+    terrains: Array.from(entry.terrains),
+    lastTerrain: entry.lastTerrain,
+    lastCollectedAt: entry.lastCollectedAt,
+  })),
+});
+
+const persistInventoryState = () => {
+  const storage = getInventoryStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  const serialized = JSON.stringify(serializeInventoryStateForPersistence());
+
+  if (serialized === lastSerializedInventoryState) {
+    return;
+  }
+
+  try {
+    storage.setItem(INVENTORY_STORAGE_KEY, serialized);
+    lastSerializedInventoryState = serialized;
+  } catch (error) {
+    console.warn("Unable to persist inventory state", error);
+  }
+};
+
+const schedulePersistInventoryState = () => {
+  if (persistInventoryStateTimeoutId) {
+    window.clearTimeout(persistInventoryStateTimeoutId);
+  }
+
+  persistInventoryStateTimeoutId = window.setTimeout(() => {
+    persistInventoryStateTimeoutId = 0;
+    persistInventoryState();
+  }, 100);
+};
+
+const restoreInventoryStateFromStorage = () => {
+  const storage = getInventoryStorage();
+
+  if (!storage) {
+    refreshInventoryUi();
+    return false;
+  }
+
+  let serialized = null;
+
+  try {
+    serialized = storage.getItem(INVENTORY_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Unable to read stored inventory state", error);
+    refreshInventoryUi();
+    return false;
+  }
+
+  if (typeof serialized !== "string" || serialized.trim() === "") {
+    refreshInventoryUi();
+    return false;
+  }
+
+  let restored = false;
+
+  try {
+    const data = JSON.parse(serialized);
+
+    if (data && Array.isArray(data.entries)) {
+      const aggregatedEntries = [];
+      const aggregatedEntryMap = new Map();
+
+      data.entries.forEach((rawEntry) => {
+        const normalized = normalizeStoredInventoryEntry(rawEntry);
+
+        if (!normalized) {
+          return;
+        }
+
+        const existing = aggregatedEntryMap.get(normalized.key);
+
+        if (!existing) {
+          aggregatedEntryMap.set(normalized.key, normalized);
+          aggregatedEntries.push(normalized);
+          return;
+        }
+
+        existing.count += normalized.count;
+        normalized.terrains.forEach((terrain) => existing.terrains.add(terrain));
+
+        if (normalized.lastCollectedAt > existing.lastCollectedAt) {
+          existing.lastCollectedAt = normalized.lastCollectedAt;
+          existing.lastTerrain = normalized.lastTerrain ?? existing.lastTerrain;
+        } else if (!existing.lastTerrain && normalized.lastTerrain) {
+          existing.lastTerrain = normalized.lastTerrain;
+        }
+
+        if (!existing.element.symbol && normalized.element.symbol) {
+          existing.element.symbol = normalized.element.symbol;
+        }
+
+        if (!existing.element.name && normalized.element.name) {
+          existing.element.name = normalized.element.name;
+        }
+
+        if (
+          existing.element.number === null &&
+          normalized.element.number !== null
+        ) {
+          existing.element.number = normalized.element.number;
+        }
+      });
+
+      if (aggregatedEntries.length > 0) {
+        inventoryState.entries.length = 0;
+        inventoryState.entries.push(...aggregatedEntries);
+
+        inventoryState.entryMap.clear();
+        aggregatedEntries.forEach((entry) => {
+          inventoryState.entryMap.set(entry.key, entry);
+        });
+
+        restored = true;
+      }
+    }
+  } catch (error) {
+    console.warn("Unable to parse stored inventory state", error);
+  }
+
+  if (restored) {
+    lastSerializedInventoryState = serialized;
+  }
+
+  refreshInventoryUi();
+  return restored;
+};
+
 const recordInventoryResource = (detail) => {
   if (!detail?.element) {
     return;
@@ -1190,7 +1423,10 @@ const recordInventoryResource = (detail) => {
   entry.lastCollectedAt = timestamp;
 
   refreshInventoryUi();
+  schedulePersistInventoryState();
 };
+
+restoreInventoryStateFromStorage();
 
 const trapFocusWithinInventoryPanel = (event) => {
   if (!(inventoryDialog instanceof HTMLElement)) {
