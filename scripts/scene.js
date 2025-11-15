@@ -4717,12 +4717,8 @@ export const initScene = (
     resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
     cancelScheduledResourceToolResume();
 
-    const shouldResetPrimaryActionHeld = reason !== "movement";
-
-    if (shouldResetPrimaryActionHeld) {
-      primaryActionHeld = false;
-      autoResourceToolEngaged = false;
-    }
+    primaryActionHeld = false;
+    autoResourceToolEngaged = false;
 
     if (resourceToolBeamMaterial) {
       resourceToolBeamMaterial.opacity = 0;
