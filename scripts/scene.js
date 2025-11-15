@@ -4431,6 +4431,18 @@ export const initScene = (
   resourceToolLight.position.set(0.28, -0.02, -0.24);
   resourceToolGroup.add(resourceToolLight);
   const RESOURCE_TOOL_MAX_DISTANCE = 7;
+  const RESOURCE_TOOL_MIN_ACTION_DURATION = 3;
+  const RESOURCE_TOOL_MAX_ACTION_DURATION = 10;
+  const RESOURCE_TOOL_SUCCESS_PROBABILITY = 0.1;
+  const RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE = 0.2;
+  const RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED =
+    RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE ** 2;
+  const activeResourceSession = {
+    isActive: false,
+    startPosition: new THREE.Vector3(),
+    baseDetail: null,
+    eventDetail: null,
+  };
 
   const findResourceTarget = (object) => {
     let current = object;
@@ -4472,6 +4484,11 @@ export const initScene = (
         event.detail.success = false;
       }
     };
+
+    if (activeResourceSession.isActive) {
+      markActionFailed();
+      return;
+    }
 
     if (!controls.isLocked) {
       markActionFailed();
@@ -4515,71 +4532,28 @@ export const initScene = (
       return;
     }
 
-    const element = samplePeriodicElement();
-
-    if (!element) {
-      markActionFailed();
-      return;
-    }
-
-    const actionDuration = computeResourceToolActionDuration(element.number);
+    const actionDuration = THREE.MathUtils.randFloat(
+      RESOURCE_TOOL_MIN_ACTION_DURATION,
+      RESOURCE_TOOL_MAX_ACTION_DURATION
+    );
 
     resourceToolState.actionDuration = actionDuration;
     resourceToolState.cooldown = actionDuration;
     resourceToolState.beamTimer = actionDuration;
     resourceToolState.recoil = 1;
 
-    const detail = {
-      element: {
-        number: element.number,
-        symbol: element.symbol,
-        name: element.name,
-      },
-      terrain: {
-        id: targetObject.userData?.terrainId ?? null,
-        label: targetObject.userData?.terrainLabel ?? null,
-      },
-      position: {
-        x: intersection.point.x,
-        y: intersection.point.y,
-        z: intersection.point.z,
-      },
-      distance: intersection.distance,
+    startResourceCollectionSession({
+      intersection,
+      targetObject,
       actionDuration,
-    };
-
-    if (event?.detail) {
-      event.detail.success = true;
-      event.detail.actionDuration = actionDuration;
-    }
-
-    if (typeof onResourceCollected === "function") {
-      try {
-        onResourceCollected(detail);
-      } catch (error) {
-        console.warn("Unable to notify resource collection", error);
-      }
-    }
+      eventDetail: event?.detail ?? null,
+    });
   };
 
   camera.add(resourceToolGroup);
 
-  const RESOURCE_TOOL_BASE_ACTION_DURATION = 10;
-  const RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER = 1.6;
+  const RESOURCE_TOOL_BASE_ACTION_DURATION = RESOURCE_TOOL_MIN_ACTION_DURATION;
   const RESOURCE_TOOL_RECOIL_RECOVERY = 6;
-
-  const computeResourceToolActionDuration = (atomicNumber) => {
-    if (!Number.isFinite(atomicNumber) || atomicNumber <= 0) {
-      return RESOURCE_TOOL_BASE_ACTION_DURATION;
-    }
-
-    const exponent = Math.max(0, atomicNumber - 1);
-    const duration =
-      RESOURCE_TOOL_BASE_ACTION_DURATION *
-      RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER ** exponent;
-
-    return Number.isFinite(duration) ? duration : Number.MAX_SAFE_INTEGER;
-  };
   const RESOURCE_TOOL_IDLE_SWAY = 0.015;
   const RESOURCE_TOOL_IDLE_SWAY_SPEED = 2.1;
   const RESOURCE_TOOL_IDLE_BOB_SPEED = 1.4;
@@ -4590,6 +4564,179 @@ export const initScene = (
     actionDuration: RESOURCE_TOOL_BASE_ACTION_DURATION,
   };
   let primaryActionHeld = false;
+
+  function clearActiveResourceSession() {
+    activeResourceSession.isActive = false;
+    activeResourceSession.baseDetail = null;
+    activeResourceSession.eventDetail = null;
+    activeResourceSession.startPosition.set(0, 0, 0);
+  }
+
+  function startResourceCollectionSession({
+    intersection,
+    targetObject,
+    actionDuration,
+    eventDetail,
+  }) {
+    const terrainId = targetObject.userData?.terrainId ?? null;
+    const terrainLabel = targetObject.userData?.terrainLabel ?? null;
+
+    activeResourceSession.isActive = true;
+    activeResourceSession.startPosition.copy(playerObject.position);
+    activeResourceSession.baseDetail = {
+      terrain: {
+        id: terrainId,
+        label: terrainLabel,
+      },
+      position: {
+        x: intersection.point.x,
+        y: intersection.point.y,
+        z: intersection.point.z,
+      },
+      distance: intersection.distance,
+      actionDuration,
+    };
+    activeResourceSession.eventDetail = eventDetail ?? null;
+
+    if (eventDetail) {
+      eventDetail.success = true;
+      eventDetail.actionDuration = actionDuration;
+    }
+  }
+
+  function dispatchResourceCollectionDetail(detail) {
+    if (typeof onResourceCollected !== "function") {
+      return;
+    }
+
+    try {
+      onResourceCollected(detail);
+    } catch (error) {
+      console.warn("Unable to notify resource collection", error);
+    }
+  }
+
+  function finishActiveResourceSession() {
+    if (!activeResourceSession.isActive || !activeResourceSession.baseDetail) {
+      clearActiveResourceSession();
+      return;
+    }
+
+    const baseDetail = activeResourceSession.baseDetail;
+    const eventDetail = activeResourceSession.eventDetail;
+
+    clearActiveResourceSession();
+
+    resourceToolState.cooldown = 0;
+    resourceToolState.beamTimer = 0;
+    resourceToolState.recoil = 0;
+    resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+
+    const foundResource = Math.random() < RESOURCE_TOOL_SUCCESS_PROBABILITY;
+
+    if (!foundResource) {
+      if (eventDetail) {
+        eventDetail.success = false;
+      }
+
+      dispatchResourceCollectionDetail({
+        ...baseDetail,
+        found: false,
+      });
+      return;
+    }
+
+    const element = samplePeriodicElement();
+
+    if (!element) {
+      if (eventDetail) {
+        eventDetail.success = false;
+      }
+
+      dispatchResourceCollectionDetail({
+        ...baseDetail,
+        found: false,
+      });
+      return;
+    }
+
+    if (eventDetail) {
+      eventDetail.success = true;
+    }
+
+    dispatchResourceCollectionDetail({
+      ...baseDetail,
+      element: {
+        number: element.number,
+        symbol: element.symbol,
+        name: element.name,
+      },
+      found: true,
+    });
+  }
+
+  function cancelActiveResourceSession() {
+    if (!activeResourceSession.isActive) {
+      return;
+    }
+
+    const eventDetail = activeResourceSession.eventDetail;
+
+    clearActiveResourceSession();
+
+    resourceToolState.cooldown = 0;
+    resourceToolState.beamTimer = 0;
+    resourceToolState.recoil = 0;
+    resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+    primaryActionHeld = false;
+
+    if (resourceToolBeamMaterial) {
+      resourceToolBeamMaterial.opacity = 0;
+    }
+
+    if (resourceToolGlowMaterial) {
+      resourceToolGlowMaterial.opacity = 0;
+    }
+
+    if (resourceToolGlow) {
+      resourceToolGlow.scale.set(1, 1, 1);
+    }
+
+    resourceToolLight.intensity = 0;
+    resourceToolLight.distance = 2.6;
+
+    if (eventDetail) {
+      eventDetail.success = false;
+    }
+  }
+
+  function updateActiveResourceSession() {
+    if (!activeResourceSession.isActive) {
+      return;
+    }
+
+    if (!controls.isLocked) {
+      cancelActiveResourceSession();
+      return;
+    }
+
+    const startPosition = activeResourceSession.startPosition;
+
+    if (startPosition) {
+      const deltaX = playerObject.position.x - startPosition.x;
+      const deltaZ = playerObject.position.z - startPosition.z;
+      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+
+      if (distanceSquared > RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED) {
+        cancelActiveResourceSession();
+        return;
+      }
+    }
+
+    if (resourceToolState.beamTimer <= 0) {
+      finishActiveResourceSession();
+    }
+  }
 
   const resetResourceToolState = () => {
     resourceToolState.beamTimer = 0;
@@ -5302,6 +5449,7 @@ export const initScene = (
   });
 
   controls.addEventListener("unlock", () => {
+    cancelActiveResourceSession();
     resourceToolGroup.visible = false;
     resetResourceToolState();
 
@@ -5900,6 +6048,7 @@ export const initScene = (
     updateActivePlacementPreview();
     updateOperationsConcourseTeleport(delta);
     updateResourceTool(delta, elapsedTime);
+    updateActiveResourceSession();
 
     renderer.render(scene, camera);
   };

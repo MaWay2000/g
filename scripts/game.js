@@ -1058,6 +1058,10 @@ const refreshInventoryUi = () => {
 };
 
 const recordInventoryResource = (detail) => {
+  if (!detail?.element) {
+    return;
+  }
+
   const elementDetails = sanitizeInventoryElement(detail?.element ?? {});
 
   if (
@@ -2171,6 +2175,11 @@ const bootstrapScene = () => {
     onManifestEditModeChange: handleManifestEditModeChange,
     onManifestPlacementRemoved: handleManifestPlacementRemoved,
     onResourceCollected(detail) {
+      if (!detail || detail.found === false || !detail.element) {
+        showResourceToast({ title: "Nothing found" });
+        return;
+      }
+
       const element = detail?.element ?? {};
       const terrainLabel = detail?.terrain?.label ?? null;
       const { symbol, name } = element;
