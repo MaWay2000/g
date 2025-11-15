@@ -588,6 +588,7 @@ let liftModalActive = false;
 const inventoryState = {
   entries: [],
   entryMap: new Map(),
+  customOrder: [],
 };
 
 const inventoryTooltipState = {
@@ -605,6 +606,11 @@ const inventoryLayoutState = {
     width: 0,
     height: 0,
   },
+};
+const inventoryReorderState = {
+  draggingKey: null,
+  sourceSlotIndex: -1,
+  dropTargetSlotIndex: -1,
 };
 let inventoryResizeAnimationFrameId = 0;
 const INVENTORY_TOOLTIP_MARGIN = 16;
@@ -625,6 +631,24 @@ const getInventoryItemElement = (element) => {
   }
 
   return item;
+};
+
+const getInventorySlotElement = (element) => {
+  if (!(element instanceof HTMLElement)) {
+    return null;
+  }
+
+  const slot = element.closest(".inventory-panel__item");
+  return slot instanceof HTMLElement ? slot : null;
+};
+
+const getInventorySlotIndex = (slot) => {
+  if (!(slot instanceof HTMLElement)) {
+    return -1;
+  }
+
+  const value = Number(slot.dataset.inventorySlot ?? "");
+  return Number.isFinite(value) ? value : -1;
 };
 
 const hideInventoryTooltip = () => {
@@ -773,6 +797,188 @@ const handleInventoryItemFocusOut = (event) => {
   }
 
   hideInventoryTooltip();
+};
+
+const clearInventoryDropTarget = () => {
+  if (!(inventoryList instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryList
+    .querySelectorAll(".inventory-panel__item.is-drop-target")
+    .forEach((element) => element.classList.remove("is-drop-target"));
+
+  inventoryReorderState.dropTargetSlotIndex = -1;
+};
+
+const clearInventoryDragSourceHighlight = () => {
+  if (!(inventoryList instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryList
+    .querySelectorAll(".inventory-panel__item.is-drag-source")
+    .forEach((element) => element.classList.remove("is-drag-source"));
+};
+
+const resetInventoryReorderState = () => {
+  clearInventoryDropTarget();
+  clearInventoryDragSourceHighlight();
+  inventoryReorderState.draggingKey = null;
+  inventoryReorderState.sourceSlotIndex = -1;
+  inventoryReorderState.dropTargetSlotIndex = -1;
+
+  if (inventoryPanel instanceof HTMLElement) {
+    inventoryPanel.classList.remove("is-reordering");
+  }
+};
+
+const setInventoryDropTargetSlot = (slot) => {
+  if (!(slot instanceof HTMLElement)) {
+    clearInventoryDropTarget();
+    return;
+  }
+
+  const slotIndex = getInventorySlotIndex(slot);
+
+  if (slotIndex < 0) {
+    clearInventoryDropTarget();
+    return;
+  }
+
+  if (inventoryReorderState.dropTargetSlotIndex === slotIndex) {
+    return;
+  }
+
+  clearInventoryDropTarget();
+  slot.classList.add("is-drop-target");
+  inventoryReorderState.dropTargetSlotIndex = slotIndex;
+};
+
+const reorderInventoryEntriesBySlot = (sourceSlotIndex, targetSlotIndex) => {
+  if (sourceSlotIndex === targetSlotIndex) {
+    return;
+  }
+
+  const orderedEntries = getOrderedInventoryEntries();
+
+  if (
+    sourceSlotIndex < 0 ||
+    sourceSlotIndex >= orderedEntries.length ||
+    targetSlotIndex < 0
+  ) {
+    return;
+  }
+
+  const [movedEntry] = orderedEntries.splice(sourceSlotIndex, 1);
+
+  if (!movedEntry) {
+    return;
+  }
+
+  const insertionIndex = Math.min(targetSlotIndex, orderedEntries.length);
+  orderedEntries.splice(insertionIndex, 0, movedEntry);
+
+  inventoryState.customOrder = orderedEntries.map((entry) => entry.key);
+  refreshInventoryUi();
+  schedulePersistInventoryState();
+};
+
+const handleInventoryItemDragStart = (event) => {
+  const item = getInventoryItemElement(event.target);
+
+  if (!item) {
+    event.preventDefault();
+    return;
+  }
+
+  const key = item.dataset.inventoryKey;
+
+  if (!key) {
+    event.preventDefault();
+    return;
+  }
+
+  hideInventoryTooltip();
+  inventoryReorderState.draggingKey = key;
+  inventoryReorderState.sourceSlotIndex = getInventorySlotIndex(item);
+  if (inventoryReorderState.sourceSlotIndex < 0) {
+    inventoryReorderState.draggingKey = null;
+    event.preventDefault();
+    return;
+  }
+  clearInventoryDropTarget();
+  clearInventoryDragSourceHighlight();
+  item.classList.add("is-drag-source");
+
+  if (inventoryPanel instanceof HTMLElement) {
+    inventoryPanel.classList.add("is-reordering");
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+
+    try {
+      event.dataTransfer.setData(
+        "text/plain",
+        item.dataset.inventoryName || key
+      );
+    } catch (error) {
+      // Ignore errors from browsers that disallow setting drag data
+    }
+  }
+};
+
+const handleInventoryItemDragEnd = () => {
+  resetInventoryReorderState();
+};
+
+const handleInventoryListDragOver = (event) => {
+  if (!inventoryReorderState.draggingKey) {
+    return;
+  }
+
+  event.preventDefault();
+  const slot = getInventorySlotElement(event.target);
+
+  if (slot) {
+    setInventoryDropTargetSlot(slot);
+  } else {
+    setInventoryDropTargetSlot(null);
+  }
+
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "move";
+  }
+};
+
+const handleInventoryItemDrop = (event) => {
+  if (!inventoryReorderState.draggingKey) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const sourceIndex = inventoryReorderState.sourceSlotIndex;
+  let targetIndex = -1;
+
+  const slot = getInventorySlotElement(event.target);
+
+  if (slot) {
+    targetIndex = getInventorySlotIndex(slot);
+  }
+
+  if (targetIndex < 0) {
+    targetIndex = inventoryReorderState.dropTargetSlotIndex;
+  }
+
+  resetInventoryReorderState();
+
+  if (sourceIndex < 0 || targetIndex < 0) {
+    return;
+  }
+
+  reorderInventoryEntriesBySlot(sourceIndex, targetIndex);
 };
 const getInventoryStorage = (() => {
   let resolved = false;
@@ -1268,6 +1474,60 @@ const updateInventorySummary = () => {
   }
 };
 
+const getOrderedInventoryEntries = () => {
+  const entries = inventoryState.entries.slice();
+
+  if (!Array.isArray(inventoryState.customOrder)) {
+    inventoryState.customOrder = [];
+  }
+
+  if (entries.length === 0) {
+    if (inventoryState.customOrder.length !== 0) {
+      inventoryState.customOrder = [];
+    }
+
+    return entries;
+  }
+
+  const entryMap = new Map(entries.map((entry) => [entry.key, entry]));
+  const seenOrderKeys = new Set();
+  const orderedKeys = [];
+
+  inventoryState.customOrder.forEach((key) => {
+    if (!entryMap.has(key) || seenOrderKeys.has(key)) {
+      return;
+    }
+
+    seenOrderKeys.add(key);
+    orderedKeys.push(key);
+  });
+
+  if (orderedKeys.length !== inventoryState.customOrder.length) {
+    inventoryState.customOrder = orderedKeys;
+  }
+
+  if (orderedKeys.length === 0) {
+    return entries.sort((a, b) => b.lastCollectedAt - a.lastCollectedAt);
+  }
+
+  const orderedEntries = [];
+
+  orderedKeys.forEach((key) => {
+    const entry = entryMap.get(key);
+
+    if (entry) {
+      orderedEntries.push(entry);
+      entryMap.delete(key);
+    }
+  });
+
+  const remainingEntries = Array.from(entryMap.values()).sort(
+    (a, b) => b.lastCollectedAt - a.lastCollectedAt
+  );
+
+  return orderedEntries.concat(remainingEntries);
+};
+
 const renderInventoryEntries = () => {
   if (!(inventoryList instanceof HTMLElement)) {
     return;
@@ -1276,9 +1536,7 @@ const renderInventoryEntries = () => {
   hideInventoryTooltip();
   inventoryList.innerHTML = "";
 
-  const entries = inventoryState.entries
-    .slice()
-    .sort((a, b) => b.lastCollectedAt - a.lastCollectedAt);
+  const entries = getOrderedInventoryEntries();
 
   inventoryList.hidden = false;
 
@@ -1292,9 +1550,13 @@ const renderInventoryEntries = () => {
     const entry = entries[slotIndex] ?? null;
     const item = document.createElement("li");
 
+    item.dataset.inventorySlot = String(slotIndex);
+
     if (entry) {
       item.className = "inventory-panel__item";
       item.tabIndex = 0;
+      item.dataset.inventoryKey = entry.key;
+      item.setAttribute("draggable", "true");
 
       const symbolElement = document.createElement("span");
       symbolElement.className = "inventory-panel__symbol";
@@ -1354,6 +1616,8 @@ const renderInventoryEntries = () => {
       item.setAttribute("aria-hidden", "true");
       delete item.dataset.inventoryName;
       delete item.dataset.inventoryMeta;
+      delete item.dataset.inventoryKey;
+      item.removeAttribute("draggable");
 
       const placeholder = document.createElement("span");
       placeholder.className = "inventory-panel__empty-slot";
@@ -1699,22 +1963,40 @@ const normalizeStoredInventoryEntry = (rawEntry) => {
   };
 };
 
-const serializeInventoryStateForPersistence = () => ({
-  entries: inventoryState.entries.map((entry) => ({
-    key: entry.key,
-    element: { ...entry.element },
-    count: entry.count,
-    terrains: Array.from(entry.terrains),
-    lastTerrain: entry.lastTerrain,
-    lastCollectedAt: entry.lastCollectedAt,
-  })),
-  layout: inventoryLayoutState.position
-    ? {
-        left: Math.round(inventoryLayoutState.position.left),
-        top: Math.round(inventoryLayoutState.position.top),
+const serializeInventoryStateForPersistence = () => {
+  const order = [];
+
+  if (Array.isArray(inventoryState.customOrder)) {
+    const seenOrderKeys = new Set();
+
+    inventoryState.customOrder.forEach((key) => {
+      if (!inventoryState.entryMap.has(key) || seenOrderKeys.has(key)) {
+        return;
       }
-    : null,
-});
+
+      seenOrderKeys.add(key);
+      order.push(key);
+    });
+  }
+
+  return {
+    entries: inventoryState.entries.map((entry) => ({
+      key: entry.key,
+      element: { ...entry.element },
+      count: entry.count,
+      terrains: Array.from(entry.terrains),
+      lastTerrain: entry.lastTerrain,
+      lastCollectedAt: entry.lastCollectedAt,
+    })),
+    order,
+    layout: inventoryLayoutState.position
+      ? {
+          left: Math.round(inventoryLayoutState.position.left),
+          top: Math.round(inventoryLayoutState.position.top),
+        }
+      : null,
+  };
+};
 
 const persistInventoryState = () => {
   const storage = getInventoryStorage();
@@ -1847,8 +2129,25 @@ const restoreInventoryStateFromStorage = () => {
           inventoryState.entryMap.set(entry.key, entry);
         });
 
+        if (Array.isArray(data.order)) {
+          const seenOrderKeys = new Set();
+
+          inventoryState.customOrder = data.order.filter((key) => {
+            if (!inventoryState.entryMap.has(key) || seenOrderKeys.has(key)) {
+              return false;
+            }
+
+            seenOrderKeys.add(key);
+            return true;
+          });
+        } else {
+          inventoryState.customOrder = [];
+        }
+
         restored = true;
       }
+    } else {
+      inventoryState.customOrder = [];
     }
   } catch (error) {
     console.warn("Unable to parse stored inventory state", error);
@@ -2025,6 +2324,7 @@ const finishClosingInventoryPanel = ({ restoreFocus = true } = {}) => {
     inventoryDragHandle.classList.remove("is-dragging");
   }
 
+  resetInventoryReorderState();
   inventoryPanel.classList.remove("is-dragging");
 };
 
@@ -2793,6 +3093,10 @@ if (inventoryList instanceof HTMLElement) {
   inventoryList.addEventListener("pointerout", handleInventoryItemPointerOut);
   inventoryList.addEventListener("focusin", handleInventoryItemFocusIn);
   inventoryList.addEventListener("focusout", handleInventoryItemFocusOut);
+  inventoryList.addEventListener("dragstart", handleInventoryItemDragStart);
+  inventoryList.addEventListener("dragend", handleInventoryItemDragEnd);
+  inventoryList.addEventListener("dragover", handleInventoryListDragOver);
+  inventoryList.addEventListener("drop", handleInventoryItemDrop);
 }
 
 if (inventoryBody instanceof HTMLElement) {
