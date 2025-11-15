@@ -4565,6 +4565,17 @@ export const initScene = (
     actionDuration: RESOURCE_TOOL_BASE_ACTION_DURATION,
   };
   let primaryActionHeld = false;
+  let autoResourceToolEngaged = false;
+  let scheduledResourceToolResumeFrameId = 0;
+
+  const cancelScheduledResourceToolResume = () => {
+    if (scheduledResourceToolResumeFrameId === 0) {
+      return;
+    }
+
+    window.cancelAnimationFrame(scheduledResourceToolResumeFrameId);
+    scheduledResourceToolResumeFrameId = 0;
+  };
 
   function clearActiveResourceSession() {
     activeResourceSession.isActive = false;
@@ -4704,11 +4715,13 @@ export const initScene = (
     resourceToolState.beamTimer = 0;
     resourceToolState.recoil = 0;
     resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+    cancelScheduledResourceToolResume();
 
     const shouldResetPrimaryActionHeld = reason !== "movement";
 
     if (shouldResetPrimaryActionHeld) {
       primaryActionHeld = false;
+      autoResourceToolEngaged = false;
     }
 
     if (resourceToolBeamMaterial) {
@@ -4768,7 +4781,9 @@ export const initScene = (
     resourceToolState.cooldown = 0;
     resourceToolState.recoil = 0;
     resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+    cancelScheduledResourceToolResume();
     primaryActionHeld = false;
+    autoResourceToolEngaged = false;
     if (resourceToolBeamMaterial) {
       resourceToolBeamMaterial.opacity = 0;
     }
@@ -4798,7 +4813,13 @@ export const initScene = (
       });
       canvas.dispatchEvent(actionEvent);
 
-      return Boolean(actionEvent?.detail?.success);
+      const success = Boolean(actionEvent?.detail?.success);
+
+      if (success) {
+        autoResourceToolEngaged = true;
+      }
+
+      return success;
     } catch (error) {
       console.warn("Unable to dispatch resource tool action event", error);
     }
@@ -4807,7 +4828,9 @@ export const initScene = (
   };
 
   function continueResourceToolIfHeld() {
-    if (!primaryActionHeld) {
+    cancelScheduledResourceToolResume();
+
+    if (!primaryActionHeld && !autoResourceToolEngaged) {
       return;
     }
 
@@ -4823,7 +4846,27 @@ export const initScene = (
       return;
     }
 
-    triggerResourceToolAction();
+    scheduledResourceToolResumeFrameId = window.requestAnimationFrame(() => {
+      scheduledResourceToolResumeFrameId = 0;
+
+      if (!primaryActionHeld && !autoResourceToolEngaged) {
+        return;
+      }
+
+      if (!controls.isLocked) {
+        return;
+      }
+
+      if (resourceToolState.cooldown > 0) {
+        return;
+      }
+
+      if (activeResourceSession.isActive) {
+        return;
+      }
+
+      triggerResourceToolAction();
+    });
   }
 
   const handlePrimaryActionDown = (event) => {
@@ -4836,6 +4879,7 @@ export const initScene = (
     }
 
     primaryActionHeld = true;
+    cancelScheduledResourceToolResume();
     triggerResourceToolAction();
   };
 
@@ -4845,6 +4889,8 @@ export const initScene = (
     }
 
     primaryActionHeld = false;
+    autoResourceToolEngaged = false;
+    cancelScheduledResourceToolResume();
   };
 
   let playerEyeLevel = playerHeight;
@@ -5931,8 +5977,9 @@ export const initScene = (
     if (
       resourceToolState.cooldown <= 0 &&
       controls.isLocked &&
-      primaryActionHeld
+      (primaryActionHeld || autoResourceToolEngaged)
     ) {
+      cancelScheduledResourceToolResume();
       triggerResourceToolAction();
     }
 
@@ -6220,6 +6267,7 @@ export const initScene = (
       document.removeEventListener("keyup", onKeyUp);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      cancelScheduledResourceToolResume();
       updateTerminalInteractableState(false);
       updateLiftInteractableState(false);
       if (resourceToolGroup.parent) {
