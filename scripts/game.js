@@ -101,11 +101,19 @@ const inventoryDialog = inventoryPanel?.querySelector("[data-inventory-dialog]")
 const inventoryDragHandle = inventoryPanel?.querySelector(
   "[data-inventory-drag-handle]"
 );
+const inventoryBody = inventoryPanel?.querySelector(".inventory-panel__body");
 const inventoryList = inventoryPanel?.querySelector("[data-inventory-list]");
 const inventoryEmptyState = inventoryPanel?.querySelector("[data-inventory-empty]");
 const inventorySummary = inventoryPanel?.querySelector("[data-inventory-summary]");
 const inventoryCloseButton = inventoryPanel?.querySelector(
   "[data-inventory-close-button]"
+);
+const inventoryTooltip = inventoryPanel?.querySelector("[data-inventory-tooltip]");
+const inventoryTooltipName = inventoryTooltip?.querySelector(
+  "[data-inventory-tooltip-name]"
+);
+const inventoryTooltipMeta = inventoryTooltip?.querySelector(
+  "[data-inventory-tooltip-meta]"
 );
 
 const modelPalette = document.querySelector("[data-model-palette]");
@@ -581,6 +589,10 @@ const inventoryState = {
   entries: [],
   entryMap: new Map(),
 };
+
+const inventoryTooltipState = {
+  activeItem: null,
+};
 const INVENTORY_SLOT_COUNT = 100;
 const INVENTORY_PANEL_MARGIN = 24;
 const inventoryLayoutState = {
@@ -595,7 +607,173 @@ const inventoryLayoutState = {
   },
 };
 let inventoryResizeAnimationFrameId = 0;
+const INVENTORY_TOOLTIP_MARGIN = 16;
 const INVENTORY_STORAGE_KEY = "dustyNova.inventory";
+
+const getInventoryItemElement = (element) => {
+  if (!(element instanceof HTMLElement)) {
+    return null;
+  }
+
+  const item = element.closest(".inventory-panel__item");
+
+  if (
+    !(item instanceof HTMLElement) ||
+    item.classList.contains("inventory-panel__item--empty")
+  ) {
+    return null;
+  }
+
+  return item;
+};
+
+const hideInventoryTooltip = () => {
+  inventoryTooltipState.activeItem = null;
+
+  if (!(inventoryTooltip instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryTooltip.dataset.visible = "false";
+  inventoryTooltip.setAttribute("aria-hidden", "true");
+};
+
+const positionInventoryTooltipForItem = (item) => {
+  if (
+    !(inventoryTooltip instanceof HTMLElement) ||
+    !(inventoryDialog instanceof HTMLElement) ||
+    !(item instanceof HTMLElement)
+  ) {
+    return;
+  }
+
+  const itemRect = item.getBoundingClientRect();
+  const dialogRect = inventoryDialog.getBoundingClientRect();
+  const centerX = itemRect.left + itemRect.width / 2 - dialogRect.left;
+  const top = itemRect.top - dialogRect.top;
+  const maxX = Math.max(
+    INVENTORY_TOOLTIP_MARGIN,
+    dialogRect.width - INVENTORY_TOOLTIP_MARGIN
+  );
+  const clampedX = Math.min(
+    Math.max(centerX, INVENTORY_TOOLTIP_MARGIN),
+    maxX
+  );
+  const clampedTop = Math.min(
+    Math.max(top, INVENTORY_TOOLTIP_MARGIN),
+    dialogRect.height - INVENTORY_TOOLTIP_MARGIN
+  );
+
+  inventoryTooltip.style.setProperty(
+    "--inventory-tooltip-left",
+    `${clampedX}px`
+  );
+  inventoryTooltip.style.setProperty(
+    "--inventory-tooltip-top",
+    `${clampedTop}px`
+  );
+};
+
+const showInventoryTooltipForItem = (item) => {
+  if (!(item instanceof HTMLElement)) {
+    hideInventoryTooltip();
+    return;
+  }
+
+  const name = typeof item.dataset.inventoryName === "string"
+    ? item.dataset.inventoryName.trim()
+    : "";
+  const meta = typeof item.dataset.inventoryMeta === "string"
+    ? item.dataset.inventoryMeta.trim()
+    : "";
+
+  if (!name && !meta) {
+    hideInventoryTooltip();
+    return;
+  }
+
+  if (inventoryTooltipName instanceof HTMLElement) {
+    inventoryTooltipName.textContent = name;
+    inventoryTooltipName.hidden = !name;
+  }
+
+  if (inventoryTooltipMeta instanceof HTMLElement) {
+    if (meta) {
+      inventoryTooltipMeta.textContent = meta;
+      inventoryTooltipMeta.hidden = false;
+    } else {
+      inventoryTooltipMeta.textContent = "";
+      inventoryTooltipMeta.hidden = true;
+    }
+  }
+
+  positionInventoryTooltipForItem(item);
+
+  if (inventoryTooltip instanceof HTMLElement) {
+    inventoryTooltip.dataset.visible = "true";
+    inventoryTooltip.removeAttribute("aria-hidden");
+  }
+
+  inventoryTooltipState.activeItem = item;
+};
+
+const handleInventoryItemPointerOver = (event) => {
+  const item = getInventoryItemElement(event.target);
+
+  if (!item) {
+    return;
+  }
+
+  showInventoryTooltipForItem(item);
+};
+
+const handleInventoryItemPointerOut = (event) => {
+  const activeItem = inventoryTooltipState.activeItem;
+
+  if (!(activeItem instanceof HTMLElement)) {
+    return;
+  }
+
+  const currentItem = getInventoryItemElement(event.target);
+
+  if (currentItem !== activeItem) {
+    return;
+  }
+
+  const nextItem = getInventoryItemElement(event.relatedTarget);
+
+  if (nextItem === activeItem) {
+    return;
+  }
+
+  hideInventoryTooltip();
+};
+
+const handleInventoryItemFocusIn = (event) => {
+  const item = getInventoryItemElement(event.target);
+
+  if (!item) {
+    return;
+  }
+
+  showInventoryTooltipForItem(item);
+};
+
+const handleInventoryItemFocusOut = (event) => {
+  const activeItem = inventoryTooltipState.activeItem;
+
+  if (!(activeItem instanceof HTMLElement)) {
+    return;
+  }
+
+  const nextItem = getInventoryItemElement(event.relatedTarget);
+
+  if (nextItem === activeItem) {
+    return;
+  }
+
+  hideInventoryTooltip();
+};
 const getInventoryStorage = (() => {
   let resolved = false;
   let storage = null;
@@ -1095,6 +1273,7 @@ const renderInventoryEntries = () => {
     return;
   }
 
+  hideInventoryTooltip();
   inventoryList.innerHTML = "";
 
   const entries = inventoryState.entries
@@ -1127,18 +1306,6 @@ const renderInventoryEntries = () => {
       countElement.textContent = `×${entry.count}`;
       item.appendChild(countElement);
 
-      const infoElement = document.createElement("div");
-      infoElement.className = "inventory-panel__info";
-
-      const nameElement = document.createElement("p");
-      nameElement.className = "inventory-panel__name";
-      nameElement.textContent =
-        entry.element.name || entry.element.symbol || "Unknown resource";
-      infoElement.appendChild(nameElement);
-
-      const metaElement = document.createElement("p");
-      metaElement.className = "inventory-panel__meta";
-
       const metaSegments = [];
 
       if (entry.element.number !== null) {
@@ -1151,17 +1318,17 @@ const renderInventoryEntries = () => {
         metaSegments.push("Multiple sites");
       }
 
+      const resourceName =
+        entry.element.name || entry.element.symbol || "Unknown resource";
+      item.dataset.inventoryName = resourceName;
+
       if (metaSegments.length > 0) {
-        metaElement.textContent = metaSegments.join(" • ");
+        item.dataset.inventoryMeta = metaSegments.join(" • ");
       } else {
-        metaElement.hidden = true;
+        delete item.dataset.inventoryMeta;
       }
 
-      infoElement.appendChild(metaElement);
-      item.appendChild(infoElement);
-
       const resourceLabelSegments = [];
-      const resourceName = nameElement.textContent;
       if (resourceName) {
         resourceLabelSegments.push(resourceName);
       }
@@ -1185,6 +1352,8 @@ const renderInventoryEntries = () => {
       item.className = "inventory-panel__item inventory-panel__item--empty";
       item.tabIndex = -1;
       item.setAttribute("aria-hidden", "true");
+      delete item.dataset.inventoryName;
+      delete item.dataset.inventoryMeta;
 
       const placeholder = document.createElement("span");
       placeholder.className = "inventory-panel__empty-slot";
@@ -1450,6 +1619,8 @@ const handleInventoryDragPointerDown = (event) => {
 };
 
 const handleInventoryWindowResize = () => {
+  hideInventoryTooltip();
+
   if (!inventoryLayoutState.position) {
     return;
   }
@@ -1818,6 +1989,7 @@ const finishClosingInventoryPanel = ({ restoreFocus = true } = {}) => {
     return;
   }
 
+  hideInventoryTooltip();
   inventoryPanel.hidden = true;
   inventoryPanel.dataset.open = "false";
   inventoryPanel.classList.remove("is-open");
@@ -2613,6 +2785,22 @@ if (inventoryDragHandle instanceof HTMLElement) {
   );
 }
 
+if (inventoryList instanceof HTMLElement) {
+  inventoryList.addEventListener(
+    "pointerover",
+    handleInventoryItemPointerOver
+  );
+  inventoryList.addEventListener("pointerout", handleInventoryItemPointerOut);
+  inventoryList.addEventListener("focusin", handleInventoryItemFocusIn);
+  inventoryList.addEventListener("focusout", handleInventoryItemFocusOut);
+}
+
+if (inventoryBody instanceof HTMLElement) {
+  inventoryBody.addEventListener("scroll", hideInventoryTooltip, {
+    passive: true,
+  });
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("resize", handleInventoryWindowResize);
   window.addEventListener("orientationchange", handleInventoryWindowResize);
@@ -2766,13 +2954,14 @@ const handleManifestEditModeChange = (enabled) => {
   }
 
   editModeActive = nextState;
+  sceneController?.setLiftInteractionsEnabled?.(!nextState);
 
   if (!nextState) {
     setCrosshairSourceState("edit", false);
   }
 
   const description = nextState
-    ? "Hover placed models to highlight them. Left click to pick them up and place them again, or press Delete to remove. Press Esc to exit."
+    ? "Hover placed models to highlight them. Left click to pick them up and place them again, or press Delete to remove. Press Esc to exit. Lift controls are locked while editing."
     : "Edit mode disabled.";
 
   showTerminalToast({ title: "Edit mode", description });
@@ -2806,6 +2995,14 @@ const bootstrapScene = () => {
       setCrosshairSourceState("terminal", value);
     },
     onLiftControlInteract({ control } = {}) {
+      if (editModeActive) {
+        showTerminalToast({
+          title: "Lift locked",
+          description: "Finish editing placed models before changing decks.",
+        });
+        return false;
+      }
+
       const destinationId = control?.userData?.liftFloorId ?? null;
 
       if (destinationId && sceneController?.setActiveLiftFloorById) {
@@ -2893,6 +3090,7 @@ const bootstrapScene = () => {
   });
 
   sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
+  sceneController?.setLiftInteractionsEnabled?.(!editModeActive);
 
 };
 

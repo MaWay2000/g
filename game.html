@@ -1164,11 +1164,12 @@
         text-align: center;
       }
 
-      .inventory-panel__info {
+      .inventory-panel__tooltip {
         position: absolute;
-        left: 50%;
-        bottom: calc(100% + clamp(0.4rem, 1.2vw, 0.6rem));
-        transform: translate(-50%, 8px);
+        left: var(--inventory-tooltip-left, 50%);
+        top: var(--inventory-tooltip-top, 0px);
+        transform: translate(-50%, calc(-100% - clamp(0.4rem, 1.2vw, 0.7rem)))
+          scale(0.98);
         padding: clamp(0.45rem, 1.2vw, 0.75rem)
           clamp(0.6rem, 1.4vw, 0.9rem);
         border-radius: 0.75rem;
@@ -1182,16 +1183,13 @@
         transition: opacity 160ms ease, transform 160ms ease;
         min-width: clamp(120px, 24vw, 200px);
         max-width: clamp(160px, 40vw, 240px);
-        z-index: 2;
+        z-index: 6;
       }
 
-      .inventory-panel__item:not(.inventory-panel__item--empty):hover .inventory-panel__info,
-      .inventory-panel__item:not(.inventory-panel__item--empty):focus-visible
-        .inventory-panel__info,
-      .inventory-panel__item:not(.inventory-panel__item--empty):focus-within
-        .inventory-panel__info {
+      .inventory-panel__tooltip[data-visible="true"] {
         opacity: 1;
-        transform: translate(-50%, 0);
+        transform: translate(-50%, calc(-100% - clamp(0.4rem, 1.2vw, 0.7rem)))
+          scale(1);
       }
 
       .inventory-panel__name {
@@ -1580,6 +1578,18 @@
             materials.
           </p>
           <ul class="inventory-panel__list" data-inventory-list role="list"></ul>
+        </div>
+        <div
+          class="inventory-panel__tooltip"
+          data-inventory-tooltip
+          aria-hidden="true"
+        >
+          <p class="inventory-panel__name" data-inventory-tooltip-name></p>
+          <p
+            class="inventory-panel__meta"
+            data-inventory-tooltip-meta
+            hidden
+          ></p>
         </div>
       </div>
     </div>

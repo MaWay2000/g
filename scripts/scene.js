@@ -4255,9 +4255,10 @@ export const initScene = (
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
 
   let liftInteractable = false;
+  let liftInteractionsEnabled = true;
 
   const updateLiftInteractableState = (canInteract) => {
-    const nextState = Boolean(canInteract);
+    const nextState = Boolean(canInteract) && liftInteractionsEnabled;
 
     if (liftInteractable === nextState) {
       return;
@@ -4268,6 +4269,22 @@ export const initScene = (
     if (typeof onLiftInteractableChange === "function") {
       onLiftInteractableChange(nextState);
     }
+  };
+
+  const setLiftInteractionsEnabled = (enabled) => {
+    const nextState = Boolean(enabled);
+
+    if (liftInteractionsEnabled === nextState) {
+      return liftInteractionsEnabled;
+    }
+
+    liftInteractionsEnabled = nextState;
+
+    if (!liftInteractionsEnabled) {
+      updateLiftInteractableState(false);
+    }
+
+    return liftInteractionsEnabled;
   };
 
   let terminalInteractable = false;
@@ -5229,6 +5246,10 @@ export const initScene = (
   const CEILING_CLEARANCE = 0.5;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
+    if (!liftInteractionsEnabled) {
+      return false;
+    }
+
     if (!Array.isArray(liftState.floors) || liftState.floors.length === 0) {
       return false;
     }
@@ -5563,6 +5584,10 @@ export const initScene = (
   document.addEventListener("mouseup", handlePrimaryActionUp);
 
   const getTargetedLiftControl = () => {
+    if (!liftInteractionsEnabled) {
+      return null;
+    }
+
     if (liftInteractables.length === 0) {
       return null;
     }
@@ -5592,7 +5617,7 @@ export const initScene = (
   };
 
   const activateLiftControl = (control, { viaKeyboard = false } = {}) => {
-    if (!control) {
+    if (!control || !liftInteractionsEnabled) {
       return false;
     }
 
@@ -5614,7 +5639,7 @@ export const initScene = (
       return false;
     }
 
-    if (typeof travelToLiftFloor !== "function") {
+    if (typeof travelToLiftFloor !== "function" || !liftInteractionsEnabled) {
       return false;
     }
 
@@ -6100,8 +6125,13 @@ export const initScene = (
     let matchedLiftControl = null;
 
     if (controls.isLocked) {
-      matchedLiftControl = getTargetedLiftControl();
-      updateLiftInteractableState(Boolean(matchedLiftControl));
+      if (liftInteractionsEnabled) {
+        matchedLiftControl = getTargetedLiftControl();
+        updateLiftInteractableState(Boolean(matchedLiftControl));
+      } else {
+        matchedLiftControl = null;
+        updateLiftInteractableState(false);
+      }
 
       matchedZone = getTargetedTerminalZone();
       updateTerminalInteractableState(Boolean(matchedZone));
@@ -6199,6 +6229,7 @@ export const initScene = (
     setManifestEditModeEnabled,
     isManifestEditModeEnabled,
     hasManifestPlacements,
+    setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
     unlockPointerLock: () => {
       if (controls.isLocked) {
         controls.unlock();
