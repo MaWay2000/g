@@ -1105,20 +1105,26 @@ const renderInventoryEntries = () => {
   entries.forEach((entry) => {
     const item = document.createElement("li");
     item.className = "inventory-panel__item";
+    item.tabIndex = 0;
 
     const symbolElement = document.createElement("span");
     symbolElement.className = "inventory-panel__symbol";
     symbolElement.textContent = entry.element.symbol || "???";
     item.appendChild(symbolElement);
 
-    const details = document.createElement("div");
-    details.className = "inventory-panel__details";
+    const countElement = document.createElement("span");
+    countElement.className = "inventory-panel__count";
+    countElement.textContent = `×${entry.count}`;
+    item.appendChild(countElement);
+
+    const infoElement = document.createElement("div");
+    infoElement.className = "inventory-panel__info";
 
     const nameElement = document.createElement("p");
     nameElement.className = "inventory-panel__name";
     nameElement.textContent =
       entry.element.name || entry.element.symbol || "Unknown resource";
-    details.appendChild(nameElement);
+    infoElement.appendChild(nameElement);
 
     const metaElement = document.createElement("p");
     metaElement.className = "inventory-panel__meta";
@@ -1141,13 +1147,28 @@ const renderInventoryEntries = () => {
       metaElement.hidden = true;
     }
 
-    details.appendChild(metaElement);
-    item.appendChild(details);
+    infoElement.appendChild(metaElement);
+    item.appendChild(infoElement);
 
-    const countElement = document.createElement("span");
-    countElement.className = "inventory-panel__count";
-    countElement.textContent = `×${entry.count}`;
-    item.appendChild(countElement);
+    const resourceLabelSegments = [];
+    const resourceName = nameElement.textContent;
+    if (resourceName) {
+      resourceLabelSegments.push(resourceName);
+    }
+
+    if (entry.count === 1) {
+      resourceLabelSegments.push("1 collected");
+    } else if (entry.count > 1) {
+      resourceLabelSegments.push(`${entry.count} collected`);
+    }
+
+    if (metaSegments.length > 0) {
+      resourceLabelSegments.push(metaSegments.join(", "));
+    }
+
+    if (resourceLabelSegments.length > 0) {
+      item.setAttribute("aria-label", resourceLabelSegments.join(", "));
+    }
 
     fragment.appendChild(item);
   });

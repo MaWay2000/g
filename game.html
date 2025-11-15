@@ -1037,8 +1037,8 @@
         list-style: none;
         margin: 0;
         padding: 0;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: clamp(0.75rem, 2vw, 1rem);
       }
 
@@ -1047,47 +1047,120 @@
       }
 
       .inventory-panel__item {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
+        position: relative;
+        display: flex;
         align-items: center;
-        gap: clamp(0.65rem, 2vw, 0.9rem);
-        padding: clamp(0.9rem, 2.4vw, 1.1rem) clamp(1.1rem, 3vw, 1.4rem);
+        justify-content: center;
+        min-height: clamp(150px, 25vw, 190px);
+        padding: clamp(1rem, 2.6vw, 1.4rem);
         border-radius: clamp(1rem, 2.6vw, 1.4rem);
-        background: linear-gradient(
-            135deg,
-            rgba(16, 185, 129, 0.12),
-            rgba(56, 189, 248, 0.08)
+        background: radial-gradient(
+            circle at top,
+            rgba(56, 189, 248, 0.18),
+            rgba(14, 165, 233, 0.06)
           ),
           rgba(15, 23, 42, 0.82);
         border: 1px solid rgba(56, 189, 248, 0.25);
         box-shadow: 0 18px 40px rgba(8, 47, 73, 0.35);
+        transition: transform 200ms ease, box-shadow 200ms ease,
+          border-color 200ms ease;
+        overflow: hidden;
+        cursor: pointer;
+        outline: none;
+      }
+
+      .inventory-panel__item:hover,
+      .inventory-panel__item:focus-visible {
+        transform: translateY(-4px);
+        box-shadow: 0 26px 48px rgba(8, 47, 73, 0.45);
+        border-color: rgba(94, 234, 212, 0.6);
+      }
+
+      .inventory-panel__item:focus-visible {
+        box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.35),
+          0 26px 48px rgba(8, 47, 73, 0.45);
       }
 
       .inventory-panel__symbol {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: clamp(52px, 8vw, 64px);
-        height: clamp(52px, 8vw, 64px);
+        width: clamp(56px, 8.6vw, 72px);
+        height: clamp(56px, 8.6vw, 72px);
         border-radius: 18px;
         background: radial-gradient(circle at 35% 30%, #0ea5e9, #0369a1 65%);
         color: rgba(226, 232, 240, 0.98);
-        font-size: clamp(1.35rem, 4vw, 1.8rem);
+        font-size: clamp(1.45rem, 4.2vw, 1.95rem);
         font-weight: 700;
         letter-spacing: 0.08em;
         box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.22),
           0 12px 24px rgba(7, 89, 133, 0.32);
+        transition: opacity 200ms ease, transform 200ms ease;
       }
 
-      .inventory-panel__details {
+      .inventory-panel__item:hover .inventory-panel__symbol,
+      .inventory-panel__item:focus-visible .inventory-panel__symbol,
+      .inventory-panel__item:focus-within .inventory-panel__symbol {
+        opacity: 0.18;
+        transform: scale(0.92);
+      }
+
+      .inventory-panel__count {
+        position: absolute;
+        bottom: clamp(0.6rem, 1.8vw, 0.9rem);
+        right: clamp(0.6rem, 1.8vw, 0.9rem);
+        font-size: clamp(1rem, 2.4vw, 1.2rem);
+        font-weight: 600;
+        color: rgba(249, 250, 251, 0.95);
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.24);
+        border: 1px solid rgba(94, 234, 212, 0.35);
+        min-width: 3.1rem;
+        text-align: center;
+        transition: opacity 200ms ease, transform 200ms ease;
+      }
+
+      .inventory-panel__item:hover .inventory-panel__count,
+      .inventory-panel__item:focus-visible .inventory-panel__count,
+      .inventory-panel__item:focus-within .inventory-panel__count {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      .inventory-panel__info {
+        position: absolute;
+        inset: 0;
+        padding: clamp(0.9rem, 2.4vw, 1.4rem);
         display: flex;
         flex-direction: column;
-        gap: 0.25rem;
+        justify-content: center;
+        align-items: center;
+        gap: 0.35rem;
+        text-align: center;
+        background: linear-gradient(
+            160deg,
+            rgba(15, 23, 42, 0.1),
+            rgba(15, 23, 42, 0.75)
+          );
+        backdrop-filter: blur(4px);
+        color: rgba(241, 245, 249, 0.96);
+        opacity: 0;
+        transform: translateY(12px);
+        transition: opacity 200ms ease, transform 200ms ease;
+        pointer-events: none;
+      }
+
+      .inventory-panel__item:hover .inventory-panel__info,
+      .inventory-panel__item:focus-visible .inventory-panel__info,
+      .inventory-panel__item:focus-within .inventory-panel__info {
+        opacity: 1;
+        transform: translateY(0);
       }
 
       .inventory-panel__name {
         margin: 0;
-        font-size: clamp(1.05rem, 2.8vw, 1.2rem);
+        font-size: clamp(1.05rem, 3vw, 1.25rem);
         font-weight: 600;
         color: rgba(241, 245, 249, 0.96);
       }
@@ -1095,19 +1168,11 @@
       .inventory-panel__meta {
         margin: 0;
         font-size: 0.85rem;
-        color: rgba(148, 163, 184, 0.8);
+        color: rgba(148, 163, 184, 0.85);
       }
 
-      .inventory-panel__count {
-        font-size: clamp(1.05rem, 2.6vw, 1.25rem);
-        font-weight: 700;
-        color: rgba(249, 250, 251, 0.95);
-        padding: 0.35rem 0.75rem;
-        border-radius: 999px;
-        background: rgba(16, 185, 129, 0.18);
-        border: 1px solid rgba(94, 234, 212, 0.35);
-        min-width: 3.25rem;
-        text-align: center;
+      .inventory-panel__meta[hidden] {
+        display: none;
       }
 
       @media (max-width: 600px) {
@@ -1115,13 +1180,12 @@
           width: min(96vw, 540px);
         }
 
-        .inventory-panel__item {
-          grid-template-columns: minmax(48px, 18%) 1fr;
-          grid-auto-flow: row;
+        .inventory-panel__list {
+          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
         }
 
-        .inventory-panel__count {
-          justify-self: start;
+        .inventory-panel__item {
+          min-height: clamp(130px, 42vw, 170px);
         }
       }
 
