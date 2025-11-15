@@ -12,6 +12,9 @@ const resetButton = document.querySelector("[data-reset-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
 const resourceToast = document.getElementById("resourceToast");
+const resourceToolIndicator = document.querySelector(
+  "[data-resource-tool-indicator]"
+);
 const crosshair = document.querySelector(".crosshair");
 const quickSlotBar = document.querySelector("[data-quick-slot-bar]");
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
@@ -183,6 +186,17 @@ const quickSlotState = {
   selectedIndex: 0,
 };
 
+const RESOURCE_TOOL_INDICATOR_TOTAL_VISIBLE_DURATION = 7000;
+const RESOURCE_TOOL_INDICATOR_FADE_OUT_DURATION = 3000;
+const RESOURCE_TOOL_INDICATOR_FADE_DELAY = Math.max(
+  RESOURCE_TOOL_INDICATOR_TOTAL_VISIBLE_DURATION -
+    RESOURCE_TOOL_INDICATOR_FADE_OUT_DURATION,
+  0
+);
+
+let resourceToolIndicatorHideTimeoutId = 0;
+let resourceToolIndicatorFinalizeTimeoutId = 0;
+
 const quickSlotKeyMap = {
   Digit1: 0,
   Digit2: 1,
@@ -208,6 +222,59 @@ const quickSlotKeyMap = {
 
 const getQuickSlotNumber = (index) => (index === 9 ? "10" : String(index + 1));
 
+const finalizeResourceToolIndicatorHide = () => {
+  if (!(resourceToolIndicator instanceof HTMLElement)) {
+    return;
+  }
+
+  resourceToolIndicator.hidden = true;
+  delete resourceToolIndicator.dataset.fading;
+  delete resourceToolIndicator.dataset.visible;
+  resourceToolIndicator.style.removeProperty(
+    "--resource-tool-indicator-transition-duration"
+  );
+  resourceToolIndicatorHideTimeoutId = 0;
+  resourceToolIndicatorFinalizeTimeoutId = 0;
+};
+
+const startResourceToolIndicatorFade = () => {
+  if (!(resourceToolIndicator instanceof HTMLElement)) {
+    return;
+  }
+
+  window.clearTimeout(resourceToolIndicatorFinalizeTimeoutId);
+  resourceToolIndicatorHideTimeoutId = 0;
+
+  resourceToolIndicator.dataset.visible = "false";
+  resourceToolIndicator.dataset.fading = "true";
+
+  resourceToolIndicatorFinalizeTimeoutId = window.setTimeout(() => {
+    finalizeResourceToolIndicatorHide();
+  }, RESOURCE_TOOL_INDICATOR_FADE_OUT_DURATION);
+};
+
+const showResourceToolIndicator = () => {
+  if (!(resourceToolIndicator instanceof HTMLElement)) {
+    return;
+  }
+
+  window.clearTimeout(resourceToolIndicatorHideTimeoutId);
+  window.clearTimeout(resourceToolIndicatorFinalizeTimeoutId);
+  resourceToolIndicatorHideTimeoutId = 0;
+  resourceToolIndicatorFinalizeTimeoutId = 0;
+
+  resourceToolIndicator.hidden = false;
+  delete resourceToolIndicator.dataset.fading;
+  resourceToolIndicator.dataset.visible = "true";
+  resourceToolIndicator.style.removeProperty(
+    "--resource-tool-indicator-transition-duration"
+  );
+
+  resourceToolIndicatorHideTimeoutId = window.setTimeout(() => {
+    startResourceToolIndicatorFade();
+  }, RESOURCE_TOOL_INDICATOR_FADE_DELAY);
+};
+
 const updateResourceToolIndicator = (slot) => {
   const labelText =
     typeof slot?.label === "string" && slot.label.trim() !== ""
@@ -225,6 +292,8 @@ const updateResourceToolIndicator = (slot) => {
   if (resourceToolDescription instanceof HTMLElement) {
     resourceToolDescription.textContent = descriptionText;
   }
+
+  showResourceToolIndicator();
 };
 
 const updateQuickSlotUi = () => {
