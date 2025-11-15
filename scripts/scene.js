@@ -4704,7 +4704,12 @@ export const initScene = (
     resourceToolState.beamTimer = 0;
     resourceToolState.recoil = 0;
     resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
-    primaryActionHeld = false;
+
+    const shouldResetPrimaryActionHeld = reason !== "movement";
+
+    if (shouldResetPrimaryActionHeld) {
+      primaryActionHeld = false;
+    }
 
     if (resourceToolBeamMaterial) {
       resourceToolBeamMaterial.opacity = 0;
