@@ -1098,6 +1098,30 @@
         outline: none;
       }
 
+      .inventory-panel__item[draggable="true"] {
+        cursor: grab;
+      }
+
+      .inventory-panel__item[draggable="true"]:active {
+        cursor: grabbing;
+      }
+
+      .inventory-panel__item.is-drag-source {
+        opacity: 0.6;
+        transform: scale(0.97);
+        box-shadow: 0 18px 36px rgba(8, 47, 73, 0.4);
+      }
+
+      .inventory-panel__item.is-drop-target {
+        border-color: rgba(94, 234, 212, 0.65);
+        box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.35),
+          0 30px 56px rgba(8, 47, 73, 0.5);
+      }
+
+      .inventory-panel__item.is-drop-target .inventory-panel__symbol {
+        transform: scale(0.94);
+      }
+
       .inventory-panel__item:not(.inventory-panel__item--empty):hover,
       .inventory-panel__item:not(.inventory-panel__item--empty):focus-visible {
         transform: translateY(-3px);
