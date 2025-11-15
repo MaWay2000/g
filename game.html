@@ -132,6 +132,18 @@
         color: rgba(226, 232, 240, 0.95);
         min-width: clamp(240px, 36vw, 320px);
         z-index: 5;
+        opacity: 0;
+        transition: opacity
+          var(--resource-tool-indicator-transition-duration, 220ms) ease;
+      }
+
+      .resource-tool-indicator[data-visible="true"] {
+        opacity: 1;
+      }
+
+      .resource-tool-indicator[data-fading="true"] {
+        --resource-tool-indicator-transition-duration: 3000ms;
+        opacity: 0;
       }
 
       .resource-tool-indicator__icon {
@@ -1338,7 +1350,12 @@
         <button class="logout" type="button" data-logout-button>Log out</button>
       </div>
 
-      <div class="resource-tool-indicator" aria-hidden="true">
+      <div
+        class="resource-tool-indicator"
+        aria-hidden="true"
+        data-resource-tool-indicator
+        hidden
+      >
         <div class="resource-tool-indicator__icon" aria-hidden="true">
           <span class="resource-tool-indicator__spark" aria-hidden="true"></span>
         </div>
