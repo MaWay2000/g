@@ -2221,6 +2221,11 @@ const bootstrapScene = () => {
         description: description || "Resource extracted.",
       });
     },
+    onResourceSessionCancelled({ reason } = {}) {
+      if (reason === "movement") {
+        showResourceToast({ title: "Digging interrupted" });
+      }
+    },
   });
 
   sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
