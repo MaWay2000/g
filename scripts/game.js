@@ -11,6 +11,7 @@ const logoutButton = document.querySelector("[data-logout-button]");
 const resetButton = document.querySelector("[data-reset-button]");
 const errorMessage = document.getElementById("logoutError");
 const terminalToast = document.getElementById("terminalToast");
+const resourceToast = document.getElementById("resourceToast");
 const crosshair = document.querySelector(".crosshair");
 const quickSlotBar = document.querySelector("[data-quick-slot-bar]");
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
@@ -746,6 +747,8 @@ const stopQuickAccessMatrix = () => {
 
 let terminalToastHideTimeoutId;
 let terminalToastFinalizeTimeoutId;
+let resourceToastHideTimeoutId;
+let resourceToastFinalizeTimeoutId;
 
 const isTemplateElement = (template) => template instanceof HTMLTemplateElement;
 
@@ -1214,6 +1217,7 @@ const openInventoryPanel = () => {
   inventoryWasPointerLocked = Boolean(sceneController?.unlockPointerLock?.());
   sceneController?.setMovementEnabled(false);
   hideTerminalToast();
+  hideResourceToast();
 
   lastInventoryFocusedElement =
     document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -1634,6 +1638,7 @@ const openModelPalette = async () => {
   );
   sceneController?.setMovementEnabled(false);
   hideTerminalToast();
+  hideResourceToast();
 
   lastModelPaletteFocusedElement =
     document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -2010,6 +2015,65 @@ const showTerminalToast = ({ title, description }) => {
   }, 4000);
 };
 
+const setResourceToastContent = ({ title, description }) => {
+  if (!(resourceToast instanceof HTMLElement)) {
+    return;
+  }
+
+  resourceToast.textContent = "";
+
+  const segments = [];
+
+  if (typeof title === "string" && title.trim() !== "") {
+    const titleElement = document.createElement("span");
+    titleElement.className = "resource-toast__title";
+    titleElement.textContent = title.trim();
+    segments.push(titleElement);
+  }
+
+  if (typeof description === "string" && description.trim() !== "") {
+    const descriptionElement = document.createElement("span");
+    descriptionElement.className = "resource-toast__description";
+    descriptionElement.textContent = description.trim();
+    segments.push(descriptionElement);
+  }
+
+  if (segments.length > 0) {
+    resourceToast.append(...segments);
+  }
+};
+
+const hideResourceToast = () => {
+  if (!(resourceToast instanceof HTMLElement)) {
+    return;
+  }
+
+  window.clearTimeout(resourceToastHideTimeoutId);
+  window.clearTimeout(resourceToastFinalizeTimeoutId);
+
+  resourceToast.dataset.visible = "false";
+  resourceToastFinalizeTimeoutId = window.setTimeout(() => {
+    resourceToast.hidden = true;
+  }, 220);
+};
+
+const showResourceToast = ({ title, description }) => {
+  if (!(resourceToast instanceof HTMLElement)) {
+    return;
+  }
+
+  window.clearTimeout(resourceToastHideTimeoutId);
+  window.clearTimeout(resourceToastFinalizeTimeoutId);
+
+  setResourceToastContent({ title, description });
+  resourceToast.hidden = false;
+  resourceToast.dataset.visible = "true";
+
+  resourceToastHideTimeoutId = window.setTimeout(() => {
+    hideResourceToast();
+  }, 3000);
+};
+
 const describeManifestEntry = (entry) => {
   if (typeof entry?.label === "string" && entry.label.trim() !== "") {
     return entry.label.trim();
@@ -2063,6 +2127,7 @@ const bootstrapScene = () => {
       instructions?.removeAttribute("hidden");
       resetCrosshairInteractableState();
       hideTerminalToast();
+      hideResourceToast();
     },
     onTerminalOptionSelected(option) {
       playTerminalInteractionSound();
@@ -2130,6 +2195,18 @@ const bootstrapScene = () => {
           ? `${description} • ${terrainLabel}`
           : terrainLabel;
       }
+      const resourceDetailSegments = [];
+      if (atomicNumber !== null) {
+        resourceDetailSegments.push(`Atomic #${atomicNumber}`);
+      }
+      if (terrainLabel) {
+        resourceDetailSegments.push(terrainLabel);
+      }
+      const resourceToastDescription = resourceDetailSegments.join(" • ");
+      showResourceToast({
+        title: label || "Resource collected",
+        description: resourceToastDescription || "Resource extracted.",
+      });
       showTerminalToast({
         title: "Resource collected",
         description: description || "Resource extracted.",
