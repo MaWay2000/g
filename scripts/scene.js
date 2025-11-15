@@ -52,6 +52,7 @@ export const initScene = (
     onManifestEditModeChange,
     onManifestPlacementRemoved,
     onResourceCollected,
+    onResourceSessionCancelled,
   } = {}
 ) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -4675,7 +4676,19 @@ export const initScene = (
     });
   }
 
-  function cancelActiveResourceSession() {
+  function notifyResourceSessionCancelled(reason) {
+    if (typeof onResourceSessionCancelled !== "function") {
+      return;
+    }
+
+    try {
+      onResourceSessionCancelled({ reason });
+    } catch (error) {
+      console.warn("Unable to notify resource session cancellation", error);
+    }
+  }
+
+  function cancelActiveResourceSession({ reason } = {}) {
     if (!activeResourceSession.isActive) {
       return;
     }
@@ -4708,6 +4721,10 @@ export const initScene = (
     if (eventDetail) {
       eventDetail.success = false;
     }
+
+    if (reason) {
+      notifyResourceSessionCancelled(reason);
+    }
   }
 
   function updateActiveResourceSession() {
@@ -4716,7 +4733,7 @@ export const initScene = (
     }
 
     if (!controls.isLocked) {
-      cancelActiveResourceSession();
+      cancelActiveResourceSession({ reason: "controls-unlocked" });
       return;
     }
 
@@ -4728,7 +4745,7 @@ export const initScene = (
       const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
 
       if (distanceSquared > RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED) {
-        cancelActiveResourceSession();
+        cancelActiveResourceSession({ reason: "movement" });
         return;
       }
     }
@@ -5449,7 +5466,7 @@ export const initScene = (
   });
 
   controls.addEventListener("unlock", () => {
-    cancelActiveResourceSession();
+    cancelActiveResourceSession({ reason: "controls-unlocked" });
     resourceToolGroup.visible = false;
     resetResourceToolState();
 
