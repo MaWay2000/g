@@ -4889,7 +4889,6 @@ export const initScene = (
     }
 
     primaryActionHeld = false;
-    autoResourceToolEngaged = false;
     cancelScheduledResourceToolResume();
   };
 
