@@ -586,6 +586,7 @@ let sceneController = null;
 let liftModalActive = false;
 
 const INVENTORY_SLOT_COUNT = 100;
+const DEFAULT_INVENTORY_CAPACITY_KG = 10;
 
 const createEmptyInventorySlotOrder = () =>
   new Array(INVENTORY_SLOT_COUNT).fill(null);
@@ -594,6 +595,7 @@ const inventoryState = {
   entries: [],
   entryMap: new Map(),
   customOrder: createEmptyInventorySlotOrder(),
+  capacityKg: DEFAULT_INVENTORY_CAPACITY_KG,
 };
 
 const NEW_GAME_STARTER_RESOURCES = [
@@ -1776,6 +1778,15 @@ const getInventoryEntryKey = (element) => {
   return `${symbolKey}|${nameKey}|${numberKey}`;
 };
 
+const getInventoryCapacityKg = () => {
+  const capacity = inventoryState.capacityKg;
+  if (Number.isFinite(capacity) && capacity > 0) {
+    return capacity;
+  }
+
+  return DEFAULT_INVENTORY_CAPACITY_KG;
+};
+
 const updateInventorySummary = () => {
   const summaryElement =
     inventorySummary instanceof HTMLElement ? inventorySummary : null;
@@ -1785,16 +1796,15 @@ const updateInventorySummary = () => {
     0
   );
 
+  const capacityKg = getInventoryCapacityKg();
+
   if (!summaryElement) {
     return;
   }
 
-  if (totalWeight <= 0) {
-    summaryElement.textContent = "Inventory empty";
-  } else {
-    const formattedWeight = formatGrams(totalWeight);
-    summaryElement.textContent = `${formattedWeight} collected`;
-  }
+  const formattedWeight = formatGrams(totalWeight);
+  const formattedCapacity = formatKilograms(capacityKg);
+  summaryElement.textContent = `${formattedWeight} / ${formattedCapacity} max`;
 };
 
 const getOrderedInventoryEntries = () => {
