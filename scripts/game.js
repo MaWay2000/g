@@ -596,6 +596,21 @@ const inventoryState = {
   customOrder: createEmptyInventorySlotOrder(),
 };
 
+const NEW_GAME_STARTER_RESOURCES = [
+  {
+    count: 1,
+    element: { number: 76, symbol: "Os", name: "Osmium" },
+  },
+  {
+    count: 2,
+    element: { number: 1, symbol: "H", name: "Hydrogen" },
+  },
+  {
+    count: 1,
+    element: { number: 73, symbol: "Ta", name: "Tantalum" },
+  },
+];
+
 const inventoryTooltipState = {
   activeItem: null,
 };
@@ -2439,7 +2454,33 @@ const recordInventoryResource = (detail) => {
   schedulePersistInventoryState();
 };
 
-restoreInventoryStateFromStorage();
+const grantNewGameStarterResources = () => {
+  let granted = false;
+
+  NEW_GAME_STARTER_RESOURCES.forEach((resource) => {
+    const count = Number.isFinite(resource?.count)
+      ? Math.max(0, Math.floor(resource.count))
+      : 0;
+
+    if (!resource?.element || count <= 0) {
+      return;
+    }
+
+    for (let iteration = 0; iteration < count; iteration += 1) {
+      recordInventoryResource({ element: resource.element });
+    }
+
+    granted = true;
+  });
+
+  return granted;
+};
+
+const restoredInventoryFromStorage = restoreInventoryStateFromStorage();
+
+if (!restoredInventoryFromStorage) {
+  grantNewGameStarterResources();
+}
 
 const trapFocusWithinInventoryPanel = (event) => {
   if (!(inventoryDialog instanceof HTMLElement)) {
