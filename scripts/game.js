@@ -978,6 +978,8 @@ function updateInventoryPointerReorderTarget(clientX, clientY) {
 
   if (slot) {
     setInventoryDropTargetSlot(slot);
+  } else {
+    setInventoryDropTargetSlot(null);
   }
 }
 
@@ -1086,28 +1088,6 @@ const reorderInventoryEntriesBySlot = (sourceSlotIndex, targetSlotIndex) => {
   schedulePersistInventoryState();
 };
 
-const handleInventoryItemDragStart = (event) => {
-  const item = getInventoryItemElement(event.target);
-
-  if (!startInventoryReorderForItem(item)) {
-    event.preventDefault();
-    return;
-  }
-
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = "move";
-
-    try {
-      event.dataTransfer.setData(
-        "text/plain",
-        item?.dataset.inventoryName || inventoryReorderState.draggingKey
-      );
-    } catch (error) {
-      // Ignore errors from browsers that disallow setting drag data
-    }
-  }
-};
-
 const handleInventoryItemPointerDownForReorder = (event) => {
   const pointerType =
     typeof event.pointerType === "string"
@@ -1115,14 +1095,24 @@ const handleInventoryItemPointerDownForReorder = (event) => {
       : "";
 
   if (
-    pointerType === "" ||
-    pointerType === "mouse" ||
     inventoryReorderState.draggingKey ||
     event.isPrimary === false ||
     (typeof event.button === "number" && event.button > 0) ||
     !Number.isFinite(event.pointerId)
   ) {
     return;
+  }
+
+  if (
+    pointerType !== "touch" &&
+    pointerType !== "pen" &&
+    typeof event.buttons === "number"
+  ) {
+    const isPrimaryButtonPressed = (event.buttons & 1) === 1;
+
+    if (!isPrimaryButtonPressed) {
+      return;
+    }
   }
 
   const item = getInventoryItemElement(event.target);
@@ -1134,58 +1124,6 @@ const handleInventoryItemPointerDownForReorder = (event) => {
   event.preventDefault();
   addInventoryPointerReorderListeners(event.pointerId);
   updateInventoryPointerReorderTarget(event.clientX, event.clientY);
-};
-
-const handleInventoryItemDragEnd = () => {
-  resetInventoryReorderState();
-};
-
-const handleInventoryListDragOver = (event) => {
-  if (!inventoryReorderState.draggingKey) {
-    return;
-  }
-
-  event.preventDefault();
-  const slot = getInventorySlotElement(event.target);
-
-  if (slot) {
-    setInventoryDropTargetSlot(slot);
-  } else {
-    setInventoryDropTargetSlot(null);
-  }
-
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = "move";
-  }
-};
-
-const handleInventoryItemDrop = (event) => {
-  if (!inventoryReorderState.draggingKey) {
-    return;
-  }
-
-  event.preventDefault();
-
-  const sourceIndex = inventoryReorderState.sourceSlotIndex;
-  let targetIndex = -1;
-
-  const slot = getInventorySlotElement(event.target);
-
-  if (slot) {
-    targetIndex = getInventorySlotIndex(slot);
-  }
-
-  if (targetIndex < 0) {
-    targetIndex = inventoryReorderState.dropTargetSlotIndex;
-  }
-
-  resetInventoryReorderState();
-
-  if (sourceIndex < 0 || targetIndex < 0) {
-    return;
-  }
-
-  reorderInventoryEntriesBySlot(sourceIndex, targetIndex);
 };
 const getInventoryStorage = (() => {
   let resolved = false;
@@ -1764,7 +1702,7 @@ const renderInventoryEntries = () => {
       item.className = "inventory-panel__item";
       item.tabIndex = 0;
       item.dataset.inventoryKey = entry.key;
-      item.setAttribute("draggable", "true");
+      item.dataset.inventoryDraggable = "true";
 
       const symbolElement = document.createElement("span");
       symbolElement.className = "inventory-panel__symbol";
@@ -1825,7 +1763,7 @@ const renderInventoryEntries = () => {
       delete item.dataset.inventoryName;
       delete item.dataset.inventoryMeta;
       delete item.dataset.inventoryKey;
-      item.removeAttribute("draggable");
+      delete item.dataset.inventoryDraggable;
 
       const placeholder = document.createElement("span");
       placeholder.className = "inventory-panel__empty-slot";
@@ -3350,10 +3288,6 @@ if (inventoryList instanceof HTMLElement) {
   inventoryList.addEventListener("pointerout", handleInventoryItemPointerOut);
   inventoryList.addEventListener("focusin", handleInventoryItemFocusIn);
   inventoryList.addEventListener("focusout", handleInventoryItemFocusOut);
-  inventoryList.addEventListener("dragstart", handleInventoryItemDragStart);
-  inventoryList.addEventListener("dragend", handleInventoryItemDragEnd);
-  inventoryList.addEventListener("dragover", handleInventoryListDragOver);
-  inventoryList.addEventListener("drop", handleInventoryItemDrop);
 }
 
 if (inventoryBody instanceof HTMLElement) {
