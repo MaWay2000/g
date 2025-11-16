@@ -1070,19 +1070,22 @@
         margin: 0;
         padding: 0;
         display: grid;
-        grid-template-columns: repeat(10, minmax(0, 1fr));
+        grid-template-columns: repeat(
+          auto-fit,
+          minmax(clamp(10.5rem, 18vw, 14rem), 1fr)
+        );
         gap: clamp(0.45rem, 1.6vw, 0.75rem);
       }
 
       .inventory-panel__item {
         position: relative;
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         align-items: center;
-        justify-content: center;
-        gap: 0.35rem;
-        aspect-ratio: 1 / 1;
-        padding: clamp(0.35rem, 1vw, 0.55rem);
+        justify-content: flex-start;
+        gap: clamp(0.45rem, 1.6vw, 0.85rem);
+        min-height: clamp(4.4rem, 12vw, 5.5rem);
+        padding: clamp(0.45rem, 1.2vw, 0.7rem);
         border-radius: clamp(0.85rem, 2vw, 1.1rem);
         background: radial-gradient(
             circle at top,
@@ -1146,6 +1149,11 @@
         border-color: rgba(148, 163, 184, 0.28);
         background: rgba(15, 23, 42, 0.58);
         box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 0.35rem;
       }
 
       .inventory-panel__symbol {
@@ -1153,8 +1161,8 @@
         align-items: center;
         justify-content: center;
         position: relative;
-        width: min(72%, clamp(52px, 6.2vw, 64px));
-        height: min(72%, clamp(52px, 6.2vw, 64px));
+        width: clamp(3rem, 6vw, 3.85rem);
+        height: clamp(3rem, 6vw, 3.85rem);
         border-radius: 18px;
         background: radial-gradient(circle at 35% 30%, #0ea5e9, #0369a1 65%);
         color: rgba(226, 232, 240, 0.98);
@@ -1164,6 +1172,32 @@
         box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.22),
           0 12px 24px rgba(7, 89, 133, 0.32);
         transition: transform 200ms ease, opacity 200ms ease;
+        flex-shrink: 0;
+      }
+
+      .inventory-panel__details {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 0.2rem;
+        text-align: left;
+      }
+
+      .inventory-panel__resource-name {
+        margin: 0;
+        font-size: clamp(0.85rem, 1.9vw, 1rem);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: rgba(226, 232, 240, 0.95);
+      }
+
+      .inventory-panel__resource-number {
+        margin: 0;
+        font-size: clamp(0.7rem, 1.6vw, 0.85rem);
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: rgba(148, 163, 184, 0.85);
       }
 
       .inventory-panel__item:not(.inventory-panel__item--empty):hover .inventory-panel__symbol,

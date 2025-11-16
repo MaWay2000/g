@@ -1704,10 +1704,35 @@ const renderInventoryEntries = () => {
       item.dataset.inventoryKey = entry.key;
       item.dataset.inventoryDraggable = "true";
 
+      const resourceName =
+        entry.element.name || entry.element.symbol || "Unknown resource";
+      item.dataset.inventoryName = resourceName;
+
       const symbolElement = document.createElement("span");
       symbolElement.className = "inventory-panel__symbol";
       symbolElement.textContent = entry.element.symbol || "???";
       item.appendChild(symbolElement);
+
+      const detailsElement = document.createElement("div");
+      detailsElement.className = "inventory-panel__details";
+
+      if (resourceName) {
+        const nameElement = document.createElement("p");
+        nameElement.className = "inventory-panel__resource-name";
+        nameElement.textContent = resourceName;
+        detailsElement.appendChild(nameElement);
+      }
+
+      if (entry.element.number !== null) {
+        const numberElement = document.createElement("p");
+        numberElement.className = "inventory-panel__resource-number";
+        numberElement.textContent = `Atomic #${entry.element.number}`;
+        detailsElement.appendChild(numberElement);
+      }
+
+      if (detailsElement.childElementCount > 0) {
+        item.appendChild(detailsElement);
+      }
 
       const countElement = document.createElement("span");
       countElement.className = "inventory-panel__count";
@@ -1725,10 +1750,6 @@ const renderInventoryEntries = () => {
       } else if (entry.terrains.size > 1) {
         metaSegments.push("Multiple sites");
       }
-
-      const resourceName =
-        entry.element.name || entry.element.symbol || "Unknown resource";
-      item.dataset.inventoryName = resourceName;
 
       if (metaSegments.length > 0) {
         item.dataset.inventoryMeta = metaSegments.join(" • ");
