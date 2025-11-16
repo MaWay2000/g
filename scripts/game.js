@@ -634,6 +634,9 @@ const inventoryReorderState = {
 const inventoryPointerReorderState = {
   active: false,
   pointerId: null,
+  previewElement: null,
+  previewOffsetX: 0,
+  previewOffsetY: 0,
 };
 let inventoryResizeAnimationFrameId = 0;
 const INVENTORY_TOOLTIP_MARGIN = 16;
@@ -881,6 +884,102 @@ const clearInventoryDragSourceHighlight = () => {
     .forEach((element) => element.classList.remove("is-drag-source"));
 };
 
+const ensureInventoryDragPreviewElement = () => {
+  if (
+    typeof document === "undefined" ||
+    !(document.body instanceof HTMLElement)
+  ) {
+    return null;
+  }
+
+  if (!(inventoryPointerReorderState.previewElement instanceof HTMLElement)) {
+    const element = document.createElement("div");
+    element.className = "inventory-panel__drag-preview";
+    element.setAttribute("aria-hidden", "true");
+    document.body.appendChild(element);
+    inventoryPointerReorderState.previewElement = element;
+  }
+
+  return inventoryPointerReorderState.previewElement;
+};
+
+const setInventoryDragPreviewContent = (item) => {
+  const preview = ensureInventoryDragPreviewElement();
+
+  if (!(preview instanceof HTMLElement) || !(item instanceof HTMLElement)) {
+    return null;
+  }
+
+  const clone = item.cloneNode(true);
+  if (clone.hasAttribute && clone.hasAttribute("id")) {
+    clone.removeAttribute("id");
+  }
+  clone.classList.remove("is-drag-source", "is-drop-target");
+  clone.setAttribute("aria-hidden", "true");
+  clone.tabIndex = -1;
+
+  preview.innerHTML = "";
+  preview.appendChild(clone);
+
+  const rect = item.getBoundingClientRect();
+  preview.style.setProperty("--inventory-drag-preview-width", `${rect.width}px`);
+  preview.style.setProperty("--inventory-drag-preview-height", `${rect.height}px`);
+
+  return { preview, rect };
+};
+
+const updateInventoryDragPreviewPosition = (clientX, clientY) => {
+  const preview = inventoryPointerReorderState.previewElement;
+
+  if (!(preview instanceof HTMLElement)) {
+    return;
+  }
+
+  const left = clientX - inventoryPointerReorderState.previewOffsetX;
+  const top = clientY - inventoryPointerReorderState.previewOffsetY;
+
+  preview.style.setProperty("--inventory-drag-preview-left", `${left}px`);
+  preview.style.setProperty("--inventory-drag-preview-top", `${top}px`);
+};
+
+const showInventoryDragPreview = (item, pointerEvent) => {
+  if (
+    !pointerEvent ||
+    typeof pointerEvent.clientX !== "number" ||
+    typeof pointerEvent.clientY !== "number"
+  ) {
+    return;
+  }
+
+  const result = setInventoryDragPreviewContent(item);
+
+  if (!result) {
+    return;
+  }
+
+  const { preview, rect } = result;
+  inventoryPointerReorderState.previewOffsetX = pointerEvent.clientX - rect.left;
+  inventoryPointerReorderState.previewOffsetY = pointerEvent.clientY - rect.top;
+  preview.dataset.visible = "true";
+  updateInventoryDragPreviewPosition(pointerEvent.clientX, pointerEvent.clientY);
+};
+
+const hideInventoryDragPreview = () => {
+  const preview = inventoryPointerReorderState.previewElement;
+
+  if (preview instanceof HTMLElement) {
+    preview.dataset.visible = "false";
+    preview.innerHTML = "";
+    preview.style.removeProperty("--inventory-drag-preview-width");
+    preview.style.removeProperty("--inventory-drag-preview-height");
+    preview.style.removeProperty("--inventory-drag-preview-left");
+    preview.style.removeProperty("--inventory-drag-preview-top");
+  }
+
+  inventoryPointerReorderState.previewOffsetX = 0;
+  inventoryPointerReorderState.previewOffsetY = 0;
+};
+
 const resetInventoryReorderState = () => {
   clearInventoryDropTarget();
   clearInventoryDragSourceHighlight();
@@ -888,6 +987,7 @@ const resetInventoryReorderState = () => {
   inventoryReorderState.sourceSlotIndex = -1;
   inventoryReorderState.dropTargetSlotIndex = -1;
   removeInventoryPointerReorderListeners();
+  hideInventoryDragPreview();
 
   if (inventoryPanel instanceof HTMLElement) {
     inventoryPanel.classList.remove("is-reordering");
@@ -1019,6 +1119,7 @@ function handleInventoryPointerReorderMove(event) {
 
   event.preventDefault();
   updateInventoryPointerReorderTarget(event.clientX, event.clientY);
+  updateInventoryDragPreviewPosition(event.clientX, event.clientY);
 }
 
 function handleInventoryPointerReorderEnd(event) {
@@ -1030,6 +1131,7 @@ function handleInventoryPointerReorderEnd(event) {
   }
 
   event.preventDefault();
+  updateInventoryDragPreviewPosition(event.clientX, event.clientY);
   finishInventoryPointerReorder(event.clientX, event.clientY);
 }
 
@@ -1122,6 +1224,7 @@ const handleInventoryItemPointerDownForReorder = (event) => {
   }
 
   event.preventDefault();
+  showInventoryDragPreview(item, event);
   addInventoryPointerReorderListeners(event.pointerId);
   updateInventoryPointerReorderTarget(event.clientX, event.clientY);
 };
