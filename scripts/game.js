@@ -1692,13 +1692,75 @@ const isInventoryOpen = () =>
   inventoryPanel.dataset.open === "true" &&
   inventoryPanel.hidden !== true;
 
+const DEFAULT_ELEMENT_WEIGHT = 1;
+
+const getElementWeightFromAtomicNumber = (number) => {
+  if (!Number.isFinite(number) || number <= 0) {
+    return DEFAULT_ELEMENT_WEIGHT;
+  }
+
+  return number;
+};
+
+const getInventoryElementWeight = (element) => {
+  if (!element || typeof element !== "object") {
+    return DEFAULT_ELEMENT_WEIGHT;
+  }
+
+  if (Number.isFinite(element.weight) && element.weight > 0) {
+    return element.weight;
+  }
+
+  if (Number.isFinite(element.number) && element.number > 0) {
+    return getElementWeightFromAtomicNumber(element.number);
+  }
+
+  return DEFAULT_ELEMENT_WEIGHT;
+};
+
+const getInventoryEntryWeight = (entry) => {
+  if (!entry || !Number.isFinite(entry.count) || entry.count <= 0) {
+    return 0;
+  }
+
+  return entry.count * getInventoryElementWeight(entry.element);
+};
+
+const formatInventoryWeight = (weight) => {
+  if (!Number.isFinite(weight) || weight <= 0) {
+    return "0 kg";
+  }
+
+  const hasFraction = Math.abs(weight - Math.round(weight)) > 0.001;
+  const fractionDigits = hasFraction ? 1 : 0;
+
+  if (typeof weight.toLocaleString === "function") {
+    return `${weight.toLocaleString(undefined, {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    })} kg`;
+  }
+
+  const rounded = hasFraction ? weight.toFixed(1) : String(Math.round(weight));
+  return `${rounded} kg`;
+};
+
 const sanitizeInventoryElement = (element = {}) => {
   const symbol =
     typeof element.symbol === "string" ? element.symbol.trim() : "";
   const name = typeof element.name === "string" ? element.name.trim() : "";
   const number = Number.isFinite(element.number) ? element.number : null;
 
-  return { symbol, name, number };
+  let weight =
+    Number.isFinite(element.weight) && element.weight > 0
+      ? element.weight
+      : null;
+
+  if (weight === null && number !== null) {
+    weight = getElementWeightFromAtomicNumber(number);
+  }
+
+  return { symbol, name, number, weight };
 };
 
 const getInventoryEntryKey = (element) => {
@@ -1713,17 +1775,16 @@ const updateInventorySummary = () => {
     return;
   }
 
-  const total = inventoryState.entries.reduce(
-    (sum, entry) => sum + entry.count,
+  const totalWeight = inventoryState.entries.reduce(
+    (sum, entry) => sum + getInventoryEntryWeight(entry),
     0
   );
 
-  if (total === 0) {
+  if (totalWeight <= 0) {
     inventorySummary.textContent = "Inventory empty";
-  } else if (total === 1) {
-    inventorySummary.textContent = "1 resource collected";
   } else {
-    inventorySummary.textContent = `${total} resources collected`;
+    const formattedWeight = formatInventoryWeight(totalWeight);
+    inventorySummary.textContent = `${formattedWeight} collected`;
   }
 };
 
@@ -2495,6 +2556,14 @@ const recordInventoryResource = (detail) => {
 
     if (entry.element.number === null && elementDetails.number !== null) {
       entry.element.number = elementDetails.number;
+    }
+
+    if (
+      (!Number.isFinite(entry.element.weight) || entry.element.weight <= 0) &&
+      Number.isFinite(elementDetails.weight) &&
+      elementDetails.weight > 0
+    ) {
+      entry.element.weight = elementDetails.weight;
     }
   }
 

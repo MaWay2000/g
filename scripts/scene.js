@@ -37,6 +37,15 @@ import {
 import { samplePeriodicElement } from "./data/periodic-elements.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
+const DEFAULT_ELEMENT_WEIGHT = 1;
+
+const getElementWeightFromAtomicNumber = (number) => {
+  if (!Number.isFinite(number) || number <= 0) {
+    return DEFAULT_ELEMENT_WEIGHT;
+  }
+
+  return number;
+};
 
 export const initScene = (
   canvas,
@@ -4701,6 +4710,7 @@ export const initScene = (
         number: element.number,
         symbol: element.symbol,
         name: element.name,
+        weight: getElementWeightFromAtomicNumber(element.number),
       },
       found: true,
     });
