@@ -943,11 +943,16 @@
         flex-direction: column;
         width: min(98vw, 860px);
         max-height: min(94vh, 920px);
-        background: rgba(15, 23, 42, 0.95);
+        background: linear-gradient(
+            160deg,
+            rgba(2, 6, 23, 0.96),
+            rgba(15, 23, 42, 0.92)
+          ),
+          rgba(2, 6, 23, 0.92);
         border-radius: clamp(1.4rem, 3vw, 2.2rem);
-        border: 1px solid rgba(94, 234, 212, 0.25);
-        box-shadow: 0 42px 96px rgba(8, 47, 73, 0.55);
-        padding: clamp(1.2rem, 3.5vw, 2rem);
+        border: 1px solid rgba(37, 99, 235, 0.25);
+        box-shadow: 0 40px 120px rgba(2, 6, 23, 0.85);
+        padding: clamp(1rem, 3vw, 1.8rem);
         color: rgba(226, 232, 240, 0.96);
         overflow: visible;
         transform: translate3d(
@@ -1002,8 +1007,8 @@
       .inventory-panel__header {
         display: flex;
         flex-direction: column;
-        gap: 0.45rem;
-        margin-bottom: clamp(1.2rem, 3vw, 1.6rem);
+        gap: clamp(0.35rem, 1.2vw, 0.65rem);
+        margin-bottom: clamp(1rem, 2.6vw, 1.4rem);
         cursor: grab;
         user-select: none;
         touch-action: none;
@@ -1016,35 +1021,63 @@
 
       .inventory-panel__title-row {
         display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: clamp(0.5rem, 2vw, 1rem);
         flex-wrap: wrap;
-        align-items: baseline;
-        gap: 0.65rem;
+        width: 100%;
       }
 
       .inventory-panel__title {
         margin: 0;
-        font-size: clamp(1.45rem, 4vw, 1.95rem);
+        font-size: clamp(1.4rem, 4vw, 2.1rem);
         font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
       }
 
       .inventory-panel__summary {
-        margin: 0 0 clamp(1rem, 2.5vw, 1.35rem);
-        font-size: 0.95rem;
-        color: rgba(94, 234, 212, 0.92);
-        letter-spacing: 0.04em;
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.4rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid rgba(94, 234, 212, 0.25);
+        background: rgba(15, 23, 42, 0.65);
+        font-size: clamp(0.65rem, 1.8vw, 0.85rem);
+        font-weight: 600;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.9);
+        min-height: 2.25rem;
+      }
+
+      .inventory-panel__summary-value,
+      .inventory-panel__summary-capacity {
+        color: rgba(226, 232, 240, 0.95);
+      }
+
+      .inventory-panel__summary-divider {
+        color: rgba(148, 163, 184, 0.65);
       }
 
       .inventory-panel__body {
         position: relative;
         flex: 1 1 auto;
         overflow: auto;
-        padding-right: clamp(0.2rem, 1vw, 0.35rem);
         padding-top: clamp(0.6rem, 2vw, 1rem);
         padding-bottom: clamp(0.6rem, 2vw, 1rem);
         display: flex;
         flex-direction: column;
         gap: clamp(0.45rem, 1.5vw, 0.75rem);
+        border-radius: clamp(1.1rem, 2.4vw, 1.5rem);
+        border: 1px solid rgba(59, 130, 246, 0.18);
+        padding-left: clamp(0.6rem, 2vw, 1rem);
+        padding-right: clamp(0.6rem, 2vw, 1rem);
+        background: rgba(3, 7, 18, 0.9);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
       }
 
       .inventory-panel__empty {
@@ -1065,9 +1098,9 @@
         display: grid;
         grid-template-columns: repeat(
           auto-fit,
-          minmax(clamp(3.4rem, 10vw, 4.25rem), 1fr)
+          minmax(clamp(4.5rem, 8vw, 5.5rem), 1fr)
         );
-        gap: clamp(0.2rem, 1vw, 0.4rem);
+        gap: clamp(0.45rem, 1.6vw, 0.9rem);
       }
 
       .inventory-panel__item {
@@ -1076,19 +1109,15 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: clamp(0.15rem, 0.9vw, 0.3rem);
-        min-height: clamp(3.4rem, 9vw, 4.4rem);
+        gap: clamp(0.25rem, 1vw, 0.4rem);
+        min-height: clamp(4rem, 10vw, 5rem);
         aspect-ratio: 1 / 1;
-        padding: clamp(0.3rem, 0.9vw, 0.5rem);
-        border-radius: clamp(0.85rem, 2vw, 1.1rem);
-        background: radial-gradient(
-            circle at top,
-            rgba(56, 189, 248, 0.18),
-            rgba(14, 165, 233, 0.05)
-          ),
-          rgba(15, 23, 42, 0.82);
-        border: 1px solid rgba(56, 189, 248, 0.2);
-        box-shadow: 0 18px 40px rgba(8, 47, 73, 0.32);
+        padding: clamp(0.35rem, 1vw, 0.6rem);
+        border-radius: clamp(0.9rem, 2.2vw, 1.3rem);
+        background: rgba(2, 6, 23, 0.7);
+        border: 1px solid rgba(51, 65, 85, 0.8);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.75),
+          0 16px 32px rgba(2, 6, 23, 0.5);
         transition: transform 200ms ease, box-shadow 200ms ease,
           border-color 200ms ease, background 200ms ease;
         cursor: pointer;
@@ -1164,35 +1193,28 @@
 
       .inventory-panel__item:not(.inventory-panel__item--empty):hover,
       .inventory-panel__item:not(.inventory-panel__item--empty):focus-visible {
-        transform: translateY(-3px);
-        box-shadow: 0 24px 52px rgba(8, 47, 73, 0.45);
-        border-color: rgba(94, 234, 212, 0.55);
-        background: radial-gradient(
-            circle at 32% 26%,
-            rgba(56, 189, 248, 0.22),
-            rgba(14, 165, 233, 0.08)
-          ),
-          rgba(15, 23, 42, 0.9);
+        transform: translateY(-2px);
+        box-shadow: 0 26px 56px rgba(2, 6, 23, 0.65);
+        border-color: rgba(59, 130, 246, 0.65);
+        background: rgba(8, 25, 56, 0.85);
       }
 
       .inventory-panel__item:not(.inventory-panel__item--empty):focus-visible {
-        box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.35),
-          0 24px 52px rgba(8, 47, 73, 0.45);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35),
+          0 26px 56px rgba(2, 6, 23, 0.65);
       }
 
       .inventory-panel__item--empty {
         cursor: default;
         border-style: dashed;
-        border-color: rgba(148, 163, 184, 0.28);
-        background: rgba(15, 23, 42, 0.58);
-        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+        border-color: rgba(71, 85, 105, 0.7);
+        background: rgba(15, 23, 42, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.85);
         flex-direction: column;
         align-items: center;
         justify-content: center;
         text-align: center;
         gap: 0.25rem;
-        aspect-ratio: auto;
-        min-height: clamp(3.3rem, 9vw, 4.2rem);
       }
 
       .inventory-panel__symbol {
@@ -1200,53 +1222,51 @@
         align-items: center;
         justify-content: center;
         position: relative;
-        width: clamp(2.4rem, 6vw, 3.2rem);
-        height: clamp(2.4rem, 6vw, 3.2rem);
-        border-radius: 14px;
-        background: radial-gradient(circle at 35% 30%, #0ea5e9, #0369a1 65%);
-        color: rgba(226, 232, 240, 0.98);
-        font-size: clamp(1rem, 3vw, 1.35rem);
+        width: clamp(2.8rem, 7vw, 3.6rem);
+        height: clamp(2.8rem, 7vw, 3.6rem);
+        border-radius: 1rem;
+        background: linear-gradient(150deg, #38bdf8, #0ea5e9 55%, #0284c7);
+        color: rgba(15, 23, 42, 0.98);
+        font-size: clamp(1.05rem, 3.4vw, 1.4rem);
         font-weight: 700;
         letter-spacing: 0.06em;
-        box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.22),
-          0 12px 24px rgba(7, 89, 133, 0.32);
+        box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.25),
+          0 18px 32px rgba(7, 89, 133, 0.45);
         transition: transform 200ms ease, opacity 200ms ease;
         flex-shrink: 0;
       }
 
       .inventory-panel__details {
-        position: absolute;
-        inset: clamp(0.25rem, 0.9vw, 0.4rem);
-        border-radius: clamp(0.65rem, 1.6vw, 0.9rem);
+        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.2rem;
+        gap: 0.15rem;
         text-align: center;
-        padding: clamp(0.35rem, 1.4vw, 0.65rem);
-        background: rgba(2, 6, 23, 0.82);
-        box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.1);
-        opacity: 0;
-        transform: translateY(8px);
+        padding: 0;
+        background: none;
+        box-shadow: none;
+        opacity: 1;
+        transform: none;
         pointer-events: none;
-        transition: opacity 200ms ease, transform 200ms ease;
       }
 
       .inventory-panel__resource-name {
         margin: 0;
-        font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+        font-size: clamp(0.55rem, 1.4vw, 0.75rem);
         font-weight: 600;
-        letter-spacing: 0.04em;
-        color: rgba(226, 232, 240, 0.95);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.9);
       }
 
       .inventory-panel__resource-number {
         margin: 0;
-        font-size: clamp(0.6rem, 1.2vw, 0.75rem);
+        font-size: clamp(0.5rem, 1.2vw, 0.65rem);
         font-weight: 500;
-        letter-spacing: 0.06em;
-        color: rgba(148, 163, 184, 0.85);
+        letter-spacing: 0.08em;
+        color: rgba(100, 116, 139, 0.9);
       }
 
       .inventory-panel__item:not(.inventory-panel__item--empty):hover .inventory-panel__symbol,
@@ -1269,19 +1289,19 @@
 
       .inventory-panel__count {
         position: absolute;
-        bottom: clamp(0.2rem, 0.8vw, 0.35rem);
-        right: clamp(0.2rem, 0.8vw, 0.35rem);
-        font-size: clamp(0.6rem, 1.4vw, 0.75rem);
-        font-weight: 600;
-        color: rgba(226, 232, 240, 0.9);
-        padding: 0;
-        border-radius: 0;
-        background: none;
+        top: clamp(0.25rem, 0.8vw, 0.4rem);
+        right: clamp(0.25rem, 0.8vw, 0.4rem);
+        font-size: clamp(0.55rem, 1.3vw, 0.75rem);
+        font-weight: 700;
+        color: rgba(15, 23, 42, 0.9);
+        padding: 0.15rem 0.4rem;
+        border-radius: 999px;
+        background: rgba(226, 232, 240, 0.9);
         border: none;
         min-width: auto;
-        text-align: right;
-        line-height: 1.1;
-        box-shadow: none;
+        text-align: center;
+        line-height: 1;
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.35);
         pointer-events: none;
       }
 
@@ -1331,10 +1351,11 @@
       }
 
       .inventory-panel__empty-slot {
-        font-size: clamp(0.55rem, 1.6vw, 0.7rem);
-        letter-spacing: 0.16em;
+        font-size: clamp(0.55rem, 1.3vw, 0.65rem);
+        letter-spacing: 0.2em;
         text-transform: uppercase;
-        color: rgba(148, 163, 184, 0.6);
+        font-weight: 600;
+        color: rgba(71, 85, 105, 0.85);
       }
 
       @media (max-width: 600px) {
@@ -1685,9 +1706,11 @@
         <header class="inventory-panel__header" data-inventory-drag-handle>
           <div class="inventory-panel__title-row">
             <h2 class="inventory-panel__title">Inventory</h2>
+            <p class="inventory-panel__summary" data-inventory-summary>
+              Inventory empty
+            </p>
           </div>
         </header>
-        <p class="inventory-panel__summary" data-inventory-summary>Inventory empty</p>
         <div class="inventory-panel__body">
           <p class="inventory-panel__empty" data-inventory-empty>
             Your inventory is empty. Use the resource tool on the custom map to harvest
