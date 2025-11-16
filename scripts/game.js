@@ -111,6 +111,9 @@ const inventorySummaryFill = inventoryPanel?.querySelector(
 const inventorySummaryLabel = inventoryPanel?.querySelector(
   "[data-inventory-summary-label]"
 );
+const inventorySummaryTooltip = inventoryPanel?.querySelector(
+  "[data-inventory-summary-tooltip]"
+);
 const inventoryCloseButton = inventoryPanel?.querySelector(
   "[data-inventory-close-button]"
 );
@@ -1800,6 +1803,10 @@ const updateInventorySummary = () => {
     inventorySummaryFill instanceof HTMLElement ? inventorySummaryFill : null;
   const summaryLabelElement =
     inventorySummaryLabel instanceof HTMLElement ? inventorySummaryLabel : null;
+  const summaryTooltipElement =
+    inventorySummaryTooltip instanceof HTMLElement
+      ? inventorySummaryTooltip
+      : null;
 
   const totalWeight = inventoryState.entries.reduce(
     (sum, entry) => sum + getInventoryEntryWeight(entry),
@@ -1830,6 +1837,10 @@ const updateInventorySummary = () => {
 
   if (summaryLabelElement) {
     summaryLabelElement.textContent = summaryText;
+  }
+
+  if (summaryTooltipElement) {
+    summaryTooltipElement.textContent = summaryText;
   }
 };
 
