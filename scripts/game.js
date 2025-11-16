@@ -962,8 +962,8 @@ const showInventoryDragPreview = (item, pointerEvent) => {
   const { preview, rect } = result;
   inventoryPointerReorderState.previewOffsetX = pointerEvent.clientX - rect.left;
   inventoryPointerReorderState.previewOffsetY = pointerEvent.clientY - rect.top;
-  preview.dataset.visible = "true";
   updateInventoryDragPreviewPosition(pointerEvent.clientX, pointerEvent.clientY);
+  preview.dataset.visible = "true";
 };
 
 const hideInventoryDragPreview = () => {
