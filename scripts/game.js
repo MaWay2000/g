@@ -105,6 +105,12 @@ const inventoryBody = inventoryPanel?.querySelector(".inventory-panel__body");
 const inventoryList = inventoryPanel?.querySelector("[data-inventory-list]");
 const inventoryEmptyState = inventoryPanel?.querySelector("[data-inventory-empty]");
 const inventorySummary = inventoryPanel?.querySelector("[data-inventory-summary]");
+const inventorySummaryFill = inventoryPanel?.querySelector(
+  "[data-inventory-summary-fill]"
+);
+const inventorySummaryLabel = inventoryPanel?.querySelector(
+  "[data-inventory-summary-label]"
+);
 const inventoryCloseButton = inventoryPanel?.querySelector(
   "[data-inventory-close-button]"
 );
@@ -1790,6 +1796,10 @@ const getInventoryCapacityKg = () => {
 const updateInventorySummary = () => {
   const summaryElement =
     inventorySummary instanceof HTMLElement ? inventorySummary : null;
+  const summaryFillElement =
+    inventorySummaryFill instanceof HTMLElement ? inventorySummaryFill : null;
+  const summaryLabelElement =
+    inventorySummaryLabel instanceof HTMLElement ? inventorySummaryLabel : null;
 
   const totalWeight = inventoryState.entries.reduce(
     (sum, entry) => sum + getInventoryEntryWeight(entry),
@@ -1804,7 +1814,23 @@ const updateInventorySummary = () => {
 
   const formattedWeight = formatGrams(totalWeight);
   const formattedCapacity = formatKilograms(capacityKg);
-  summaryElement.textContent = `${formattedWeight} / ${formattedCapacity} max`;
+  const summaryText = `${formattedWeight} / ${formattedCapacity} max`;
+
+  const capacityGrams = Math.max(0, capacityKg * 1000);
+  const fillPercentage = capacityGrams
+    ? Math.min(totalWeight / capacityGrams, 1) * 100
+    : 0;
+
+  if (summaryFillElement) {
+    summaryFillElement.style.width = `${fillPercentage}%`;
+  }
+
+  summaryElement.setAttribute("title", summaryText);
+  summaryElement.setAttribute("aria-label", summaryText);
+
+  if (summaryLabelElement) {
+    summaryLabelElement.textContent = summaryText;
+  }
 };
 
 const getOrderedInventoryEntries = () => {

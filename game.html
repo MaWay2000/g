@@ -1031,12 +1031,42 @@
       }
 
       .inventory-panel__summary {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        width: clamp(8rem, 20vw, 12rem);
         margin: 0;
-        font-size: clamp(0.85rem, 2vw, 0.95rem);
-        color: rgba(94, 234, 212, 0.92);
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
+        padding: 0.15rem 0;
+        cursor: help;
+      }
+
+      .inventory-panel__summary-bar {
+        flex: 1 1 auto;
+        height: 0.45rem;
+        border-radius: 999px;
+        background: rgba(51, 65, 85, 0.8);
+        overflow: hidden;
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
+      }
+
+      .inventory-panel__summary-bar-fill {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, rgba(94, 234, 212, 1), rgba(59, 130, 246, 1));
+        transition: width 200ms ease-out;
+      }
+
+      .inventory-panel__summary-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
         white-space: nowrap;
+        border: 0;
       }
 
       .inventory-panel__body {
@@ -1688,9 +1718,17 @@
         <header class="inventory-panel__header" data-inventory-drag-handle>
           <div class="inventory-panel__title-row">
             <h2 class="inventory-panel__title">Inventory</h2>
-            <p class="inventory-panel__summary" data-inventory-summary>
-              0 G / 10 KG MAX
-            </p>
+            <div class="inventory-panel__summary" data-inventory-summary>
+              <div class="inventory-panel__summary-bar" data-inventory-summary-bar>
+                <div
+                  class="inventory-panel__summary-bar-fill"
+                  data-inventory-summary-fill
+                ></div>
+              </div>
+              <span class="inventory-panel__summary-label" data-inventory-summary-label>
+                0 G / 10 KG MAX
+              </span>
+            </div>
           </div>
         </header>
         <div class="inventory-panel__body">
