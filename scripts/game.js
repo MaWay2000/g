@@ -105,6 +105,9 @@ const inventoryBody = inventoryPanel?.querySelector(".inventory-panel__body");
 const inventoryList = inventoryPanel?.querySelector("[data-inventory-list]");
 const inventoryEmptyState = inventoryPanel?.querySelector("[data-inventory-empty]");
 const inventorySummary = inventoryPanel?.querySelector("[data-inventory-summary]");
+const inventoryCapacityDisplay = inventoryPanel?.querySelector(
+  "[data-inventory-capacity]"
+);
 const inventoryCloseButton = inventoryPanel?.querySelector(
   "[data-inventory-close-button]"
 );
@@ -1692,11 +1695,14 @@ const isInventoryOpen = () =>
   inventoryPanel.dataset.open === "true" &&
   inventoryPanel.hidden !== true;
 
-const DEFAULT_ELEMENT_WEIGHT = 1;
+const GRAMS_PER_KILOGRAM = 1000;
+const DEFAULT_ELEMENT_WEIGHT_GRAMS = 1;
+const INVENTORY_CAPACITY_GRAMS = 10 * GRAMS_PER_KILOGRAM;
+const DEFAULT_BACKPACK_NAME = "Default backpack";
 
 const getElementWeightFromAtomicNumber = (number) => {
   if (!Number.isFinite(number) || number <= 0) {
-    return DEFAULT_ELEMENT_WEIGHT;
+    return DEFAULT_ELEMENT_WEIGHT_GRAMS;
   }
 
   return number;
@@ -1704,7 +1710,7 @@ const getElementWeightFromAtomicNumber = (number) => {
 
 const getInventoryElementWeight = (element) => {
   if (!element || typeof element !== "object") {
-    return DEFAULT_ELEMENT_WEIGHT;
+    return DEFAULT_ELEMENT_WEIGHT_GRAMS;
   }
 
   if (Number.isFinite(element.weight) && element.weight > 0) {
@@ -1715,7 +1721,7 @@ const getInventoryElementWeight = (element) => {
     return getElementWeightFromAtomicNumber(element.number);
   }
 
-  return DEFAULT_ELEMENT_WEIGHT;
+  return DEFAULT_ELEMENT_WEIGHT_GRAMS;
 };
 
 const getInventoryEntryWeight = (entry) => {
@@ -1726,24 +1732,28 @@ const getInventoryEntryWeight = (entry) => {
   return entry.count * getInventoryElementWeight(entry.element);
 };
 
-const formatInventoryWeight = (weight) => {
-  if (!Number.isFinite(weight) || weight <= 0) {
-    return "0 kg";
+const formatWeightWithUnit = (value, unit) => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return `0 ${unit}`;
   }
 
-  const hasFraction = Math.abs(weight - Math.round(weight)) > 0.001;
+  const hasFraction = Math.abs(value - Math.round(value)) > 0.001;
   const fractionDigits = hasFraction ? 1 : 0;
 
-  if (typeof weight.toLocaleString === "function") {
-    return `${weight.toLocaleString(undefined, {
+  if (typeof value.toLocaleString === "function") {
+    return `${value.toLocaleString(undefined, {
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
-    })} kg`;
+    })} ${unit}`;
   }
 
-  const rounded = hasFraction ? weight.toFixed(1) : String(Math.round(weight));
-  return `${rounded} kg`;
+  const rounded = hasFraction ? value.toFixed(1) : String(Math.round(value));
+  return `${rounded} ${unit}`;
 };
+
+const formatGrams = (grams) => formatWeightWithUnit(grams, "g");
+
+const formatKilograms = (kilograms) => formatWeightWithUnit(kilograms, "kg");
 
 const sanitizeInventoryElement = (element = {}) => {
   const symbol =
@@ -1770,21 +1780,38 @@ const getInventoryEntryKey = (element) => {
   return `${symbolKey}|${nameKey}|${numberKey}`;
 };
 
-const updateInventorySummary = () => {
-  if (!(inventorySummary instanceof HTMLElement)) {
+const updateInventoryCapacityDisplay = (totalWeightGrams) => {
+  if (!(inventoryCapacityDisplay instanceof HTMLElement)) {
     return;
   }
+
+  const formattedCurrent = formatGrams(totalWeightGrams);
+  const formattedMax = formatKilograms(
+    INVENTORY_CAPACITY_GRAMS / GRAMS_PER_KILOGRAM
+  );
+  inventoryCapacityDisplay.textContent = `${DEFAULT_BACKPACK_NAME} · ${formattedCurrent} / ${formattedMax} max`;
+};
+
+const updateInventorySummary = () => {
+  const summaryElement =
+    inventorySummary instanceof HTMLElement ? inventorySummary : null;
 
   const totalWeight = inventoryState.entries.reduce(
     (sum, entry) => sum + getInventoryEntryWeight(entry),
     0
   );
 
+  updateInventoryCapacityDisplay(totalWeight);
+
+  if (!summaryElement) {
+    return;
+  }
+
   if (totalWeight <= 0) {
-    inventorySummary.textContent = "Inventory empty";
+    summaryElement.textContent = "Inventory empty";
   } else {
-    const formattedWeight = formatInventoryWeight(totalWeight);
-    inventorySummary.textContent = `${formattedWeight} collected`;
+    const formattedWeight = formatGrams(totalWeight);
+    summaryElement.textContent = `${formattedWeight} collected`;
   }
 };
 
