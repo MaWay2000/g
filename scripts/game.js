@@ -980,7 +980,7 @@ const hideInventoryDragPreview = () => {
   inventoryPointerReorderState.previewOffsetY = 0;
 };
 
-const resetInventoryReorderState = () => {
+const resetInventoryReorderState = ({ preserveReorderClass = false } = {}) => {
   clearInventoryDropTarget();
   clearInventoryDragSourceHighlight();
   inventoryReorderState.draggingKey = null;
@@ -989,7 +989,7 @@ const resetInventoryReorderState = () => {
   removeInventoryPointerReorderListeners();
   hideInventoryDragPreview();
 
-  if (inventoryPanel instanceof HTMLElement) {
+  if (inventoryPanel instanceof HTMLElement && !preserveReorderClass) {
     inventoryPanel.classList.remove("is-reordering");
   }
 };
@@ -1100,13 +1100,18 @@ function finishInventoryPointerReorder(clientX, clientY) {
     targetIndex = inventoryReorderState.dropTargetSlotIndex;
   }
 
-  resetInventoryReorderState();
+  const shouldReorder = sourceIndex >= 0 && targetIndex >= 0;
+  resetInventoryReorderState({ preserveReorderClass: shouldReorder });
 
-  if (sourceIndex < 0 || targetIndex < 0) {
+  if (!shouldReorder) {
     return;
   }
 
   reorderInventoryEntriesBySlot(sourceIndex, targetIndex);
+
+  if (inventoryPanel instanceof HTMLElement) {
+    inventoryPanel.classList.remove("is-reordering");
+  }
 }
 
 function handleInventoryPointerReorderMove(event) {
