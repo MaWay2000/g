@@ -105,9 +105,6 @@ const inventoryBody = inventoryPanel?.querySelector(".inventory-panel__body");
 const inventoryList = inventoryPanel?.querySelector("[data-inventory-list]");
 const inventoryEmptyState = inventoryPanel?.querySelector("[data-inventory-empty]");
 const inventorySummary = inventoryPanel?.querySelector("[data-inventory-summary]");
-const inventoryCapacityDisplay = inventoryPanel?.querySelector(
-  "[data-inventory-capacity]"
-);
 const inventoryCloseButton = inventoryPanel?.querySelector(
   "[data-inventory-close-button]"
 );
@@ -1698,7 +1695,6 @@ const isInventoryOpen = () =>
 const GRAMS_PER_KILOGRAM = 1000;
 const DEFAULT_ELEMENT_WEIGHT_GRAMS = 1;
 const INVENTORY_CAPACITY_GRAMS = 10 * GRAMS_PER_KILOGRAM;
-const DEFAULT_BACKPACK_NAME = "Default backpack";
 
 const getElementWeightFromAtomicNumber = (number) => {
   if (!Number.isFinite(number) || number <= 0) {
@@ -1780,18 +1776,6 @@ const getInventoryEntryKey = (element) => {
   return `${symbolKey}|${nameKey}|${numberKey}`;
 };
 
-const updateInventoryCapacityDisplay = (totalWeightGrams) => {
-  if (!(inventoryCapacityDisplay instanceof HTMLElement)) {
-    return;
-  }
-
-  const formattedCurrent = formatGrams(totalWeightGrams);
-  const formattedMax = formatKilograms(
-    INVENTORY_CAPACITY_GRAMS / GRAMS_PER_KILOGRAM
-  );
-  inventoryCapacityDisplay.textContent = `${DEFAULT_BACKPACK_NAME} · ${formattedCurrent} / ${formattedMax} max`;
-};
-
 const updateInventorySummary = () => {
   const summaryElement =
     inventorySummary instanceof HTMLElement ? inventorySummary : null;
@@ -1800,8 +1784,6 @@ const updateInventorySummary = () => {
     (sum, entry) => sum + getInventoryEntryWeight(entry),
     0
   );
-
-  updateInventoryCapacityDisplay(totalWeight);
 
   if (!summaryElement) {
     return;
