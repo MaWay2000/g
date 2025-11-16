@@ -1220,8 +1220,8 @@
         .inventory-panel__symbol,
       .inventory-panel__item:not(.inventory-panel__item--empty):focus-within
         .inventory-panel__symbol {
-        transform: scale(0.92);
-        opacity: 0.2;
+        transform: none;
+        opacity: 1;
       }
 
       .inventory-panel__item:not(.inventory-panel__item--empty):hover .inventory-panel__details,
@@ -1229,8 +1229,8 @@
         .inventory-panel__details,
       .inventory-panel__item:not(.inventory-panel__item--empty):focus-within
         .inventory-panel__details {
-        opacity: 1;
-        transform: translateY(0);
+        opacity: 0;
+        transform: translateY(8px);
       }
 
       .inventory-panel__count {
