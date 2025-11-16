@@ -586,7 +586,6 @@ let sceneController = null;
 let liftModalActive = false;
 
 const INVENTORY_SLOT_COUNT = 100;
-const INVENTORY_CAPACITY_KG = 10;
 
 const createEmptyInventorySlotOrder = () =>
   new Array(INVENTORY_SLOT_COUNT).fill(null);
@@ -1730,31 +1729,25 @@ const getInventoryEntryWeight = (entry) => {
 };
 
 const formatWeightWithUnit = (value, unit) => {
-  const normalizedUnit = typeof unit === "string" ? unit.toUpperCase() : "";
-
   if (!Number.isFinite(value) || value <= 0) {
-    return normalizedUnit ? `0 ${normalizedUnit}` : "0";
+    return `0 ${unit}`;
   }
 
   const hasFraction = Math.abs(value - Math.round(value)) > 0.001;
-  const fractionDigits = value < 1 ? 3 : hasFraction ? 1 : 0;
+  const fractionDigits = hasFraction ? 1 : 0;
 
   if (typeof value.toLocaleString === "function") {
-    const formattedValue = value.toLocaleString(undefined, {
+    return `${value.toLocaleString(undefined, {
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
-    });
-    return normalizedUnit ? `${formattedValue} ${normalizedUnit}` : formattedValue;
+    })} ${unit}`;
   }
 
-  const rounded =
-    value < 1
-      ? value.toFixed(3)
-      : hasFraction
-        ? value.toFixed(1)
-        : String(Math.round(value));
-  return normalizedUnit ? `${rounded} ${normalizedUnit}` : rounded;
+  const rounded = hasFraction ? value.toFixed(1) : String(Math.round(value));
+  return `${rounded} ${unit}`;
 };
+
+const formatGrams = (grams) => formatWeightWithUnit(grams, "g");
 
 const formatKilograms = (kilograms) => formatWeightWithUnit(kilograms, "kg");
 
@@ -1796,26 +1789,12 @@ const updateInventorySummary = () => {
     return;
   }
 
-  const usedKilograms = totalWeight / 1000;
-  const capacityKilograms = INVENTORY_CAPACITY_KG;
-  const usedDisplay = formatKilograms(usedKilograms);
-  const capacityDisplay = formatKilograms(capacityKilograms);
-  const unitMatch = usedDisplay.match(/[A-Z]+$/i);
-  const usedValue = unitMatch
-    ? usedDisplay.slice(0, -unitMatch[0].length).trim()
-    : usedDisplay;
-  const safeUsedValue = usedValue || "0";
-  const safeCapacity = capacityDisplay || formatKilograms(INVENTORY_CAPACITY_KG);
-
-  summaryElement.innerHTML =
-    `<span class="inventory-panel__summary-value">${safeUsedValue}</span>` +
-    `<span class="inventory-panel__summary-divider" aria-hidden="true">/</span>` +
-    `<span class="inventory-panel__summary-capacity">${safeCapacity}</span>`;
-  summaryElement.dataset.state = totalWeight <= 0 ? "empty" : "active";
-  summaryElement.setAttribute(
-    "aria-label",
-    `${safeUsedValue} of ${safeCapacity} capacity used`
-  );
+  if (totalWeight <= 0) {
+    summaryElement.textContent = "Inventory empty";
+  } else {
+    const formattedWeight = formatGrams(totalWeight);
+    summaryElement.textContent = `${formattedWeight} collected`;
+  }
 };
 
 const getOrderedInventoryEntries = () => {
