@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resource Find Rates</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      body {
+        margin: 0 auto;
+        max-width: 1000px;
+        padding: 2rem 1rem 4rem;
+        line-height: 1.6;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 4vw, 3rem);
+        margin-bottom: 0.5rem;
+      }
+
+      p.description {
+        margin-top: 0;
+        font-size: 1rem;
+        color: #555;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1.5rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      thead th {
+        text-align: left;
+        border-bottom: 2px solid currentColor;
+        padding: 0.5rem 0.4rem;
+      }
+
+      tbody td {
+        padding: 0.45rem 0.4rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      }
+
+      tbody tr:nth-child(even) td {
+        background-color: rgba(0, 0, 0, 0.025);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        p.description {
+          color: #c9c9c9;
+        }
+
+        tbody td {
+          border-bottom-color: rgba(255, 255, 255, 0.08);
+        }
+
+        tbody tr:nth-child(even) td {
+          background-color: rgba(255, 255, 255, 0.04);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Element Find Rates</h1>
+    <p class="description">
+      Each harvest attempt in the game has a 10% success chance. When a harvest
+      succeeds, the element you receive is chosen with a weight of
+      <code>1 / atomicNumber</code>, meaning lighter elements are more common.
+      The table below shows the resulting per-element probability distribution.
+    </p>
+
+    <table aria-label="Element find rate table">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col">Symbol</th>
+          <th scope="col">Name</th>
+          <th scope="col">Chance on Success (%)</th>
+        </tr>
+      </thead>
+      <tbody id="elements-table-body"></tbody>
+    </table>
+
+    <script type="module">
+      import { PERIODIC_ELEMENTS } from "./scripts/data/periodic-elements.js";
+
+      const tableBody = document.querySelector("#elements-table-body");
+
+      const totalWeight = PERIODIC_ELEMENTS.reduce((sum, element) => {
+        if (!element || !Number.isFinite(element.number) || element.number <= 0) {
+          return sum;
+        }
+        return sum + 1 / element.number;
+      }, 0);
+
+      const formatPercent = (value) => `${value.toFixed(4)}%`;
+
+      PERIODIC_ELEMENTS.forEach((element) => {
+        if (!element || !Number.isFinite(element.number) || element.number <= 0) {
+          return;
+        }
+
+        const percent = ((1 / element.number) / totalWeight) * 100;
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${element.number}</td>
+          <td>${element.symbol}</td>
+          <td>${element.name}</td>
+          <td>${formatPercent(percent)}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    </script>
+  </body>
+</html>
