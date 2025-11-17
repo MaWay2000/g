@@ -4469,13 +4469,32 @@ export const initScene = (
     RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE ** 2;
   const RESOURCE_SESSION_PLAYER_SOURCE = "player";
   const RESOURCE_SESSION_DRONE_SOURCE = "drone-miner";
-  const activeResourceSession = {
+  const createResourceSessionState = (source) => ({
     isActive: false,
     startPosition: new THREE.Vector3(),
     baseDetail: null,
     eventDetail: null,
-    source: RESOURCE_SESSION_PLAYER_SOURCE,
+    source,
     remainingTime: 0,
+  });
+  const resourceSessionRegistry = new Map();
+  [RESOURCE_SESSION_PLAYER_SOURCE, RESOURCE_SESSION_DRONE_SOURCE].forEach((source) => {
+    resourceSessionRegistry.set(source, createResourceSessionState(source));
+  });
+  const getResourceSession = (source = RESOURCE_SESSION_PLAYER_SOURCE) => {
+    const resolvedSource =
+      typeof source === "string" && source.length > 0
+        ? source
+        : RESOURCE_SESSION_PLAYER_SOURCE;
+
+    if (!resourceSessionRegistry.has(resolvedSource)) {
+      resourceSessionRegistry.set(
+        resolvedSource,
+        createResourceSessionState(resolvedSource)
+      );
+    }
+
+    return resourceSessionRegistry.get(resolvedSource);
   };
 
   const findResourceTarget = (object) => {
@@ -4559,7 +4578,7 @@ export const initScene = (
       }
     };
 
-    if (activeResourceSession.isActive) {
+    if (getResourceSession(RESOURCE_SESSION_PLAYER_SOURCE).isActive) {
       markActionFailed();
       return;
     }
@@ -5002,13 +5021,16 @@ export const initScene = (
     scheduledResourceToolResumeFrameId = 0;
   };
 
-  function clearActiveResourceSession() {
-    activeResourceSession.isActive = false;
-    activeResourceSession.baseDetail = null;
-    activeResourceSession.eventDetail = null;
-    activeResourceSession.startPosition.set(0, 0, 0);
-    activeResourceSession.source = RESOURCE_SESSION_PLAYER_SOURCE;
-    activeResourceSession.remainingTime = 0;
+  function clearResourceSession(session) {
+    if (!session) {
+      return;
+    }
+
+    session.isActive = false;
+    session.baseDetail = null;
+    session.eventDetail = null;
+    session.startPosition.set(0, 0, 0);
+    session.remainingTime = 0;
   }
 
   function startResourceCollectionSession({
@@ -5021,10 +5043,11 @@ export const initScene = (
     const terrainId = targetObject.userData?.terrainId ?? null;
     const terrainLabel = targetObject.userData?.terrainLabel ?? null;
     const sessionSource = source || RESOURCE_SESSION_PLAYER_SOURCE;
+    const session = getResourceSession(sessionSource);
 
-    activeResourceSession.isActive = true;
-    activeResourceSession.startPosition.copy(playerObject.position);
-    activeResourceSession.baseDetail = {
+    session.isActive = true;
+    session.startPosition.copy(playerObject.position);
+    session.baseDetail = {
       terrain: {
         id: terrainId,
         label: terrainLabel,
@@ -5038,9 +5061,9 @@ export const initScene = (
       actionDuration,
       source: sessionSource,
     };
-    activeResourceSession.eventDetail = eventDetail ?? null;
-    activeResourceSession.source = sessionSource;
-    activeResourceSession.remainingTime = actionDuration;
+    session.eventDetail = eventDetail ?? null;
+    session.source = sessionSource;
+    session.remainingTime = actionDuration;
 
     if (eventDetail) {
       eventDetail.success = true;
@@ -5064,21 +5087,21 @@ export const initScene = (
     }
   }
 
-  function finishActiveResourceSession() {
-    if (!activeResourceSession.isActive || !activeResourceSession.baseDetail) {
-      clearActiveResourceSession();
+  function finishResourceSession(session) {
+    if (!session?.isActive || !session.baseDetail) {
+      clearResourceSession(session);
       return;
     }
 
-    const baseDetail = activeResourceSession.baseDetail;
-    const eventDetail = activeResourceSession.eventDetail;
-    const sessionSource = baseDetail?.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
+    const baseDetail = session.baseDetail;
+    const eventDetail = session.eventDetail;
+    const sessionSource = baseDetail?.source ?? session.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
     if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
       returnDroneMinerToPlayer();
     }
 
-    clearActiveResourceSession();
+    clearResourceSession(session);
 
     if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
       resourceToolState.cooldown = 0;
@@ -5152,19 +5175,19 @@ export const initScene = (
     }
   }
 
-  function cancelActiveResourceSession({ reason } = {}) {
-    if (!activeResourceSession.isActive) {
+  function cancelResourceSessionInstance(session, { reason } = {}) {
+    if (!session?.isActive) {
       return;
     }
 
-    const eventDetail = activeResourceSession.eventDetail;
-    const sessionSource = activeResourceSession.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
+    const eventDetail = session.eventDetail;
+    const sessionSource = session.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
     if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
       hideDroneMiner();
     }
 
-    clearActiveResourceSession();
+    clearResourceSession(session);
 
     if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
       resourceToolState.cooldown = 0;
@@ -5201,40 +5224,51 @@ export const initScene = (
     }
   }
 
-  function updateActiveResourceSession(delta = 0) {
-    if (!activeResourceSession.isActive) {
-      return;
-    }
+  function cancelActiveResourceSession({
+    reason,
+    source = RESOURCE_SESSION_PLAYER_SOURCE,
+  } = {}) {
+    const session = getResourceSession(source);
+    cancelResourceSessionInstance(session, { reason });
+  }
 
-    const sessionSource = activeResourceSession.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
+  function updateResourceSessions(delta = 0) {
+    const elapsed = Number.isFinite(delta) && delta > 0 ? delta : 0;
 
-    if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
-      if (!controls.isLocked) {
-        cancelActiveResourceSession({ reason: "controls-unlocked" });
+    resourceSessionRegistry.forEach((session) => {
+      if (!session.isActive) {
         return;
       }
 
-      const startPosition = activeResourceSession.startPosition;
+      const sessionSource = session.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
-      if (startPosition) {
-        const deltaX = playerObject.position.x - startPosition.x;
-        const deltaZ = playerObject.position.z - startPosition.z;
-        const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-
-        if (distanceSquared > RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED) {
-          cancelActiveResourceSession({ reason: "movement" });
+      if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+        if (!controls.isLocked) {
+          cancelResourceSessionInstance(session, { reason: "controls-unlocked" });
           return;
         }
+
+        const startPosition = session.startPosition;
+
+        if (startPosition) {
+          const deltaX = playerObject.position.x - startPosition.x;
+          const deltaZ = playerObject.position.z - startPosition.z;
+          const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+
+          if (distanceSquared > RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED) {
+            cancelResourceSessionInstance(session, { reason: "movement" });
+            return;
+          }
+        }
       }
-    }
 
-    const elapsed = Number.isFinite(delta) && delta > 0 ? delta : 0;
-    const remaining = Math.max(0, (activeResourceSession.remainingTime ?? 0) - elapsed);
-    activeResourceSession.remainingTime = remaining;
+      const remaining = Math.max(0, (session.remainingTime ?? 0) - elapsed);
+      session.remainingTime = remaining;
 
-    if (remaining <= 0) {
-      finishActiveResourceSession();
-    }
+      if (remaining <= 0) {
+        finishResourceSession(session);
+      }
+    });
   }
 
   const resetResourceToolState = () => {
@@ -5289,7 +5323,7 @@ export const initScene = (
   };
 
   const launchDroneMiner = () => {
-    if (activeResourceSession.isActive) {
+    if (getResourceSession(RESOURCE_SESSION_DRONE_SOURCE).isActive) {
       return { started: false, reason: "busy" };
     }
 
@@ -5330,7 +5364,7 @@ export const initScene = (
       return;
     }
 
-    if (activeResourceSession.isActive) {
+    if (getResourceSession(RESOURCE_SESSION_PLAYER_SOURCE).isActive) {
       return;
     }
 
@@ -5349,7 +5383,7 @@ export const initScene = (
         return;
       }
 
-      if (activeResourceSession.isActive) {
+      if (getResourceSession(RESOURCE_SESSION_PLAYER_SOURCE).isActive) {
         return;
       }
 
@@ -6647,7 +6681,7 @@ export const initScene = (
     updateOperationsConcourseTeleport(delta);
     updateResourceTool(delta, elapsedTime);
     updateDroneMiner(delta, elapsedTime);
-    updateActiveResourceSession(delta);
+    updateResourceSessions(delta);
 
     renderer.render(scene, camera);
   };
