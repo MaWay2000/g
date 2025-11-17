@@ -521,8 +521,6 @@ if (droneActionButton instanceof HTMLElement) {
   droneActionButton.addEventListener("click", handleDroneActionButtonClick);
 }
 
-updateDroneStatusUi();
-
 const LIFT_MODAL_OPTION = {
   id: "lift",
   title: "Lift control",
@@ -3810,6 +3808,8 @@ function updateDroneStatusUi() {
   droneStatusPanel.hidden = false;
   droneStatusPanel.dataset.state = droneState.status;
 }
+
+updateDroneStatusUi();
 
 const attemptDroneLaunch = () => {
   if (droneState.status === "awaiting-pickup" || droneState.status === "collecting") {
