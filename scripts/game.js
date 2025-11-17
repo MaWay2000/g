@@ -27,8 +27,6 @@ const droneStatusPanel = document.querySelector("[data-drone-status-panel]");
 const droneStatusLabel = document.querySelector("[data-drone-status-label]");
 const droneStatusDetail = document.querySelector("[data-drone-status-detail]");
 const dronePayloadLabel = document.querySelector("[data-drone-payload]");
-const droneActionButton = document.querySelector("[data-drone-action]");
-const droneCapacityLabel = document.querySelector("[data-drone-capacity]");
 const crosshairStates = {
   terminal: false,
   edit: false,
@@ -604,10 +602,6 @@ if (quickSlotBar instanceof HTMLElement) {
 
 renderQuickSlotBar();
 dispatchQuickSlotChangeEvent(quickSlotState.selectedIndex);
-
-if (droneActionButton instanceof HTMLElement) {
-  droneActionButton.addEventListener("click", handleDroneActionButtonClick);
-}
 
 const LIFT_MODAL_OPTION = {
   id: "lift",
@@ -3849,16 +3843,6 @@ function updateDroneStatusUi() {
     droneStatusDetail instanceof HTMLElement ? droneStatusDetail : null;
   const payloadElement =
     dronePayloadLabel instanceof HTMLElement ? dronePayloadLabel : null;
-  const actionButton =
-    droneActionButton instanceof HTMLElement ? droneActionButton : null;
-  const capacityElement =
-    droneCapacityLabel instanceof HTMLElement ? droneCapacityLabel : null;
-
-  if (capacityElement) {
-    capacityElement.textContent = `Max haul ${formatKilograms(
-      DRONE_MINER_MAX_PAYLOAD_KG
-    )}`;
-  }
 
   if (!droneState.active) {
     droneStatusPanel.hidden = true;
@@ -3867,18 +3851,15 @@ function updateDroneStatusUi() {
 
   let statusText = "Scanning";
   let detailText = getDroneMissionSummary();
-  let actionText = "Deactivate drone";
-  let actionDisabled = false;
 
   if (!sceneController?.launchDroneMiner) {
     detailText = "Drone controls unavailable.";
-    actionDisabled = true;
   }
 
   switch (droneState.status) {
     case "collecting":
       statusText = "Collecting";
-      detailText = "Drone is mining autonomously.";
+      detailText = getDroneMissionSummary();
       break;
     case "returning":
       statusText = "Returning";
@@ -3901,11 +3882,6 @@ function updateDroneStatusUi() {
 
   if (payloadElement) {
     payloadElement.textContent = `Payload ${getDronePayloadText()}`;
-  }
-
-  if (actionButton) {
-    actionButton.textContent = actionText;
-    actionButton.disabled = actionDisabled;
   }
 
   droneStatusPanel.hidden = false;
@@ -4181,11 +4157,6 @@ const handleDroneReturnComplete = () => {
   updateDroneStatusUi();
   attemptDroneLaunch();
 };
-
-function handleDroneActionButtonClick(event) {
-  event.preventDefault();
-  handleDroneToggleRequest();
-}
 
 const handleDroneQuickSlotActivation = (event) => {
   if (!(event instanceof CustomEvent)) {
