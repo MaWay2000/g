@@ -154,11 +154,18 @@ const quickAccessModalTemplates = {
   map: document.getElementById("quick-access-modal-map"),
 };
 
+const DRONE_QUICK_SLOT_ID = "drone-miner";
+
 const quickSlotDefinitions = [
   {
     id: "digger",
     label: "Digger",
     description: "Standard issue excavation module.",
+  },
+  {
+    id: DRONE_QUICK_SLOT_ID,
+    label: "Drone Miner",
+    description: "Deploy or recover the autonomous support drone.",
   },
   {
     id: "photon-cutter",
@@ -199,11 +206,6 @@ const quickSlotDefinitions = [
     id: "seismic-charge",
     label: "Seismic Charge",
     description: "Breaks dense rock formations cleanly.",
-  },
-  {
-    id: "aurora-lance",
-    label: "Aurora Lance",
-    description: "Channels a focused burst of plasma energy.",
   },
 ];
 
@@ -406,7 +408,7 @@ const renderQuickSlotBar = () => {
   updateQuickSlotUi();
 };
 
-const dispatchQuickSlotChangeEvent = (index) => {
+const dispatchQuickSlotChangeEvent = (index, { userInitiated = false } = {}) => {
   if (!(canvas instanceof HTMLElement)) {
     return;
   }
@@ -418,6 +420,7 @@ const dispatchQuickSlotChangeEvent = (index) => {
       detail: {
         index,
         slot,
+        userInitiated,
       },
     });
 
@@ -434,7 +437,7 @@ const selectQuickSlot = (index, { userInitiated = false } = {}) => {
 
   if (quickSlotState.selectedIndex === index) {
     if (userInitiated) {
-      dispatchQuickSlotChangeEvent(index);
+      dispatchQuickSlotChangeEvent(index, { userInitiated: true });
     }
 
     return;
@@ -442,7 +445,7 @@ const selectQuickSlot = (index, { userInitiated = false } = {}) => {
 
   quickSlotState.selectedIndex = index;
   updateQuickSlotUi();
-  dispatchQuickSlotChangeEvent(index);
+  dispatchQuickSlotChangeEvent(index, { userInitiated });
 };
 
 const shouldIgnoreQuickSlotHotkey = (event) => {
@@ -3926,6 +3929,29 @@ function handleDroneActionButtonClick(event) {
   }
 
   attemptDroneLaunch();
+}
+
+const handleDroneQuickSlotActivation = (event) => {
+  if (!(event instanceof CustomEvent)) {
+    return;
+  }
+
+  const { slot, userInitiated } = event.detail ?? {};
+
+  if (!userInitiated || slot?.id !== DRONE_QUICK_SLOT_ID) {
+    return;
+  }
+
+  if (droneState.status === "awaiting-pickup") {
+    handleDronePickup();
+    return;
+  }
+
+  attemptDroneLaunch();
+};
+
+if (canvas instanceof HTMLElement) {
+  canvas.addEventListener("quick-slot:change", handleDroneQuickSlotActivation);
 }
 
 const describeManifestEntry = (entry) => {
