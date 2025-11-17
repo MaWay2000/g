@@ -215,12 +215,18 @@ const quickSlotState = {
 };
 
 const droneState = {
-  status: "stowed",
+  status: "inactive",
   payloadGrams: 0,
-  awaitingPickup: false,
   inFlight: false,
   lastResult: null,
+  active: false,
+  pendingShutdown: false,
+  cargo: [],
+  notifiedUnavailable: false,
 };
+
+const DRONE_AUTOMATION_RETRY_DELAY_MS = 2000;
+let droneAutomationRetryTimeoutId = 0;
 
 const RESOURCE_TOOL_INDICATOR_TOTAL_VISIBLE_DURATION = 7000;
 const RESOURCE_TOOL_INDICATOR_FADE_OUT_DURATION = 3000;
@@ -3720,11 +3726,13 @@ const getDroneMissionSummary = () => {
       return "Autonomous drone is en route to the target.";
     }
 
-    if (droneState.status === "awaiting-pickup") {
-      return "Drone is ready for recovery.";
+    if (droneState.status === "idle") {
+      return "Scanning for the next viable mining site.";
     }
 
-    return "Awaiting launch order.";
+    return droneState.active
+      ? "Automation standing by."
+      : "Automation offline.";
   }
 
   if (detail.found && detail.element) {
@@ -3762,9 +3770,14 @@ function updateDroneStatusUi() {
     )}`;
   }
 
-  let statusText = "Stowed";
+  if (!droneState.active) {
+    droneStatusPanel.hidden = true;
+    return;
+  }
+
+  let statusText = "Scanning";
   let detailText = getDroneMissionSummary();
-  let actionText = "Launch drone";
+  let actionText = "Deactivate drone";
   let actionDisabled = false;
 
   if (!sceneController?.launchDroneMiner) {
@@ -3776,18 +3789,11 @@ function updateDroneStatusUi() {
     case "collecting":
       statusText = "Collecting";
       detailText = "Drone is mining autonomously.";
-      actionText = "In flight";
-      actionDisabled = true;
       break;
-    case "awaiting-pickup":
-      statusText = "Awaiting pickup";
-      detailText = getDroneMissionSummary();
-      actionText = "Pick up drone";
-      break;
+    case "idle":
     default:
-      statusText = "Stowed";
+      statusText = "Scanning";
       detailText = getDroneMissionSummary();
-      actionText = "Launch drone";
       break;
   }
 
@@ -3814,8 +3820,88 @@ function updateDroneStatusUi() {
 
 updateDroneStatusUi();
 
+const cancelDroneAutomationRetry = () => {
+  if (droneAutomationRetryTimeoutId) {
+    window.clearTimeout(droneAutomationRetryTimeoutId);
+    droneAutomationRetryTimeoutId = 0;
+  }
+};
+
+const scheduleDroneAutomationRetry = () => {
+  cancelDroneAutomationRetry();
+
+  if (!droneState.active) {
+    return;
+  }
+
+  droneAutomationRetryTimeoutId = window.setTimeout(() => {
+    droneAutomationRetryTimeoutId = 0;
+
+    if (!droneState.active || droneState.inFlight) {
+      return;
+    }
+
+    attemptDroneLaunch();
+  }, DRONE_AUTOMATION_RETRY_DELAY_MS);
+};
+
+const storeDroneSample = (detail) => {
+  if (!detail?.found || !detail.element) {
+    return false;
+  }
+
+  droneState.cargo.push(detail);
+  const weight = getInventoryElementWeight(detail.element);
+  const numericWeight = Number.isFinite(weight) ? weight : 0;
+  droneState.payloadGrams = Math.max(0, droneState.payloadGrams + numericWeight);
+  return true;
+};
+
+const deliverDroneCargo = () => {
+  const deliveries = droneState.cargo.splice(0);
+  let deliveredCount = 0;
+  let deliveredWeight = 0;
+
+  deliveries.forEach((sample) => {
+    if (!sample?.found || !sample.element) {
+      return;
+    }
+
+    recordInventoryResource(sample);
+    deliveredCount += 1;
+    deliveredWeight += getInventoryElementWeight(sample.element);
+  });
+
+  droneState.payloadGrams = 0;
+
+  return { deliveredCount, deliveredWeight };
+};
+
+const finalizeDroneAutomationShutdown = () => {
+  const { deliveredCount, deliveredWeight } = deliverDroneCargo();
+  droneState.pendingShutdown = false;
+  droneState.status = "inactive";
+  droneState.lastResult = null;
+  droneState.inFlight = false;
+  updateDroneStatusUi();
+
+  const hasSamples = deliveredCount > 0;
+  const description = hasSamples
+    ? `${deliveredCount} sample${deliveredCount === 1 ? "" : "s"} • ${formatGrams(deliveredWeight)}`
+    : "No resources recovered.";
+  showResourceToast({ title: "Drone delivery", description });
+  showTerminalToast({
+    title: hasSamples ? "Materials transferred" : "Drone returned",
+    description: hasSamples
+      ? "All stored materials moved to inventory."
+      : "Automation complete with no samples recovered.",
+  });
+};
+
 const attemptDroneLaunch = () => {
-  if (droneState.status === "awaiting-pickup" || droneState.status === "collecting") {
+  cancelDroneAutomationRetry();
+
+  if (!droneState.active || droneState.inFlight) {
     return;
   }
 
@@ -3824,90 +3910,160 @@ const attemptDroneLaunch = () => {
       title: "Drone controls offline",
       description: "Flight systems are unavailable right now.",
     });
+    droneState.active = false;
+    finalizeDroneAutomationShutdown();
     return;
   }
 
   const launchResult = sceneController.launchDroneMiner();
 
   if (!launchResult?.started) {
-    let description = "No viable mining target detected.";
+    droneState.status = "idle";
+    updateDroneStatusUi();
 
-    if (launchResult?.reason === "busy") {
-      description = "Resource systems are already active.";
+    if (launchResult?.reason === "no-target" && !droneState.notifiedUnavailable) {
+      droneState.notifiedUnavailable = true;
+      showResourceToast({
+        title: "No mining target",
+        description: "Drone will continue scanning for resources.",
+      });
     }
 
-    showResourceToast({ title: "Unable to deploy drone", description });
+    scheduleDroneAutomationRetry();
     return;
   }
 
   droneState.status = "collecting";
   droneState.inFlight = true;
-  droneState.awaitingPickup = false;
-  droneState.payloadGrams = 0;
   droneState.lastResult = null;
+  droneState.notifiedUnavailable = false;
   updateDroneStatusUi();
-  showTerminalToast({
-    title: "Drone deployed",
-    description: "Autonomous miner is en route.",
-  });
 };
 
-const handleDronePickup = () => {
-  droneState.status = "stowed";
-  droneState.awaitingPickup = false;
-  droneState.inFlight = false;
-  droneState.lastResult = null;
+const activateDroneAutomation = () => {
+  if (droneState.active) {
+    return;
+  }
+
+  droneState.active = true;
+  droneState.pendingShutdown = false;
+  droneState.cargo = [];
   droneState.payloadGrams = 0;
+  droneState.status = "idle";
+  droneState.lastResult = null;
+  droneState.notifiedUnavailable = false;
   updateDroneStatusUi();
-  showTerminalToast({ title: "Drone secured", description: "Ready for redeployment." });
+  showTerminalToast({
+    title: "Drone automation engaged",
+    description: "Press 2 again to recall the drone and unload cargo.",
+  });
+  attemptDroneLaunch();
+};
+
+const resumeDroneAutomation = () => {
+  if (!droneState.pendingShutdown) {
+    return;
+  }
+
+  droneState.pendingShutdown = false;
+  droneState.active = true;
+  droneState.status = droneState.inFlight ? "collecting" : "idle";
+  updateDroneStatusUi();
+  showTerminalToast({
+    title: "Drone automation resumed",
+    description: "Continuing mining operations.",
+  });
+
+  if (!droneState.inFlight) {
+    attemptDroneLaunch();
+  }
+};
+
+const deactivateDroneAutomation = () => {
+  if (!droneState.active) {
+    return;
+  }
+
+  droneState.active = false;
+  cancelDroneAutomationRetry();
+  updateDroneStatusUi();
+
+  if (droneState.inFlight) {
+    droneState.pendingShutdown = true;
+    showTerminalToast({
+      title: "Drone recall scheduled",
+      description: "Drone will return after the current run.",
+    });
+    return;
+  }
+
+  finalizeDroneAutomationShutdown();
+};
+
+const handleDroneToggleRequest = () => {
+  if (droneState.active) {
+    deactivateDroneAutomation();
+    return;
+  }
+
+  if (droneState.pendingShutdown) {
+    resumeDroneAutomation();
+    return;
+  }
+
+  activateDroneAutomation();
 };
 
 const handleDroneResourceCollected = (detail) => {
   droneState.inFlight = false;
-  droneState.awaitingPickup = true;
-  droneState.status = "awaiting-pickup";
+  droneState.status = "idle";
   droneState.lastResult = detail ?? null;
 
-  let payload = 0;
-
-  if (detail?.found && detail.element) {
-    recordInventoryResource(detail);
-    payload = getInventoryElementWeight(detail.element);
-  }
-
-  droneState.payloadGrams = Math.max(
-    0,
-    Math.min(Number.isFinite(payload) ? payload : 0, DRONE_MINER_MAX_PAYLOAD_GRAMS)
-  );
-
+  const storedSample = storeDroneSample(detail);
   let title = "Drone returned";
   let description = "No resources recovered.";
 
-  if (detail?.found && detail.element) {
+  if (storedSample && detail?.element) {
     const { symbol, name } = detail.element;
-    const label = symbol && name ? `${symbol} (${name})` : symbol || name || "Resource";
-    title = `Drone recovered ${label}`;
-    const payloadText = getDronePayloadText();
-    const terrainLabel =
-      typeof detail?.terrain?.label === "string" && detail.terrain.label.trim() !== ""
-        ? detail.terrain.label.trim()
-        : "";
-    description = terrainLabel
-      ? `${payloadText} • ${terrainLabel}`
-      : `${payloadText} secured.`;
+    const label = symbol && name ? `${symbol} (${name})` : symbol || name || "Sample";
+    title = `Drone stored ${label}`;
+    description = `Payload ${getDronePayloadText()} secured aboard.`;
+  } else {
+    description = "No resources recovered. Adjusting course.";
   }
 
   showResourceToast({ title, description });
   showTerminalToast({ title: "Drone miner", description });
   updateDroneStatusUi();
+
+  if (droneState.pendingShutdown) {
+    finalizeDroneAutomationShutdown();
+    return;
+  }
+
+  if (droneState.active) {
+    attemptDroneLaunch();
+    return;
+  }
+
+  finalizeDroneAutomationShutdown();
 };
 
 const handleDroneSessionCancelled = (reason) => {
   droneState.inFlight = false;
-  droneState.status = "stowed";
-  droneState.awaitingPickup = false;
   droneState.lastResult = null;
-  updateDroneStatusUi();
+
+  if (droneState.pendingShutdown) {
+    finalizeDroneAutomationShutdown();
+    return;
+  }
+
+  if (droneState.active) {
+    droneState.status = "idle";
+    updateDroneStatusUi();
+    scheduleDroneAutomationRetry();
+    return;
+  }
 
   let description = "Drone recall complete.";
 
@@ -3922,13 +4078,7 @@ const handleDroneSessionCancelled = (reason) => {
 
 function handleDroneActionButtonClick(event) {
   event.preventDefault();
-
-  if (droneState.status === "awaiting-pickup") {
-    handleDronePickup();
-    return;
-  }
-
-  attemptDroneLaunch();
+  handleDroneToggleRequest();
 }
 
 const handleDroneQuickSlotActivation = (event) => {
@@ -3942,12 +4092,7 @@ const handleDroneQuickSlotActivation = (event) => {
     return;
   }
 
-  if (droneState.status === "awaiting-pickup") {
-    handleDronePickup();
-    return;
-  }
-
-  attemptDroneLaunch();
+  handleDroneToggleRequest();
 };
 
 if (canvas instanceof HTMLElement) {
