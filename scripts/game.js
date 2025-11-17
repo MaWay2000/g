@@ -10,12 +10,14 @@ const instructions = document.querySelector("[data-instructions]");
 const logoutButton = document.querySelector("[data-logout-button]");
 const resetButton = document.querySelector("[data-reset-button]");
 const errorMessage = document.getElementById("logoutError");
+const bodyElement = document.body instanceof HTMLBodyElement ? document.body : null;
 const terminalToast = document.getElementById("terminalToast");
 const resourceToast = document.getElementById("resourceToast");
 const resourceToolIndicator = document.querySelector(
   "[data-resource-tool-indicator]"
 );
 const crosshair = document.querySelector(".crosshair");
+const topBar = document.querySelector(".top-bar");
 const quickSlotBar = document.querySelector("[data-quick-slot-bar]");
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
 const resourceToolDescription = document.querySelector(
@@ -34,6 +36,35 @@ const crosshairStates = {
 };
 let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
+
+const getIsFullscreen = () =>
+  Boolean(
+    document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+  );
+
+const applyFullscreenClass = () => {
+  if (!(bodyElement instanceof HTMLBodyElement)) {
+    return;
+  }
+
+  bodyElement.classList.toggle("is-fullscreen", getIsFullscreen());
+};
+
+if (topBar instanceof HTMLElement) {
+  [
+    "fullscreenchange",
+    "webkitfullscreenchange",
+    "mozfullscreenchange",
+    "MSFullscreenChange",
+  ].forEach((eventName) => {
+    document.addEventListener(eventName, applyFullscreenClass);
+  });
+
+  applyFullscreenClass();
+}
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
