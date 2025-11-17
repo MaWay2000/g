@@ -36,6 +36,7 @@ const crosshairStates = {
 };
 let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
+let pointerLockImmersiveModeEnabled = false;
 
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
@@ -79,7 +80,21 @@ const applyFullscreenClass = () => {
     return;
   }
 
-  bodyElement.classList.toggle("is-fullscreen", getIsFullscreen());
+  const shouldEnableFullscreenClass =
+    pointerLockImmersiveModeEnabled || getIsFullscreen();
+
+  bodyElement.classList.toggle("is-fullscreen", shouldEnableFullscreenClass);
+};
+
+const setPointerLockImmersiveModeEnabled = (enabled) => {
+  const nextState = Boolean(enabled);
+
+  if (pointerLockImmersiveModeEnabled === nextState) {
+    return;
+  }
+
+  pointerLockImmersiveModeEnabled = nextState;
+  applyFullscreenClass();
 };
 
 if (topBar instanceof HTMLElement) {
@@ -4239,12 +4254,14 @@ const bootstrapScene = () => {
   sceneController = initScene(canvas, {
     onControlsLocked() {
       instructions?.setAttribute("hidden", "");
+      setPointerLockImmersiveModeEnabled(true);
     },
     onControlsUnlocked() {
       instructions?.removeAttribute("hidden");
       resetCrosshairInteractableState();
       hideTerminalToast();
       hideResourceToast();
+      setPointerLockImmersiveModeEnabled(false);
     },
     onTerminalOptionSelected(option) {
       playTerminalInteractionSound();
