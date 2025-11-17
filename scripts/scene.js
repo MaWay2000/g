@@ -4588,6 +4588,263 @@ export const initScene = (
 
   camera.add(resourceToolGroup);
 
+  const droneMinerGroup = new THREE.Group();
+  droneMinerGroup.name = "DroneMiner";
+  droneMinerGroup.visible = false;
+  scene.add(droneMinerGroup);
+
+  const droneMinerGeometries = [];
+  const droneMinerMaterials = [];
+  const trackDroneGeometry = (geometry) => {
+    if (geometry && !droneMinerGeometries.includes(geometry)) {
+      droneMinerGeometries.push(geometry);
+    }
+  };
+  const trackDroneMaterial = (material) => {
+    if (!material) {
+      return;
+    }
+
+    if (Array.isArray(material)) {
+      material.forEach(trackDroneMaterial);
+      return;
+    }
+
+    if (!droneMinerMaterials.includes(material)) {
+      droneMinerMaterials.push(material);
+    }
+  };
+  const registerDroneMesh = (mesh, { parent = droneMinerGroup } = {}) => {
+    if (!mesh) {
+      return null;
+    }
+
+    trackDroneGeometry(mesh.geometry);
+    trackDroneMaterial(mesh.material);
+    parent.add(mesh);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    return mesh;
+  };
+
+  const droneHull = registerDroneMesh(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 24, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0x3b82f6,
+        emissive: 0x1d4ed8,
+        emissiveIntensity: 0.25,
+        metalness: 0.5,
+        roughness: 0.32,
+      })
+    )
+  );
+  if (droneHull) {
+    droneHull.position.set(0, 0, 0);
+  }
+
+  const droneVisor = registerDroneMesh(
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.12, 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xe2e8f0,
+        emissive: 0x93c5fd,
+        emissiveIntensity: 0.65,
+        metalness: 0.15,
+        roughness: 0.2,
+      })
+    )
+  );
+  if (droneVisor) {
+    droneVisor.rotation.x = Math.PI / 2;
+    droneVisor.position.set(0, 0, 0.18);
+  }
+
+  const droneThrusterMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1f2937,
+    metalness: 0.55,
+    roughness: 0.4,
+  });
+  trackDroneMaterial(droneThrusterMaterial);
+  [-0.18, 0.18].forEach((offset) => {
+    const thruster = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.18, 12),
+      droneThrusterMaterial
+    );
+    trackDroneGeometry(thruster.geometry);
+    registerDroneMesh(thruster);
+    thruster.rotation.z = Math.PI / 2;
+    thruster.position.set(offset, 0.02, -0.04);
+  });
+
+  const rotorGroup = new THREE.Group();
+  rotorGroup.name = "DroneRotor";
+  rotorGroup.position.set(0, 0.18, 0);
+  droneMinerGroup.add(rotorGroup);
+
+  const rotorHub = registerDroneMesh(
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 0.04, 16),
+      new THREE.MeshStandardMaterial({
+        color: 0x94a3b8,
+        metalness: 0.6,
+        roughness: 0.25,
+      })
+    ),
+    { parent: rotorGroup }
+  );
+  if (rotorHub) {
+    rotorHub.rotation.x = Math.PI / 2;
+  }
+
+  const rotorBladeMaterial = new THREE.MeshStandardMaterial({
+    color: 0xcbd5f5,
+    metalness: 0.35,
+    roughness: 0.3,
+  });
+  trackDroneMaterial(rotorBladeMaterial);
+  [0, Math.PI / 2].forEach((angle) => {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.01, 0.5),
+      rotorBladeMaterial
+    );
+    trackDroneGeometry(blade.geometry);
+    rotorGroup.add(blade);
+    blade.rotation.y = angle;
+  });
+
+  const droneCutterMaterial = new THREE.MeshStandardMaterial({
+    color: 0xf97316,
+    emissive: 0xf59e0b,
+    emissiveIntensity: 0.45,
+    metalness: 0.4,
+    roughness: 0.3,
+  });
+  trackDroneMaterial(droneCutterMaterial);
+  const droneCutter = registerDroneMesh(
+    new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.18, 16), droneCutterMaterial)
+  );
+  if (droneCutter) {
+    droneCutter.rotation.x = Math.PI / 2;
+    droneCutter.position.set(0, -0.2, 0.04);
+  }
+
+  const droneCutterGlowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xfcd34d,
+    transparent: true,
+    opacity: 0.75,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  trackDroneMaterial(droneCutterGlowMaterial);
+  const droneCutterGlow = registerDroneMesh(
+    new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), droneCutterGlowMaterial)
+  );
+  if (droneCutterGlow) {
+    droneCutterGlow.position.set(0, -0.22, 0.05);
+  }
+
+  const droneHeadLight = new THREE.PointLight(0x93c5fd, 0.35, 3.5, 2.2);
+  droneHeadLight.position.set(0, 0, 0.18);
+  droneMinerGroup.add(droneHeadLight);
+  const droneCutterLight = new THREE.PointLight(0xf97316, 0.8, 2.6, 2.5);
+  droneCutterLight.position.set(0, -0.22, 0.04);
+  droneMinerGroup.add(droneCutterLight);
+
+  const DRONE_MINER_HOVER_AMPLITUDE = 0.08;
+  const DRONE_MINER_HOVER_SPEED = 2.3;
+  const DRONE_MINER_ROTOR_SPEED = 8;
+  const DRONE_MINER_HOVER_LIFT = 0.4;
+  const droneMinerState = {
+    active: false,
+    basePosition: new THREE.Vector3(),
+    hoverPhase: 0,
+    lookDirection: new THREE.Vector3(0, -1, 0),
+    rotor: rotorGroup,
+    cutterMaterial: droneCutterMaterial,
+    cutterGlow,
+  };
+  const droneLookDirectionHelper = new THREE.Vector3();
+  const droneLookTarget = new THREE.Vector3();
+
+  const hideDroneMiner = () => {
+    if (!droneMinerState.active && !droneMinerGroup.visible) {
+      return;
+    }
+
+    droneMinerState.active = false;
+    droneMinerGroup.visible = false;
+  };
+
+  const showDroneMiner = (intersection) => {
+    if (!intersection) {
+      return;
+    }
+
+    const spawnPoint = intersection.point ?? null;
+    if (!spawnPoint) {
+      return;
+    }
+
+    droneMinerState.basePosition.copy(spawnPoint);
+    droneMinerState.basePosition.y += DRONE_MINER_HOVER_LIFT;
+    droneMinerGroup.position.copy(droneMinerState.basePosition);
+    droneMinerState.hoverPhase = Math.random() * Math.PI * 2;
+
+    const normal = intersection.face?.normal;
+    if (normal) {
+      droneMinerState.lookDirection.copy(normal).normalize().multiplyScalar(-1);
+    } else {
+      camera.getWorldDirection(droneMinerState.lookDirection);
+      if (droneMinerState.lookDirection.y > -0.2) {
+        droneMinerState.lookDirection.y = -0.2;
+      }
+      droneMinerState.lookDirection.normalize();
+    }
+
+    droneMinerGroup.visible = true;
+    droneMinerState.active = true;
+  };
+
+  const updateDroneMiner = (delta = 0, elapsedTime = 0) => {
+    if (!droneMinerState.active) {
+      return;
+    }
+
+    const hoverOffset =
+      Math.sin(elapsedTime * DRONE_MINER_HOVER_SPEED + droneMinerState.hoverPhase) *
+      DRONE_MINER_HOVER_AMPLITUDE;
+    droneMinerGroup.position.set(
+      droneMinerState.basePosition.x,
+      droneMinerState.basePosition.y + hoverOffset,
+      droneMinerState.basePosition.z
+    );
+
+    droneLookDirectionHelper.copy(droneMinerState.lookDirection).normalize();
+    if (droneLookDirectionHelper.lengthSq() < 1e-6) {
+      droneLookDirectionHelper.set(0, -1, 0);
+    }
+    droneLookTarget
+      .copy(droneMinerGroup.position)
+      .add(droneLookDirectionHelper.multiplyScalar(0.5));
+    droneMinerGroup.lookAt(droneLookTarget);
+
+    if (droneMinerState.rotor) {
+      droneMinerState.rotor.rotation.y += delta * DRONE_MINER_ROTOR_SPEED;
+    }
+
+    if (droneMinerState.cutterMaterial) {
+      const pulse = 0.5 + 0.4 * Math.sin(elapsedTime * 5);
+      droneMinerState.cutterMaterial.emissiveIntensity = 0.3 + pulse * 0.4;
+    }
+
+    if (droneMinerState.cutterGlow?.material) {
+      const glowPulse = 0.7 + 0.25 * Math.sin(elapsedTime * 4);
+      droneMinerState.cutterGlow.material.opacity = glowPulse;
+      droneMinerState.cutterGlow.scale.setScalar(0.85 + glowPulse * 0.2);
+    }
+  };
+
   const RESOURCE_TOOL_BASE_ACTION_DURATION = RESOURCE_TOOL_MIN_ACTION_DURATION;
   const RESOURCE_TOOL_RECOIL_RECOVERY = 6;
   const RESOURCE_TOOL_IDLE_SWAY = 0.015;
@@ -4656,6 +4913,10 @@ export const initScene = (
       eventDetail.success = true;
       eventDetail.actionDuration = actionDuration;
     }
+
+    if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
+      showDroneMiner(intersection ?? null);
+    }
   }
 
   function dispatchResourceCollectionDetail(detail) {
@@ -4679,6 +4940,10 @@ export const initScene = (
     const baseDetail = activeResourceSession.baseDetail;
     const eventDetail = activeResourceSession.eventDetail;
     const sessionSource = baseDetail?.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
+
+    if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
+      hideDroneMiner();
+    }
 
     clearActiveResourceSession();
 
@@ -4761,6 +5026,10 @@ export const initScene = (
 
     const eventDetail = activeResourceSession.eventDetail;
     const sessionSource = activeResourceSession.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
+
+    if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
+      hideDroneMiner();
+    }
 
     clearActiveResourceSession();
 
@@ -6238,6 +6507,7 @@ export const initScene = (
     updateActivePlacementPreview();
     updateOperationsConcourseTeleport(delta);
     updateResourceTool(delta, elapsedTime);
+    updateDroneMiner(delta, elapsedTime);
     updateActiveResourceSession(delta);
 
     renderer.render(scene, camera);
@@ -6385,6 +6655,21 @@ export const initScene = (
       });
       resourceToolGeometries.length = 0;
       resourceToolMaterials.length = 0;
+      if (droneMinerGroup.parent) {
+        droneMinerGroup.parent.remove(droneMinerGroup);
+      }
+      droneMinerGeometries.forEach((geometry) => {
+        if (geometry && typeof geometry.dispose === "function") {
+          geometry.dispose();
+        }
+      });
+      droneMinerMaterials.forEach((material) => {
+        if (material && typeof material.dispose === "function") {
+          material.dispose();
+        }
+      });
+      droneMinerGeometries.length = 0;
+      droneMinerMaterials.length = 0;
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
