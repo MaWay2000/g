@@ -4762,7 +4762,7 @@ export const initScene = (
     lookDirection: new THREE.Vector3(0, -1, 0),
     rotor: rotorGroup,
     cutterMaterial: droneCutterMaterial,
-    cutterGlow,
+    cutterGlow: droneCutterGlow,
   };
   const droneLookDirectionHelper = new THREE.Vector3();
   const droneLookTarget = new THREE.Vector3();
