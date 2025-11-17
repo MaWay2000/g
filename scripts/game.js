@@ -3739,7 +3739,7 @@ const getDroneMissionSummary = () => {
   return "Drone returned without a sample.";
 };
 
-const updateDroneStatusUi = () => {
+function updateDroneStatusUi() {
   if (!(droneStatusPanel instanceof HTMLElement)) {
     return;
   }
@@ -3809,7 +3809,7 @@ const updateDroneStatusUi = () => {
 
   droneStatusPanel.hidden = false;
   droneStatusPanel.dataset.state = droneState.status;
-};
+}
 
 const attemptDroneLaunch = () => {
   if (droneState.status === "awaiting-pickup" || droneState.status === "collecting") {
