@@ -466,6 +466,13 @@
         pointer-events: auto;
         position: relative;
         z-index: 10;
+        transition: opacity 180ms ease, transform 180ms ease;
+      }
+
+      body.is-fullscreen .top-bar {
+        opacity: 0;
+        transform: translateY(-1.5rem);
+        pointer-events: none;
       }
 
       a,
