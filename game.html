@@ -346,14 +346,6 @@
         transform: none;
       }
 
-      .drone-panel__eyebrow {
-        margin: 0;
-        font-size: 0.8rem;
-        letter-spacing: 0.25em;
-        text-transform: uppercase;
-        color: rgba(148, 163, 184, 0.85);
-      }
-
       .drone-panel__header {
         display: flex;
         align-items: center;
@@ -377,45 +369,11 @@
         color: #38bdf8;
       }
 
-      .drone-panel__detail,
-      .drone-panel__payload,
-      .drone-panel__note {
+      .drone-panel__detail {
         margin: 0;
         font-size: 0.9rem;
         letter-spacing: 0.03em;
         color: rgba(226, 232, 240, 0.85);
-      }
-
-      .drone-panel__payload {
-        font-weight: 600;
-        color: #facc15;
-      }
-
-      .drone-panel__action {
-        border: none;
-        border-radius: 999px;
-        padding: 0.65rem 1.5rem;
-        font-size: 0.95rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        cursor: pointer;
-        background: linear-gradient(135deg, rgba(56, 189, 248, 0.95), rgba(59, 130, 246, 0.95));
-        color: #0f172a;
-        box-shadow: 0 12px 32px rgba(56, 189, 248, 0.35);
-        transition: transform 120ms ease, box-shadow 120ms ease;
-      }
-
-      .drone-panel__action:focus-visible,
-      .drone-panel__action:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 16px 36px rgba(56, 189, 248, 0.45);
-      }
-
-      .drone-panel__action:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
       }
 
       @media (max-width: 720px) {
@@ -1738,12 +1696,6 @@
           flex-direction: column;
           align-items: flex-start;
         }
-
-        .drone-panel__action {
-          width: 100%;
-          text-align: center;
-        }
-
       }
 
     </style>
@@ -1804,23 +1756,15 @@
       ></div>
 
       <section class="drone-panel" data-drone-status-panel hidden>
-        <p class="drone-panel__eyebrow">Autonomous support</p>
         <div class="drone-panel__header">
           <div>
             <p class="drone-panel__title">Drone Miner</p>
             <p class="drone-panel__status" data-drone-status-label>Stowed</p>
           </div>
-          <button class="drone-panel__action" type="button" data-drone-action>
-            Launch drone
-          </button>
         </div>
         <p class="drone-panel__detail" data-drone-status-detail>
           Awaiting launch order.
         </p>
-        <p class="drone-panel__payload" data-drone-payload>
-          Payload 0 g / 1 kg
-        </p>
-        <p class="drone-panel__note" data-drone-capacity>Max haul 1 kg</p>
       </section>
 
       <div class="status-region">
