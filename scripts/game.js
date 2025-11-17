@@ -4044,20 +4044,17 @@ const handleDroneResourceCollected = (detail) => {
   droneState.lastResult = detail ?? null;
 
   const storedSample = storeDroneSample(detail);
-  let title = "Drone returned";
-  let description = "No resources recovered.";
 
   if (storedSample && detail?.element) {
     const { symbol, name } = detail.element;
     const label = symbol && name ? `${symbol} (${name})` : symbol || name || "Sample";
-    title = `Drone stored ${label}`;
-    description = `Payload ${getDronePayloadText()} secured aboard.`;
-  } else {
-    description = "No resources recovered. Adjusting course.";
+    const title = `Drone stored ${label}`;
+    const description = `Payload ${getDronePayloadText()} secured aboard.`;
+
+    showResourceToast({ title, description });
+    showTerminalToast({ title: "Drone miner", description });
   }
 
-  showResourceToast({ title, description });
-  showTerminalToast({ title: "Drone miner", description });
   updateDroneStatusUi();
 };
 
