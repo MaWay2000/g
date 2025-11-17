@@ -2601,8 +2601,15 @@ const restoreInventoryStateFromStorage = () => {
   return restored;
 };
 
-const recordInventoryResource = (detail) => {
+const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
   if (!detail?.element) {
+    return;
+  }
+
+  const resourceSource =
+    typeof detail?.source === "string" ? detail.source.trim() : "";
+
+  if (!allowDroneSource && resourceSource === DRONE_QUICK_SLOT_ID) {
     return;
   }
 
@@ -3859,7 +3866,8 @@ const storeDroneSample = (detail) => {
     return false;
   }
 
-  droneState.cargo.push(detail);
+  const storedSample = { ...detail, source: DRONE_QUICK_SLOT_ID };
+  droneState.cargo.push(storedSample);
   const weight = getInventoryElementWeight(detail.element);
   const numericWeight = Number.isFinite(weight) ? weight : 0;
   droneState.payloadGrams = Math.max(0, droneState.payloadGrams + numericWeight);
@@ -3876,7 +3884,7 @@ const deliverDroneCargo = () => {
       return;
     }
 
-    recordInventoryResource(sample);
+    recordInventoryResource(sample, { allowDroneSource: true });
     deliveredCount += 1;
     deliveredWeight += getInventoryElementWeight(sample.element);
   });
