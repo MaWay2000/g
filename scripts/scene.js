@@ -4327,6 +4327,8 @@ export const initScene = (
   }
   scene.add(playerObject);
 
+  let currentPlayerHorizontalSpeed = 0;
+
   const resourceToolGroup = new THREE.Group();
   resourceToolGroup.name = "ResourceTool";
   resourceToolGroup.visible = false;
@@ -4755,8 +4757,8 @@ export const initScene = (
   const DRONE_MINER_HOVER_SPEED = 2.3;
   const DRONE_MINER_ROTOR_SPEED = 8;
   const DRONE_MINER_HOVER_LIFT = 0.4;
-  const DRONE_MINER_RETURN_SMOOTHING = 4.5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD = 0.35;
+  const DRONE_MINER_MIN_RETURN_SPEED = 2.5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED =
     DRONE_MINER_RETURN_DISTANCE_THRESHOLD * DRONE_MINER_RETURN_DISTANCE_THRESHOLD;
   const droneMinerState = {
@@ -4772,6 +4774,7 @@ export const initScene = (
   const droneLookDirectionHelper = new THREE.Vector3();
   const droneLookTarget = new THREE.Vector3();
   const droneReturnTarget = new THREE.Vector3();
+  const droneReturnOffset = new THREE.Vector3();
 
   const hideDroneMiner = () => {
     if (!droneMinerState.active && !droneMinerGroup.visible) {
@@ -4832,8 +4835,22 @@ export const initScene = (
       droneReturnTarget.copy(playerObject.position);
       droneReturnTarget.y += DRONE_MINER_HOVER_LIFT;
 
-      const followStrength = 1 - Math.exp(-delta * DRONE_MINER_RETURN_SMOOTHING);
-      droneMinerState.basePosition.lerp(droneReturnTarget, followStrength);
+      droneReturnOffset
+        .copy(droneReturnTarget)
+        .sub(droneMinerState.basePosition);
+      const distanceToTarget = droneReturnOffset.length();
+      const playerMatchedSpeed = Math.max(
+        currentPlayerHorizontalSpeed,
+        DRONE_MINER_MIN_RETURN_SPEED
+      );
+      const maxStep = playerMatchedSpeed * delta;
+
+      if (distanceToTarget <= maxStep) {
+        droneMinerState.basePosition.copy(droneReturnTarget);
+      } else if (distanceToTarget > 0) {
+        droneReturnOffset.multiplyScalar(1 / distanceToTarget);
+        droneMinerState.basePosition.addScaledVector(droneReturnOffset, maxStep);
+      }
 
       if (
         droneMinerState.basePosition.distanceToSquared(droneReturnTarget) <
@@ -6474,8 +6491,14 @@ export const initScene = (
         controls.moveForward(-velocity.z * delta);
         shouldResolveCollisions = true;
       }
+
+      currentPlayerHorizontalSpeed = Math.sqrt(
+        velocity.x * velocity.x +
+          velocity.z * velocity.z
+      );
     } else {
       velocity.set(0, 0, 0);
+      currentPlayerHorizontalSpeed = 0;
     }
 
     if (
