@@ -62,6 +62,7 @@ export const initScene = (
     onManifestPlacementRemoved,
     onResourceCollected,
     onResourceSessionCancelled,
+    onDroneReturnComplete,
   } = {}
 ) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -4781,9 +4782,19 @@ export const initScene = (
       return;
     }
 
+    const wasReturning = droneMinerState.returning;
+
     droneMinerState.active = false;
     droneMinerState.returning = false;
     droneMinerGroup.visible = false;
+
+    if (wasReturning && typeof onDroneReturnComplete === "function") {
+      try {
+        onDroneReturnComplete();
+      } catch (error) {
+        console.warn("Unable to notify drone return completion", error);
+      }
+    }
   };
 
   const showDroneMiner = (intersection) => {

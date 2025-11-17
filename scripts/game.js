@@ -218,6 +218,7 @@ const droneState = {
   status: "inactive",
   payloadGrams: 0,
   inFlight: false,
+  awaitingReturn: false,
   lastResult: null,
   active: false,
   pendingShutdown: false,
@@ -3726,6 +3727,10 @@ const getDroneMissionSummary = () => {
       return "Autonomous drone is en route to the target.";
     }
 
+    if (droneState.status === "returning") {
+      return "Autonomous drone is returning with collected materials.";
+    }
+
     if (droneState.status === "idle") {
       return "Scanning for the next viable mining site.";
     }
@@ -3789,6 +3794,10 @@ function updateDroneStatusUi() {
     case "collecting":
       statusText = "Collecting";
       detailText = "Drone is mining autonomously.";
+      break;
+    case "returning":
+      statusText = "Returning";
+      detailText = "Drone is en route to your position.";
       break;
     case "idle":
     default:
@@ -3883,6 +3892,7 @@ const finalizeDroneAutomationShutdown = () => {
   droneState.status = "inactive";
   droneState.lastResult = null;
   droneState.inFlight = false;
+  droneState.awaitingReturn = false;
   updateDroneStatusUi();
 
   const hasSamples = deliveredCount > 0;
@@ -3901,7 +3911,7 @@ const finalizeDroneAutomationShutdown = () => {
 const attemptDroneLaunch = () => {
   cancelDroneAutomationRetry();
 
-  if (!droneState.active || droneState.inFlight) {
+  if (!droneState.active || droneState.inFlight || droneState.awaitingReturn) {
     return;
   }
 
@@ -3947,6 +3957,7 @@ const activateDroneAutomation = () => {
 
   droneState.active = true;
   droneState.pendingShutdown = false;
+  droneState.awaitingReturn = false;
   droneState.cargo = [];
   droneState.payloadGrams = 0;
   droneState.status = "idle";
@@ -3967,14 +3978,18 @@ const resumeDroneAutomation = () => {
 
   droneState.pendingShutdown = false;
   droneState.active = true;
-  droneState.status = droneState.inFlight ? "collecting" : "idle";
+  droneState.status = droneState.awaitingReturn
+    ? "returning"
+    : droneState.inFlight
+    ? "collecting"
+    : "idle";
   updateDroneStatusUi();
   showTerminalToast({
     title: "Drone automation resumed",
     description: "Continuing mining operations.",
   });
 
-  if (!droneState.inFlight) {
+  if (!droneState.inFlight && !droneState.awaitingReturn) {
     attemptDroneLaunch();
   }
 };
@@ -4016,7 +4031,8 @@ const handleDroneToggleRequest = () => {
 
 const handleDroneResourceCollected = (detail) => {
   droneState.inFlight = false;
-  droneState.status = "idle";
+  droneState.status = "returning";
+  droneState.awaitingReturn = true;
   droneState.lastResult = detail ?? null;
 
   const storedSample = storeDroneSample(detail);
@@ -4035,23 +4051,12 @@ const handleDroneResourceCollected = (detail) => {
   showResourceToast({ title, description });
   showTerminalToast({ title: "Drone miner", description });
   updateDroneStatusUi();
-
-  if (droneState.pendingShutdown) {
-    finalizeDroneAutomationShutdown();
-    return;
-  }
-
-  if (droneState.active) {
-    attemptDroneLaunch();
-    return;
-  }
-
-  finalizeDroneAutomationShutdown();
 };
 
 const handleDroneSessionCancelled = (reason) => {
   droneState.inFlight = false;
   droneState.lastResult = null;
+  droneState.awaitingReturn = false;
 
   if (droneState.pendingShutdown) {
     finalizeDroneAutomationShutdown();
@@ -4074,6 +4079,24 @@ const handleDroneSessionCancelled = (reason) => {
   }
 
   showResourceToast({ title: "Drone recalled", description });
+};
+
+const handleDroneReturnComplete = () => {
+  droneState.awaitingReturn = false;
+
+  if (droneState.pendingShutdown) {
+    finalizeDroneAutomationShutdown();
+    return;
+  }
+
+  if (!droneState.active) {
+    updateDroneStatusUi();
+    return;
+  }
+
+  droneState.status = "idle";
+  updateDroneStatusUi();
+  attemptDroneLaunch();
 };
 
 function handleDroneActionButtonClick(event) {
@@ -4266,6 +4289,7 @@ const bootstrapScene = () => {
         showResourceToast({ title: "Digging interrupted" });
       }
     },
+    onDroneReturnComplete: handleDroneReturnComplete,
   });
 
   updateDroneStatusUi();
