@@ -325,16 +325,23 @@
       }
 
       .drone-panel {
-        margin: 1.5rem auto 0;
+        position: fixed;
+        top: 1.5rem;
+        right: 1.5rem;
+        left: auto;
+        margin: 0;
         padding: 1.25rem 1.5rem;
         border-radius: 22px;
         background: rgba(15, 23, 42, 0.85);
         box-shadow: 0 24px 52px rgba(15, 23, 42, 0.55);
-        width: min(360px, 90vw);
+        width: min(340px, 85vw);
         display: flex;
         flex-direction: column;
         gap: 0.65rem;
         color: #e2e8f0;
+        pointer-events: auto;
+        z-index: 5;
+        transform: none;
       }
 
       .drone-panel__eyebrow {
@@ -1709,9 +1716,11 @@
         }
 
         .drone-panel {
+          right: auto;
+          left: 50%;
+          top: 1rem;
+          transform: translateX(-50%);
           width: min(420px, 94vw);
-          margin-left: auto;
-          margin-right: auto;
         }
 
         .drone-panel__header {
