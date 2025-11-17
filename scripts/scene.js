@@ -4758,6 +4758,7 @@ export const initScene = (
   const DRONE_MINER_HOVER_SPEED = 2.3;
   const DRONE_MINER_ROTOR_SPEED = 8;
   const DRONE_MINER_HOVER_LIFT = 0.4;
+  const DRONE_MINER_PLAYER_RETURN_OFFSET = 5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD = 0.35;
   const DRONE_MINER_MIN_RETURN_SPEED = 2.5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED =
@@ -4844,6 +4845,23 @@ export const initScene = (
 
     if (droneMinerState.returning) {
       droneReturnTarget.copy(playerObject.position);
+      droneReturnOffset
+        .copy(droneMinerState.basePosition)
+        .sub(droneReturnTarget);
+      const playerToDroneDistance = droneReturnOffset.length();
+      if (playerToDroneDistance > 1e-3) {
+        droneReturnOffset.multiplyScalar(
+          DRONE_MINER_PLAYER_RETURN_OFFSET / playerToDroneDistance,
+        );
+      } else {
+        camera.getWorldDirection(droneReturnOffset);
+        droneReturnOffset.y = 0;
+        if (droneReturnOffset.lengthSq() < 1e-3) {
+          droneReturnOffset.set(1, 0, 0);
+        }
+        droneReturnOffset.normalize().multiplyScalar(DRONE_MINER_PLAYER_RETURN_OFFSET);
+      }
+      droneReturnTarget.add(droneReturnOffset);
       droneReturnTarget.y += DRONE_MINER_HOVER_LIFT;
 
       droneReturnOffset
