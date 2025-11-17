@@ -4848,6 +4848,7 @@ export const initScene = (
       droneReturnOffset
         .copy(droneMinerState.basePosition)
         .sub(droneReturnTarget);
+      droneReturnOffset.y = 0;
       const playerToDroneDistance = droneReturnOffset.length();
       if (playerToDroneDistance > 1e-3) {
         droneReturnOffset.multiplyScalar(
