@@ -37,13 +37,42 @@ const crosshairStates = {
 let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
 
-const getIsFullscreen = () =>
-  Boolean(
+const getIsFullscreen = () => {
+  const hasFullscreenElement = Boolean(
     document.fullscreenElement ||
       document.webkitFullscreenElement ||
       document.mozFullScreenElement ||
       document.msFullscreenElement
   );
+
+  if (hasFullscreenElement) {
+    return true;
+  }
+
+  const viewportHeight =
+    typeof window.innerHeight === "number" ? window.innerHeight : null;
+  const viewportWidth = typeof window.innerWidth === "number" ? window.innerWidth : null;
+  const screenHeight =
+    window.screen && typeof window.screen.height === "number"
+      ? window.screen.height
+      : null;
+  const screenWidth =
+    window.screen && typeof window.screen.width === "number" ? window.screen.width : null;
+
+  if (
+    viewportHeight === null ||
+    viewportWidth === null ||
+    screenHeight === null ||
+    screenWidth === null
+  ) {
+    return false;
+  }
+
+  const heightMatches = Math.abs(screenHeight - viewportHeight) <= 1;
+  const widthMatches = Math.abs(screenWidth - viewportWidth) <= 1;
+
+  return heightMatches && widthMatches;
+};
 
 const applyFullscreenClass = () => {
   if (!(bodyElement instanceof HTMLBodyElement)) {
@@ -62,6 +91,9 @@ if (topBar instanceof HTMLElement) {
   ].forEach((eventName) => {
     document.addEventListener(eventName, applyFullscreenClass);
   });
+
+  window.addEventListener("resize", applyFullscreenClass);
+  window.addEventListener("orientationchange", applyFullscreenClass);
 
   applyFullscreenClass();
 }
