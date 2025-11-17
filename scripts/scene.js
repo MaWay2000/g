@@ -4755,17 +4755,23 @@ export const initScene = (
   const DRONE_MINER_HOVER_SPEED = 2.3;
   const DRONE_MINER_ROTOR_SPEED = 8;
   const DRONE_MINER_HOVER_LIFT = 0.4;
+  const DRONE_MINER_RETURN_SMOOTHING = 4.5;
+  const DRONE_MINER_RETURN_DISTANCE_THRESHOLD = 0.35;
+  const DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED =
+    DRONE_MINER_RETURN_DISTANCE_THRESHOLD * DRONE_MINER_RETURN_DISTANCE_THRESHOLD;
   const droneMinerState = {
     active: false,
     basePosition: new THREE.Vector3(),
     hoverPhase: 0,
     lookDirection: new THREE.Vector3(0, -1, 0),
+    returning: false,
     rotor: rotorGroup,
     cutterMaterial: droneCutterMaterial,
     cutterGlow: droneCutterGlow,
   };
   const droneLookDirectionHelper = new THREE.Vector3();
   const droneLookTarget = new THREE.Vector3();
+  const droneReturnTarget = new THREE.Vector3();
 
   const hideDroneMiner = () => {
     if (!droneMinerState.active && !droneMinerGroup.visible) {
@@ -4773,6 +4779,7 @@ export const initScene = (
     }
 
     droneMinerState.active = false;
+    droneMinerState.returning = false;
     droneMinerGroup.visible = false;
   };
 
@@ -4790,6 +4797,7 @@ export const initScene = (
     droneMinerState.basePosition.y += DRONE_MINER_HOVER_LIFT;
     droneMinerGroup.position.copy(droneMinerState.basePosition);
     droneMinerState.hoverPhase = Math.random() * Math.PI * 2;
+    droneMinerState.returning = false;
 
     const normal = intersection.face?.normal;
     if (normal) {
@@ -4806,9 +4814,39 @@ export const initScene = (
     droneMinerState.active = true;
   };
 
+  const returnDroneMinerToPlayer = () => {
+    if (!droneMinerState.active) {
+      return;
+    }
+
+    droneMinerState.returning = true;
+    droneMinerGroup.visible = true;
+  };
+
   const updateDroneMiner = (delta = 0, elapsedTime = 0) => {
     if (!droneMinerState.active) {
       return;
+    }
+
+    if (droneMinerState.returning) {
+      droneReturnTarget.copy(playerObject.position);
+      droneReturnTarget.y += DRONE_MINER_HOVER_LIFT;
+
+      const followStrength = 1 - Math.exp(-delta * DRONE_MINER_RETURN_SMOOTHING);
+      droneMinerState.basePosition.lerp(droneReturnTarget, followStrength);
+
+      if (
+        droneMinerState.basePosition.distanceToSquared(droneReturnTarget) <
+        DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED
+      ) {
+        hideDroneMiner();
+        return;
+      }
+
+      droneMinerState.lookDirection
+        .copy(droneReturnTarget)
+        .sub(droneMinerGroup.position)
+        .normalize();
     }
 
     const hoverOffset =
@@ -4942,7 +4980,7 @@ export const initScene = (
     const sessionSource = baseDetail?.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
     if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
-      hideDroneMiner();
+      returnDroneMinerToPlayer();
     }
 
     clearActiveResourceSession();
