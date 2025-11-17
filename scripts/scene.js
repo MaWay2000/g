@@ -4464,11 +4464,15 @@ export const initScene = (
   const RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE = 0.2;
   const RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED =
     RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE ** 2;
+  const RESOURCE_SESSION_PLAYER_SOURCE = "player";
+  const RESOURCE_SESSION_DRONE_SOURCE = "drone-miner";
   const activeResourceSession = {
     isActive: false,
     startPosition: new THREE.Vector3(),
     baseDetail: null,
     eventDetail: null,
+    source: RESOURCE_SESSION_PLAYER_SOURCE,
+    remainingTime: 0,
   };
 
   const findResourceTarget = (object) => {
@@ -4483,6 +4487,46 @@ export const initScene = (
     }
 
     return null;
+  };
+
+  const prepareResourceCollection = ({ requireLockedControls = true } = {}) => {
+    if (requireLockedControls && !controls.isLocked) {
+      return null;
+    }
+
+    if (!Array.isArray(activeResourceTargets) || activeResourceTargets.length === 0) {
+      return null;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(activeResourceTargets, true);
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const intersection = intersections.find((candidate) =>
+      findResourceTarget(candidate.object)
+    );
+
+    if (!intersection) {
+      return null;
+    }
+
+    if (
+      !Number.isFinite(intersection.distance) ||
+      intersection.distance > RESOURCE_TOOL_MAX_DISTANCE
+    ) {
+      return null;
+    }
+
+    const targetObject = findResourceTarget(intersection.object);
+
+    if (!targetObject) {
+      return null;
+    }
+
+    return { intersection, targetObject };
   };
 
   const handleResourceToolActionEvent = (event) => {
@@ -4517,44 +4561,9 @@ export const initScene = (
       return;
     }
 
-    if (!controls.isLocked) {
-      markActionFailed();
-      return;
-    }
+    const preparedSession = prepareResourceCollection();
 
-    if (!Array.isArray(activeResourceTargets) || activeResourceTargets.length === 0) {
-      markActionFailed();
-      return;
-    }
-
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersections = raycaster.intersectObjects(activeResourceTargets, true);
-
-    if (intersections.length === 0) {
-      markActionFailed();
-      return;
-    }
-
-    const intersection = intersections.find((candidate) =>
-      findResourceTarget(candidate.object)
-    );
-
-    if (!intersection) {
-      markActionFailed();
-      return;
-    }
-
-    if (
-      !Number.isFinite(intersection.distance) ||
-      intersection.distance > RESOURCE_TOOL_MAX_DISTANCE
-    ) {
-      markActionFailed();
-      return;
-    }
-
-    const targetObject = findResourceTarget(intersection.object);
-
-    if (!targetObject) {
+    if (!preparedSession) {
       markActionFailed();
       return;
     }
@@ -4570,10 +4579,10 @@ export const initScene = (
     resourceToolState.recoil = 1;
 
     startResourceCollectionSession({
-      intersection,
-      targetObject,
+      ...preparedSession,
       actionDuration,
       eventDetail: event?.detail ?? null,
+      source: RESOURCE_SESSION_PLAYER_SOURCE,
     });
   };
 
@@ -4608,6 +4617,8 @@ export const initScene = (
     activeResourceSession.baseDetail = null;
     activeResourceSession.eventDetail = null;
     activeResourceSession.startPosition.set(0, 0, 0);
+    activeResourceSession.source = RESOURCE_SESSION_PLAYER_SOURCE;
+    activeResourceSession.remainingTime = 0;
   }
 
   function startResourceCollectionSession({
@@ -4615,9 +4626,11 @@ export const initScene = (
     targetObject,
     actionDuration,
     eventDetail,
+    source = RESOURCE_SESSION_PLAYER_SOURCE,
   }) {
     const terrainId = targetObject.userData?.terrainId ?? null;
     const terrainLabel = targetObject.userData?.terrainLabel ?? null;
+    const sessionSource = source || RESOURCE_SESSION_PLAYER_SOURCE;
 
     activeResourceSession.isActive = true;
     activeResourceSession.startPosition.copy(playerObject.position);
@@ -4633,8 +4646,11 @@ export const initScene = (
       },
       distance: intersection.distance,
       actionDuration,
+      source: sessionSource,
     };
     activeResourceSession.eventDetail = eventDetail ?? null;
+    activeResourceSession.source = sessionSource;
+    activeResourceSession.remainingTime = actionDuration;
 
     if (eventDetail) {
       eventDetail.success = true;
@@ -4662,13 +4678,16 @@ export const initScene = (
 
     const baseDetail = activeResourceSession.baseDetail;
     const eventDetail = activeResourceSession.eventDetail;
+    const sessionSource = baseDetail?.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
     clearActiveResourceSession();
 
-    resourceToolState.cooldown = 0;
-    resourceToolState.beamTimer = 0;
-    resourceToolState.recoil = 0;
-    resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+    if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+      resourceToolState.cooldown = 0;
+      resourceToolState.beamTimer = 0;
+      resourceToolState.recoil = 0;
+      resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+    }
 
     const foundResource = Math.random() < RESOURCE_TOOL_SUCCESS_PROBABILITY;
 
@@ -4679,9 +4698,12 @@ export const initScene = (
 
       dispatchResourceCollectionDetail({
         ...baseDetail,
+        source: sessionSource,
         found: false,
       });
-      continueResourceToolIfHeld();
+      if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+        continueResourceToolIfHeld();
+      }
       return;
     }
 
@@ -4706,6 +4728,7 @@ export const initScene = (
 
     dispatchResourceCollectionDetail({
       ...baseDetail,
+      source: sessionSource,
       element: {
         number: element.number,
         symbol: element.symbol,
@@ -4714,16 +4737,18 @@ export const initScene = (
       },
       found: true,
     });
-    continueResourceToolIfHeld();
+    if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+      continueResourceToolIfHeld();
+    }
   }
 
-  function notifyResourceSessionCancelled(reason) {
+  function notifyResourceSessionCancelled(reason, source = RESOURCE_SESSION_PLAYER_SOURCE) {
     if (typeof onResourceSessionCancelled !== "function") {
       return;
     }
 
     try {
-      onResourceSessionCancelled({ reason });
+      onResourceSessionCancelled({ reason, source });
     } catch (error) {
       console.warn("Unable to notify resource session cancellation", error);
     }
@@ -4735,66 +4760,77 @@ export const initScene = (
     }
 
     const eventDetail = activeResourceSession.eventDetail;
+    const sessionSource = activeResourceSession.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
     clearActiveResourceSession();
 
-    resourceToolState.cooldown = 0;
-    resourceToolState.beamTimer = 0;
-    resourceToolState.recoil = 0;
-    resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
-    cancelScheduledResourceToolResume();
+    if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+      resourceToolState.cooldown = 0;
+      resourceToolState.beamTimer = 0;
+      resourceToolState.recoil = 0;
+      resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+      cancelScheduledResourceToolResume();
 
-    primaryActionHeld = false;
-    autoResourceToolEngaged = false;
+      primaryActionHeld = false;
+      autoResourceToolEngaged = false;
 
-    if (resourceToolBeamMaterial) {
-      resourceToolBeamMaterial.opacity = 0;
+      if (resourceToolBeamMaterial) {
+        resourceToolBeamMaterial.opacity = 0;
+      }
+
+      if (resourceToolGlowMaterial) {
+        resourceToolGlowMaterial.opacity = 0;
+      }
+
+      if (resourceToolGlow) {
+        resourceToolGlow.scale.set(1, 1, 1);
+      }
+
+      resourceToolLight.intensity = 0;
+      resourceToolLight.distance = 2.6;
     }
-
-    if (resourceToolGlowMaterial) {
-      resourceToolGlowMaterial.opacity = 0;
-    }
-
-    if (resourceToolGlow) {
-      resourceToolGlow.scale.set(1, 1, 1);
-    }
-
-    resourceToolLight.intensity = 0;
-    resourceToolLight.distance = 2.6;
 
     if (eventDetail) {
       eventDetail.success = false;
     }
 
     if (reason) {
-      notifyResourceSessionCancelled(reason);
+      notifyResourceSessionCancelled(reason, sessionSource);
     }
   }
 
-  function updateActiveResourceSession() {
+  function updateActiveResourceSession(delta = 0) {
     if (!activeResourceSession.isActive) {
       return;
     }
 
-    if (!controls.isLocked) {
-      cancelActiveResourceSession({ reason: "controls-unlocked" });
-      return;
-    }
+    const sessionSource = activeResourceSession.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
-    const startPosition = activeResourceSession.startPosition;
-
-    if (startPosition) {
-      const deltaX = playerObject.position.x - startPosition.x;
-      const deltaZ = playerObject.position.z - startPosition.z;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-
-      if (distanceSquared > RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED) {
-        cancelActiveResourceSession({ reason: "movement" });
+    if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+      if (!controls.isLocked) {
+        cancelActiveResourceSession({ reason: "controls-unlocked" });
         return;
+      }
+
+      const startPosition = activeResourceSession.startPosition;
+
+      if (startPosition) {
+        const deltaX = playerObject.position.x - startPosition.x;
+        const deltaZ = playerObject.position.z - startPosition.z;
+        const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+
+        if (distanceSquared > RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED) {
+          cancelActiveResourceSession({ reason: "movement" });
+          return;
+        }
       }
     }
 
-    if (resourceToolState.beamTimer <= 0) {
+    const elapsed = Number.isFinite(delta) && delta > 0 ? delta : 0;
+    const remaining = Math.max(0, (activeResourceSession.remainingTime ?? 0) - elapsed);
+    activeResourceSession.remainingTime = remaining;
+
+    if (remaining <= 0) {
       finishActiveResourceSession();
     }
   }
@@ -4848,6 +4884,33 @@ export const initScene = (
     }
 
     return false;
+  };
+
+  const launchDroneMiner = () => {
+    if (activeResourceSession.isActive) {
+      return { started: false, reason: "busy" };
+    }
+
+    const preparedSession = prepareResourceCollection({
+      requireLockedControls: false,
+    });
+
+    if (!preparedSession) {
+      return { started: false, reason: "no-target" };
+    }
+
+    const actionDuration = THREE.MathUtils.randFloat(
+      RESOURCE_TOOL_MIN_ACTION_DURATION,
+      RESOURCE_TOOL_MAX_ACTION_DURATION
+    );
+
+    startResourceCollectionSession({
+      ...preparedSession,
+      actionDuration,
+      source: RESOURCE_SESSION_DRONE_SOURCE,
+    });
+
+    return { started: true, duration: actionDuration };
   };
 
   function continueResourceToolIfHeld() {
@@ -6175,7 +6238,7 @@ export const initScene = (
     updateActivePlacementPreview();
     updateOperationsConcourseTeleport(delta);
     updateResourceTool(delta, elapsedTime);
-    updateActiveResourceSession();
+    updateActiveResourceSession(delta);
 
     renderer.render(scene, camera);
   };
@@ -6287,6 +6350,7 @@ export const initScene = (
         ? travelToLiftFloor(index, { reason: "external" })
         : false;
     },
+    launchDroneMiner: () => launchDroneMiner(),
     dispose: () => {
       disposeManifestPlacements();
       window.removeEventListener("resize", handleResize);
