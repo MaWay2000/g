@@ -3917,7 +3917,7 @@ const handleDroneSessionCancelled = (reason) => {
   showResourceToast({ title: "Drone recalled", description });
 };
 
-const handleDroneActionButtonClick = (event) => {
+function handleDroneActionButtonClick(event) {
   event.preventDefault();
 
   if (droneState.status === "awaiting-pickup") {
@@ -3926,7 +3926,7 @@ const handleDroneActionButtonClick = (event) => {
   }
 
   attemptDroneLaunch();
-};
+}
 
 const describeManifestEntry = (entry) => {
   if (typeof entry?.label === "string" && entry.label.trim() !== "") {
