@@ -17,6 +17,8 @@
           sans-serif;
         background-color: #0f172a;
         color: #e2e8f0;
+        --ui-gutter: clamp(1rem, 1.8vw, 1.5rem);
+        --top-bar-safe-area: clamp(5rem, 10vw, 6.75rem);
       }
 
       * {
@@ -326,8 +328,8 @@
 
       .drone-panel {
         position: fixed;
-        top: 1.5rem;
-        right: 1.5rem;
+        top: var(--top-bar-safe-area);
+        right: var(--ui-gutter);
         left: auto;
         margin: 0;
         padding: 1.25rem 1.5rem;
@@ -457,11 +459,13 @@
       .top-bar {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
-        gap: 1rem;
+        justify-content: flex-start;
+        gap: 0.75rem;
         flex-wrap: wrap;
-        padding: 1.5rem;
+        padding: var(--ui-gutter);
         pointer-events: auto;
+        position: relative;
+        z-index: 10;
       }
 
       a,
@@ -1718,7 +1722,7 @@
         .drone-panel {
           right: auto;
           left: 50%;
-          top: 1rem;
+          top: calc(var(--ui-gutter) + 4rem);
           transform: translateX(-50%);
           width: min(420px, 94vw);
         }
