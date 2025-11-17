@@ -4763,6 +4763,7 @@ export const initScene = (
   const DRONE_MINER_MIN_RETURN_SPEED = 2.5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED =
     DRONE_MINER_RETURN_DISTANCE_THRESHOLD * DRONE_MINER_RETURN_DISTANCE_THRESHOLD;
+  const DRONE_MINER_DEPLOY_TRANSITION_DURATION = 0.65;
   const droneMinerState = {
     active: false,
     basePosition: new THREE.Vector3(),
@@ -4772,6 +4773,11 @@ export const initScene = (
     rotor: rotorGroup,
     cutterMaterial: droneCutterMaterial,
     cutterGlow: droneCutterGlow,
+    hasBasePosition: false,
+    transitionActive: false,
+    transitionElapsed: 0,
+    transitionStart: new THREE.Vector3(),
+    transitionTarget: new THREE.Vector3(),
   };
   const droneLookDirectionHelper = new THREE.Vector3();
   const droneLookTarget = new THREE.Vector3();
@@ -4788,6 +4794,8 @@ export const initScene = (
     droneMinerState.active = false;
     droneMinerState.returning = false;
     droneMinerGroup.visible = false;
+    droneMinerState.transitionActive = false;
+    droneMinerState.transitionElapsed = 0;
 
     if (wasReturning && typeof onDroneReturnComplete === "function") {
       try {
@@ -4808,8 +4816,27 @@ export const initScene = (
       return;
     }
 
-    droneMinerState.basePosition.copy(spawnPoint);
-    droneMinerState.basePosition.y += DRONE_MINER_HOVER_LIFT;
+    droneMinerState.transitionTarget.copy(spawnPoint);
+    droneMinerState.transitionTarget.y += DRONE_MINER_HOVER_LIFT;
+
+    if (!droneMinerState.hasBasePosition) {
+      droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
+      droneMinerState.hasBasePosition = true;
+      droneMinerState.transitionActive = false;
+    } else {
+      droneMinerState.transitionStart.copy(droneMinerState.basePosition);
+      const distanceToTargetSquared = droneMinerState.transitionStart.distanceToSquared(
+        droneMinerState.transitionTarget,
+      );
+      if (distanceToTargetSquared < 1e-4) {
+        droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
+        droneMinerState.transitionActive = false;
+      } else {
+        droneMinerState.transitionElapsed = 0;
+        droneMinerState.transitionActive = true;
+      }
+    }
+
     droneMinerGroup.position.copy(droneMinerState.basePosition);
     droneMinerState.hoverPhase = Math.random() * Math.PI * 2;
     droneMinerState.returning = false;
@@ -4836,6 +4863,7 @@ export const initScene = (
 
     droneMinerState.returning = true;
     droneMinerGroup.visible = true;
+    droneMinerState.transitionActive = false;
   };
 
   const updateDroneMiner = (delta = 0, elapsedTime = 0) => {
@@ -4894,6 +4922,26 @@ export const initScene = (
         .copy(droneReturnTarget)
         .sub(droneMinerGroup.position)
         .normalize();
+    }
+
+    if (!droneMinerState.returning && droneMinerState.transitionActive) {
+      droneMinerState.transitionElapsed = Math.min(
+        droneMinerState.transitionElapsed + delta,
+        DRONE_MINER_DEPLOY_TRANSITION_DURATION,
+      );
+      const transitionProgress =
+        droneMinerState.transitionElapsed / DRONE_MINER_DEPLOY_TRANSITION_DURATION;
+      const easedProgress = transitionProgress * transitionProgress * (3 - 2 * transitionProgress);
+      droneMinerState.basePosition.lerpVectors(
+        droneMinerState.transitionStart,
+        droneMinerState.transitionTarget,
+        easedProgress,
+      );
+
+      if (transitionProgress >= 1) {
+        droneMinerState.transitionActive = false;
+        droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
+      }
     }
 
     const hoverOffset =
