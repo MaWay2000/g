@@ -4910,7 +4910,10 @@ export const initScene = (
         droneReturnOffset.normalize().multiplyScalar(DRONE_MINER_PLAYER_RETURN_OFFSET);
       }
       droneReturnTarget.add(droneReturnOffset);
-      droneReturnTarget.y += DRONE_MINER_HOVER_LIFT;
+      const groundedReturnY = Number.isFinite(playerGroundedHeight)
+        ? playerGroundedHeight
+        : roomFloorY;
+      droneReturnTarget.y = groundedReturnY + DRONE_MINER_HOVER_LIFT;
 
       droneReturnOffset
         .copy(droneReturnTarget)
@@ -5715,6 +5718,8 @@ export const initScene = (
   const initialActiveFloor = getActiveLiftFloor();
   activateDeckEnvironment(initialActiveFloor?.id ?? null);
 
+  let playerGroundedHeight = roomFloorY;
+
   const applyPlayerHeight = (newHeight, options = {}) => {
     if (!Number.isFinite(newHeight) || newHeight <= 0) {
       return playerHeight;
@@ -5733,6 +5738,7 @@ export const initScene = (
     updateFirstPersonCameraOffset();
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
+    playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
     controls.setCameraOffset(firstPersonCameraOffset);
 
     if (persist) {
@@ -5743,6 +5749,7 @@ export const initScene = (
   };
 
   applyPlayerHeight(initialPlayerHeight, { persist: false });
+  playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
 
   const playerColliderRadius = 0.35;
   const previousPlayerPosition = new THREE.Vector3();
@@ -5796,6 +5803,7 @@ export const initScene = (
     }
 
     clampWithinActiveFloor();
+    playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
     previousPlayerPosition.copy(playerObject.position);
 
     if (Number.isFinite(nextFloor.yaw)) {
@@ -6323,6 +6331,7 @@ export const initScene = (
       if (playerObject.position.y <= groundY) {
         playerObject.position.y = groundY;
         isGrounded = true;
+        playerGroundedHeight = groundY;
       }
     }
   };
@@ -6481,6 +6490,7 @@ export const initScene = (
         verticalVelocity = 0;
       }
       isGrounded = true;
+      playerGroundedHeight = minY;
     } else if (player.y > maxY) {
       player.y = maxY;
       if (verticalVelocity > 0) {
