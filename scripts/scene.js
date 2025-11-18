@@ -12,6 +12,10 @@ import {
   resetPlayerStateCache,
 } from "./player-state-storage.js";
 import {
+  loadStoredDroneState,
+  persistDroneSceneState,
+} from "./drone-state-storage.js";
+import {
   PlacementCancelledError,
   createManifestPlacementManager,
 } from "./manifest/placements.js";
@@ -4318,6 +4322,8 @@ export const initScene = (
   }
 
   const storedPlayerState = loadStoredPlayerState();
+  const storedDroneState = loadStoredDroneState();
+  const storedDroneSceneState = storedDroneState?.scene ?? null;
   let isPlayerStatePersistenceEnabled = true;
   const storedOrientationEuler = new THREE.Euler(0, 0, 0, "YXZ");
 
@@ -4798,6 +4804,52 @@ export const initScene = (
     transitionStart: new THREE.Vector3(),
     transitionTarget: new THREE.Vector3(),
   };
+
+  const applyStoredDroneSceneState = () => {
+    if (!storedDroneSceneState) {
+      return;
+    }
+
+    const storedBase = storedDroneSceneState.basePosition;
+    if (
+      storedBase &&
+      Number.isFinite(storedBase.x) &&
+      Number.isFinite(storedBase.y) &&
+      Number.isFinite(storedBase.z)
+    ) {
+      droneMinerState.basePosition.set(
+        storedBase.x,
+        storedBase.y,
+        storedBase.z
+      );
+      droneMinerState.hasBasePosition = true;
+      droneMinerGroup.position.copy(droneMinerState.basePosition);
+    }
+
+    const storedLookDirection = storedDroneSceneState.lookDirection;
+    if (
+      storedLookDirection &&
+      Number.isFinite(storedLookDirection.x) &&
+      Number.isFinite(storedLookDirection.y) &&
+      Number.isFinite(storedLookDirection.z)
+    ) {
+      droneMinerState.lookDirection.set(
+        storedLookDirection.x,
+        storedLookDirection.y,
+        storedLookDirection.z
+      );
+    }
+
+    droneMinerState.active = Boolean(storedDroneSceneState.active);
+    droneMinerState.returning = Boolean(storedDroneSceneState.returning);
+
+    if (droneMinerState.active && droneMinerState.hasBasePosition) {
+      droneMinerGroup.visible = true;
+      droneMinerState.hoverPhase = Math.random() * Math.PI * 2;
+    }
+  };
+
+  applyStoredDroneSceneState();
   const droneLookDirectionHelper = new THREE.Vector3();
   const droneLookTarget = new THREE.Vector3();
   const droneReturnTarget = new THREE.Vector3();
@@ -6001,6 +6053,42 @@ export const initScene = (
     });
   };
 
+  const serializeDroneSceneState = () => {
+    if (!droneMinerState.active || !droneMinerState.hasBasePosition) {
+      return {
+        active: false,
+        returning: false,
+        mode: "inactive",
+        basePosition: null,
+        lookDirection: null,
+      };
+    }
+
+    const basePosition = {
+      x: roundPlayerStateValue(droneMinerState.basePosition.x),
+      y: roundPlayerStateValue(droneMinerState.basePosition.y),
+      z: roundPlayerStateValue(droneMinerState.basePosition.z),
+    };
+
+    const lookDirectionLengthSq = droneMinerState.lookDirection.lengthSq();
+    const lookDirection =
+      Number.isFinite(lookDirectionLengthSq) && lookDirectionLengthSq > 0
+        ? {
+            x: roundPlayerStateValue(droneMinerState.lookDirection.x),
+            y: roundPlayerStateValue(droneMinerState.lookDirection.y),
+            z: roundPlayerStateValue(droneMinerState.lookDirection.z),
+          }
+        : null;
+
+    return {
+      active: true,
+      returning: Boolean(droneMinerState.returning),
+      mode: droneMinerState.returning ? "returning" : "collecting",
+      basePosition,
+      lookDirection,
+    };
+  };
+
   const savePlayerState = (force = false) => {
     if (!isPlayerStatePersistenceEnabled) {
       return;
@@ -6008,6 +6096,7 @@ export const initScene = (
 
     const serialized = serializePlayerState();
     persistPlayerState(serialized, { force });
+    persistDroneSceneState(serializeDroneSceneState(), { force });
   };
 
   const handleVisibilityChange = () => {
