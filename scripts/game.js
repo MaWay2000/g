@@ -4,6 +4,11 @@ import {
   DEFAULT_PLAYER_HEIGHT,
   clearStoredPlayerState,
 } from "./player-state-storage.js";
+import {
+  clearStoredDroneState,
+  loadStoredDroneState,
+  persistDroneCargoState,
+} from "./drone-state-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -304,6 +309,51 @@ const droneState = {
   pendingShutdown: false,
   cargo: [],
   notifiedUnavailable: false,
+};
+
+const applyStoredDroneState = () => {
+  const stored = loadStoredDroneState();
+
+  if (!stored || typeof stored !== "object") {
+    return;
+  }
+
+  if (stored.cargo) {
+    const samples = Array.isArray(stored.cargo.samples)
+      ? stored.cargo.samples.slice()
+      : [];
+    droneState.cargo = samples;
+    droneState.payloadGrams = Number.isFinite(stored.cargo.payloadGrams)
+      ? Math.max(0, stored.cargo.payloadGrams)
+      : 0;
+  }
+
+  const sceneState = stored.scene;
+  if (sceneState?.active) {
+    droneState.active = true;
+    if (sceneState.mode === "returning") {
+      droneState.status = "returning";
+      droneState.awaitingReturn = true;
+      droneState.inFlight = false;
+    } else if (sceneState.mode === "collecting") {
+      droneState.status = "collecting";
+      droneState.inFlight = true;
+      droneState.awaitingReturn = false;
+    } else {
+      droneState.status = "idle";
+      droneState.inFlight = false;
+      droneState.awaitingReturn = false;
+    }
+  }
+};
+
+applyStoredDroneState();
+
+const persistDroneCargoSnapshot = () => {
+  persistDroneCargoState({
+    samples: droneState.cargo,
+    payloadGrams: droneState.payloadGrams,
+  });
 };
 
 const DRONE_AUTOMATION_RETRY_DELAY_MS = 2000;
@@ -4014,6 +4064,7 @@ const storeDroneSample = (detail) => {
   const weight = getInventoryElementWeight(detail.element);
   const numericWeight = Number.isFinite(weight) ? weight : 0;
   droneState.payloadGrams = Math.max(0, droneState.payloadGrams + numericWeight);
+  persistDroneCargoSnapshot();
   return true;
 };
 
@@ -4033,6 +4084,7 @@ const deliverDroneCargo = () => {
   });
 
   droneState.payloadGrams = 0;
+  persistDroneCargoSnapshot();
 
   return { deliveredCount, deliveredWeight };
 };
@@ -4114,6 +4166,7 @@ const activateDroneAutomation = () => {
   droneState.status = "idle";
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
+  persistDroneCargoSnapshot();
   updateDroneStatusUi();
   showTerminalToast({
     title: "Drone automation engaged",
@@ -4536,6 +4589,8 @@ function handleReset(event) {
     if (!cleared) {
       throw new Error("Unable to access saved data");
     }
+
+    clearStoredDroneState();
 
     sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, {
       persist: false,
