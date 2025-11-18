@@ -4965,7 +4965,9 @@ export const initScene = (
       const groundedReturnY = Number.isFinite(playerGroundedHeight)
         ? playerGroundedHeight
         : roomFloorY;
-      droneReturnTarget.y = groundedReturnY + DRONE_MINER_HOVER_LIFT;
+      const playerBaseY = playerObject.position.y;
+      const returnBaseY = Math.max(playerBaseY, groundedReturnY);
+      droneReturnTarget.y = returnBaseY + DRONE_MINER_HOVER_LIFT;
 
       droneReturnOffset
         .copy(droneReturnTarget)
