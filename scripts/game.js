@@ -331,19 +331,14 @@ const applyStoredDroneState = () => {
   const sceneState = stored.scene;
   if (sceneState?.active) {
     droneState.active = true;
-    if (sceneState.mode === "returning") {
-      droneState.status = "returning";
-      droneState.awaitingReturn = true;
-      droneState.inFlight = false;
-    } else if (sceneState.mode === "collecting") {
-      droneState.status = "collecting";
-      droneState.inFlight = true;
-      droneState.awaitingReturn = false;
-    } else {
-      droneState.status = "idle";
-      droneState.inFlight = false;
-      droneState.awaitingReturn = false;
-    }
+
+    // After a refresh we can only restore whether automation was enabled, not
+    // the previous sortie. Force the automation into an idle state so the
+    // controls remain responsive instead of getting stuck in a
+    // "collecting"/"returning" state with no live drone in the scene.
+    droneState.status = "idle";
+    droneState.inFlight = false;
+    droneState.awaitingReturn = false;
   }
 };
 
