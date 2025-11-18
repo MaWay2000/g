@@ -464,6 +464,26 @@ const updateResourceToolIndicator = (slot) => {
   showResourceToolIndicator();
 };
 
+const updateDroneQuickSlotState = () => {
+  if (!(quickSlotBar instanceof HTMLElement)) {
+    return;
+  }
+
+  const droneSlotButton = quickSlotBar.querySelector(
+    `[data-quick-slot-id="${DRONE_QUICK_SLOT_ID}"]`
+  );
+
+  if (!(droneSlotButton instanceof HTMLElement)) {
+    return;
+  }
+
+  if (droneState.active) {
+    droneSlotButton.dataset.droneActive = "true";
+  } else {
+    delete droneSlotButton.dataset.droneActive;
+  }
+};
+
 const updateQuickSlotUi = () => {
   if (quickSlotBar instanceof HTMLElement) {
     const buttons = quickSlotBar.querySelectorAll(".quick-slot-bar__slot");
@@ -489,6 +509,7 @@ const updateQuickSlotUi = () => {
   updateResourceToolIndicator(
     quickSlotState.slots[quickSlotState.selectedIndex] ?? null
   );
+  updateDroneQuickSlotState();
 };
 
 const clearQuickSlotActivationEffects = () => {
@@ -583,6 +604,10 @@ const renderQuickSlotBar = () => {
 
     if (slot?.activateOnly) {
       button.dataset.activateOnly = "true";
+    }
+
+    if (typeof slot?.id === "string" && slot.id.trim() !== "") {
+      button.dataset.quickSlotId = slot.id.trim();
     }
 
     const ariaLabel =
@@ -3967,6 +3992,8 @@ const getDroneMissionSummary = () => {
 };
 
 function updateDroneStatusUi() {
+  updateDroneQuickSlotState();
+
   if (!(droneStatusPanel instanceof HTMLElement)) {
     return;
   }
