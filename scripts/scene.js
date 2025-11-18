@@ -5404,6 +5404,17 @@ export const initScene = (
     return { started: true, duration: actionDuration };
   };
 
+  const cancelDroneMinerSession = ({ reason = "manual" } = {}) => {
+    const session = getResourceSession(RESOURCE_SESSION_DRONE_SOURCE);
+
+    if (!session?.isActive) {
+      return false;
+    }
+
+    cancelResourceSessionInstance(session, { reason });
+    return true;
+  };
+
   function continueResourceToolIfHeld() {
     cancelScheduledResourceToolResume();
 
@@ -6893,6 +6904,7 @@ export const initScene = (
         : false;
     },
     launchDroneMiner: () => launchDroneMiner(),
+    cancelDroneMinerSession: (options) => cancelDroneMinerSession(options),
     dispose: () => {
       disposeManifestPlacements();
       window.removeEventListener("resize", handleResize);
