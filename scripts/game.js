@@ -584,9 +584,12 @@ const selectQuickSlot = (index, { userInitiated = false } = {}) => {
     return;
   }
 
-  if (quickSlotState.selectedIndex === index) {
+  const isAlreadySelected = quickSlotState.selectedIndex === index;
+
+  if (isAlreadySelected) {
     if (userInitiated) {
       dispatchQuickSlotChangeEvent(index, { userInitiated: true });
+      triggerQuickSlotActivationEffect(index);
     }
 
     return;
@@ -595,6 +598,10 @@ const selectQuickSlot = (index, { userInitiated = false } = {}) => {
   quickSlotState.selectedIndex = index;
   updateQuickSlotUi();
   dispatchQuickSlotChangeEvent(index, { userInitiated });
+
+  if (userInitiated) {
+    triggerQuickSlotActivationEffect(index);
+  }
 };
 
 const activateQuickSlot = (index, { userInitiated = false } = {}) => {
