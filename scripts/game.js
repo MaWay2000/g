@@ -4231,10 +4231,18 @@ const deactivateDroneAutomation = () => {
 
   if (droneState.inFlight) {
     droneState.pendingShutdown = true;
-    showTerminalToast({
-      title: "Drone recall scheduled",
-      description: "Drone will return after the current run.",
-    });
+
+    const cancelled = typeof sceneController?.cancelDroneMinerSession === "function"
+      ? sceneController.cancelDroneMinerSession({ reason: "manual" })
+      : false;
+
+    if (!cancelled) {
+      showTerminalToast({
+        title: "Drone recall scheduled",
+        description: "Drone will return after the current run.",
+      });
+    }
+
     return;
   }
 
