@@ -242,6 +242,7 @@ const quickSlotDefinitions = [
     id: DRONE_QUICK_SLOT_ID,
     label: "Drone Miner",
     description: "Deploy or recover the autonomous support drone.",
+    activateOnly: true,
   },
   {
     id: "photon-cutter",
@@ -289,6 +290,9 @@ const quickSlotState = {
   slots: quickSlotDefinitions,
   selectedIndex: 0,
 };
+
+const quickSlotActivationTimeouts = new Map();
+const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
 const droneState = {
   status: "inactive",
@@ -442,6 +446,63 @@ const updateQuickSlotUi = () => {
   );
 };
 
+const clearQuickSlotActivationEffects = () => {
+  quickSlotActivationTimeouts.forEach((timeoutId) => {
+    window.clearTimeout(timeoutId);
+  });
+
+  quickSlotActivationTimeouts.clear();
+
+  if (!(quickSlotBar instanceof HTMLElement)) {
+    return;
+  }
+
+  const activatedButtons = quickSlotBar.querySelectorAll(
+    ".quick-slot-bar__slot[data-activated]"
+  );
+
+  activatedButtons.forEach((button) => {
+    if (button instanceof HTMLElement) {
+      delete button.dataset.activated;
+    }
+  });
+};
+
+const triggerQuickSlotActivationEffect = (index) => {
+  if (!(quickSlotBar instanceof HTMLElement)) {
+    return;
+  }
+
+  const button = quickSlotBar.querySelector(
+    `[data-quick-slot-index="${index}"]`
+  );
+
+  if (!(button instanceof HTMLElement)) {
+    return;
+  }
+
+  if (button.dataset.activated === "true") {
+    delete button.dataset.activated;
+    // Force reflow so the animation restarts consistently.
+    void button.offsetWidth;
+  }
+
+  button.dataset.activated = "true";
+
+  const existingTimeoutId = quickSlotActivationTimeouts.get(index);
+
+  if (typeof existingTimeoutId === "number") {
+    window.clearTimeout(existingTimeoutId);
+  }
+
+  const timeoutId = window.setTimeout(() => {
+    delete button.dataset.activated;
+    quickSlotActivationTimeouts.delete(index);
+  }, QUICK_SLOT_ACTIVATION_EFFECT_DURATION);
+
+  quickSlotActivationTimeouts.set(index, timeoutId);
+};
+
 const renderQuickSlotBar = () => {
   if (!(quickSlotBar instanceof HTMLElement)) {
     updateResourceToolIndicator(
@@ -450,6 +511,7 @@ const renderQuickSlotBar = () => {
     return;
   }
 
+  clearQuickSlotActivationEffects();
   quickSlotBar.innerHTML = "";
 
   const fragment = document.createDocumentFragment();
@@ -473,6 +535,10 @@ const renderQuickSlotBar = () => {
         ? slot.label.trim()
         : "Empty";
     button.appendChild(label);
+
+    if (slot?.activateOnly) {
+      button.dataset.activateOnly = "true";
+    }
 
     const ariaLabel =
       typeof slot?.label === "string" && slot.label.trim() !== ""
@@ -531,6 +597,22 @@ const selectQuickSlot = (index, { userInitiated = false } = {}) => {
   dispatchQuickSlotChangeEvent(index, { userInitiated });
 };
 
+const activateQuickSlot = (index, { userInitiated = false } = {}) => {
+  if (!Number.isInteger(index) || index < 0 || index >= quickSlotState.slots.length) {
+    return;
+  }
+
+  const slot = quickSlotState.slots[index] ?? null;
+
+  if (slot?.activateOnly) {
+    triggerQuickSlotActivationEffect(index);
+    dispatchQuickSlotChangeEvent(index, { userInitiated });
+    return;
+  }
+
+  selectQuickSlot(index, { userInitiated });
+};
+
 const shouldIgnoreQuickSlotHotkey = (event) => {
   const target = event.target;
 
@@ -564,7 +646,7 @@ const handleQuickSlotBarClick = (event) => {
   }
 
   event.preventDefault();
-  selectQuickSlot(index, { userInitiated: true });
+  activateQuickSlot(index, { userInitiated: true });
 };
 
 const handleQuickSlotHotkey = (event) => {
@@ -593,7 +675,7 @@ const handleQuickSlotHotkey = (event) => {
   }
 
   event.preventDefault();
-  selectQuickSlot(index, { userInitiated: true });
+  activateQuickSlot(index, { userInitiated: true });
 };
 
 if (quickSlotBar instanceof HTMLElement) {

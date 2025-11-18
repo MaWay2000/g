@@ -273,6 +273,17 @@
         border-style: solid;
       }
 
+      .quick-slot-bar__slot::after {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        border-radius: inherit;
+        border: 2px solid transparent;
+        opacity: 0;
+        pointer-events: none;
+        filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.45));
+      }
+
       .quick-slot-bar__slot:hover {
         transform: translateY(-2px);
         border-color: rgba(103, 232, 249, 0.65);
@@ -304,6 +315,36 @@
 
       .quick-slot-bar__slot[data-selected="true"] .quick-slot-bar__slot-key {
         color: rgba(15, 23, 42, 0.7);
+      }
+
+      @keyframes quick-slot-activation-spin {
+        0% {
+          opacity: 1;
+          transform: rotate(0deg) scale(0.85);
+          border-color: rgba(125, 211, 252, 0.65);
+        }
+
+        50% {
+          opacity: 1;
+          transform: rotate(180deg) scale(1.05);
+          border-color: rgba(59, 130, 246, 0.85);
+        }
+
+        100% {
+          opacity: 0;
+          transform: rotate(360deg) scale(1.2);
+          border-color: rgba(56, 189, 248, 0);
+        }
+      }
+
+      .quick-slot-bar__slot[data-activated="true"] {
+        box-shadow: inset 0 0 24px rgba(59, 130, 246, 0.45),
+          0 0 18px rgba(14, 165, 233, 0.35);
+      }
+
+      .quick-slot-bar__slot[data-activated="true"]::after {
+        opacity: 1;
+        animation: quick-slot-activation-spin 0.9s ease forwards;
       }
 
       .quick-slot-bar__slot-key {
