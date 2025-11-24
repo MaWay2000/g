@@ -4056,6 +4056,7 @@ function updateDroneStatusUi() {
 
   if (!droneState.active) {
     droneStatusPanel.hidden = true;
+    delete droneStatusPanel.dataset.state;
     return;
   }
 
