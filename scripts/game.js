@@ -3919,6 +3919,16 @@ const showTerminalToast = ({ title, description }) => {
   }, 4000);
 };
 
+const droneNotificationsEnabled = false;
+
+const showDroneTerminalToast = (payload) => {
+  if (!droneNotificationsEnabled) {
+    return;
+  }
+
+  showTerminalToast(payload);
+};
+
 const setResourceToastContent = ({ title, description }) => {
   if (!(resourceToast instanceof HTMLElement)) {
     return;
@@ -3976,6 +3986,14 @@ const showResourceToast = ({ title, description }) => {
   resourceToastHideTimeoutId = window.setTimeout(() => {
     hideResourceToast();
   }, 3000);
+};
+
+const showDroneResourceToast = (payload) => {
+  if (!droneNotificationsEnabled) {
+    return;
+  }
+
+  showResourceToast(payload);
 };
 
 const getDronePayloadText = () => {
@@ -4155,8 +4173,8 @@ const finalizeDroneAutomationShutdown = () => {
   const description = hasSamples
     ? `${deliveredCount} sample${deliveredCount === 1 ? "" : "s"} • ${formatGrams(deliveredWeight)}`
     : "No resources recovered.";
-  showResourceToast({ title: "Drone delivery", description });
-  showTerminalToast({
+  showDroneResourceToast({ title: "Drone delivery", description });
+  showDroneTerminalToast({
     title: hasSamples ? "Materials transferred" : "Drone returned",
     description: hasSamples
       ? "All stored materials moved to inventory."
@@ -4172,7 +4190,7 @@ const attemptDroneLaunch = () => {
   }
 
   if (!sceneController?.launchDroneMiner) {
-    showResourceToast({
+    showDroneResourceToast({
       title: "Drone controls offline",
       description: "Flight systems are unavailable right now.",
     });
@@ -4189,7 +4207,7 @@ const attemptDroneLaunch = () => {
 
     if (launchResult?.reason === "no-target" && !droneState.notifiedUnavailable) {
       droneState.notifiedUnavailable = true;
-      showResourceToast({
+      showDroneResourceToast({
         title: "No mining target",
         description: "Drone will continue scanning for resources.",
       });
@@ -4221,7 +4239,7 @@ const activateDroneAutomation = () => {
   droneState.notifiedUnavailable = false;
   persistDroneCargoSnapshot();
   updateDroneStatusUi();
-  showTerminalToast({
+  showDroneTerminalToast({
     title: "Drone automation engaged",
     description: "Press 2 again to recall the drone and unload cargo.",
   });
@@ -4241,7 +4259,7 @@ const resumeDroneAutomation = () => {
     ? "collecting"
     : "idle";
   updateDroneStatusUi();
-  showTerminalToast({
+  showDroneTerminalToast({
     title: "Drone automation resumed",
     description: "Continuing mining operations.",
   });
@@ -4268,7 +4286,7 @@ const deactivateDroneAutomation = () => {
       : false;
 
     if (!cancelled) {
-      showTerminalToast({
+      showDroneTerminalToast({
         title: "Drone recall scheduled",
         description: "Drone will return after the current run.",
       });
@@ -4308,8 +4326,8 @@ const handleDroneResourceCollected = (detail) => {
     const title = `Drone stored ${label}`;
     const description = `Payload ${getDronePayloadText()} secured aboard.`;
 
-    showResourceToast({ title, description });
-    showTerminalToast({ title: "Drone miner", description });
+    showDroneResourceToast({ title, description });
+    showDroneTerminalToast({ title: "Drone miner", description });
   }
 
   updateDroneStatusUi();
@@ -4340,7 +4358,7 @@ const handleDroneSessionCancelled = (reason) => {
     description = "Drone control link lost.";
   }
 
-  showResourceToast({ title: "Drone recalled", description });
+  showDroneResourceToast({ title: "Drone recalled", description });
 };
 
 const handleDroneReturnComplete = () => {
