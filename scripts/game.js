@@ -242,52 +242,62 @@ const quickSlotDefinitions = [
     id: "digger",
     label: "Digger",
     description: "Standard issue excavation module.",
+    icon: "🪓",
   },
   {
     id: DRONE_QUICK_SLOT_ID,
     label: "Drone Miner",
     description: "Deploy or recover the autonomous support drone.",
     activateOnly: true,
+    icon: "🤖",
   },
   {
     id: "photon-cutter",
     label: "Photon Cutter",
     description: "Equipped for custom map harvesting.",
+    icon: "🔦",
   },
   {
     id: "arc-welder",
     label: "Arc Welder",
     description: "Fuses structural panels in the field.",
+    icon: "⚡",
   },
   {
     id: "geo-scanner",
     label: "Geo Scanner",
     description: "Reveals hidden mineral signatures nearby.",
+    icon: "📡",
   },
   {
     id: "pulse-barrier",
     label: "Pulse Barrier",
     description: "Deploys a short-lived kinetic shield.",
+    icon: "🛡️",
   },
   {
     id: "gravity-well",
     label: "Gravity Well",
     description: "Pins unstable debris for safe recovery.",
+    icon: "🌌",
   },
   {
     id: "terraform-spike",
     label: "Terraform Spike",
     description: "Reshapes local terrain on impact.",
+    icon: "🛰️",
   },
   {
     id: "chrono-anchor",
     label: "Chrono Anchor",
     description: "Stabilizes temporal distortions briefly.",
+    icon: "⏳",
   },
   {
     id: "seismic-charge",
     label: "Seismic Charge",
     description: "Breaks dense rock formations cleanly.",
+    icon: "💥",
   },
 ];
 
@@ -593,6 +603,27 @@ const renderQuickSlotBar = () => {
     key.className = "quick-slot-bar__slot-key";
     key.textContent = getQuickSlotNumber(index);
     button.appendChild(key);
+
+    const hasIcon = typeof slot?.icon === "string" && slot.icon.trim() !== "";
+
+    if (hasIcon) {
+      const iconValue = slot.icon.trim();
+      const isImageIcon = /\/|\.(svg|png|jpe?g|gif|webp)$/i.test(iconValue);
+
+      const icon = document.createElement(isImageIcon ? "img" : "span");
+      icon.className = "quick-slot-bar__slot-icon";
+      icon.setAttribute("aria-hidden", "true");
+
+      if (icon instanceof HTMLImageElement) {
+        icon.src = iconValue;
+        icon.alt = "";
+        icon.loading = "lazy";
+      } else {
+        icon.textContent = iconValue;
+      }
+
+      button.appendChild(icon);
+    }
 
     const label = document.createElement("span");
     label.className = "quick-slot-bar__slot-label";
