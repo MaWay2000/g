@@ -4044,6 +4044,11 @@ function updateDroneStatusUi() {
     return;
   }
 
+  const isActive = Boolean(droneState.active);
+
+  droneStatusPanel.dataset.active = isActive ? "true" : "false";
+  droneStatusPanel.setAttribute("aria-hidden", isActive ? "false" : "true");
+
   const statusLabelElement =
     droneStatusLabel instanceof HTMLElement ? droneStatusLabel : null;
   const detailElement =
@@ -4051,7 +4056,7 @@ function updateDroneStatusUi() {
   const payloadElement =
     dronePayloadLabel instanceof HTMLElement ? dronePayloadLabel : null;
 
-  if (!droneState.active) {
+  if (!isActive) {
     droneStatusPanel.hidden = true;
     delete droneStatusPanel.dataset.state;
     return;
@@ -4094,6 +4099,7 @@ function updateDroneStatusUi() {
 
   droneStatusPanel.hidden = false;
   droneStatusPanel.dataset.state = droneState.status;
+  droneStatusPanel.setAttribute("aria-hidden", "false");
 }
 
 updateDroneStatusUi();
