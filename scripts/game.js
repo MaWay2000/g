@@ -28,12 +28,22 @@ const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
 const resourceToolDescription = document.querySelector(
   "[data-resource-tool-description]"
 );
-const droneStatusPanel = document.querySelector("[data-drone-status-panel]");
-const droneStatusLabel = document.querySelector("[data-drone-status-label]");
-const droneStatusDetail = document.querySelector("[data-drone-status-detail]");
-const dronePayloadLabel = document.querySelector("[data-drone-payload]");
-const droneFuelLabel = document.querySelector("[data-drone-fuel]");
-const droneRefuelButton = document.querySelector("[data-drone-refuel]");
+const droneStatusPanels = Array.from(
+  document.querySelectorAll("[data-drone-status-panel]") ?? []
+);
+const droneStatusLabels = Array.from(
+  document.querySelectorAll("[data-drone-status-label]") ?? []
+);
+const droneStatusDetails = Array.from(
+  document.querySelectorAll("[data-drone-status-detail]") ?? []
+);
+const dronePayloadLabels = Array.from(
+  document.querySelectorAll("[data-drone-payload]") ?? []
+);
+const droneFuelLabels = Array.from(document.querySelectorAll("[data-drone-fuel]") ?? []);
+const droneRefuelButtons = Array.from(
+  document.querySelectorAll("[data-drone-refuel]") ?? []
+);
 const crosshairStates = {
   terminal: false,
   edit: false,
@@ -218,6 +228,14 @@ const inventoryDroneRefuelButton = inventoryPanel?.querySelector(
 );
 const inventoryDroneStatusLabel = inventoryPanel?.querySelector(
   "[data-inventory-drone-status]"
+);
+const inventoryTabButtons = Array.from(
+  inventoryPanel?.querySelectorAll("[data-inventory-tab-target]") ?? []
+);
+const inventoryTabSections = new Map(
+  Array.from(inventoryPanel?.querySelectorAll("[data-inventory-section]") ?? []).map(
+    (section) => [section.dataset.inventorySection, section]
+  )
 );
 
 const modelPalette = document.querySelector("[data-model-palette]");
@@ -1020,6 +1038,7 @@ const inventoryState = {
   customOrder: createEmptyInventorySlotOrder(),
   capacityKg: DEFAULT_INVENTORY_CAPACITY_KG,
 };
+let activeInventoryTab = "inventory";
 
 const NEW_GAME_STARTER_RESOURCES = [
   {
@@ -1137,6 +1156,45 @@ const getInventorySlotIndex = (slot) => {
 
   const value = Number(slot.dataset.inventorySlot ?? "");
   return Number.isFinite(value) ? value : -1;
+};
+
+const setActiveInventorySection = (sectionId = "inventory") => {
+  if (!inventoryPanel?.isConnected) {
+    return;
+  }
+
+  const targetSection = inventoryTabSections.get(sectionId);
+
+  if (!targetSection) {
+    return;
+  }
+
+  activeInventoryTab = sectionId;
+
+  inventoryTabButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const isActive = button.dataset.inventoryTabTarget === sectionId;
+    button.dataset.active = isActive ? "true" : "false";
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
+  });
+
+  inventoryTabSections.forEach((section, key) => {
+    if (!(section instanceof HTMLElement)) {
+      return;
+    }
+
+    section.hidden = key !== sectionId;
+  });
+
+  if (sectionId === "drone") {
+    updateDroneStatusUi();
+  } else {
+    hideInventoryTooltip();
+  }
 };
 
 const hideInventoryTooltip = () => {
@@ -3265,6 +3323,7 @@ const openInventoryPanel = () => {
   updateBodyModalState(true);
   document.addEventListener("keydown", handleInventoryPanelKeydown, true);
 
+  setActiveInventorySection(activeInventoryTab);
   requestAnimationFrame(() => {
     ensureInventoryPanelPosition({ clamp: true });
     inventoryPanel.classList.add("is-open");
@@ -4014,6 +4073,22 @@ if (inventoryBody instanceof HTMLElement) {
   });
 }
 
+if (inventoryTabButtons.length > 0) {
+  inventoryTabButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    button.addEventListener("click", () => {
+      const target = button.dataset.inventoryTabTarget;
+
+      if (typeof target === "string" && target.trim() !== "") {
+        setActiveInventorySection(target);
+      }
+    });
+  });
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("resize", handleInventoryWindowResize);
   window.addEventListener("orientationchange", handleInventoryWindowResize);
@@ -4222,7 +4297,7 @@ const getDroneMissionSummary = () => {
 function updateDroneStatusUi() {
   updateDroneQuickSlotState();
 
-  if (!(droneStatusPanel instanceof HTMLElement)) {
+  if (droneStatusPanels.length === 0) {
     return;
   }
 
@@ -4230,22 +4305,26 @@ function updateDroneStatusUi() {
   const requiresPickup = isDronePickupRequired();
   const shouldShowPanel = isActive || requiresPickup;
 
-  droneStatusPanel.dataset.active = isActive ? "true" : "false";
-  droneStatusPanel.setAttribute("aria-hidden", shouldShowPanel ? "false" : "true");
+  droneStatusPanels.forEach((panel) => {
+    if (!(panel instanceof HTMLElement)) {
+      return;
+    }
 
-  const statusLabelElement =
-    droneStatusLabel instanceof HTMLElement ? droneStatusLabel : null;
-  const detailElement =
-    droneStatusDetail instanceof HTMLElement ? droneStatusDetail : null;
-  const payloadElement =
-    dronePayloadLabel instanceof HTMLElement ? dronePayloadLabel : null;
-  const fuelElement = droneFuelLabel instanceof HTMLElement ? droneFuelLabel : null;
-  const refuelButtonElement =
-    droneRefuelButton instanceof HTMLButtonElement ? droneRefuelButton : null;
+    panel.dataset.active = isActive ? "true" : "false";
+    panel.setAttribute("aria-hidden", shouldShowPanel ? "false" : "true");
+
+    if (!shouldShowPanel) {
+      panel.hidden = true;
+      delete panel.dataset.state;
+      return;
+    }
+
+    panel.hidden = false;
+    panel.dataset.state = droneState.status;
+    panel.setAttribute("aria-hidden", "false");
+  });
 
   if (!shouldShowPanel) {
-    droneStatusPanel.hidden = true;
-    delete droneStatusPanel.dataset.state;
     return;
   }
 
@@ -4277,28 +4356,40 @@ function updateDroneStatusUi() {
     }
   }
 
-  if (statusLabelElement) {
-    statusLabelElement.textContent = statusText;
-  }
+  droneStatusLabels.forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.textContent = statusText;
+    }
+  });
 
-  if (detailElement) {
-    detailElement.textContent = detailText;
-  }
+  droneStatusDetails.forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.textContent = detailText;
+    }
+  });
 
-  if (payloadElement) {
-    payloadElement.textContent = `Payload ${getDronePayloadText()} • Fuel ${getDroneFuelText()}`;
-  }
+  dronePayloadLabels.forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.textContent = `Payload ${getDronePayloadText()} • Fuel ${getDroneFuelText()}`;
+    }
+  });
 
-  if (fuelElement) {
-    fuelElement.textContent = `Fuel ${getDroneFuelText()}`;
-  }
+  droneFuelLabels.forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.textContent = `Fuel ${getDroneFuelText()}`;
+    }
+  });
 
-  if (refuelButtonElement) {
+  droneRefuelButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
     const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
     const refuelDisabled =
       requiresPickup || droneState.fuelRemaining >= capacity;
-    refuelButtonElement.disabled = refuelDisabled;
-  }
+    button.disabled = refuelDisabled;
+  });
 
   const inventoryRefuelButton =
     inventoryDroneRefuelButton instanceof HTMLButtonElement
@@ -4327,10 +4418,6 @@ function updateDroneStatusUi() {
 
     inventoryRefuelHelper.textContent = helperText;
   }
-
-  droneStatusPanel.hidden = false;
-  droneStatusPanel.dataset.state = droneState.status;
-  droneStatusPanel.setAttribute("aria-hidden", "false");
 }
 
 updateDroneStatusUi();
@@ -4717,12 +4804,16 @@ if (canvas instanceof HTMLElement) {
   canvas.addEventListener("quick-slot:change", handleDroneQuickSlotActivation);
 }
 
-if (droneRefuelButton instanceof HTMLButtonElement) {
-  droneRefuelButton.addEventListener("click", (event) => {
+droneRefuelButtons.forEach((button) => {
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  button.addEventListener("click", (event) => {
     event.preventDefault();
     handleDroneRefuelRequest();
   });
-}
+});
 
 if (inventoryDroneRefuelButton instanceof HTMLButtonElement) {
   inventoryDroneRefuelButton.addEventListener("click", (event) => {
