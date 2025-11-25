@@ -67,6 +67,7 @@ export const initScene = (
     onResourceCollected,
     onResourceSessionCancelled,
     onDroneReturnComplete,
+    settings,
   } = {}
 ) => {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -89,6 +90,13 @@ export const initScene = (
   camera.position.set(0, 0, 8 * ROOM_SCALE_FACTOR);
 
   const textureLoader = new THREE.TextureLoader();
+
+  const performanceSettings = {
+    lowPerformanceMode: Boolean(settings?.lowPerformanceMode),
+  };
+
+  const reflectionsEnabled = !performanceSettings.lowPerformanceMode;
+  const reflectorResolutionScale = performanceSettings.lowPerformanceMode ? 0.5 : 1;
 
   const liftInteractables = [];
   const liftUiControllers = new Set();
@@ -3974,10 +3982,12 @@ export const initScene = (
     const aspect = safeSurfaceWidth / safeSurfaceHeight;
     const baseHeight = Math.max(1, window.innerHeight || 1);
     const baseWidth = baseHeight * aspect;
+    const scaledBaseHeight = baseHeight * reflectorResolutionScale;
+    const scaledBaseWidth = baseWidth * reflectorResolutionScale;
 
     return {
-      width: Math.max(1, Math.round(baseWidth * pixelRatio)),
-      height: Math.max(1, Math.round(baseHeight * pixelRatio)),
+      width: Math.max(1, Math.round(scaledBaseWidth * pixelRatio)),
+      height: Math.max(1, Math.round(scaledBaseHeight * pixelRatio)),
     };
   };
 
@@ -4006,26 +4016,30 @@ export const initScene = (
     frame.position.z = -0.015;
     group.add(frame);
 
-    const renderTargetSize = computeReflectorRenderTargetSize(
-      mirrorWidth,
-      mirrorHeight
-    );
+    let reflector = null;
 
-    const reflector = new Reflector(
-      new THREE.PlaneGeometry(mirrorWidth, mirrorHeight),
-      {
-        clipBias: 0.0025,
-        color: new THREE.Color(0x9fb7cf),
-        textureWidth: renderTargetSize.width,
-        textureHeight: renderTargetSize.height,
-      }
-    );
-    const reflectorUserData = reflector.userData || (reflector.userData = {});
-    reflectorUserData.renderSurfaceDimensions = {
-      width: mirrorWidth,
-      height: mirrorHeight,
-    };
-    group.add(reflector);
+    if (reflectionsEnabled) {
+      const renderTargetSize = computeReflectorRenderTargetSize(
+        mirrorWidth,
+        mirrorHeight
+      );
+
+      reflector = new Reflector(
+        new THREE.PlaneGeometry(mirrorWidth, mirrorHeight),
+        {
+          clipBias: 0.0025,
+          color: new THREE.Color(0x9fb7cf),
+          textureWidth: renderTargetSize.width,
+          textureHeight: renderTargetSize.height,
+        }
+      );
+      const reflectorUserData = reflector.userData || (reflector.userData = {});
+      reflectorUserData.renderSurfaceDimensions = {
+        width: mirrorWidth,
+        height: mirrorHeight,
+      };
+      group.add(reflector);
+    }
 
     const accentMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x1f2a37),
@@ -4054,7 +4068,7 @@ export const initScene = (
 
   const reflectiveSurfaces = [];
   const registerReflectiveSurface = (reflector) => {
-    if (!reflector) {
+    if (!reflectionsEnabled || !reflector) {
       return;
     }
 
@@ -4155,7 +4169,7 @@ export const initScene = (
   hangarDeckEnvironmentGroup.add(wallMirror);
 
   const wallMirrorReflector = wallMirror.userData?.reflector;
-  if (wallMirrorReflector) {
+  if (reflectionsEnabled && wallMirrorReflector) {
     registerReflectiveSurface(wallMirrorReflector);
   }
 
