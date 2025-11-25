@@ -9,6 +9,7 @@ import {
   loadStoredDroneState,
   persistDroneCargoState,
 } from "./drone-state-storage.js";
+import { clearStoredSettings, loadStoredSettings } from "./settings-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -41,6 +42,7 @@ const dronePayloadLabels = Array.from(
   document.querySelectorAll("[data-drone-payload]") ?? []
 );
 const droneFuelLabels = Array.from(document.querySelectorAll("[data-drone-fuel]") ?? []);
+const settings = loadStoredSettings();
 const droneRefuelButtons = Array.from(
   document.querySelectorAll("[data-drone-refuel]") ?? []
 );
@@ -4915,6 +4917,7 @@ const bootstrapScene = () => {
   }
 
   sceneController = initScene(canvas, {
+    settings,
     onControlsLocked() {
       instructions?.setAttribute("hidden", "");
       setPointerLockImmersiveModeEnabled(true);
@@ -5141,6 +5144,7 @@ function handleReset(event) {
     }
 
     clearStoredDroneState();
+    clearStoredSettings();
 
     sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, {
       persist: false,
