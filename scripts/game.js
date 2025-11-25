@@ -4168,6 +4168,7 @@ const finalizeDroneAutomationShutdown = () => {
   droneState.lastResult = null;
   droneState.inFlight = false;
   droneState.awaitingReturn = false;
+  clearStoredDroneState();
   updateDroneStatusUi();
 
   const hasSamples = deliveredCount > 0;
