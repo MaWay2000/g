@@ -1241,6 +1241,49 @@
         gap: 0.65rem;
       }
 
+      .inventory-panel__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: center;
+        margin-top: -0.2rem;
+      }
+
+      .inventory-panel__action {
+        border: 1px solid rgba(94, 234, 212, 0.5);
+        background: linear-gradient(
+          135deg,
+          rgba(14, 165, 233, 0.14),
+          rgba(16, 185, 129, 0.16)
+        );
+        color: rgba(226, 232, 240, 0.95);
+        border-radius: 0.8rem;
+        padding: 0.7rem 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+        box-shadow: 0 12px 32px rgba(8, 47, 73, 0.35);
+      }
+
+      .inventory-panel__action:hover,
+      .inventory-panel__action:focus-visible {
+        outline: none;
+        transform: translateY(-1px);
+        box-shadow: 0 16px 36px rgba(56, 189, 248, 0.28);
+      }
+
+      .inventory-panel__action:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .inventory-panel__action-helper {
+        margin: 0;
+        color: rgba(148, 163, 184, 0.95);
+        font-size: 0.9rem;
+      }
+
       .inventory-panel__title {
         margin: 0;
         font-size: clamp(1.45rem, 4vw, 1.95rem);
@@ -2020,6 +2063,18 @@
                 0 G / 10 KG MAX
               </div>
             </div>
+          </div>
+          <div class="inventory-panel__actions">
+            <button
+              class="inventory-panel__action"
+              type="button"
+              data-inventory-drone-refuel
+            >
+              Refuel drone from inventory
+            </button>
+            <p class="inventory-panel__action-helper" data-inventory-drone-status>
+              Requires an active drone miner.
+            </p>
           </div>
         </header>
         <div class="inventory-panel__body">

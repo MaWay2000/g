@@ -213,6 +213,12 @@ const inventoryTooltipName = inventoryTooltip?.querySelector(
 const inventoryTooltipMeta = inventoryTooltip?.querySelector(
   "[data-inventory-tooltip-meta]"
 );
+const inventoryDroneRefuelButton = inventoryPanel?.querySelector(
+  "[data-inventory-drone-refuel]"
+);
+const inventoryDroneStatusLabel = inventoryPanel?.querySelector(
+  "[data-inventory-drone-status]"
+);
 
 const modelPalette = document.querySelector("[data-model-palette]");
 const modelPaletteDialog = modelPalette?.querySelector(
@@ -314,6 +320,7 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 const DRONE_FUEL_RESOURCE = { name: "Fuel Cell" };
 const DRONE_FUEL_CAPACITY = 3;
 const DRONE_FUEL_PER_LAUNCH = 1;
+const DRONE_PICKUP_DISTANCE_SQUARED = 9;
 
 const droneState = {
   status: "inactive",
@@ -327,6 +334,12 @@ const droneState = {
   notifiedUnavailable: false,
   fuelCapacity: DRONE_FUEL_CAPACITY,
   fuelRemaining: 0,
+};
+
+const dronePickupState = {
+  required: false,
+  location: null,
+  proximityCheckId: 0,
 };
 
 const applyStoredDroneState = () => {
@@ -370,6 +383,68 @@ const applyStoredDroneState = () => {
 };
 
 applyStoredDroneState();
+
+const getPlayerPosition = () => {
+  const position = sceneController?.getPlayerPosition?.();
+
+  if (!position) {
+    return null;
+  }
+
+  const { x, y, z } = position;
+
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(z)
+  ) {
+    return null;
+  }
+
+  return position;
+};
+
+const getDroneBasePosition = () => {
+  const position = sceneController?.getDroneBasePosition?.();
+
+  if (!position) {
+    return null;
+  }
+
+  const { x, y, z } = position;
+
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(z)
+  ) {
+    return null;
+  }
+
+  return position;
+};
+
+const isPlayerNearDroneForPickup = () => {
+  if (droneState.active || droneState.inFlight || droneState.awaitingReturn) {
+    return true;
+  }
+
+  const dronePosition = dronePickupState.location ?? getDroneBasePosition();
+  const playerPosition = getPlayerPosition();
+
+  if (!dronePosition || !playerPosition) {
+    return true;
+  }
+
+  const dx = playerPosition.x - dronePosition.x;
+  const dy = playerPosition.y - dronePosition.y;
+  const dz = playerPosition.z - dronePosition.z;
+
+  return dx * dx + dy * dy + dz * dz <= DRONE_PICKUP_DISTANCE_SQUARED;
+};
+
+const isDronePickupRequired = () =>
+  !droneState.active && droneState.fuelRemaining <= 0 && !isPlayerNearDroneForPickup();
 
 const persistDroneCargoSnapshot = () => {
   persistDroneCargoState({
@@ -4106,6 +4181,10 @@ const getDroneMissionSummary = () => {
   const detail = droneState.lastResult;
 
   if (!detail) {
+    if (isDronePickupRequired()) {
+      return "Move closer to pick up the grounded drone.";
+    }
+
     if (droneState.fuelRemaining <= 0) {
       return "Awaiting Fuel Cell resupply.";
     }
@@ -4148,9 +4227,11 @@ function updateDroneStatusUi() {
   }
 
   const isActive = Boolean(droneState.active);
+  const requiresPickup = isDronePickupRequired();
+  const shouldShowPanel = isActive || requiresPickup;
 
   droneStatusPanel.dataset.active = isActive ? "true" : "false";
-  droneStatusPanel.setAttribute("aria-hidden", isActive ? "false" : "true");
+  droneStatusPanel.setAttribute("aria-hidden", shouldShowPanel ? "false" : "true");
 
   const statusLabelElement =
     droneStatusLabel instanceof HTMLElement ? droneStatusLabel : null;
@@ -4162,7 +4243,7 @@ function updateDroneStatusUi() {
   const refuelButtonElement =
     droneRefuelButton instanceof HTMLButtonElement ? droneRefuelButton : null;
 
-  if (!isActive) {
+  if (!shouldShowPanel) {
     droneStatusPanel.hidden = true;
     delete droneStatusPanel.dataset.state;
     return;
@@ -4171,24 +4252,29 @@ function updateDroneStatusUi() {
   let statusText = "Scanning";
   let detailText = getDroneMissionSummary();
 
-  if (!sceneController?.launchDroneMiner) {
-    detailText = "Drone controls unavailable.";
-  }
+  if (requiresPickup) {
+    statusText = "Retrieve";
+    detailText = "Move close to pick up the grounded drone.";
+  } else {
+    if (!sceneController?.launchDroneMiner) {
+      detailText = "Drone controls unavailable.";
+    }
 
-  switch (droneState.status) {
-    case "collecting":
-      statusText = "Collecting";
-      detailText = getDroneMissionSummary();
-      break;
-    case "returning":
-      statusText = "Returning";
-      detailText = "Drone is en route to your position.";
-      break;
-    case "idle":
-    default:
-      statusText = "Scanning";
-      detailText = getDroneMissionSummary();
-      break;
+    switch (droneState.status) {
+      case "collecting":
+        statusText = "Collecting";
+        detailText = getDroneMissionSummary();
+        break;
+      case "returning":
+        statusText = "Returning";
+        detailText = "Drone is en route to your position.";
+        break;
+      case "idle":
+      default:
+        statusText = "Scanning";
+        detailText = getDroneMissionSummary();
+        break;
+    }
   }
 
   if (statusLabelElement) {
@@ -4209,7 +4295,37 @@ function updateDroneStatusUi() {
 
   if (refuelButtonElement) {
     const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
-    refuelButtonElement.disabled = !isActive || droneState.fuelRemaining >= capacity;
+    const refuelDisabled =
+      requiresPickup || droneState.fuelRemaining >= capacity;
+    refuelButtonElement.disabled = refuelDisabled;
+  }
+
+  const inventoryRefuelButton =
+    inventoryDroneRefuelButton instanceof HTMLButtonElement
+      ? inventoryDroneRefuelButton
+      : null;
+  const inventoryRefuelHelper =
+    inventoryDroneStatusLabel instanceof HTMLElement
+      ? inventoryDroneStatusLabel
+      : null;
+
+  if (inventoryRefuelButton) {
+    const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+    inventoryRefuelButton.disabled =
+      requiresPickup || droneState.fuelRemaining >= capacity;
+  }
+
+  if (inventoryRefuelHelper) {
+    const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+    let helperText = "Uses Fuel Cells from your inventory.";
+
+    if (requiresPickup) {
+      helperText = "Move close to the grounded drone to pick it up.";
+    } else if (droneState.fuelRemaining >= capacity) {
+      helperText = "Fuel tanks are full.";
+    }
+
+    inventoryRefuelHelper.textContent = helperText;
   }
 
   droneStatusPanel.hidden = false;
@@ -4280,6 +4396,9 @@ const deliverDroneCargo = () => {
 };
 
 const finalizeDroneAutomationShutdown = () => {
+  dronePickupState.required = false;
+  dronePickupState.location = null;
+
   const { deliveredCount, deliveredWeight } = deliverDroneCargo();
   droneState.active = false;
   droneState.pendingShutdown = false;
@@ -4365,6 +4484,24 @@ const attemptDroneLaunch = () => {
 
 const activateDroneAutomation = () => {
   if (droneState.active) {
+    return;
+  }
+
+  if (!hasDroneFuelForLaunch()) {
+    droneState.lastResult = null;
+    updateDroneStatusUi();
+    showDroneResourceToast({
+      title: "Fuel required",
+      description: "Load a Fuel Cell before deploying the drone.",
+    });
+    return;
+  }
+
+  if (isDronePickupRequired()) {
+    showDroneResourceToast({
+      title: "Pick up the drone",
+      description: "Move closer to retrieve it before relaunching.",
+    });
     return;
   }
 
@@ -4457,7 +4594,11 @@ const handleDroneToggleRequest = () => {
 };
 
 const handleDroneRefuelRequest = () => {
-  if (!droneState.active) {
+  if (isDronePickupRequired()) {
+    showDroneTerminalToast({
+      title: "Pick up the drone",
+      description: "Move closer to refuel and relaunch.",
+    });
     return;
   }
 
@@ -4578,6 +4719,13 @@ if (canvas instanceof HTMLElement) {
 
 if (droneRefuelButton instanceof HTMLButtonElement) {
   droneRefuelButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    handleDroneRefuelRequest();
+  });
+}
+
+if (inventoryDroneRefuelButton instanceof HTMLButtonElement) {
+  inventoryDroneRefuelButton.addEventListener("click", (event) => {
     event.preventDefault();
     handleDroneRefuelRequest();
   });
