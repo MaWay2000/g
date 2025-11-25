@@ -4463,6 +4463,11 @@ const cancelDroneAutomationRetry = () => {
   }
 };
 
+const promptInventoryForDroneFuel = () => {
+  activeInventoryTab = "inventory";
+  openInventoryPanel();
+};
+
 const scheduleDroneAutomationRetry = () => {
   cancelDroneAutomationRetry();
 
@@ -4570,6 +4575,7 @@ const attemptDroneLaunch = () => {
       title: "Fuel required",
       description: "Load Hydrogen or Helium from inventory to launch.",
     });
+    promptInventoryForDroneFuel();
     return;
   }
 
@@ -4615,6 +4621,7 @@ const activateDroneAutomation = () => {
       title: "Fuel required",
       description: "Load Hydrogen or Helium before deploying the drone.",
     });
+    promptInventoryForDroneFuel();
     return;
   }
 
