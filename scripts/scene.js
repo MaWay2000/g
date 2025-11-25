@@ -105,6 +105,7 @@ export const initScene = (
   const environmentHeightAdjusters = [];
   const resourceTargetsByEnvironment = new Map();
   let activeResourceTargets = [];
+  let hasStoredOutsideMap = false;
 
   const getResourceTargetsForFloor = (floorId) => {
     if (!floorId) {
@@ -2688,6 +2689,7 @@ export const initScene = (
     let storedOutsideMap = null;
     try {
       storedOutsideMap = loadOutsideMapFromStorage();
+      hasStoredOutsideMap = Boolean(storedOutsideMap);
     } catch (error) {
       console.warn("Unable to load stored outside map", error);
     }
@@ -5578,6 +5580,12 @@ export const initScene = (
     exteriorDeckFloorPosition instanceof THREE.Vector3
       ? exteriorDeckFloorPosition
       : exteriorDeckFloorPositionFallback;
+
+  if (!storedPlayerState && hasStoredOutsideMap) {
+    defaultPlayerPosition.copy(resolvedOperationsExteriorFloorPosition);
+    defaultPlayerPosition.y = roomFloorY;
+    playerObject.rotation.y = Math.PI;
+  }
 
   const hangarDeckFloorBounds = createFloorBounds(roomWidth, roomDepth, {
     paddingX: 1,
