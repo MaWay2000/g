@@ -4160,6 +4160,7 @@ const deliverDroneCargo = () => {
 
 const finalizeDroneAutomationShutdown = () => {
   const { deliveredCount, deliveredWeight } = deliverDroneCargo();
+  droneState.active = false;
   droneState.pendingShutdown = false;
   droneState.status = "inactive";
   droneState.lastResult = null;
@@ -4342,9 +4343,10 @@ const handleDroneSessionCancelled = (reason) => {
     return;
   }
 
+  droneState.status = droneState.active ? "idle" : "inactive";
+  updateDroneStatusUi();
+
   if (droneState.active) {
-    droneState.status = "idle";
-    updateDroneStatusUi();
     scheduleDroneAutomationRetry();
     return;
   }
