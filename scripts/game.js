@@ -335,7 +335,16 @@ const quickSlotState = {
 const quickSlotActivationTimeouts = new Map();
 const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
-const DRONE_FUEL_RESOURCE = { name: "Fuel Cell" };
+const DRONE_FUEL_SOURCES = [
+  {
+    element: { number: 2, symbol: "He", name: "Helium" },
+    fuelValue: 2,
+  },
+  {
+    element: { number: 1, symbol: "H", name: "Hydrogen" },
+    fuelValue: 1,
+  },
+];
 const DRONE_FUEL_CAPACITY = 3;
 const DRONE_FUEL_PER_LAUNCH = 1;
 const DRONE_PICKUP_DISTANCE_SQUARED = 9;
@@ -480,27 +489,49 @@ const tryRefuelDroneFromInventory = () => {
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
 
   if (droneState.fuelRemaining >= capacity) {
-    return 0;
+    return { fuelAdded: 0, resourcesUsed: new Map() };
   }
 
-  let refueled = 0;
+  let fuelAdded = 0;
+  const resourcesUsed = new Map();
 
-  while (droneState.fuelRemaining < capacity) {
-    const success = spendInventoryResource(DRONE_FUEL_RESOURCE, 1);
+  DRONE_FUEL_SOURCES.forEach((source) => {
+    const element = source?.element;
+    const fuelValue = Number.isFinite(source?.fuelValue)
+      ? Math.max(1, Math.floor(source.fuelValue))
+      : 1;
 
-    if (!success) {
-      break;
+    if (!element) {
+      return;
     }
 
-    droneState.fuelRemaining += 1;
-    refueled += 1;
-  }
+    const label = typeof element?.name === "string" && element.name.trim()
+      ? element.name.trim()
+      : "Fuel";
 
-  if (refueled > 0) {
+    while (droneState.fuelRemaining < capacity) {
+      const success = spendInventoryResource(element, 1);
+
+      if (!success) {
+        break;
+      }
+
+      const fuelToAdd = Math.min(fuelValue, capacity - droneState.fuelRemaining);
+      droneState.fuelRemaining += fuelToAdd;
+      fuelAdded += fuelToAdd;
+      resourcesUsed.set(label, (resourcesUsed.get(label) ?? 0) + 1);
+
+      if (droneState.fuelRemaining >= capacity) {
+        break;
+      }
+    }
+  });
+
+  if (fuelAdded > 0) {
     persistDroneCargoSnapshot();
   }
 
-  return refueled;
+  return { fuelAdded, resourcesUsed };
 };
 
 const DRONE_AUTOMATION_RETRY_DELAY_MS = 2000;
@@ -4249,7 +4280,7 @@ const getDronePayloadText = () => {
 const getDroneFuelText = () => {
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
   const fuel = Math.max(0, Math.min(droneState.fuelRemaining, capacity));
-  return `${fuel} / ${capacity} cells`;
+  return `${fuel} / ${capacity} fuel`;
 };
 
 const getDroneMissionSummary = () => {
@@ -4261,7 +4292,7 @@ const getDroneMissionSummary = () => {
     }
 
     if (droneState.fuelRemaining <= 0) {
-      return "Awaiting Fuel Cell resupply.";
+      return "Awaiting Hydrogen or Helium resupply.";
     }
 
     if (droneState.status === "collecting") {
@@ -4408,7 +4439,7 @@ function updateDroneStatusUi() {
 
   if (inventoryRefuelHelper) {
     const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
-    let helperText = "Uses Fuel Cells from your inventory.";
+    let helperText = "Uses Hydrogen or Helium from your inventory. Helium lasts twice as long.";
 
     if (requiresPickup) {
       helperText = "Move close to the grounded drone to pick it up.";
@@ -4534,7 +4565,7 @@ const attemptDroneLaunch = () => {
     updateDroneStatusUi();
     showDroneResourceToast({
       title: "Fuel required",
-      description: "Load a Fuel Cell from inventory to launch.",
+      description: "Load Hydrogen or Helium from inventory to launch.",
     });
     return;
   }
@@ -4579,7 +4610,7 @@ const activateDroneAutomation = () => {
     updateDroneStatusUi();
     showDroneResourceToast({
       title: "Fuel required",
-      description: "Load a Fuel Cell before deploying the drone.",
+      description: "Load Hydrogen or Helium before deploying the drone.",
     });
     return;
   }
@@ -4680,6 +4711,16 @@ const handleDroneToggleRequest = () => {
   activateDroneAutomation();
 };
 
+const describeFuelResources = (fuelMap) => {
+  if (!fuelMap?.size) {
+    return "";
+  }
+
+  return Array.from(fuelMap.entries())
+    .map(([name, count]) => `${name} ×${count}`)
+    .join(", ");
+};
+
 const handleDroneRefuelRequest = () => {
   if (isDronePickupRequired()) {
     showDroneTerminalToast({
@@ -4689,15 +4730,15 @@ const handleDroneRefuelRequest = () => {
     return;
   }
 
-  const refueled = tryRefuelDroneFromInventory();
+  const { fuelAdded, resourcesUsed } = tryRefuelDroneFromInventory();
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
 
   updateDroneStatusUi();
 
-  if (refueled <= 0) {
+  if (fuelAdded <= 0) {
     showDroneTerminalToast({
-      title: "No Fuel Cells available",
-      description: "Add Fuel Cells to inventory to refuel the drone.",
+      title: "No Hydrogen or Helium available",
+      description: "Add Hydrogen or Helium to inventory to refuel the drone.",
     });
     return;
   }
@@ -4706,10 +4747,14 @@ const handleDroneRefuelRequest = () => {
     droneState.fuelRemaining >= capacity
       ? "Fuel reserves restored."
       : "Partial refuel complete.";
+  const fuelSummary = describeFuelResources(resourcesUsed);
+  const detailedDescription = fuelSummary
+    ? `${description} Loaded: ${fuelSummary}.`
+    : description;
 
   showDroneTerminalToast({
-    title: `Fuel Cells loaded (${refueled})`,
-    description,
+    title: `Fuel loaded (${fuelAdded})`,
+    description: detailedDescription,
   });
 
   if (!droneState.inFlight && !droneState.awaitingReturn) {
