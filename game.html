@@ -1390,6 +1390,166 @@
         display: none;
       }
 
+      .drone-inventory {
+        display: flex;
+        flex-direction: column;
+        gap: clamp(0.65rem, 2vw, 1.1rem);
+        padding: clamp(0.5rem, 1.5vw, 0.85rem) clamp(0.25rem, 1vw, 0.5rem)
+          0;
+      }
+
+      .drone-inventory__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .drone-inventory__title {
+        margin: 0;
+        font-size: clamp(1.2rem, 3vw, 1.45rem);
+        font-weight: 700;
+        color: #e2e8f0;
+        letter-spacing: 0.03em;
+      }
+
+      .drone-inventory__subtitle {
+        margin: 0.15rem 0 0;
+        color: rgba(148, 163, 184, 0.95);
+        font-size: clamp(0.85rem, 2.5vw, 0.95rem);
+      }
+
+      .drone-inventory__fuel {
+        display: flex;
+        flex-direction: column;
+        gap: clamp(0.6rem, 2vw, 0.9rem);
+        padding: clamp(0.65rem, 2vw, 0.95rem);
+        border-radius: 1rem;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(59, 130, 246, 0.16);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      .drone-inventory__fuel-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+
+      .drone-inventory__section-title {
+        margin: 0;
+        font-size: clamp(1rem, 2.6vw, 1.1rem);
+        font-weight: 700;
+        color: #f1f5f9;
+        letter-spacing: 0.03em;
+      }
+
+      .drone-inventory__section-helper {
+        margin: 0;
+        color: rgba(148, 163, 184, 0.9);
+        font-size: clamp(0.82rem, 2.4vw, 0.92rem);
+      }
+
+      .drone-inventory__fuel-sources {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+        gap: 0.5rem;
+      }
+
+      .drone-inventory__fuel-source {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.55rem 0.65rem;
+        border-radius: 0.85rem;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(15, 23, 42, 0.7);
+      }
+
+      .drone-inventory__fuel-source[data-available="true"] {
+        border-color: rgba(74, 222, 128, 0.35);
+        box-shadow: 0 12px 32px rgba(16, 185, 129, 0.12);
+      }
+
+      .drone-inventory__fuel-symbol {
+        width: 2.75rem;
+        height: 2.75rem;
+        display: grid;
+        place-items: center;
+        border-radius: 0.85rem;
+        background: linear-gradient(160deg, rgba(59, 130, 246, 0.2), rgba(56, 189, 248, 0.35));
+        color: #e2e8f0;
+        font-weight: 800;
+        font-size: 1.1rem;
+        letter-spacing: 0.05em;
+      }
+
+      .drone-inventory__fuel-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+
+      .drone-inventory__fuel-name {
+        margin: 0;
+        color: #e2e8f0;
+        font-weight: 700;
+        font-size: 0.98rem;
+      }
+
+      .drone-inventory__fuel-availability {
+        margin: 0;
+        color: rgba(148, 163, 184, 0.9);
+        font-size: 0.85rem;
+      }
+
+      .drone-inventory__fuel-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+        gap: 0.65rem;
+      }
+
+      .drone-inventory__fuel-slot {
+        position: relative;
+        padding: 0.8rem 0.9rem 1rem;
+        border-radius: 0.95rem;
+        border: 1px dashed rgba(148, 163, 184, 0.35);
+        background: rgba(30, 41, 59, 0.55);
+        min-height: 4.2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        justify-content: center;
+      }
+
+      .drone-inventory__fuel-slot[data-state="filled"] {
+        border-style: solid;
+        border-color: rgba(94, 234, 212, 0.5);
+        background: linear-gradient(145deg, rgba(94, 234, 212, 0.08), rgba(14, 165, 233, 0.08));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+          0 18px 30px rgba(14, 165, 233, 0.16);
+      }
+
+      .drone-inventory__fuel-slot-index {
+        margin: 0;
+        color: rgba(148, 163, 184, 0.9);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+      }
+
+      .drone-inventory__fuel-slot-label {
+        margin: 0;
+        color: #e2e8f0;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .drone-inventory__fuel-slot[data-state="filled"] .drone-inventory__fuel-slot-label {
+        color: #22d3ee;
+      }
+
       .inventory-panel__summary-bar-fill {
         width: 0%;
         height: 100%;
@@ -2190,6 +2350,39 @@
               <button class="drone-panel__action" type="button" data-drone-refuel>
                 Refuel from inventory
               </button>
+            </section>
+            <section class="drone-inventory" aria-label="Drone inventory overview">
+              <div class="drone-inventory__header">
+                <div>
+                  <p class="drone-inventory__title">Drone Inventory</p>
+                  <p class="drone-inventory__subtitle">
+                    Review fuel slots and cargo reserved for the drone miner.
+                  </p>
+                </div>
+              </div>
+              <div
+                class="drone-inventory__fuel"
+                role="group"
+                aria-label="Drone fuel slots"
+              >
+                <div class="drone-inventory__fuel-header">
+                  <p class="drone-inventory__section-title">Fuel cells</p>
+                  <p class="drone-inventory__section-helper">
+                    Accepts Hydrogen or Helium from your inventory.
+                  </p>
+                </div>
+                <div
+                  class="drone-inventory__fuel-sources"
+                  data-drone-fuel-sources
+                  aria-label="Fuel types available"
+                ></div>
+                <div
+                  class="drone-inventory__fuel-grid"
+                  data-drone-fuel-grid
+                  role="list"
+                  aria-label="Fuel slots"
+                ></div>
+              </div>
             </section>
           </div>
         </div>

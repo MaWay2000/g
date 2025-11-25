@@ -231,6 +231,10 @@ const inventoryDroneRefuelButton = inventoryPanel?.querySelector(
 const inventoryDroneStatusLabel = inventoryPanel?.querySelector(
   "[data-inventory-drone-status]"
 );
+const droneFuelGrid = inventoryPanel?.querySelector("[data-drone-fuel-grid]");
+const droneFuelSourceList = inventoryPanel?.querySelector(
+  "[data-drone-fuel-sources]"
+);
 const inventoryTabButtons = Array.from(
   inventoryPanel?.querySelectorAll("[data-inventory-tab-target]") ?? []
 );
@@ -1223,11 +1227,107 @@ const setActiveInventorySection = (sectionId = "inventory") => {
   });
 
   if (sectionId === "drone") {
+    renderDroneInventoryUi();
     updateDroneStatusUi();
   } else {
     hideInventoryTooltip();
     updateDroneStatusUi();
   }
+};
+
+const renderDroneFuelSources = () => {
+  if (!(droneFuelSourceList instanceof HTMLElement)) {
+    return;
+  }
+
+  droneFuelSourceList.innerHTML = "";
+
+  const fragment = document.createDocumentFragment();
+
+  DRONE_FUEL_SOURCES.forEach((source) => {
+    const element = source?.element;
+
+    if (!element) {
+      return;
+    }
+
+    const symbol = typeof element.symbol === "string" ? element.symbol : "?";
+    const name = typeof element.name === "string" ? element.name : "Fuel";
+    const availableCount = getInventoryResourceCount(element);
+    const available = Number.isFinite(availableCount) && availableCount > 0;
+
+    const item = document.createElement("div");
+    item.className = "drone-inventory__fuel-source";
+    item.dataset.available = available ? "true" : "false";
+
+    const symbolElement = document.createElement("div");
+    symbolElement.className = "drone-inventory__fuel-symbol";
+    symbolElement.textContent = symbol;
+
+    const meta = document.createElement("div");
+    meta.className = "drone-inventory__fuel-meta";
+
+    const nameElement = document.createElement("p");
+    nameElement.className = "drone-inventory__fuel-name";
+    nameElement.textContent = name;
+
+    const countElement = document.createElement("p");
+    countElement.className = "drone-inventory__fuel-availability";
+    countElement.textContent = available
+      ? `${availableCount} in inventory`
+      : "Add to inventory to refuel";
+
+    meta.appendChild(nameElement);
+    meta.appendChild(countElement);
+
+    item.appendChild(symbolElement);
+    item.appendChild(meta);
+
+    fragment.appendChild(item);
+  });
+
+  droneFuelSourceList.appendChild(fragment);
+};
+
+const renderDroneFuelGrid = () => {
+  if (!(droneFuelGrid instanceof HTMLElement)) {
+    return;
+  }
+
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  const fuel = Math.max(0, Math.min(droneState.fuelRemaining, capacity));
+
+  droneFuelGrid.innerHTML = "";
+
+  const fragment = document.createDocumentFragment();
+
+  for (let index = 0; index < capacity; index += 1) {
+    const slot = document.createElement("div");
+    slot.className = "drone-inventory__fuel-slot";
+    slot.dataset.state = index < fuel ? "filled" : "empty";
+    slot.setAttribute("role", "listitem");
+    slot.setAttribute("aria-label", index < fuel ? "Fuel loaded" : "Fuel slot empty");
+
+    const indexLabel = document.createElement("p");
+    indexLabel.className = "drone-inventory__fuel-slot-index";
+    indexLabel.textContent = `Slot ${index + 1}`;
+
+    const stateLabel = document.createElement("p");
+    stateLabel.className = "drone-inventory__fuel-slot-label";
+    stateLabel.textContent = index < fuel ? "Loaded with fuel" : "Ready for fuel";
+
+    slot.appendChild(indexLabel);
+    slot.appendChild(stateLabel);
+
+    fragment.appendChild(slot);
+  }
+
+  droneFuelGrid.appendChild(fragment);
+};
+
+const renderDroneInventoryUi = () => {
+  renderDroneFuelGrid();
+  renderDroneFuelSources();
 };
 
 const hideInventoryTooltip = () => {
@@ -2801,6 +2901,7 @@ const handleInventoryWindowResize = () => {
 const refreshInventoryUi = () => {
   renderInventoryEntries();
   updateInventorySummary();
+  renderDroneInventoryUi();
 };
 
 const normalizeTerrainLabel = (value) => {
@@ -4452,6 +4553,8 @@ function updateDroneStatusUi() {
 
     inventoryRefuelHelper.textContent = helperText;
   }
+
+  renderDroneInventoryUi();
 }
 
 updateDroneStatusUi();
