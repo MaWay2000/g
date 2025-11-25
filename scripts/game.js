@@ -470,8 +470,7 @@ const isPlayerNearDroneForPickup = () => {
   return dx * dx + dy * dy + dz * dz <= DRONE_PICKUP_DISTANCE_SQUARED;
 };
 
-const isDronePickupRequired = () =>
-  !droneState.active && droneState.fuelRemaining <= 0 && !isPlayerNearDroneForPickup();
+const isDronePickupRequired = () => false;
 
 const persistDroneCargoSnapshot = () => {
   persistDroneCargoState({
