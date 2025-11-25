@@ -32,6 +32,8 @@ const droneStatusPanel = document.querySelector("[data-drone-status-panel]");
 const droneStatusLabel = document.querySelector("[data-drone-status-label]");
 const droneStatusDetail = document.querySelector("[data-drone-status-detail]");
 const dronePayloadLabel = document.querySelector("[data-drone-payload]");
+const droneFuelLabel = document.querySelector("[data-drone-fuel]");
+const droneRefuelButton = document.querySelector("[data-drone-refuel]");
 const crosshairStates = {
   terminal: false,
   edit: false,
@@ -309,6 +311,10 @@ const quickSlotState = {
 const quickSlotActivationTimeouts = new Map();
 const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
+const DRONE_FUEL_RESOURCE = { name: "Fuel Cell" };
+const DRONE_FUEL_CAPACITY = 3;
+const DRONE_FUEL_PER_LAUNCH = 1;
+
 const droneState = {
   status: "inactive",
   payloadGrams: 0,
@@ -319,6 +325,8 @@ const droneState = {
   pendingShutdown: false,
   cargo: [],
   notifiedUnavailable: false,
+  fuelCapacity: DRONE_FUEL_CAPACITY,
+  fuelRemaining: 0,
 };
 
 const applyStoredDroneState = () => {
@@ -336,6 +344,18 @@ const applyStoredDroneState = () => {
     droneState.payloadGrams = Number.isFinite(stored.cargo.payloadGrams)
       ? Math.max(0, stored.cargo.payloadGrams)
       : 0;
+    droneState.fuelCapacity = Number.isFinite(stored.cargo.fuelCapacity)
+      ? Math.max(1, Math.floor(stored.cargo.fuelCapacity))
+      : DRONE_FUEL_CAPACITY;
+    droneState.fuelRemaining = Number.isFinite(stored.cargo.fuelRemaining)
+      ? Math.max(
+          0,
+          Math.min(stored.cargo.fuelRemaining, droneState.fuelCapacity)
+        )
+      : 0;
+  } else {
+    droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
+    droneState.fuelRemaining = 0;
   }
 
   const sceneState = stored.scene;
@@ -355,7 +375,39 @@ const persistDroneCargoSnapshot = () => {
   persistDroneCargoState({
     samples: droneState.cargo,
     payloadGrams: droneState.payloadGrams,
+    fuelCapacity: droneState.fuelCapacity,
+    fuelRemaining: droneState.fuelRemaining,
   });
+};
+
+const hasDroneFuelForLaunch = () =>
+  droneState.fuelRemaining >= DRONE_FUEL_PER_LAUNCH;
+
+const tryRefuelDroneFromInventory = () => {
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+
+  if (droneState.fuelRemaining >= capacity) {
+    return 0;
+  }
+
+  let refueled = 0;
+
+  while (droneState.fuelRemaining < capacity) {
+    const success = spendInventoryResource(DRONE_FUEL_RESOURCE, 1);
+
+    if (!success) {
+      break;
+    }
+
+    droneState.fuelRemaining += 1;
+    refueled += 1;
+  }
+
+  if (refueled > 0) {
+    persistDroneCargoSnapshot();
+  }
+
+  return refueled;
 };
 
 const DRONE_AUTOMATION_RETRY_DELAY_MS = 2000;
@@ -2942,6 +2994,47 @@ const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
   schedulePersistInventoryState();
 };
 
+const getInventoryResourceEntry = (element) => {
+  const sanitized = sanitizeInventoryElement(element ?? {});
+  const key = getInventoryEntryKey(sanitized);
+  return inventoryState.entryMap.get(key) ?? null;
+};
+
+const getInventoryResourceCount = (element) => {
+  const entry = getInventoryResourceEntry(element);
+  return entry?.count ?? 0;
+};
+
+const spendInventoryResource = (element, count = 1) => {
+  const entry = getInventoryResourceEntry(element);
+  const normalizedCount = Math.max(1, Math.floor(count));
+
+  if (!entry || !Number.isFinite(entry.count) || entry.count < normalizedCount) {
+    return false;
+  }
+
+  entry.count -= normalizedCount;
+
+  if (entry.count <= 0) {
+    inventoryState.entryMap.delete(entry.key);
+    const entryIndex = inventoryState.entries.indexOf(entry);
+
+    if (entryIndex >= 0) {
+      inventoryState.entries.splice(entryIndex, 1);
+    }
+
+    for (let index = 0; index < inventoryState.customOrder.length; index += 1) {
+      if (inventoryState.customOrder[index] === entry.key) {
+        inventoryState.customOrder[index] = null;
+      }
+    }
+  }
+
+  refreshInventoryUi();
+  schedulePersistInventoryState();
+  return true;
+};
+
 const grantNewGameStarterResources = () => {
   let granted = false;
 
@@ -4003,10 +4096,20 @@ const getDronePayloadText = () => {
   return `${payloadText} / ${capacityText}`;
 };
 
+const getDroneFuelText = () => {
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  const fuel = Math.max(0, Math.min(droneState.fuelRemaining, capacity));
+  return `${fuel} / ${capacity} cells`;
+};
+
 const getDroneMissionSummary = () => {
   const detail = droneState.lastResult;
 
   if (!detail) {
+    if (droneState.fuelRemaining <= 0) {
+      return "Awaiting Fuel Cell resupply.";
+    }
+
     if (droneState.status === "collecting") {
       return "Autonomous drone is en route to the target.";
     }
@@ -4055,6 +4158,9 @@ function updateDroneStatusUi() {
     droneStatusDetail instanceof HTMLElement ? droneStatusDetail : null;
   const payloadElement =
     dronePayloadLabel instanceof HTMLElement ? dronePayloadLabel : null;
+  const fuelElement = droneFuelLabel instanceof HTMLElement ? droneFuelLabel : null;
+  const refuelButtonElement =
+    droneRefuelButton instanceof HTMLButtonElement ? droneRefuelButton : null;
 
   if (!isActive) {
     droneStatusPanel.hidden = true;
@@ -4094,7 +4200,16 @@ function updateDroneStatusUi() {
   }
 
   if (payloadElement) {
-    payloadElement.textContent = `Payload ${getDronePayloadText()}`;
+    payloadElement.textContent = `Payload ${getDronePayloadText()} • Fuel ${getDroneFuelText()}`;
+  }
+
+  if (fuelElement) {
+    fuelElement.textContent = `Fuel ${getDroneFuelText()}`;
+  }
+
+  if (refuelButtonElement) {
+    const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+    refuelButtonElement.disabled = !isActive || droneState.fuelRemaining >= capacity;
   }
 
   droneStatusPanel.hidden = false;
@@ -4172,6 +4287,8 @@ const finalizeDroneAutomationShutdown = () => {
   droneState.lastResult = null;
   droneState.inFlight = false;
   droneState.awaitingReturn = false;
+  droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
+  droneState.fuelRemaining = 0;
   clearStoredDroneState();
   updateDroneStatusUi();
 
@@ -4205,6 +4322,17 @@ const attemptDroneLaunch = () => {
     return;
   }
 
+  if (!hasDroneFuelForLaunch()) {
+    droneState.status = "idle";
+    droneState.lastResult = { reason: "fuel" };
+    updateDroneStatusUi();
+    showDroneResourceToast({
+      title: "Fuel required",
+      description: "Load a Fuel Cell from inventory to launch.",
+    });
+    return;
+  }
+
   const launchResult = sceneController.launchDroneMiner();
 
   if (!launchResult?.started) {
@@ -4225,8 +4353,13 @@ const attemptDroneLaunch = () => {
 
   droneState.status = "collecting";
   droneState.inFlight = true;
+  droneState.fuelRemaining = Math.max(
+    0,
+    droneState.fuelRemaining - DRONE_FUEL_PER_LAUNCH
+  );
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
+  persistDroneCargoSnapshot();
   updateDroneStatusUi();
 };
 
@@ -4240,6 +4373,11 @@ const activateDroneAutomation = () => {
   droneState.awaitingReturn = false;
   droneState.cargo = [];
   droneState.payloadGrams = 0;
+  droneState.fuelCapacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  droneState.fuelRemaining = Math.max(
+    0,
+    Math.min(droneState.fuelRemaining, droneState.fuelCapacity)
+  );
   droneState.status = "idle";
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
@@ -4318,6 +4456,39 @@ const handleDroneToggleRequest = () => {
   activateDroneAutomation();
 };
 
+const handleDroneRefuelRequest = () => {
+  if (!droneState.active) {
+    return;
+  }
+
+  const refueled = tryRefuelDroneFromInventory();
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+
+  updateDroneStatusUi();
+
+  if (refueled <= 0) {
+    showDroneTerminalToast({
+      title: "No Fuel Cells available",
+      description: "Add Fuel Cells to inventory to refuel the drone.",
+    });
+    return;
+  }
+
+  const description =
+    droneState.fuelRemaining >= capacity
+      ? "Fuel reserves restored."
+      : "Partial refuel complete.";
+
+  showDroneTerminalToast({
+    title: `Fuel Cells loaded (${refueled})`,
+    description,
+  });
+
+  if (!droneState.inFlight && !droneState.awaitingReturn) {
+    attemptDroneLaunch();
+  }
+};
+
 const handleDroneResourceCollected = (detail) => {
   droneState.inFlight = false;
   droneState.status = "returning";
@@ -4382,6 +4553,7 @@ const handleDroneReturnComplete = () => {
   }
 
   droneState.status = "idle";
+  persistDroneCargoSnapshot();
   updateDroneStatusUi();
   attemptDroneLaunch();
 };
@@ -4402,6 +4574,13 @@ const handleDroneQuickSlotActivation = (event) => {
 
 if (canvas instanceof HTMLElement) {
   canvas.addEventListener("quick-slot:change", handleDroneQuickSlotActivation);
+}
+
+if (droneRefuelButton instanceof HTMLButtonElement) {
+  droneRefuelButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    handleDroneRefuelRequest();
+  });
 }
 
 const describeManifestEntry = (entry) => {
