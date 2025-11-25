@@ -1225,6 +1225,7 @@ const setActiveInventorySection = (sectionId = "inventory") => {
     updateDroneStatusUi();
   } else {
     hideInventoryTooltip();
+    updateDroneStatusUi();
   }
 };
 
@@ -4334,7 +4335,8 @@ function updateDroneStatusUi() {
 
   const isActive = Boolean(droneState.active);
   const requiresPickup = isDronePickupRequired();
-  const shouldShowPanel = isActive || requiresPickup;
+  const shouldHideForInventory = isInventoryOpen() && activeInventoryTab === "inventory";
+  const shouldShowPanel = (isActive || requiresPickup) && !shouldHideForInventory;
 
   droneStatusPanels.forEach((panel) => {
     if (!(panel instanceof HTMLElement)) {
