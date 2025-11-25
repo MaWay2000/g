@@ -6838,6 +6838,7 @@ export const initScene = (
     renderer,
     controls,
     setMovementEnabled,
+    getPlayerPosition: () => playerObject?.position?.clone?.() ?? null,
     getPlayerHeight: () => playerHeight,
     setPlayerHeight: (nextHeight, options = {}) =>
       applyPlayerHeight(nextHeight, options),
@@ -6857,6 +6858,10 @@ export const initScene = (
     setManifestEditModeEnabled,
     isManifestEditModeEnabled,
     hasManifestPlacements,
+    getDroneBasePosition: () =>
+      droneMinerState.hasBasePosition
+        ? droneMinerState.basePosition.clone()
+        : null,
     setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
     unlockPointerLock: () => {
       if (controls.isLocked) {
