@@ -487,6 +487,50 @@ const persistDroneCargoSnapshot = () => {
   });
 };
 
+const getFuelValueForSource = (source) => {
+  if (!source) {
+    return 1;
+  }
+
+  return Number.isFinite(source?.fuelValue)
+    ? Math.max(1, Math.floor(source.fuelValue))
+    : 1;
+};
+
+const tryRefuelDroneWithElement = (element, fuelSourceOverride = null) => {
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+
+  if (droneState.fuelRemaining >= capacity) {
+    return { fuelAdded: 0, fuelLabel: "" };
+  }
+
+  const fuelSource = fuelSourceOverride ?? getFuelSourceForElement(element);
+
+  if (!fuelSource) {
+    return { fuelAdded: 0, fuelLabel: "" };
+  }
+
+  const spendSucceeded = spendInventoryResource(element, 1);
+
+  if (!spendSucceeded) {
+    return { fuelAdded: 0, fuelLabel: "" };
+  }
+
+  const fuelValue = getFuelValueForSource(fuelSource);
+  const fuelToAdd = Math.min(fuelValue, capacity - droneState.fuelRemaining);
+  droneState.fuelRemaining += fuelToAdd;
+  persistDroneCargoSnapshot();
+
+  const fuelLabel =
+    typeof element?.name === "string" && element.name.trim()
+      ? element.name.trim()
+      : typeof element?.symbol === "string" && element.symbol.trim()
+        ? element.symbol.trim()
+        : "Fuel";
+
+  return { fuelAdded: fuelToAdd, fuelLabel };
+};
+
 const hasDroneFuelForLaunch = () =>
   droneState.fuelRemaining >= DRONE_FUEL_PER_LAUNCH;
 
@@ -502,9 +546,7 @@ const tryRefuelDroneFromInventory = () => {
 
   DRONE_FUEL_SOURCES.forEach((source) => {
     const element = source?.element;
-    const fuelValue = Number.isFinite(source?.fuelValue)
-      ? Math.max(1, Math.floor(source.fuelValue))
-      : 1;
+    const fuelValue = getFuelValueForSource(source);
 
     if (!element) {
       return;
@@ -1111,6 +1153,9 @@ const inventoryReorderState = {
   sourceSlotIndex: -1,
   dropTargetSlotIndex: -1,
 };
+const inventoryDroneFuelDropState = {
+  slot: null,
+};
 const inventoryPointerReorderState = {
   active: false,
   pointerId: null,
@@ -1304,6 +1349,7 @@ const renderDroneFuelGrid = () => {
   for (let index = 0; index < capacity; index += 1) {
     const slot = document.createElement("div");
     slot.className = "drone-inventory__fuel-slot";
+    slot.dataset.droneFuelSlot = String(index);
     slot.dataset.state = index < fuel ? "filled" : "empty";
     slot.setAttribute("role", "listitem");
     slot.setAttribute("aria-label", index < fuel ? "Fuel loaded" : "Fuel slot empty");
@@ -1478,6 +1524,33 @@ const handleInventoryItemFocusOut = (event) => {
   hideInventoryTooltip();
 };
 
+const clearDroneFuelDropTarget = () => {
+  if (!(droneFuelGrid instanceof HTMLElement)) {
+    return;
+  }
+
+  droneFuelGrid
+    .querySelectorAll(".drone-inventory__fuel-slot.is-drop-target")
+    .forEach((slot) => slot.classList.remove("is-drop-target"));
+
+  inventoryDroneFuelDropState.slot = null;
+};
+
+const setDroneFuelDropTargetSlot = (slot) => {
+  if (!(slot instanceof HTMLElement)) {
+    clearDroneFuelDropTarget();
+    return;
+  }
+
+  if (inventoryDroneFuelDropState.slot === slot) {
+    return;
+  }
+
+  clearDroneFuelDropTarget();
+  slot.classList.add("is-drop-target");
+  inventoryDroneFuelDropState.slot = slot;
+};
+
 const clearInventoryDropTarget = () => {
   if (!(inventoryList instanceof HTMLElement)) {
     return;
@@ -1602,6 +1675,7 @@ const resetInventoryReorderState = ({ preserveReorderClass = false } = {}) => {
   inventoryReorderState.draggingKey = null;
   inventoryReorderState.sourceSlotIndex = -1;
   inventoryReorderState.dropTargetSlotIndex = -1;
+  clearDroneFuelDropTarget();
   removeInventoryPointerReorderListeners();
   hideInventoryDragPreview();
 
@@ -1690,7 +1764,21 @@ function updateInventoryPointerReorderTarget(clientX, clientY) {
     typeof document !== "undefined"
       ? document.elementFromPoint(clientX, clientY)
       : null;
+  const fuelSlot = getDroneFuelSlotElement(element);
   const slot = getInventorySlotElement(element);
+  const draggedEntry = getInventoryEntryByKey(inventoryReorderState.draggingKey);
+  const fuelSource = getFuelSourceForElement(draggedEntry?.element);
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  const canDropFuel =
+    fuelSlot && fuelSource && droneState.fuelRemaining < capacity;
+
+  if (canDropFuel && fuelSlot) {
+    setDroneFuelDropTargetSlot(fuelSlot);
+    setInventoryDropTargetSlot(null);
+    return;
+  }
+
+  clearDroneFuelDropTarget();
 
   if (slot) {
     setInventoryDropTargetSlot(slot);
@@ -1706,6 +1794,33 @@ function finishInventoryPointerReorder(clientX, clientY) {
     typeof document !== "undefined"
       ? document.elementFromPoint(clientX, clientY)
       : null;
+  const draggedEntry = getInventoryEntryByKey(inventoryReorderState.draggingKey);
+  const fuelSlot = getDroneFuelSlotElement(element);
+  const fuelSource = getFuelSourceForElement(draggedEntry?.element);
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+
+  if (fuelSlot && fuelSource && droneState.fuelRemaining < capacity) {
+    const { fuelAdded, fuelLabel } = tryRefuelDroneWithElement(
+      draggedEntry?.element,
+      fuelSource
+    );
+
+    resetInventoryReorderState();
+
+    if (fuelAdded > 0) {
+      updateDroneStatusUi();
+
+      if (typeof showDroneTerminalToast === "function") {
+        showDroneTerminalToast({
+          title: "Fuel routed to drone",
+          description: `${fuelLabel} added to fuel reserves.`,
+        });
+      }
+    }
+
+    return;
+  }
+
   const slot = getInventorySlotElement(element);
 
   if (slot) {
@@ -2392,6 +2507,35 @@ const getInventoryEntryKey = (element) => {
   const nameKey = element.name ? element.name.toLowerCase() : "";
   const numberKey = element.number !== null ? element.number : "";
   return `${symbolKey}|${nameKey}|${numberKey}`;
+};
+
+const getInventoryEntryByKey = (key) => {
+  if (typeof key !== "string" || key.trim() === "") {
+    return null;
+  }
+
+  return inventoryState.entries.find((entry) => entry?.key === key) ?? null;
+};
+
+const getFuelSourceForElement = (element) => {
+  const elementKey = getInventoryEntryKey(sanitizeInventoryElement(element ?? {}));
+
+  return (
+    DRONE_FUEL_SOURCES.find((source) => {
+      const sourceKey = getInventoryEntryKey(
+        sanitizeInventoryElement(source?.element ?? {})
+      );
+      return sourceKey === elementKey;
+    }) ?? null
+  );
+};
+
+const getDroneFuelSlotElement = (element) => {
+  if (!(element instanceof HTMLElement)) {
+    return null;
+  }
+
+  return element.closest("[data-drone-fuel-slot]");
 };
 
 const getInventoryCapacityKg = () => {
