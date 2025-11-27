@@ -353,6 +353,7 @@ const DRONE_FUEL_SOURCES = [
 ];
 const DRONE_FUEL_CAPACITY = 3;
 const DRONE_FUEL_PER_LAUNCH = 1;
+const DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT = 200;
 const DRONE_PICKUP_DISTANCE_SQUARED = 9;
 
 const droneState = {
@@ -367,6 +368,8 @@ const droneState = {
   notifiedUnavailable: false,
   fuelCapacity: DRONE_FUEL_CAPACITY,
   fuelRemaining: 0,
+  miningSecondsSinceFuelUse: 0,
+  miningSessionStartMs: 0,
 };
 
 const dronePickupState = {
@@ -381,6 +384,8 @@ const applyStoredDroneState = () => {
   if (!stored || typeof stored !== "object") {
     return;
   }
+
+  droneState.miningSessionStartMs = 0;
 
   if (stored.cargo) {
     const samples = Array.isArray(stored.cargo.samples)
@@ -399,9 +404,15 @@ const applyStoredDroneState = () => {
           Math.min(stored.cargo.fuelRemaining, droneState.fuelCapacity)
         )
       : 0;
+    droneState.miningSecondsSinceFuelUse = Number.isFinite(
+      stored.cargo.miningSecondsSinceFuelUse
+    )
+      ? Math.max(0, Math.min(stored.cargo.miningSecondsSinceFuelUse, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT))
+      : 0;
   } else {
     droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
     droneState.fuelRemaining = 0;
+    droneState.miningSecondsSinceFuelUse = 0;
   }
 
   const sceneState = stored.scene;
@@ -484,6 +495,7 @@ const persistDroneCargoSnapshot = () => {
     payloadGrams: droneState.payloadGrams,
     fuelCapacity: droneState.fuelCapacity,
     fuelRemaining: droneState.fuelRemaining,
+    miningSecondsSinceFuelUse: droneState.miningSecondsSinceFuelUse,
   });
 };
 
@@ -533,6 +545,52 @@ const tryRefuelDroneWithElement = (element, fuelSourceOverride = null) => {
 
 const hasDroneFuelForLaunch = () =>
   droneState.fuelRemaining >= DRONE_FUEL_PER_LAUNCH;
+
+const consumeDroneFuelForMiningDuration = (durationSeconds = 0) => {
+  const normalizedDuration = Number.isFinite(durationSeconds)
+    ? Math.max(0, durationSeconds)
+    : 0;
+
+  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  const availableFuel = Math.max(0, Math.min(droneState.fuelRemaining, capacity));
+
+  if (normalizedDuration <= 0 || availableFuel <= 0) {
+    if (availableFuel <= 0) {
+      droneState.miningSecondsSinceFuelUse = 0;
+    }
+    return;
+  }
+
+  const previousRuntime = Math.max(0, droneState.miningSecondsSinceFuelUse || 0);
+  const elapsedRuntime = previousRuntime + normalizedDuration;
+  const fuelUnitsConsumed = Math.min(
+    availableFuel,
+    Math.floor(elapsedRuntime / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
+  );
+
+  droneState.fuelRemaining = Math.max(0, availableFuel - fuelUnitsConsumed);
+  droneState.miningSecondsSinceFuelUse =
+    fuelUnitsConsumed > 0
+      ? elapsedRuntime - fuelUnitsConsumed * DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT
+      : elapsedRuntime;
+
+  if (droneState.fuelRemaining <= 0) {
+    droneState.miningSecondsSinceFuelUse = 0;
+  }
+
+  persistDroneCargoSnapshot();
+};
+
+const concludeDroneMiningSession = (detail = null) => {
+  const durationSeconds = Number.isFinite(detail?.actionDuration)
+    ? detail.actionDuration
+    : droneState.miningSessionStartMs > 0
+      ? (performance.now() - droneState.miningSessionStartMs) / 1000
+      : 0;
+
+  consumeDroneFuelForMiningDuration(durationSeconds);
+  droneState.miningSessionStartMs = 0;
+};
 
 const tryRefuelDroneFromInventory = () => {
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
@@ -4781,6 +4839,8 @@ const finalizeDroneAutomationShutdown = () => {
   droneState.awaitingReturn = false;
   droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
   droneState.fuelRemaining = 0;
+  droneState.miningSecondsSinceFuelUse = 0;
+  droneState.miningSessionStartMs = 0;
   clearStoredDroneState();
   updateDroneStatusUi();
 
@@ -4846,13 +4906,9 @@ const attemptDroneLaunch = () => {
 
   droneState.status = "collecting";
   droneState.inFlight = true;
-  droneState.fuelRemaining = Math.max(
-    0,
-    droneState.fuelRemaining - DRONE_FUEL_PER_LAUNCH
-  );
+  droneState.miningSessionStartMs = performance.now();
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
-  persistDroneCargoSnapshot();
   updateDroneStatusUi();
 };
 
@@ -4890,6 +4946,11 @@ const activateDroneAutomation = () => {
     0,
     Math.min(droneState.fuelRemaining, droneState.fuelCapacity)
   );
+  droneState.miningSecondsSinceFuelUse = Math.max(
+    0,
+    Math.min(droneState.miningSecondsSinceFuelUse, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
+  );
+  droneState.miningSessionStartMs = 0;
   droneState.status = "idle";
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
@@ -5025,6 +5086,8 @@ const handleDroneResourceCollected = (detail) => {
   droneState.awaitingReturn = true;
   droneState.lastResult = detail ?? null;
 
+  concludeDroneMiningSession(detail);
+
   const storedSample = storeDroneSample(detail);
 
   if (storedSample && detail?.element) {
@@ -5044,6 +5107,8 @@ const handleDroneSessionCancelled = (reason) => {
   droneState.inFlight = false;
   droneState.lastResult = null;
   droneState.awaitingReturn = false;
+
+  concludeDroneMiningSession();
 
   if (droneState.pendingShutdown) {
     finalizeDroneAutomationShutdown();
