@@ -345,20 +345,105 @@ const quickSlotState = {
 const quickSlotActivationTimeouts = new Map();
 const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
-const DRONE_FUEL_SOURCES = [
-  {
-    element: { number: 2, symbol: "He", name: "Helium" },
-    fuelValue: 2,
-  },
-  {
-    element: { number: 1, symbol: "H", name: "Hydrogen" },
-    fuelValue: 1,
-  },
-];
-const DRONE_FUEL_CAPACITY = 3;
-const DRONE_FUEL_PER_LAUNCH = 1;
-const DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT = 200;
-const DRONE_PICKUP_DISTANCE_SQUARED = 9;
+  const GRAMS_PER_KILOGRAM = 1000;
+  const DEFAULT_ELEMENT_WEIGHT_GRAMS = 1;
+  const INVENTORY_CAPACITY_GRAMS = 10 * GRAMS_PER_KILOGRAM;
+  const DRONE_MINER_MAX_PAYLOAD_KG = 1;
+  const DRONE_MINER_MAX_PAYLOAD_GRAMS =
+    DRONE_MINER_MAX_PAYLOAD_KG * GRAMS_PER_KILOGRAM;
+
+  const getElementWeightFromAtomicNumber = (number) => {
+    if (!Number.isFinite(number) || number <= 0) {
+      return DEFAULT_ELEMENT_WEIGHT_GRAMS;
+    }
+
+    return number;
+  };
+
+  const getInventoryElementWeight = (element) => {
+    if (!element || typeof element !== "object") {
+      return DEFAULT_ELEMENT_WEIGHT_GRAMS;
+    }
+
+    if (Number.isFinite(element.weight) && element.weight > 0) {
+      return element.weight;
+    }
+
+    if (Number.isFinite(element.number) && element.number > 0) {
+      return getElementWeightFromAtomicNumber(element.number);
+    }
+
+    return DEFAULT_ELEMENT_WEIGHT_GRAMS;
+  };
+
+  const getInventoryEntryWeight = (entry) => {
+    if (!entry || !Number.isFinite(entry.count) || entry.count <= 0) {
+      return 0;
+    }
+
+    return entry.count * getInventoryElementWeight(entry.element);
+  };
+
+  const sanitizeInventoryElement = (element = {}) => {
+    const symbol =
+      typeof element.symbol === "string" ? element.symbol.trim() : "";
+    const name = typeof element.name === "string" ? element.name.trim() : "";
+    const number = Number.isFinite(element.number) ? element.number : null;
+
+    let weight =
+      Number.isFinite(element.weight) && element.weight > 0
+        ? element.weight
+        : null;
+
+    if (weight === null && number !== null) {
+      weight = getElementWeightFromAtomicNumber(number);
+    }
+
+    return { symbol, name, number, weight };
+  };
+
+  const getInventoryEntryKey = (element) => {
+    const symbolKey = element.symbol ? element.symbol.toUpperCase() : "";
+    const nameKey = element.name ? element.name.toLowerCase() : "";
+    const numberKey = element.number !== null ? element.number : "";
+    return `${symbolKey}|${nameKey}|${numberKey}`;
+  };
+
+  const getInventoryEntryByKey = (key) => {
+    if (typeof key !== "string" || key.trim() === "") {
+      return null;
+    }
+
+    return inventoryState.entries.find((entry) => entry?.key === key) ?? null;
+  };
+
+  const getFuelSourceForElement = (element) => {
+    const elementKey = getInventoryEntryKey(sanitizeInventoryElement(element ?? {}));
+
+    return (
+      DRONE_FUEL_SOURCES.find((source) => {
+        const sourceKey = getInventoryEntryKey(
+          sanitizeInventoryElement(source?.element ?? {})
+        );
+        return sourceKey === elementKey;
+      }) ?? null
+    );
+  };
+
+  const DRONE_FUEL_SOURCES = [
+    {
+      element: { number: 2, symbol: "He", name: "Helium" },
+      fuelValue: 2,
+    },
+    {
+      element: { number: 1, symbol: "H", name: "Hydrogen" },
+      fuelValue: 1,
+    },
+  ];
+  const DRONE_FUEL_CAPACITY = 3;
+  const DRONE_FUEL_PER_LAUNCH = 1;
+  const DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT = 200;
+  const DRONE_PICKUP_DISTANCE_SQUARED = 9;
 
 const droneState = {
   status: "inactive",
@@ -377,11 +462,74 @@ const droneState = {
   miningSessionStartMs: 0,
 };
 
-const dronePickupState = {
-  required: false,
-  location: null,
-  proximityCheckId: 0,
-};
+  const dronePickupState = {
+    required: false,
+    location: null,
+    proximityCheckId: 0,
+  };
+
+  const sanitizeFuelSlotEntry = (slot) => {
+    if (!slot || typeof slot !== "object") {
+      return null;
+    }
+
+    const element = sanitizeInventoryElement(slot.element ?? slot ?? {});
+    const symbol =
+      typeof slot.symbol === "string" && slot.symbol.trim()
+        ? slot.symbol.trim()
+        : typeof element.symbol === "string"
+          ? element.symbol
+          : "Fuel";
+    const name =
+      typeof slot.name === "string" && slot.name.trim()
+        ? slot.name.trim()
+        : typeof element.name === "string"
+          ? element.name
+          : "Fuel";
+
+    return {
+      element,
+      symbol,
+      name,
+    };
+  };
+
+  const ensureDroneFuelSlots = (capacityOverride = null) => {
+    const capacity = Math.max(
+      1,
+      Number.isFinite(capacityOverride)
+        ? Math.floor(capacityOverride)
+        : droneState.fuelCapacity || DRONE_FUEL_CAPACITY
+    );
+    const slots = Array.isArray(droneState.fuelSlots)
+      ? droneState.fuelSlots.slice(0, capacity).map(sanitizeFuelSlotEntry)
+      : [];
+
+    while (slots.length < capacity) {
+      slots.push(null);
+    }
+
+    const expectedFuelUnits = Math.max(
+      0,
+      Math.min(droneState.fuelRemaining, capacity)
+    );
+    let filledUnits = slots.reduce((total, slot) => total + (slot ? 1 : 0), 0);
+
+    for (let index = 0; index < capacity && filledUnits < expectedFuelUnits; index += 1) {
+      if (!slots[index]) {
+        slots[index] = sanitizeFuelSlotEntry({ element: {} });
+        filledUnits += 1;
+      }
+    }
+
+    droneState.fuelSlots = slots;
+    droneState.fuelRemaining = slots.reduce(
+      (total, slot) => total + (slot ? 1 : 0),
+      0
+    );
+
+    return capacity;
+  };
 
 const applyStoredDroneState = () => {
   const stored = loadStoredDroneState();
@@ -520,67 +668,6 @@ const getFuelValueForSource = (source) => {
   return Number.isFinite(source?.fuelValue)
     ? Math.max(1, Math.floor(source.fuelValue))
     : 1;
-};
-
-const sanitizeFuelSlotEntry = (slot) => {
-  if (!slot || typeof slot !== "object") {
-    return null;
-  }
-
-  const element = sanitizeInventoryElement(slot.element ?? slot ?? {});
-  const symbol =
-    typeof slot.symbol === "string" && slot.symbol.trim()
-      ? slot.symbol.trim()
-      : typeof element.symbol === "string"
-        ? element.symbol
-        : "Fuel";
-  const name =
-    typeof slot.name === "string" && slot.name.trim()
-      ? slot.name.trim()
-      : typeof element.name === "string"
-        ? element.name
-        : "Fuel";
-
-  return {
-    element,
-    symbol,
-    name,
-  };
-};
-
-const ensureDroneFuelSlots = (capacityOverride = null) => {
-  const capacity = Math.max(
-    1,
-    Number.isFinite(capacityOverride) ? Math.floor(capacityOverride) : droneState.fuelCapacity || DRONE_FUEL_CAPACITY
-  );
-  const slots = Array.isArray(droneState.fuelSlots)
-    ? droneState.fuelSlots.slice(0, capacity).map(sanitizeFuelSlotEntry)
-    : [];
-
-  while (slots.length < capacity) {
-    slots.push(null);
-  }
-
-  const expectedFuelUnits = Math.max(
-    0,
-    Math.min(droneState.fuelRemaining, capacity)
-  );
-  let filledUnits = slots.reduce((total, slot) => total + (slot ? 1 : 0), 0);
-
-  for (let index = 0; index < capacity && filledUnits < expectedFuelUnits; index += 1) {
-    if (!slots[index]) {
-      slots[index] = sanitizeFuelSlotEntry({ element: {} });
-      filledUnits += 1;
-    }
-  }
-
-  droneState.fuelSlots = slots;
-  droneState.fuelRemaining = slots.reduce(
-    (total, slot) => total + (slot ? 1 : 0),
-    0
-  );
-
-  return capacity;
 };
 
 const getFuelSlotFillOrder = (capacity, preferredIndex = 0) => {
@@ -2786,43 +2873,6 @@ const isInventoryOpen = () =>
   inventoryPanel.dataset.open === "true" &&
   inventoryPanel.hidden !== true;
 
-const GRAMS_PER_KILOGRAM = 1000;
-const DEFAULT_ELEMENT_WEIGHT_GRAMS = 1;
-const INVENTORY_CAPACITY_GRAMS = 10 * GRAMS_PER_KILOGRAM;
-const DRONE_MINER_MAX_PAYLOAD_KG = 1;
-const DRONE_MINER_MAX_PAYLOAD_GRAMS = DRONE_MINER_MAX_PAYLOAD_KG * GRAMS_PER_KILOGRAM;
-
-const getElementWeightFromAtomicNumber = (number) => {
-  if (!Number.isFinite(number) || number <= 0) {
-    return DEFAULT_ELEMENT_WEIGHT_GRAMS;
-  }
-
-  return number;
-};
-
-const getInventoryElementWeight = (element) => {
-  if (!element || typeof element !== "object") {
-    return DEFAULT_ELEMENT_WEIGHT_GRAMS;
-  }
-
-  if (Number.isFinite(element.weight) && element.weight > 0) {
-    return element.weight;
-  }
-
-  if (Number.isFinite(element.number) && element.number > 0) {
-    return getElementWeightFromAtomicNumber(element.number);
-  }
-
-  return DEFAULT_ELEMENT_WEIGHT_GRAMS;
-};
-
-const getInventoryEntryWeight = (entry) => {
-  if (!entry || !Number.isFinite(entry.count) || entry.count <= 0) {
-    return 0;
-  }
-
-  return entry.count * getInventoryElementWeight(entry.element);
-};
 
 const formatWeightWithUnit = (value, unit) => {
   if (!Number.isFinite(value) || value <= 0) {
@@ -2846,52 +2896,6 @@ const formatWeightWithUnit = (value, unit) => {
 const formatGrams = (grams) => formatWeightWithUnit(grams, "g");
 
 const formatKilograms = (kilograms) => formatWeightWithUnit(kilograms, "kg");
-
-const sanitizeInventoryElement = (element = {}) => {
-  const symbol =
-    typeof element.symbol === "string" ? element.symbol.trim() : "";
-  const name = typeof element.name === "string" ? element.name.trim() : "";
-  const number = Number.isFinite(element.number) ? element.number : null;
-
-  let weight =
-    Number.isFinite(element.weight) && element.weight > 0
-      ? element.weight
-      : null;
-
-  if (weight === null && number !== null) {
-    weight = getElementWeightFromAtomicNumber(number);
-  }
-
-  return { symbol, name, number, weight };
-};
-
-const getInventoryEntryKey = (element) => {
-  const symbolKey = element.symbol ? element.symbol.toUpperCase() : "";
-  const nameKey = element.name ? element.name.toLowerCase() : "";
-  const numberKey = element.number !== null ? element.number : "";
-  return `${symbolKey}|${nameKey}|${numberKey}`;
-};
-
-const getInventoryEntryByKey = (key) => {
-  if (typeof key !== "string" || key.trim() === "") {
-    return null;
-  }
-
-  return inventoryState.entries.find((entry) => entry?.key === key) ?? null;
-};
-
-const getFuelSourceForElement = (element) => {
-  const elementKey = getInventoryEntryKey(sanitizeInventoryElement(element ?? {}));
-
-  return (
-    DRONE_FUEL_SOURCES.find((source) => {
-      const sourceKey = getInventoryEntryKey(
-        sanitizeInventoryElement(source?.element ?? {})
-      );
-      return sourceKey === elementKey;
-    }) ?? null
-  );
-};
 
 const getDroneFuelSlotElement = (element) => {
   if (!(element instanceof HTMLElement)) {
