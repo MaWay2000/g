@@ -5257,7 +5257,11 @@ export const initScene = (
     const sessionSource = session.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
 
     if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
-      hideDroneMiner();
+      if (reason === "manual" || reason === "fuel") {
+        returnDroneMinerToPlayer();
+      } else {
+        hideDroneMiner();
+      }
     }
 
     clearResourceSession(session);
