@@ -713,6 +713,19 @@ const getActiveFuelLifetimeRatio = () => {
   return remaining / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
 };
 
+const getActiveFuelRemainingSeconds = () => {
+  if (droneState.fuelRemaining <= 0) {
+    return 0;
+  }
+
+  const elapsed = Math.max(
+    0,
+    Math.min(droneState.miningSecondsSinceFuelUse || 0, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
+  );
+
+  return Math.max(0, Math.round(DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT - elapsed));
+};
+
 const addFuelUnitsToDrone = (
   element,
   units = 0,
@@ -1745,6 +1758,7 @@ const renderDroneFuelGrid = () => {
   ensureDroneFuelSlots(capacity);
   const activeSlotIndex = getActiveFuelSlotIndex();
   const activeFuelLifetimeRatio = getActiveFuelLifetimeRatio();
+  const activeFuelRemainingSeconds = getActiveFuelRemainingSeconds();
 
   droneFuelGrid.innerHTML = "";
 
@@ -1756,6 +1770,7 @@ const renderDroneFuelGrid = () => {
     slot.dataset.droneFuelSlot = String(index);
     const slotData = droneState.fuelSlots[index];
     const filled = Boolean(slotData);
+    const isActive = filled && index === activeSlotIndex;
     slot.dataset.state = filled ? "filled" : "empty";
     slot.setAttribute("role", "listitem");
     slot.setAttribute("aria-label", filled ? "Fuel loaded" : "Fuel slot empty");
@@ -1776,17 +1791,28 @@ const renderDroneFuelGrid = () => {
     const lifetimeFill = document.createElement("div");
     lifetimeFill.className = "drone-inventory__fuel-slot-lifetime-fill";
 
+    let lifetimeTooltip = "Empty fuel slot";
+
     if (filled) {
-      const isActive = index === activeSlotIndex;
       const ratio = isActive ? activeFuelLifetimeRatio : 1;
       lifetimeFill.style.width = `${(ratio * 100).toFixed(1)}%`;
       lifetimeFill.dataset.state = isActive ? "active" : "idle";
+
+      const remainingSeconds = isActive
+        ? activeFuelRemainingSeconds
+        : DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+      const remainingLabel = formatDurationSeconds(remainingSeconds);
+      lifetimeTooltip = isActive
+        ? `${remainingLabel} remaining`
+        : `${remainingLabel} available`;
     } else {
       lifetimeFill.style.width = "0%";
       lifetimeFill.dataset.state = "empty";
     }
 
     lifetimeContainer.appendChild(lifetimeFill);
+    lifetimeContainer.title = lifetimeTooltip;
+    lifetimeContainer.setAttribute("aria-label", lifetimeTooltip);
 
     const actions = document.createElement("div");
     actions.className = "drone-inventory__fuel-slot-actions";
@@ -2957,6 +2983,18 @@ const isInventoryOpen = () =>
   inventoryPanel instanceof HTMLElement &&
   inventoryPanel.dataset.open === "true" &&
   inventoryPanel.hidden !== true;
+
+const formatDurationSeconds = (seconds) => {
+  const clampedSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  const minutes = Math.floor(clampedSeconds / 60);
+  const remainingSeconds = clampedSeconds % 60;
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds.toString().padStart(2, "0")}s`;
+  }
+
+  return `${remainingSeconds}s`;
+};
 
 
 const formatWeightWithUnit = (value, unit) => {
