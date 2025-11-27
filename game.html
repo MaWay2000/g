@@ -1582,6 +1582,32 @@
         color: #22d3ee;
       }
 
+      .drone-inventory__fuel-slot-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .drone-inventory__fuel-slot-action {
+        padding: 0.35rem 0.7rem;
+        border-radius: 0.6rem;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        background: rgba(15, 23, 42, 0.6);
+        color: #e2e8f0;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+      }
+
+      .drone-inventory__fuel-slot-action:hover,
+      .drone-inventory__fuel-slot-action:focus-visible {
+        border-color: rgba(94, 234, 212, 0.85);
+        color: #22d3ee;
+        background: rgba(14, 165, 233, 0.15);
+        outline: none;
+      }
+
       .inventory-panel__summary-bar-fill {
         width: 0%;
         height: 100%;
