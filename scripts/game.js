@@ -42,6 +42,10 @@ const dronePayloadLabels = Array.from(
   document.querySelectorAll("[data-drone-payload]") ?? []
 );
 const droneFuelLabels = Array.from(document.querySelectorAll("[data-drone-fuel]") ?? []);
+const dronePayloadMeters = Array.from(
+  document.querySelectorAll("[data-drone-payload-bar]") ?? []
+);
+const droneFuelMeters = Array.from(document.querySelectorAll("[data-drone-fuel-bar]") ?? []);
 const settings = loadStoredSettings();
 const droneRefuelButtons = Array.from(
   document.querySelectorAll("[data-drone-refuel]") ?? []
@@ -4668,6 +4672,14 @@ function updateDroneStatusUi() {
   let statusText = "Scanning";
   let detailText = getDroneMissionSummary();
 
+  const payloadCapacity = Math.max(1, DRONE_MINER_MAX_PAYLOAD_GRAMS);
+  const currentPayload = Math.max(0, Math.min(droneState.payloadGrams, payloadCapacity));
+  const payloadRatio = payloadCapacity > 0 ? currentPayload / payloadCapacity : 0;
+
+  const fuelCapacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  const fuelRemaining = Math.max(0, Math.min(droneState.fuelRemaining, fuelCapacity));
+  const fuelRatio = fuelCapacity > 0 ? fuelRemaining / fuelCapacity : 0;
+
   if (requiresPickup) {
     statusText = "Retrieve";
     detailText = "Move close to pick up the grounded drone.";
@@ -4707,7 +4719,7 @@ function updateDroneStatusUi() {
 
   dronePayloadLabels.forEach((element) => {
     if (element instanceof HTMLElement) {
-      element.textContent = `Payload ${getDronePayloadText()} • Fuel ${getDroneFuelText()}`;
+      element.textContent = `Payload ${getDronePayloadText()}`;
     }
   });
 
@@ -4717,14 +4729,24 @@ function updateDroneStatusUi() {
     }
   });
 
+  dronePayloadMeters.forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.style.width = `${(payloadRatio * 100).toFixed(1)}%`;
+    }
+  });
+
+  droneFuelMeters.forEach((element) => {
+    if (element instanceof HTMLElement) {
+      element.style.width = `${(fuelRatio * 100).toFixed(1)}%`;
+    }
+  });
+
   droneRefuelButtons.forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) {
       return;
     }
 
-    const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
-    const refuelDisabled =
-      requiresPickup || droneState.fuelRemaining >= capacity;
+    const refuelDisabled = requiresPickup || fuelRemaining >= fuelCapacity;
     button.disabled = refuelDisabled;
   });
 
@@ -4738,18 +4760,16 @@ function updateDroneStatusUi() {
       : null;
 
   if (inventoryRefuelButton) {
-    const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
     inventoryRefuelButton.disabled =
-      requiresPickup || droneState.fuelRemaining >= capacity;
+      requiresPickup || droneState.fuelRemaining >= fuelCapacity;
   }
 
   if (inventoryRefuelHelper) {
-    const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
     let helperText = "Uses Hydrogen or Helium from your inventory. Helium lasts twice as long.";
 
     if (requiresPickup) {
       helperText = "Move close to the grounded drone to pick it up.";
-    } else if (droneState.fuelRemaining >= capacity) {
+    } else if (droneState.fuelRemaining >= fuelCapacity) {
       helperText = "Fuel tanks are full.";
     }
 

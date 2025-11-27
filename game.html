@@ -484,14 +484,35 @@
       .drone-panel__metrics {
         display: flex;
         flex-direction: column;
-        gap: 0.2rem;
+        gap: 0.6rem;
       }
 
       .drone-panel__metric {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .drone-panel__metric-label {
         margin: 0;
         font-size: 0.82rem;
         letter-spacing: 0.05em;
         color: rgba(148, 163, 184, 0.9);
+      }
+
+      .drone-panel__metric-bar {
+        height: 0.38rem;
+        border-radius: 999px;
+        background: rgba(51, 65, 85, 0.8);
+        overflow: hidden;
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+      }
+
+      .drone-panel__metric-bar-fill {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, rgba(94, 234, 212, 1), rgba(59, 130, 246, 1));
+        transition: width 200ms ease-out;
       }
 
       .drone-panel__action {
@@ -2183,12 +2204,21 @@
           Awaiting launch order.
         </p>
         <div class="drone-panel__metrics">
-          <p class="drone-panel__metric" data-drone-payload>Payload 0 g / 1 kg</p>
-          <p class="drone-panel__metric" data-drone-fuel>Fuel 0 / 0 cells</p>
+          <div class="drone-panel__metric">
+            <p class="drone-panel__metric-label" data-drone-payload>
+              Payload 0 g / 1 kg
+            </p>
+            <div class="drone-panel__metric-bar" aria-hidden="true">
+              <div class="drone-panel__metric-bar-fill" data-drone-payload-bar></div>
+            </div>
+          </div>
+          <div class="drone-panel__metric">
+            <p class="drone-panel__metric-label" data-drone-fuel>Fuel 0 / 0 cells</p>
+            <div class="drone-panel__metric-bar" aria-hidden="true">
+              <div class="drone-panel__metric-bar-fill" data-drone-fuel-bar></div>
+            </div>
+          </div>
         </div>
-        <button class="drone-panel__action" type="button" data-drone-refuel>
-          Refuel from inventory
-        </button>
       </section>
 
       <div class="status-region">
@@ -2353,14 +2383,21 @@
                 Awaiting launch order.
               </p>
               <div class="drone-panel__metrics">
-                <p class="drone-panel__metric" data-drone-payload>
-                  Payload 0 g / 1 kg
-                </p>
-                <p class="drone-panel__metric" data-drone-fuel>Fuel 0 / 0 cells</p>
+                <div class="drone-panel__metric">
+                  <p class="drone-panel__metric-label" data-drone-payload>
+                    Payload 0 g / 1 kg
+                  </p>
+                  <div class="drone-panel__metric-bar" aria-hidden="true">
+                    <div class="drone-panel__metric-bar-fill" data-drone-payload-bar></div>
+                  </div>
+                </div>
+                <div class="drone-panel__metric">
+                  <p class="drone-panel__metric-label" data-drone-fuel>Fuel 0 / 0 cells</p>
+                  <div class="drone-panel__metric-bar" aria-hidden="true">
+                    <div class="drone-panel__metric-bar-fill" data-drone-fuel-bar></div>
+                  </div>
+                </div>
               </div>
-              <button class="drone-panel__action" type="button" data-drone-refuel>
-                Refuel from inventory
-              </button>
             </section>
             <section class="drone-inventory" aria-label="Drone inventory overview">
               <div class="drone-inventory__header">
