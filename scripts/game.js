@@ -433,7 +433,7 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_FUEL_SOURCES = [
     {
       element: { number: 2, symbol: "He", name: "Helium" },
-      fuelValue: 2,
+      fuelValue: 1,
     },
     {
       element: { number: 1, symbol: "H", name: "Hydrogen" },
@@ -5116,7 +5116,7 @@ function updateDroneStatusUi() {
   }
 
   if (inventoryRefuelHelper) {
-    let helperText = "Uses Hydrogen or Helium from your inventory. Helium lasts twice as long.";
+    let helperText = "Uses Hydrogen or Helium from your inventory.";
 
     if (requiresPickup) {
       helperText = "Move close to the grounded drone to pick it up.";
