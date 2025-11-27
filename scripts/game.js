@@ -1362,10 +1362,16 @@ const renderDroneFuelSources = () => {
     const name = typeof element.name === "string" ? element.name : "Fuel";
     const availableCount = getInventoryResourceCount(element);
     const available = Number.isFinite(availableCount) && availableCount > 0;
+    const entryKey = getInventoryEntryKey(
+      sanitizeInventoryElement(element ?? {})
+    );
 
     const item = document.createElement("div");
     item.className = "drone-inventory__fuel-source";
     item.dataset.available = available ? "true" : "false";
+    item.dataset.droneFuelSource = "true";
+    item.dataset.inventoryKey = entryKey;
+    item.dataset.inventoryName = name;
 
     const symbolElement = document.createElement("div");
     symbolElement.className = "drone-inventory__fuel-symbol";
@@ -1626,13 +1632,17 @@ const clearInventoryDropTarget = () => {
 };
 
 const clearInventoryDragSourceHighlight = () => {
-  if (!(inventoryList instanceof HTMLElement)) {
-    return;
+  if (inventoryList instanceof HTMLElement) {
+    inventoryList
+      .querySelectorAll(".inventory-panel__item.is-drag-source")
+      .forEach((element) => element.classList.remove("is-drag-source"));
   }
 
-  inventoryList
-    .querySelectorAll(".inventory-panel__item.is-drag-source")
-    .forEach((element) => element.classList.remove("is-drag-source"));
+  if (droneFuelSourceList instanceof HTMLElement) {
+    droneFuelSourceList
+      .querySelectorAll(".drone-inventory__fuel-source.is-drag-source")
+      .forEach((element) => element.classList.remove("is-drag-source"));
+  }
 };
 
 const ensureInventoryDragPreviewElement = () => {
@@ -1752,6 +1762,7 @@ const startInventoryReorderForItem = (item) => {
   }
 
   const key = item.dataset.inventoryKey;
+  const isDroneFuelSource = item.dataset.droneFuelSource === "true";
 
   if (!key) {
     return false;
@@ -1759,9 +1770,11 @@ const startInventoryReorderForItem = (item) => {
 
   hideInventoryTooltip();
   inventoryReorderState.draggingKey = key;
-  inventoryReorderState.sourceSlotIndex = getInventorySlotIndex(item);
+  inventoryReorderState.sourceSlotIndex = isDroneFuelSource
+    ? -1
+    : getInventorySlotIndex(item);
 
-  if (inventoryReorderState.sourceSlotIndex < 0) {
+  if (!isDroneFuelSource && inventoryReorderState.sourceSlotIndex < 0) {
     inventoryReorderState.draggingKey = null;
     return false;
   }
@@ -2023,6 +2036,58 @@ const handleInventoryItemPointerDownForReorder = (event) => {
 
   event.preventDefault();
   showInventoryDragPreview(item, event);
+  addInventoryPointerReorderListeners(event.pointerId);
+  updateInventoryPointerReorderTarget(event.clientX, event.clientY);
+};
+
+const getDroneFuelSourceElement = (element) => {
+  if (!(element instanceof HTMLElement)) {
+    return null;
+  }
+
+  const source = element.closest(".drone-inventory__fuel-source");
+  return source instanceof HTMLElement ? source : null;
+};
+
+const handleDroneFuelSourcePointerDown = (event) => {
+  const pointerType =
+    typeof event.pointerType === "string"
+      ? event.pointerType.toLowerCase()
+      : "";
+
+  if (
+    inventoryReorderState.draggingKey ||
+    event.isPrimary === false ||
+    (typeof event.button === "number" && event.button > 0) ||
+    !Number.isFinite(event.pointerId)
+  ) {
+    return;
+  }
+
+  if (
+    pointerType !== "touch" &&
+    pointerType !== "pen" &&
+    typeof event.buttons === "number"
+  ) {
+    const isPrimaryButtonPressed = (event.buttons & 1) === 1;
+
+    if (!isPrimaryButtonPressed) {
+      return;
+    }
+  }
+
+  const fuelSource = getDroneFuelSourceElement(event.target);
+
+  if (
+    !fuelSource ||
+    fuelSource.dataset.available !== "true" ||
+    !startInventoryReorderForItem(fuelSource)
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  showInventoryDragPreview(fuelSource, event);
   addInventoryPointerReorderListeners(event.pointerId);
   updateInventoryPointerReorderTarget(event.clientX, event.clientY);
 };
@@ -4405,6 +4470,14 @@ if (inventoryList instanceof HTMLElement) {
   inventoryList.addEventListener("pointerout", handleInventoryItemPointerOut);
   inventoryList.addEventListener("focusin", handleInventoryItemFocusIn);
   inventoryList.addEventListener("focusout", handleInventoryItemFocusOut);
+}
+
+if (droneFuelSourceList instanceof HTMLElement) {
+  droneFuelSourceList.addEventListener(
+    "pointerdown",
+    handleDroneFuelSourcePointerDown,
+    { passive: false }
+  );
 }
 
 if (inventoryBody instanceof HTMLElement) {
