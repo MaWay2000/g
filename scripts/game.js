@@ -687,6 +687,32 @@ const getFuelSlotFillOrder = (capacity, preferredIndex = 0) => {
   return order;
 };
 
+const getActiveFuelSlotIndex = () => {
+  const capacity = ensureDroneFuelSlots();
+
+  for (let index = capacity - 1; index >= 0; index -= 1) {
+    if (droneState.fuelSlots[index]) {
+      return index;
+    }
+  }
+
+  return -1;
+};
+
+const getActiveFuelLifetimeRatio = () => {
+  if (droneState.fuelRemaining <= 0) {
+    return 0;
+  }
+
+  const elapsed = Math.max(
+    0,
+    Math.min(droneState.miningSecondsSinceFuelUse || 0, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
+  );
+  const remaining = Math.max(0, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT - elapsed);
+
+  return remaining / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+};
+
 const addFuelUnitsToDrone = (
   element,
   units = 0,
@@ -863,6 +889,14 @@ const consumeDroneFuelForMiningDuration = (durationSeconds = 0) => {
     availableFuel,
     Math.floor(elapsedRuntime / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
   );
+
+  if (normalizedDuration > 0 && fuelRemaining > 0) {
+    const activeIndex = getActiveFuelSlotIndex();
+
+    if (activeIndex >= 0 && droneState.fuelSlots[activeIndex]) {
+      droneState.fuelSlots[activeIndex].refundable = false;
+    }
+  }
 
   if (fuelUnitsConsumed > 0) {
     removeFuelUnitsFromSlots(fuelUnitsConsumed);
@@ -1709,6 +1743,8 @@ const renderDroneFuelGrid = () => {
 
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
   ensureDroneFuelSlots(capacity);
+  const activeSlotIndex = getActiveFuelSlotIndex();
+  const activeFuelLifetimeRatio = getActiveFuelLifetimeRatio();
 
   droneFuelGrid.innerHTML = "";
 
@@ -1734,6 +1770,24 @@ const renderDroneFuelGrid = () => {
       ? slotData?.symbol || slotData?.name || "Fuel"
       : "Ready for fuel";
 
+    const lifetimeContainer = document.createElement("div");
+    lifetimeContainer.className = "drone-inventory__fuel-slot-lifetime";
+
+    const lifetimeFill = document.createElement("div");
+    lifetimeFill.className = "drone-inventory__fuel-slot-lifetime-fill";
+
+    if (filled) {
+      const isActive = index === activeSlotIndex;
+      const ratio = isActive ? activeFuelLifetimeRatio : 1;
+      lifetimeFill.style.width = `${(ratio * 100).toFixed(1)}%`;
+      lifetimeFill.dataset.state = isActive ? "active" : "idle";
+    } else {
+      lifetimeFill.style.width = "0%";
+      lifetimeFill.dataset.state = "empty";
+    }
+
+    lifetimeContainer.appendChild(lifetimeFill);
+
     const actions = document.createElement("div");
     actions.className = "drone-inventory__fuel-slot-actions";
     actions.appendChild(stateLabel);
@@ -1745,10 +1799,16 @@ const renderDroneFuelGrid = () => {
       unloadButton.dataset.action = "unload-fuel-slot";
       unloadButton.dataset.droneFuelSlot = String(index);
       unloadButton.textContent = "Unload";
+      unloadButton.disabled = slotData?.refundable === false;
+
+      if (unloadButton.disabled) {
+        unloadButton.title = "Fuel already used";
+      }
       actions.appendChild(unloadButton);
     }
 
     slot.appendChild(indexLabel);
+    slot.appendChild(lifetimeContainer);
     slot.appendChild(actions);
 
     fragment.appendChild(slot);
