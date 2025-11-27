@@ -131,6 +131,7 @@ const normalizeCargoStateForPersistence = (cargoState) => {
       payloadGrams: 0,
       fuelCapacity: 0,
       fuelRemaining: 0,
+      fuelSlots: [],
       miningSecondsSinceFuelUse: 0,
     };
   }
@@ -147,6 +148,9 @@ const normalizeCargoStateForPersistence = (cargoState) => {
   const fuelRemaining = Number.isFinite(cargoState.fuelRemaining)
     ? cargoState.fuelRemaining
     : 0;
+  const fuelSlots = Array.isArray(cargoState.fuelSlots)
+    ? cargoState.fuelSlots
+    : [];
   const miningSecondsSinceFuelUse = Number.isFinite(
     cargoState.miningSecondsSinceFuelUse
   )
@@ -158,6 +162,15 @@ const normalizeCargoStateForPersistence = (cargoState) => {
     payloadGrams: Math.max(0, roundDroneStateValue(payload)),
     fuelCapacity: Math.max(0, Math.floor(fuelCapacity)),
     fuelRemaining: Math.max(0, roundDroneStateValue(fuelRemaining)),
+    fuelSlots: fuelSlots.map((slot) =>
+      slot && typeof slot === "object"
+        ? {
+            element: slot.element ?? slot,
+            symbol: slot.symbol,
+            name: slot.name,
+          }
+        : null
+    ),
     miningSecondsSinceFuelUse: Math.max(
       0,
       roundDroneStateValue(miningSecondsSinceFuelUse)

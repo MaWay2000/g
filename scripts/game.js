@@ -372,6 +372,7 @@ const droneState = {
   notifiedUnavailable: false,
   fuelCapacity: DRONE_FUEL_CAPACITY,
   fuelRemaining: 0,
+  fuelSlots: [],
   miningSecondsSinceFuelUse: 0,
   miningSessionStartMs: 0,
 };
@@ -402,6 +403,9 @@ const applyStoredDroneState = () => {
     droneState.fuelCapacity = Number.isFinite(stored.cargo.fuelCapacity)
       ? Math.max(1, Math.floor(stored.cargo.fuelCapacity))
       : DRONE_FUEL_CAPACITY;
+    droneState.fuelSlots = Array.isArray(stored.cargo.fuelSlots)
+      ? stored.cargo.fuelSlots.map(sanitizeFuelSlotEntry)
+      : [];
     droneState.fuelRemaining = Number.isFinite(stored.cargo.fuelRemaining)
       ? Math.max(
           0,
@@ -416,8 +420,11 @@ const applyStoredDroneState = () => {
   } else {
     droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
     droneState.fuelRemaining = 0;
+    droneState.fuelSlots = [];
     droneState.miningSecondsSinceFuelUse = 0;
   }
+
+  ensureDroneFuelSlots(droneState.fuelCapacity);
 
   const sceneState = stored.scene;
   if (sceneState?.active) {
@@ -494,11 +501,13 @@ const isPlayerNearDroneForPickup = () => {
 const isDronePickupRequired = () => false;
 
 const persistDroneCargoSnapshot = () => {
+  ensureDroneFuelSlots(droneState.fuelCapacity);
   persistDroneCargoState({
     samples: droneState.cargo,
     payloadGrams: droneState.payloadGrams,
     fuelCapacity: droneState.fuelCapacity,
     fuelRemaining: droneState.fuelRemaining,
+    fuelSlots: droneState.fuelSlots,
     miningSecondsSinceFuelUse: droneState.miningSecondsSinceFuelUse,
   });
 };
@@ -513,8 +522,182 @@ const getFuelValueForSource = (source) => {
     : 1;
 };
 
-const tryRefuelDroneWithElement = (element, fuelSourceOverride = null) => {
+const sanitizeFuelSlotEntry = (slot) => {
+  if (!slot || typeof slot !== "object") {
+    return null;
+  }
+
+  const element = sanitizeInventoryElement(slot.element ?? slot ?? {});
+  const symbol =
+    typeof slot.symbol === "string" && slot.symbol.trim()
+      ? slot.symbol.trim()
+      : typeof element.symbol === "string"
+        ? element.symbol
+        : "Fuel";
+  const name =
+    typeof slot.name === "string" && slot.name.trim()
+      ? slot.name.trim()
+      : typeof element.name === "string"
+        ? element.name
+        : "Fuel";
+
+  return {
+    element,
+    symbol,
+    name,
+  };
+};
+
+const ensureDroneFuelSlots = (capacityOverride = null) => {
+  const capacity = Math.max(
+    1,
+    Number.isFinite(capacityOverride) ? Math.floor(capacityOverride) : droneState.fuelCapacity || DRONE_FUEL_CAPACITY
+  );
+  const slots = Array.isArray(droneState.fuelSlots)
+    ? droneState.fuelSlots.slice(0, capacity).map(sanitizeFuelSlotEntry)
+    : [];
+
+  while (slots.length < capacity) {
+    slots.push(null);
+  }
+
+  const expectedFuelUnits = Math.max(
+    0,
+    Math.min(droneState.fuelRemaining, capacity)
+  );
+  let filledUnits = slots.reduce((total, slot) => total + (slot ? 1 : 0), 0);
+
+  for (let index = 0; index < capacity && filledUnits < expectedFuelUnits; index += 1) {
+    if (!slots[index]) {
+      slots[index] = sanitizeFuelSlotEntry({ element: {} });
+      filledUnits += 1;
+    }
+  }
+
+  droneState.fuelSlots = slots;
+  droneState.fuelRemaining = slots.reduce(
+    (total, slot) => total + (slot ? 1 : 0),
+    0
+  );
+
+  return capacity;
+};
+
+const getFuelSlotFillOrder = (capacity, preferredIndex = 0) => {
+  const order = [];
+  const normalizedPreferred = Math.max(0, Math.min(preferredIndex, capacity - 1));
+
+  for (let index = normalizedPreferred; index < capacity; index += 1) {
+    order.push(index);
+  }
+
+  for (let index = 0; index < normalizedPreferred; index += 1) {
+    order.push(index);
+  }
+
+  return order;
+};
+
+const addFuelUnitsToDrone = (element, units = 0, preferredIndex = 0) => {
+  const capacity = ensureDroneFuelSlots();
+  const availableCapacity = Math.max(0, capacity - droneState.fuelRemaining);
+  const unitsToAdd = Math.min(Math.max(0, units), availableCapacity);
+
+  if (unitsToAdd <= 0) {
+    return 0;
+  }
+
+  const slotOrder = getFuelSlotFillOrder(capacity, preferredIndex);
+  let added = 0;
+
+  for (let index = 0; index < slotOrder.length; index += 1) {
+    if (added >= unitsToAdd) {
+      break;
+    }
+
+    const slotIndex = slotOrder[index];
+
+    if (droneState.fuelSlots[slotIndex]) {
+      continue;
+    }
+
+    droneState.fuelSlots[slotIndex] = sanitizeFuelSlotEntry({
+      element,
+    });
+    added += 1;
+  }
+
+  droneState.fuelRemaining = Math.max(0, Math.min(capacity, droneState.fuelRemaining + added));
+
+  return added;
+};
+
+const removeFuelUnitsFromSlots = (unitsToRemove = 0) => {
+  const capacity = ensureDroneFuelSlots();
+  const normalizedUnits = Math.max(0, Math.min(unitsToRemove, droneState.fuelRemaining));
+
+  if (normalizedUnits <= 0) {
+    return 0;
+  }
+
+  let removed = 0;
+
+  for (let index = 0; index < capacity && removed < normalizedUnits; index += 1) {
+    const slotIndex = capacity - 1 - index;
+
+    if (droneState.fuelSlots[slotIndex]) {
+      droneState.fuelSlots[slotIndex] = null;
+      removed += 1;
+    }
+  }
+
+  droneState.fuelRemaining = Math.max(
+    0,
+    Math.min(capacity, droneState.fuelRemaining - removed)
+  );
+
+  return removed;
+};
+
+const unloadDroneFuelSlot = (slotIndex) => {
+  const capacity = ensureDroneFuelSlots();
+
+  if (capacity <= 0) {
+    return { unloaded: false, fuelLabel: "" };
+  }
+
+  const normalizedIndex = Math.max(0, Math.min(slotIndex, capacity - 1));
+  const slotEntry = droneState.fuelSlots[normalizedIndex];
+
+  if (!slotEntry) {
+    return { unloaded: false, fuelLabel: "" };
+  }
+
+  const element = slotEntry.element ?? null;
+  const fuelLabel = slotEntry.name || slotEntry.symbol || "Fuel";
+
+  droneState.fuelSlots[normalizedIndex] = null;
+  droneState.fuelRemaining = Math.max(0, droneState.fuelRemaining - 1);
+  persistDroneCargoSnapshot();
+
+  if (element) {
+    recordInventoryResource({ element });
+  }
+
+  renderDroneInventoryUi();
+  updateDroneStatusUi();
+
+  return { unloaded: true, fuelLabel };
+};
+
+const tryRefuelDroneWithElement = (
+  element,
+  fuelSourceOverride = null,
+  preferredSlotIndex = 0
+) => {
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+
+  ensureDroneFuelSlots(capacity);
 
   if (droneState.fuelRemaining >= capacity) {
     return { fuelAdded: 0, fuelLabel: "" };
@@ -534,8 +717,11 @@ const tryRefuelDroneWithElement = (element, fuelSourceOverride = null) => {
 
   const fuelValue = getFuelValueForSource(fuelSource);
   const fuelToAdd = Math.min(fuelValue, capacity - droneState.fuelRemaining);
-  droneState.fuelRemaining += fuelToAdd;
-  persistDroneCargoSnapshot();
+  const added = addFuelUnitsToDrone(element, fuelToAdd, preferredSlotIndex);
+
+  if (added > 0) {
+    persistDroneCargoSnapshot();
+  }
 
   const fuelLabel =
     typeof element?.name === "string" && element.name.trim()
@@ -544,7 +730,7 @@ const tryRefuelDroneWithElement = (element, fuelSourceOverride = null) => {
         ? element.symbol.trim()
         : "Fuel";
 
-  return { fuelAdded: fuelToAdd, fuelLabel };
+  return { fuelAdded: added, fuelLabel };
 };
 
 const hasDroneFuelForLaunch = () =>
@@ -572,7 +758,9 @@ const consumeDroneFuelForMiningDuration = (durationSeconds = 0) => {
     Math.floor(elapsedRuntime / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
   );
 
-  droneState.fuelRemaining = Math.max(0, availableFuel - fuelUnitsConsumed);
+  if (fuelUnitsConsumed > 0) {
+    removeFuelUnitsFromSlots(fuelUnitsConsumed);
+  }
   droneState.miningSecondsSinceFuelUse =
     fuelUnitsConsumed > 0
       ? elapsedRuntime - fuelUnitsConsumed * DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT
@@ -626,8 +814,8 @@ const tryRefuelDroneFromInventory = () => {
       }
 
       const fuelToAdd = Math.min(fuelValue, capacity - droneState.fuelRemaining);
-      droneState.fuelRemaining += fuelToAdd;
-      fuelAdded += fuelToAdd;
+      const addedUnits = addFuelUnitsToDrone(element, fuelToAdd);
+      fuelAdded += addedUnits;
       resourcesUsed.set(label, (resourcesUsed.get(label) ?? 0) + 1);
 
       if (droneState.fuelRemaining >= capacity) {
@@ -1408,7 +1596,7 @@ const renderDroneFuelGrid = () => {
   }
 
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
-  const fuel = Math.max(0, Math.min(droneState.fuelRemaining, capacity));
+  ensureDroneFuelSlots(capacity);
 
   droneFuelGrid.innerHTML = "";
 
@@ -1418,9 +1606,11 @@ const renderDroneFuelGrid = () => {
     const slot = document.createElement("div");
     slot.className = "drone-inventory__fuel-slot";
     slot.dataset.droneFuelSlot = String(index);
-    slot.dataset.state = index < fuel ? "filled" : "empty";
+    const slotData = droneState.fuelSlots[index];
+    const filled = Boolean(slotData);
+    slot.dataset.state = filled ? "filled" : "empty";
     slot.setAttribute("role", "listitem");
-    slot.setAttribute("aria-label", index < fuel ? "Fuel loaded" : "Fuel slot empty");
+    slot.setAttribute("aria-label", filled ? "Fuel loaded" : "Fuel slot empty");
 
     const indexLabel = document.createElement("p");
     indexLabel.className = "drone-inventory__fuel-slot-index";
@@ -1428,10 +1618,26 @@ const renderDroneFuelGrid = () => {
 
     const stateLabel = document.createElement("p");
     stateLabel.className = "drone-inventory__fuel-slot-label";
-    stateLabel.textContent = index < fuel ? "Loaded with fuel" : "Ready for fuel";
+    stateLabel.textContent = filled
+      ? slotData?.symbol || slotData?.name || "Fuel"
+      : "Ready for fuel";
+
+    const actions = document.createElement("div");
+    actions.className = "drone-inventory__fuel-slot-actions";
+    actions.appendChild(stateLabel);
+
+    if (filled) {
+      const unloadButton = document.createElement("button");
+      unloadButton.type = "button";
+      unloadButton.className = "drone-inventory__fuel-slot-action";
+      unloadButton.dataset.action = "unload-fuel-slot";
+      unloadButton.dataset.droneFuelSlot = String(index);
+      unloadButton.textContent = "Unload";
+      actions.appendChild(unloadButton);
+    }
 
     slot.appendChild(indexLabel);
-    slot.appendChild(stateLabel);
+    slot.appendChild(actions);
 
     fragment.appendChild(slot);
   }
@@ -1590,6 +1796,34 @@ const handleInventoryItemFocusOut = (event) => {
   }
 
   hideInventoryTooltip();
+};
+
+const handleDroneFuelGridClick = (event) => {
+  const actionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest('[data-action="unload-fuel-slot"]')
+      : null;
+
+  if (!actionTarget) {
+    return;
+  }
+
+  event.preventDefault();
+  const slotIndex = getDroneFuelSlotIndex(actionTarget);
+
+  if (slotIndex < 0) {
+    return;
+  }
+
+  const { unloaded, fuelLabel } = unloadDroneFuelSlot(slotIndex);
+
+  if (unloaded && typeof showDroneTerminalToast === "function") {
+    const label = fuelLabel || "fuel";
+    showDroneTerminalToast({
+      title: "Fuel unloaded",
+      description: `${label} returned to inventory.`,
+    });
+  }
 };
 
 const clearDroneFuelDropTarget = () => {
@@ -1875,9 +2109,11 @@ function finishInventoryPointerReorder(clientX, clientY) {
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
 
   if (fuelSlot && fuelSource && droneState.fuelRemaining < capacity) {
+    const preferredIndex = getDroneFuelSlotIndex(fuelSlot);
     const { fuelAdded, fuelLabel } = tryRefuelDroneWithElement(
       draggedEntry?.element,
-      fuelSource
+      fuelSource,
+      preferredIndex
     );
 
     resetInventoryReorderState();
@@ -2663,6 +2899,15 @@ const getDroneFuelSlotElement = (element) => {
   }
 
   return element.closest("[data-drone-fuel-slot]");
+};
+
+const getDroneFuelSlotIndex = (slot) => {
+  if (!(slot instanceof HTMLElement)) {
+    return -1;
+  }
+
+  const parsed = Number.parseInt(slot.dataset.droneFuelSlot, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : -1;
 };
 
 const getInventoryCapacityKg = () => {
@@ -4480,6 +4725,10 @@ if (droneFuelSourceList instanceof HTMLElement) {
   );
 }
 
+if (droneFuelGrid instanceof HTMLElement) {
+  droneFuelGrid.addEventListener("click", handleDroneFuelGridClick);
+}
+
 if (inventoryBody instanceof HTMLElement) {
   inventoryBody.addEventListener("scroll", hideInventoryTooltip, {
     passive: true,
@@ -4932,6 +5181,7 @@ const finalizeDroneAutomationShutdown = () => {
   droneState.awaitingReturn = false;
   droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
   droneState.fuelRemaining = 0;
+  droneState.fuelSlots = [];
   droneState.miningSecondsSinceFuelUse = 0;
   droneState.miningSessionStartMs = 0;
   clearStoredDroneState();
@@ -5039,6 +5289,7 @@ const activateDroneAutomation = () => {
     0,
     Math.min(droneState.fuelRemaining, droneState.fuelCapacity)
   );
+  ensureDroneFuelSlots(droneState.fuelCapacity);
   droneState.miningSecondsSinceFuelUse = Math.max(
     0,
     Math.min(droneState.miningSecondsSinceFuelUse, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
