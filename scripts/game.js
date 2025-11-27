@@ -807,6 +807,7 @@ const tryRefuelDroneWithElement = (
   const added = addFuelUnitsToDrone(element, fuelToAdd, preferredSlotIndex);
 
   if (added > 0) {
+    refreshInventoryUi();
     persistDroneCargoSnapshot();
   }
 
@@ -912,6 +913,7 @@ const tryRefuelDroneFromInventory = () => {
   });
 
   if (fuelAdded > 0) {
+    refreshInventoryUi();
     persistDroneCargoSnapshot();
   }
 
