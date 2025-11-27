@@ -486,11 +486,13 @@ const droneState = {
         : typeof element.name === "string"
           ? element.name
           : "Fuel";
+    const refundable = slot.refundable !== false;
 
     return {
       element,
       symbol,
       name,
+      refundable,
     };
   };
 
@@ -685,10 +687,19 @@ const getFuelSlotFillOrder = (capacity, preferredIndex = 0) => {
   return order;
 };
 
-const addFuelUnitsToDrone = (element, units = 0, preferredIndex = 0) => {
+const addFuelUnitsToDrone = (
+  element,
+  units = 0,
+  preferredIndex = 0,
+  refundableUnits = units
+) => {
   const capacity = ensureDroneFuelSlots();
   const availableCapacity = Math.max(0, capacity - droneState.fuelRemaining);
   const unitsToAdd = Math.min(Math.max(0, units), availableCapacity);
+  const refundableUnitsToAssign = Math.max(
+    0,
+    Math.min(refundableUnits, unitsToAdd)
+  );
 
   if (unitsToAdd <= 0) {
     return 0;
@@ -710,6 +721,7 @@ const addFuelUnitsToDrone = (element, units = 0, preferredIndex = 0) => {
 
     droneState.fuelSlots[slotIndex] = sanitizeFuelSlotEntry({
       element,
+      refundable: added < refundableUnitsToAssign,
     });
     added += 1;
   }
@@ -761,13 +773,14 @@ const unloadDroneFuelSlot = (slotIndex) => {
   }
 
   const element = slotEntry.element ?? null;
+  const refundable = slotEntry.refundable !== false;
   const fuelLabel = slotEntry.name || slotEntry.symbol || "Fuel";
 
   droneState.fuelSlots[normalizedIndex] = null;
   droneState.fuelRemaining = Math.max(0, droneState.fuelRemaining - 1);
   persistDroneCargoSnapshot();
 
-  if (element) {
+  if (element && refundable) {
     recordInventoryResource({ element });
   }
 
@@ -804,7 +817,12 @@ const tryRefuelDroneWithElement = (
 
   const fuelValue = getFuelValueForSource(fuelSource);
   const fuelToAdd = Math.min(fuelValue, capacity - droneState.fuelRemaining);
-  const added = addFuelUnitsToDrone(element, fuelToAdd, preferredSlotIndex);
+  const added = addFuelUnitsToDrone(
+    element,
+    fuelToAdd,
+    preferredSlotIndex,
+    /* refundableUnits */ 1
+  );
 
   if (added > 0) {
     refreshInventoryUi();
@@ -902,7 +920,12 @@ const tryRefuelDroneFromInventory = () => {
       }
 
       const fuelToAdd = Math.min(fuelValue, capacity - droneState.fuelRemaining);
-      const addedUnits = addFuelUnitsToDrone(element, fuelToAdd);
+      const addedUnits = addFuelUnitsToDrone(
+        element,
+        fuelToAdd,
+        /* preferredIndex */ 0,
+        /* refundableUnits */ 1
+      );
       fuelAdded += addedUnits;
       resourcesUsed.set(label, (resourcesUsed.get(label) ?? 0) + 1);
 
