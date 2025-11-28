@@ -5161,8 +5161,38 @@ const getDroneMissionSummary = () => {
   return "Drone returned without a sample.";
 };
 
+const updateDroneInventoryTabVisibility = () => {
+  const hasFuel = Math.max(0, droneState.fuelRemaining) > 0;
+  const hasCargo = Array.isArray(droneState.cargo) && droneState.cargo.length > 0;
+  const shouldShowDroneTab =
+    droneState.active ||
+    droneState.inFlight ||
+    droneState.awaitingReturn ||
+    isDronePickupRequired() ||
+    hasFuel ||
+    hasCargo;
+
+  if (droneInventoryTabButton instanceof HTMLButtonElement) {
+    droneInventoryTabButton.hidden = !shouldShowDroneTab;
+    droneInventoryTabButton.setAttribute(
+      "aria-hidden",
+      shouldShowDroneTab ? "false" : "true",
+    );
+  }
+
+  if (droneInventorySection instanceof HTMLElement) {
+    droneInventorySection.hidden =
+      !shouldShowDroneTab || activeInventoryTab !== "drone";
+  }
+
+  if (!shouldShowDroneTab && activeInventoryTab === "drone") {
+    setActiveInventorySection("inventory");
+  }
+};
+
 function updateDroneStatusUi() {
   updateDroneQuickSlotState();
+  updateDroneInventoryTabVisibility();
 
   if (droneStatusPanels.length === 0) {
     return;
