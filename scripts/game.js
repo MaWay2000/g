@@ -246,24 +246,11 @@ const droneInventorySection = inventoryPanel?.querySelector(
   '[data-inventory-section="drone"]'
 );
 
-if (droneInventoryTabButton instanceof HTMLElement) {
-  droneInventoryTabButton.hidden = true;
-  droneInventoryTabButton.setAttribute("aria-hidden", "true");
-  droneInventoryTabButton.tabIndex = -1;
-}
-
-if (droneInventorySection instanceof HTMLElement) {
-  droneInventorySection.hidden = true;
-  droneInventorySection.setAttribute("aria-hidden", "true");
-}
-
 const inventoryTabButtons = Array.from(
   inventoryPanel?.querySelectorAll("[data-inventory-tab-target]") ?? []
 ).filter(
   (button) =>
-    button instanceof HTMLButtonElement &&
-    button.dataset.inventoryTabTarget !== "drone" &&
-    !button.hidden
+    button instanceof HTMLButtonElement && !button.hidden
 );
 const inventoryTabSections = new Map(
   Array.from(inventoryPanel?.querySelectorAll("[data-inventory-section]") ?? []).map(
@@ -1740,7 +1727,9 @@ const setActiveInventorySection = (sectionId = "inventory") => {
     return;
   }
 
-  const resolvedSection = sectionId === "drone" ? "inventory" : sectionId;
+  const resolvedSection = inventoryTabSections.has(sectionId)
+    ? sectionId
+    : "inventory";
   const targetSection = inventoryTabSections.get(resolvedSection);
 
   if (!targetSection) {
