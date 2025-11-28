@@ -1797,13 +1797,21 @@ const renderDroneFuelSources = () => {
     item.dataset.droneFuelSource = "true";
     item.dataset.inventoryKey = entryKey;
     item.dataset.inventoryName = name;
+    item.dataset.inventoryMeta = available
+      ? `${availableCount} in inventory`
+      : "Add to inventory to refuel";
+    item.setAttribute(
+      "aria-label",
+      `${name} - ${item.dataset.inventoryMeta}`
+    );
 
     const symbolElement = document.createElement("div");
     symbolElement.className = "drone-inventory__fuel-symbol";
     symbolElement.textContent = symbol;
+    symbolElement.setAttribute("aria-hidden", "true");
 
     const meta = document.createElement("div");
-    meta.className = "drone-inventory__fuel-meta";
+    meta.className = "drone-inventory__fuel-meta visually-hidden";
 
     const nameElement = document.createElement("p");
     nameElement.className = "drone-inventory__fuel-name";
