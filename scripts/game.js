@@ -443,6 +443,8 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_FUEL_CAPACITY = 3;
   const DRONE_FUEL_PER_LAUNCH = 1;
   const DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT = 200;
+  const DRONE_MINING_STALL_TIMEOUT_MS = 15000;
+  const DRONE_STALL_CHECK_INTERVAL_MS = 2000;
   const DRONE_PICKUP_DISTANCE_SQUARED = 9;
 
 const droneState = {
@@ -935,6 +937,46 @@ const concludeDroneMiningSession = (detail = null) => {
 
   consumeDroneFuelForMiningDuration(durationSeconds);
   droneState.miningSessionStartMs = 0;
+};
+
+const cancelStalledDroneMiningSession = () => {
+  if (!droneState.inFlight || droneState.status !== "collecting") {
+    return false;
+  }
+
+  const startMs = droneState.miningSessionStartMs;
+
+  if (!Number.isFinite(startMs) || startMs <= 0) {
+    return false;
+  }
+
+  const elapsedMs = performance.now() - startMs;
+
+  if (elapsedMs <= DRONE_MINING_STALL_TIMEOUT_MS) {
+    return false;
+  }
+
+  if (typeof sceneController?.cancelDroneMinerSession === "function") {
+    sceneController.cancelDroneMinerSession({ reason: "timeout" });
+  }
+
+  droneState.inFlight = false;
+  droneState.awaitingReturn = false;
+  droneState.lastResult = { found: false, reason: "timeout" };
+  droneState.status = droneState.active ? "idle" : "inactive";
+  droneState.miningSessionStartMs = 0;
+  updateDroneStatusUi();
+
+  if (droneState.active) {
+    scheduleDroneAutomationRetry();
+  }
+
+  showDroneTerminalToast({
+    title: "Drone link lost",
+    description: "No response from the drone. Retrying deployment.",
+  });
+
+  return true;
 };
 
 const tryRefuelDroneFromInventory = () => {
@@ -5659,6 +5701,8 @@ if (inventoryDroneRefuelButton instanceof HTMLButtonElement) {
     handleDroneRefuelRequest();
   });
 }
+
+window.setInterval(cancelStalledDroneMiningSession, DRONE_STALL_CHECK_INTERVAL_MS);
 
 const describeManifestEntry = (entry) => {
   if (typeof entry?.label === "string" && entry.label.trim() !== "") {
