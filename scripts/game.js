@@ -433,7 +433,7 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_FUEL_SOURCES = [
     {
       element: { number: 2, symbol: "He", name: "Helium" },
-      fuelValue: 1,
+      fuelValue: 2,
     },
     {
       element: { number: 1, symbol: "H", name: "Hydrogen" },
