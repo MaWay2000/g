@@ -942,6 +942,7 @@ const consumeDroneFuelForMiningDuration = (durationSeconds = 0) => {
 
     if (activeIndex >= 0 && droneState.fuelSlots[activeIndex]) {
       droneState.fuelSlots[activeIndex].refundable = false;
+      renderDroneInventoryUi();
     }
   }
 
