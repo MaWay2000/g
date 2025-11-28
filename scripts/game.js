@@ -239,8 +239,31 @@ const droneFuelGrid = inventoryPanel?.querySelector("[data-drone-fuel-grid]");
 const droneFuelSourceList = inventoryPanel?.querySelector(
   "[data-drone-fuel-sources]"
 );
+const droneInventoryTabButton = inventoryPanel?.querySelector(
+  '[data-inventory-tab-target="drone"]'
+);
+const droneInventorySection = inventoryPanel?.querySelector(
+  '[data-inventory-section="drone"]'
+);
+
+if (droneInventoryTabButton instanceof HTMLElement) {
+  droneInventoryTabButton.hidden = true;
+  droneInventoryTabButton.setAttribute("aria-hidden", "true");
+  droneInventoryTabButton.tabIndex = -1;
+}
+
+if (droneInventorySection instanceof HTMLElement) {
+  droneInventorySection.hidden = true;
+  droneInventorySection.setAttribute("aria-hidden", "true");
+}
+
 const inventoryTabButtons = Array.from(
   inventoryPanel?.querySelectorAll("[data-inventory-tab-target]") ?? []
+).filter(
+  (button) =>
+    button instanceof HTMLButtonElement &&
+    button.dataset.inventoryTabTarget !== "drone" &&
+    !button.hidden
 );
 const inventoryTabSections = new Map(
   Array.from(inventoryPanel?.querySelectorAll("[data-inventory-section]") ?? []).map(
@@ -1717,20 +1740,21 @@ const setActiveInventorySection = (sectionId = "inventory") => {
     return;
   }
 
-  const targetSection = inventoryTabSections.get(sectionId);
+  const resolvedSection = sectionId === "drone" ? "inventory" : sectionId;
+  const targetSection = inventoryTabSections.get(resolvedSection);
 
   if (!targetSection) {
     return;
   }
 
-  activeInventoryTab = sectionId;
+  activeInventoryTab = resolvedSection;
 
   inventoryTabButtons.forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) {
       return;
     }
 
-    const isActive = button.dataset.inventoryTabTarget === sectionId;
+    const isActive = button.dataset.inventoryTabTarget === resolvedSection;
     button.dataset.active = isActive ? "true" : "false";
     button.setAttribute("aria-selected", isActive ? "true" : "false");
     button.tabIndex = isActive ? 0 : -1;
@@ -1741,10 +1765,10 @@ const setActiveInventorySection = (sectionId = "inventory") => {
       return;
     }
 
-    section.hidden = key !== sectionId;
+    section.hidden = key !== resolvedSection;
   });
 
-  if (sectionId === "drone") {
+  if (resolvedSection === "drone") {
     renderDroneInventoryUi();
     updateDroneStatusUi();
   } else {
