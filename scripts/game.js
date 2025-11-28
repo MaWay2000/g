@@ -903,7 +903,7 @@ const consumeDroneFuelForMiningDuration = (durationSeconds = 0) => {
     Math.floor(elapsedRuntime / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
   );
 
-  if (normalizedDuration > 0 && fuelRemaining > 0) {
+  if (normalizedDuration > 0 && availableFuel > 0) {
     const activeIndex = getActiveFuelSlotIndex();
 
     if (activeIndex >= 0 && droneState.fuelSlots[activeIndex]) {
