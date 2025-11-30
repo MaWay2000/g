@@ -1818,7 +1818,7 @@ const renderDroneFuelSources = () => {
     symbolElement.setAttribute("aria-hidden", "true");
 
     const meta = document.createElement("div");
-    meta.className = "drone-inventory__fuel-meta visually-hidden";
+    meta.className = "drone-inventory__fuel-meta";
 
     const nameElement = document.createElement("p");
     nameElement.className = "drone-inventory__fuel-name";
