@@ -135,6 +135,7 @@ const normalizeCargoStateForPersistence = (cargoState) => {
       fuelRemaining: 0,
       fuelSlots: [],
       miningSecondsSinceFuelUse: 0,
+      autoRefillEnabled: false,
     };
   }
 
@@ -158,6 +159,7 @@ const normalizeCargoStateForPersistence = (cargoState) => {
   )
     ? cargoState.miningSecondsSinceFuelUse
     : 0;
+  const autoRefillEnabled = cargoState.autoRefillEnabled === true;
 
   return {
     samples,
@@ -181,6 +183,7 @@ const normalizeCargoStateForPersistence = (cargoState) => {
       0,
       roundDroneStateValue(miningSecondsSinceFuelUse)
     ),
+    autoRefillEnabled,
   };
 };
 

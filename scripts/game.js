@@ -238,6 +238,9 @@ const inventoryDroneRefuelButton = inventoryPanel?.querySelector(
 const inventoryDroneStatusLabel = inventoryPanel?.querySelector(
   "[data-inventory-drone-status]"
 );
+const inventoryDroneAutoRefillToggle = inventoryPanel?.querySelector(
+  "[data-inventory-drone-auto-refill]"
+);
 const droneFuelGrid = inventoryPanel?.querySelector("[data-drone-fuel-grid]");
 const droneFuelSourceList = inventoryPanel?.querySelector(
   "[data-drone-fuel-sources]"
@@ -477,6 +480,7 @@ const droneState = {
   fuelSlots: [],
   miningSecondsSinceFuelUse: 0,
   miningSessionStartMs: 0,
+  autoRefillEnabled: false,
 };
 
 let droneRelaunchPendingAfterRestore = false;
@@ -655,6 +659,7 @@ const applyStoredDroneState = () => {
     )
       ? Math.max(0, stored.cargo.miningSecondsSinceFuelUse)
       : 0;
+    droneState.autoRefillEnabled = stored.cargo.autoRefillEnabled === true;
   } else {
     droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
     droneState.fuelRemaining = 0;
@@ -769,6 +774,7 @@ const persistDroneCargoSnapshot = () => {
     fuelRemaining: droneState.fuelRemaining,
     fuelSlots: droneState.fuelSlots,
     miningSecondsSinceFuelUse: droneState.miningSecondsSinceFuelUse,
+    autoRefillEnabled: droneState.autoRefillEnabled,
   });
 };
 
@@ -5299,6 +5305,17 @@ const updateDroneInventoryTabVisibility = () => {
     );
   }
 
+  if (inventoryDroneAutoRefillToggle instanceof HTMLElement) {
+    inventoryDroneAutoRefillToggle.closest("label")?.setAttribute(
+      "aria-hidden",
+      shouldShowDroneTab ? "false" : "true",
+    );
+    inventoryDroneAutoRefillToggle.closest("label")?.toggleAttribute(
+      "hidden",
+      !shouldShowDroneTab,
+    );
+  }
+
   if (inventoryDroneStatusLabel instanceof HTMLElement) {
     inventoryDroneStatusLabel.hidden = !shouldShowDroneTab;
     inventoryDroneStatusLabel.setAttribute(
@@ -5465,6 +5482,10 @@ function updateDroneStatusUi() {
     inventoryRefuelHelper.textContent = helperText;
   }
 
+  if (inventoryDroneAutoRefillToggle instanceof HTMLInputElement) {
+    inventoryDroneAutoRefillToggle.checked = droneState.autoRefillEnabled;
+  }
+
   renderDroneInventoryUi();
 }
 
@@ -5535,6 +5556,20 @@ const deliverDroneCargo = () => {
   return { deliveredCount, deliveredWeight };
 };
 
+const tryAutomaticDroneRefill = () => {
+  if (!droneState.autoRefillEnabled || droneState.fuelRemaining > 0) {
+    return 0;
+  }
+
+  const { fuelAdded } = tryRefuelDroneFromInventory();
+
+  if (fuelAdded > 0) {
+    updateDroneStatusUi();
+  }
+
+  return fuelAdded;
+};
+
 const finalizeDroneAutomationShutdown = () => {
   dronePickupState.required = false;
   dronePickupState.location = null;
@@ -5599,6 +5634,14 @@ const attemptDroneLaunch = () => {
     droneState.active = false;
     finalizeDroneAutomationShutdown();
     return;
+  }
+
+  if (!hasDroneFuelForLaunch()) {
+    tryAutomaticDroneRefill();
+
+    if (hasDroneFuelForLaunch()) {
+      updateDroneStatusUi();
+    }
   }
 
   if (!hasDroneFuelForLaunch()) {
@@ -5877,6 +5920,10 @@ const handleDroneSessionCancelled = (reason) => {
 const handleDroneReturnComplete = () => {
   droneState.awaitingReturn = false;
 
+  if (!droneState.pendingShutdown && droneState.fuelRemaining <= 0) {
+    tryAutomaticDroneRefill();
+  }
+
   if (droneState.pendingShutdown || droneState.fuelRemaining <= 0) {
     finalizeDroneAutomationShutdown();
     return;
@@ -5926,6 +5973,16 @@ if (inventoryDroneRefuelButton instanceof HTMLButtonElement) {
   inventoryDroneRefuelButton.addEventListener("click", (event) => {
     event.preventDefault();
     handleDroneRefuelRequest();
+  });
+}
+
+if (inventoryDroneAutoRefillToggle instanceof HTMLInputElement) {
+  inventoryDroneAutoRefillToggle.addEventListener("change", (event) => {
+    const { checked } = event.target;
+    droneState.autoRefillEnabled = Boolean(checked);
+    persistDroneCargoSnapshot();
+    tryAutomaticDroneRefill();
+    updateDroneStatusUi();
   });
 }
 
