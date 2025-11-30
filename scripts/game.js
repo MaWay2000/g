@@ -5177,7 +5177,7 @@ const getDroneMissionSummary = () => {
 };
 
 const updateDroneInventoryTabVisibility = () => {
-  const shouldShowDroneTab = inventoryViewingMode !== "watch";
+  const shouldShowDroneTab = inventoryViewingMode !== "watch" && !droneState.active;
 
   if (droneInventoryTabButton instanceof HTMLButtonElement) {
     droneInventoryTabButton.hidden = !shouldShowDroneTab;
