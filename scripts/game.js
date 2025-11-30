@@ -479,6 +479,8 @@ const droneState = {
   miningSessionStartMs: 0,
 };
 
+let droneRelaunchPendingAfterRestore = false;
+
   const dronePickupState = {
     required: false,
     location: null,
@@ -626,6 +628,7 @@ const applyStoredDroneState = () => {
   }
 
   droneState.miningSessionStartMs = 0;
+  let shouldRelaunchAfterRestore = false;
 
   if (stored.cargo) {
     const samples = Array.isArray(stored.cargo.samples)
@@ -680,6 +683,17 @@ const applyStoredDroneState = () => {
           ? "collecting"
           : "idle"
       : "inactive";
+    shouldRelaunchAfterRestore =
+      droneState.active && (mode === "collecting" || mode === "returning");
+  }
+
+  if (shouldRelaunchAfterRestore) {
+    droneState.inFlight = false;
+    droneState.awaitingReturn = false;
+    droneState.status = "idle";
+    droneState.lastResult = null;
+    droneState.miningSessionStartMs = 0;
+    droneRelaunchPendingAfterRestore = true;
   }
 };
 
@@ -5625,6 +5639,15 @@ const attemptDroneLaunch = () => {
   updateDroneStatusUi();
 };
 
+const relaunchDroneAfterRestoreIfNeeded = () => {
+  if (!droneRelaunchPendingAfterRestore || !droneState.active) {
+    return;
+  }
+
+  droneRelaunchPendingAfterRestore = false;
+  attemptDroneLaunch();
+};
+
 const activateDroneAutomation = () => {
   if (droneState.active) {
     return;
@@ -6082,6 +6105,7 @@ const bootstrapScene = () => {
   });
 
   updateDroneStatusUi();
+  relaunchDroneAfterRestoreIfNeeded();
 
   sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
   sceneController?.setLiftInteractionsEnabled?.(!editModeActive);
