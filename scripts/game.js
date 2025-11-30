@@ -5852,7 +5852,7 @@ const handleDroneSessionCancelled = (reason) => {
 const handleDroneReturnComplete = () => {
   droneState.awaitingReturn = false;
 
-  if (droneState.pendingShutdown) {
+  if (droneState.pendingShutdown || droneState.fuelRemaining <= 0) {
     finalizeDroneAutomationShutdown();
     return;
   }
