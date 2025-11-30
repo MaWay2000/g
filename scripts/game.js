@@ -668,13 +668,18 @@ const applyStoredDroneState = () => {
   );
 
   const sceneState = stored.scene;
-  if (sceneState?.active) {
-    // Only surface the drone panel after the player explicitly re-activates
-    // automation instead of restoring the previous session's state.
-    droneState.active = false;
-    droneState.status = "inactive";
-    droneState.inFlight = false;
-    droneState.awaitingReturn = false;
+  if (sceneState) {
+    const mode = typeof sceneState.mode === "string" ? sceneState.mode : "inactive";
+    droneState.active = Boolean(sceneState.active);
+    droneState.inFlight = sceneState.active && mode === "collecting";
+    droneState.awaitingReturn = sceneState.active && mode === "returning";
+    droneState.status = droneState.active
+      ? mode === "returning"
+        ? "returning"
+        : mode === "collecting"
+          ? "collecting"
+          : "idle"
+      : "inactive";
   }
 };
 
