@@ -557,6 +557,34 @@ const droneState = {
     return capacity;
   };
 
+  const getActiveFuelSlotIndex = () => {
+    const capacity = ensureDroneFuelSlots();
+
+    for (let index = capacity - 1; index >= 0; index -= 1) {
+      if (droneState.fuelSlots[index]) {
+        return index;
+      }
+    }
+
+    return -1;
+  };
+
+  const getActiveFuelSlotInfo = () => {
+    const index = getActiveFuelSlotIndex();
+
+    if (index < 0) {
+      return null;
+    }
+
+    const slot = droneState.fuelSlots[index];
+
+    return {
+      index,
+      slot,
+      runtimeSeconds: getFuelRuntimeSecondsForSlot(slot),
+    };
+  };
+
 const applyStoredDroneState = () => {
   const stored = loadStoredDroneState();
 
@@ -741,34 +769,6 @@ const getFuelSlotFillOrder = (capacity, preferredIndex = 0) => {
   }
 
   return order;
-};
-
-const getActiveFuelSlotIndex = () => {
-  const capacity = ensureDroneFuelSlots();
-
-  for (let index = capacity - 1; index >= 0; index -= 1) {
-    if (droneState.fuelSlots[index]) {
-      return index;
-    }
-  }
-
-  return -1;
-};
-
-const getActiveFuelSlotInfo = () => {
-  const index = getActiveFuelSlotIndex();
-
-  if (index < 0) {
-    return null;
-  }
-
-  const slot = droneState.fuelSlots[index];
-
-  return {
-    index,
-    slot,
-    runtimeSeconds: getFuelRuntimeSecondsForSlot(slot),
-  };
 };
 
 const getActiveFuelElapsedSeconds = () => {
