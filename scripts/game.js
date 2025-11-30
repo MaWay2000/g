@@ -5246,7 +5246,7 @@ const getDroneMissionSummary = () => {
     }
 
     if (droneState.status === "collecting") {
-      return "Autonomous drone is en route to the target.";
+      return "Autonomous drone is on route to the target.";
     }
 
     if (droneState.status === "returning") {
@@ -5384,7 +5384,7 @@ function updateDroneStatusUi() {
         break;
       case "returning":
         statusText = "Returning";
-        detailText = "Drone is en route to your position.";
+        detailText = "Drone is on route to your position.";
         break;
       case "idle":
       default:
