@@ -5306,21 +5306,19 @@ function updateDroneStatusUi() {
 
   const isActive = Boolean(droneState.active);
   const requiresPickup = isDronePickupRequired();
-  const shouldHideForInventory = isInventoryOpen();
-  const baseShouldShowPanel = shouldHideForInventory
-    ? false
-    : isActive || requiresPickup;
+  const inventoryIsOpen = isInventoryOpen();
+  const shouldShowAnyPanel = isActive || requiresPickup;
+
+  let shouldRenderDetails = false;
 
   droneStatusPanels.forEach((panel) => {
     if (!(panel instanceof HTMLElement)) {
       return;
     }
 
-    const panelShouldHideForInventory =
-      shouldHideForInventory && !panel.hasAttribute("data-inventory-drone-panel");
-    const panelShouldShow = panelShouldHideForInventory
-      ? false
-      : baseShouldShowPanel;
+    const isInventoryPanel = panel.hasAttribute("data-inventory-drone-panel");
+    const panelShouldShow =
+      shouldShowAnyPanel && (!inventoryIsOpen || isInventoryPanel);
 
     panel.dataset.active = isActive ? "true" : "false";
     panel.setAttribute("aria-hidden", panelShouldShow ? "false" : "true");
@@ -5331,12 +5329,13 @@ function updateDroneStatusUi() {
       return;
     }
 
+    shouldRenderDetails = true;
     panel.hidden = false;
     panel.dataset.state = droneState.status;
     panel.setAttribute("aria-hidden", "false");
   });
 
-  if (!baseShouldShowPanel) {
+  if (!shouldRenderDetails) {
     return;
   }
 
