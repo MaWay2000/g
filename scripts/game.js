@@ -5526,12 +5526,29 @@ const finalizeDroneAutomationShutdown = () => {
   droneState.lastResult = null;
   droneState.inFlight = false;
   droneState.awaitingReturn = false;
-  droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
-  droneState.fuelRemaining = 0;
-  droneState.fuelSlots = [];
-  droneState.miningSecondsSinceFuelUse = 0;
+  droneState.fuelCapacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  ensureDroneFuelSlots(droneState.fuelCapacity);
+  droneState.fuelRemaining = Math.max(
+    0,
+    Math.min(droneState.fuelRemaining, droneState.fuelCapacity)
+  );
+  const activeRuntimeSeconds =
+    getActiveFuelSlotInfo()?.runtimeSeconds ?? DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+  droneState.miningSecondsSinceFuelUse = Math.max(
+    0,
+    Math.min(droneState.miningSecondsSinceFuelUse || 0, activeRuntimeSeconds)
+  );
   droneState.miningSessionStartMs = 0;
-  clearStoredDroneState();
+  // Regression hook: ensures recalling the drone with unused fuel preserves remaining slots.
+  document.dispatchEvent(
+    new CustomEvent("drone:recall-with-remaining-fuel", {
+      detail: {
+        fuelRemaining: droneState.fuelRemaining,
+        fuelSlots: droneState.fuelSlots.filter(Boolean).length,
+      },
+    })
+  );
+  persistDroneCargoSnapshot();
   updateDroneStatusUi();
 
   const hasSamples = deliveredCount > 0;
