@@ -450,7 +450,8 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_FUEL_SOURCES = [
     {
       element: { number: 2, symbol: "He", name: "Helium" },
-      fuelValue: 2,
+      fuelValue: 1,
+      runtimeMultiplier: 2,
     },
     {
       element: { number: 1, symbol: "H", name: "Hydrogen" },
@@ -506,12 +507,16 @@ const droneState = {
           ? element.name
           : "Fuel";
     const refundable = slot.refundable !== false;
+    const runtimeSeconds = Number.isFinite(slot.runtimeSeconds)
+      ? Math.max(1, slot.runtimeSeconds)
+      : DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
 
     return {
       element,
       symbol,
       name,
       refundable,
+      runtimeSeconds,
     };
   };
 
@@ -584,7 +589,7 @@ const applyStoredDroneState = () => {
     droneState.miningSecondsSinceFuelUse = Number.isFinite(
       stored.cargo.miningSecondsSinceFuelUse
     )
-      ? Math.max(0, Math.min(stored.cargo.miningSecondsSinceFuelUse, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT))
+      ? Math.max(0, stored.cargo.miningSecondsSinceFuelUse)
       : 0;
   } else {
     droneState.fuelCapacity = DRONE_FUEL_CAPACITY;
@@ -594,6 +599,12 @@ const applyStoredDroneState = () => {
   }
 
   ensureDroneFuelSlots(droneState.fuelCapacity);
+  const activeRuntimeSeconds = getActiveFuelSlotInfo()?.runtimeSeconds ??
+    DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+  droneState.miningSecondsSinceFuelUse = Math.max(
+    0,
+    Math.min(droneState.miningSecondsSinceFuelUse, activeRuntimeSeconds)
+  );
 
   const sceneState = stored.scene;
   if (sceneState?.active) {
@@ -691,6 +702,32 @@ const getFuelValueForSource = (source) => {
     : 1;
 };
 
+const getFuelRuntimeSecondsForSource = (source) => {
+  if (!source) {
+    return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+  }
+
+  if (Number.isFinite(source?.runtimeSeconds)) {
+    return Math.max(1, source.runtimeSeconds);
+  }
+
+  const multiplier = Number.isFinite(source?.runtimeMultiplier)
+    ? Math.max(0.1, source.runtimeMultiplier)
+    : 1;
+
+  return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT * multiplier;
+};
+
+const getFuelRuntimeSecondsForSlot = (slot) => {
+  if (!slot) {
+    return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+  }
+
+  return Number.isFinite(slot?.runtimeSeconds)
+    ? Math.max(1, slot.runtimeSeconds)
+    : DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+};
+
 const getFuelSlotFillOrder = (capacity, preferredIndex = 0) => {
   const order = [];
   const normalizedPreferred = Math.max(0, Math.min(preferredIndex, capacity - 1));
@@ -718,17 +755,32 @@ const getActiveFuelSlotIndex = () => {
   return -1;
 };
 
+const getActiveFuelSlotInfo = () => {
+  const index = getActiveFuelSlotIndex();
+
+  if (index < 0) {
+    return null;
+  }
+
+  const slot = droneState.fuelSlots[index];
+
+  return {
+    index,
+    slot,
+    runtimeSeconds: getFuelRuntimeSecondsForSlot(slot),
+  };
+};
+
 const getActiveFuelElapsedSeconds = () => {
   if (droneState.fuelRemaining <= 0) {
     return 0;
   }
 
+  const activeSlot = getActiveFuelSlotInfo();
+  const activeRuntime = activeSlot?.runtimeSeconds ?? DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
   const storedElapsed = Math.max(
     0,
-    Math.min(
-      droneState.miningSecondsSinceFuelUse || 0,
-      DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT,
-    ),
+    Math.min(droneState.miningSecondsSinceFuelUse || 0, activeRuntime),
   );
 
   if (!droneState.inFlight || droneState.miningSessionStartMs <= 0) {
@@ -740,10 +792,7 @@ const getActiveFuelElapsedSeconds = () => {
     (performance.now() - droneState.miningSessionStartMs) / 1000,
   );
 
-  return Math.min(
-    DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT,
-    storedElapsed + activeElapsedSeconds,
-  );
+  return Math.min(activeRuntime, storedElapsed + activeElapsedSeconds);
 };
 
 const getActiveFuelLifetimeRatio = () => {
@@ -752,9 +801,11 @@ const getActiveFuelLifetimeRatio = () => {
   }
 
   const elapsed = getActiveFuelElapsedSeconds();
-  const remaining = Math.max(0, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT - elapsed);
+  const activeSlot = getActiveFuelSlotInfo();
+  const runtimeSeconds = activeSlot?.runtimeSeconds ?? DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+  const remaining = Math.max(0, runtimeSeconds - elapsed);
 
-  return remaining / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+  return remaining / runtimeSeconds;
 };
 
 const getActiveFuelRemainingSeconds = () => {
@@ -764,14 +815,18 @@ const getActiveFuelRemainingSeconds = () => {
 
   const elapsed = getActiveFuelElapsedSeconds();
 
-  return Math.max(0, Math.round(DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT - elapsed));
+  const activeSlot = getActiveFuelSlotInfo();
+  const runtimeSeconds = activeSlot?.runtimeSeconds ?? DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+
+  return Math.max(0, Math.round(runtimeSeconds - elapsed));
 };
 
 const addFuelUnitsToDrone = (
   element,
   units = 0,
   preferredIndex = 0,
-  refundableUnits = units
+  refundableUnits = units,
+  slotMetadata = {}
 ) => {
   const capacity = ensureDroneFuelSlots();
   const availableCapacity = Math.max(0, capacity - droneState.fuelRemaining);
@@ -802,6 +857,7 @@ const addFuelUnitsToDrone = (
     droneState.fuelSlots[slotIndex] = sanitizeFuelSlotEntry({
       element,
       refundable: added < refundableUnitsToAssign,
+      ...slotMetadata,
     });
     added += 1;
   }
@@ -896,12 +952,14 @@ const tryRefuelDroneWithElement = (
   }
 
   const fuelValue = getFuelValueForSource(fuelSource);
+  const runtimeSeconds = getFuelRuntimeSecondsForSource(fuelSource);
   const fuelToAdd = Math.min(fuelValue, capacity - droneState.fuelRemaining);
   const added = addFuelUnitsToDrone(
     element,
     fuelToAdd,
     preferredSlotIndex,
-    /* refundableUnits */ 1
+    /* refundableUnits */ 1,
+    { runtimeSeconds }
   );
 
   if (added > 0) {
@@ -937,32 +995,48 @@ const consumeDroneFuelForMiningDuration = (durationSeconds = 0) => {
     return;
   }
 
-  const previousRuntime = Math.max(0, droneState.miningSecondsSinceFuelUse || 0);
-  const elapsedRuntime = previousRuntime + normalizedDuration;
-  const fuelUnitsConsumed = Math.min(
-    availableFuel,
-    Math.floor(elapsedRuntime / DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
+  let activeSlot = getActiveFuelSlotInfo();
+  let consumedRefundable = false;
+  let elapsedRuntime = Math.max(
+    0,
+    Math.min(
+      droneState.miningSecondsSinceFuelUse || 0,
+      activeSlot?.runtimeSeconds ?? DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT,
+    ),
   );
+  let remainingDuration = normalizedDuration;
 
-  if (normalizedDuration > 0 && availableFuel > 0) {
-    const activeIndex = getActiveFuelSlotIndex();
+  while (activeSlot && remainingDuration > 0) {
+    const remainingForSlot = Math.max(
+      0,
+      activeSlot.runtimeSeconds - elapsedRuntime,
+    );
 
-    if (activeIndex >= 0 && droneState.fuelSlots[activeIndex]) {
-      droneState.fuelSlots[activeIndex].refundable = false;
-      renderDroneInventoryUi();
+    if (droneState.fuelSlots[activeSlot.index]) {
+      droneState.fuelSlots[activeSlot.index].refundable = false;
+      consumedRefundable = true;
     }
+
+    if (remainingDuration < remainingForSlot) {
+      elapsedRuntime += remainingDuration;
+      remainingDuration = 0;
+      break;
+    }
+
+    remainingDuration -= remainingForSlot;
+    removeFuelUnitsFromSlots(1);
+    elapsedRuntime = 0;
+    activeSlot = getActiveFuelSlotInfo();
   }
 
-  if (fuelUnitsConsumed > 0) {
-    removeFuelUnitsFromSlots(fuelUnitsConsumed);
-  }
-  droneState.miningSecondsSinceFuelUse =
-    fuelUnitsConsumed > 0
-      ? elapsedRuntime - fuelUnitsConsumed * DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT
-      : elapsedRuntime;
+  droneState.miningSecondsSinceFuelUse = activeSlot ? elapsedRuntime : 0;
 
   if (droneState.fuelRemaining <= 0) {
     droneState.miningSecondsSinceFuelUse = 0;
+  }
+
+  if (consumedRefundable) {
+    renderDroneInventoryUi();
   }
 
   persistDroneCargoSnapshot();
@@ -1032,6 +1106,7 @@ const tryRefuelDroneFromInventory = () => {
   DRONE_FUEL_SOURCES.forEach((source) => {
     const element = source?.element;
     const fuelValue = getFuelValueForSource(source);
+    const runtimeSeconds = getFuelRuntimeSecondsForSource(source);
 
     if (!element) {
       return;
@@ -1053,7 +1128,8 @@ const tryRefuelDroneFromInventory = () => {
         element,
         fuelToAdd,
         /* preferredIndex */ 0,
-        /* refundableUnits */ 1
+        /* refundableUnits */ 1,
+        { runtimeSeconds }
       );
       fuelAdded += addedUnits;
       resourcesUsed.set(label, (resourcesUsed.get(label) ?? 0) + 1);
@@ -1887,13 +1963,14 @@ const renderDroneFuelGrid = () => {
     let lifetimeTooltip = "Empty fuel slot";
 
     if (filled) {
+      const slotRuntimeSeconds = getFuelRuntimeSecondsForSlot(slotData);
       const ratio = isActive ? activeFuelLifetimeRatio : 1;
       lifetimeFill.style.width = `${(ratio * 100).toFixed(1)}%`;
       lifetimeFill.dataset.state = isActive ? "active" : "idle";
 
       const remainingSeconds = isActive
         ? activeFuelRemainingSeconds
-        : DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+        : slotRuntimeSeconds;
       const remainingLabel = formatDurationSeconds(remainingSeconds);
       lifetimeTooltip = isActive
         ? `${remainingLabel} remaining`
@@ -5554,7 +5631,10 @@ const activateDroneAutomation = () => {
   ensureDroneFuelSlots(droneState.fuelCapacity);
   droneState.miningSecondsSinceFuelUse = Math.max(
     0,
-    Math.min(droneState.miningSecondsSinceFuelUse, DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT)
+    Math.min(
+      droneState.miningSecondsSinceFuelUse,
+      getActiveFuelSlotInfo()?.runtimeSeconds ?? DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT,
+    ),
   );
   droneState.miningSessionStartMs = 0;
   droneState.status = "idle";
