@@ -557,6 +557,42 @@ const droneState = {
     return capacity;
   };
 
+  const getFuelValueForSource = (source) => {
+    if (!source) {
+      return 1;
+    }
+
+    return Number.isFinite(source?.fuelValue)
+      ? Math.max(1, Math.floor(source.fuelValue))
+      : 1;
+  };
+
+  const getFuelRuntimeSecondsForSource = (source) => {
+    if (!source) {
+      return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+    }
+
+    if (Number.isFinite(source?.runtimeSeconds)) {
+      return Math.max(1, source.runtimeSeconds);
+    }
+
+    const multiplier = Number.isFinite(source?.runtimeMultiplier)
+      ? Math.max(0.1, source.runtimeMultiplier)
+      : 1;
+
+    return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT * multiplier;
+  };
+
+  const getFuelRuntimeSecondsForSlot = (slot) => {
+    if (!slot) {
+      return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+    }
+
+    return Number.isFinite(slot?.runtimeSeconds)
+      ? Math.max(1, slot.runtimeSeconds)
+      : DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
+  };
+
   const getActiveFuelSlotIndex = () => {
     const capacity = ensureDroneFuelSlots();
 
@@ -718,42 +754,6 @@ const persistDroneCargoSnapshot = () => {
     fuelSlots: droneState.fuelSlots,
     miningSecondsSinceFuelUse: droneState.miningSecondsSinceFuelUse,
   });
-};
-
-const getFuelValueForSource = (source) => {
-  if (!source) {
-    return 1;
-  }
-
-  return Number.isFinite(source?.fuelValue)
-    ? Math.max(1, Math.floor(source.fuelValue))
-    : 1;
-};
-
-const getFuelRuntimeSecondsForSource = (source) => {
-  if (!source) {
-    return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
-  }
-
-  if (Number.isFinite(source?.runtimeSeconds)) {
-    return Math.max(1, source.runtimeSeconds);
-  }
-
-  const multiplier = Number.isFinite(source?.runtimeMultiplier)
-    ? Math.max(0.1, source.runtimeMultiplier)
-    : 1;
-
-  return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT * multiplier;
-};
-
-const getFuelRuntimeSecondsForSlot = (slot) => {
-  if (!slot) {
-    return DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
-  }
-
-  return Number.isFinite(slot?.runtimeSeconds)
-    ? Math.max(1, slot.runtimeSeconds)
-    : DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT;
 };
 
 const getFuelSlotFillOrder = (capacity, preferredIndex = 0) => {
