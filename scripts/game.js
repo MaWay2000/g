@@ -1968,7 +1968,7 @@ const renderDroneFuelGrid = () => {
     stateLabel.className = "drone-inventory__fuel-slot-label";
     stateLabel.textContent = filled
       ? slotData?.symbol || slotData?.name || "Fuel"
-      : "Ready for fuel";
+      : "Empty";
 
     const lifetimeContainer = document.createElement("div");
     lifetimeContainer.className = "drone-inventory__fuel-slot-lifetime";
@@ -5454,7 +5454,7 @@ function updateDroneStatusUi() {
   }
 
   if (inventoryRefuelHelper) {
-    let helperText = "Uses Hydrogen or Helium from your inventory.";
+    let helperText = "";
 
     if (requiresPickup) {
       helperText = "Move close to the grounded drone to pick it up.";
