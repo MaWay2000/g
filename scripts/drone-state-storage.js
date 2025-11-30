@@ -125,6 +125,8 @@ const normalizeSceneStateForPersistence = (sceneState) => {
 };
 
 const normalizeCargoStateForPersistence = (cargoState) => {
+  const DEFAULT_FUEL_RUNTIME_SECONDS = 200;
+
   if (!cargoState || typeof cargoState !== "object") {
     return {
       samples: [],
@@ -168,6 +170,10 @@ const normalizeCargoStateForPersistence = (cargoState) => {
             element: slot.element ?? slot,
             symbol: slot.symbol,
             name: slot.name,
+            refundable: slot.refundable !== false,
+            runtimeSeconds: Number.isFinite(slot.runtimeSeconds)
+              ? Math.max(1, slot.runtimeSeconds)
+              : DEFAULT_FUEL_RUNTIME_SECONDS,
           }
         : null
     ),
