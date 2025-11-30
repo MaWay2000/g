@@ -4162,6 +4162,8 @@ const finishClosingInventoryPanel = ({ restoreFocus = true } = {}) => {
 
   resetInventoryReorderState();
   inventoryPanel.classList.remove("is-dragging");
+
+  updateDroneStatusUi();
 };
 
 const openInventoryPanel = () => {
@@ -4202,6 +4204,8 @@ const openInventoryPanel = () => {
   if (inventoryCloseButton instanceof HTMLElement) {
     inventoryCloseButton.focus({ preventScroll: true });
   }
+
+  updateDroneStatusUi();
 };
 
 const closeInventoryPanel = ({ restoreFocus = true } = {}) => {
