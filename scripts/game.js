@@ -255,10 +255,7 @@ if (inventoryPanel instanceof HTMLElement) {
 
 const inventoryTabButtons = Array.from(
   inventoryPanel?.querySelectorAll("[data-inventory-tab-target]") ?? []
-).filter(
-  (button) =>
-    button instanceof HTMLButtonElement && !button.hidden
-);
+).filter((button) => button instanceof HTMLButtonElement);
 const inventoryTabSections = new Map(
   Array.from(inventoryPanel?.querySelectorAll("[data-inventory-section]") ?? []).map(
     (section) => [section.dataset.inventorySection, section]
