@@ -5312,10 +5312,14 @@ function updateDroneStatusUi() {
       return;
     }
 
-    panel.dataset.active = isActive ? "true" : "false";
-    panel.setAttribute("aria-hidden", shouldShowPanel ? "false" : "true");
+    const panelShouldHideForInventory =
+      shouldHideForInventory && panel.hasAttribute("data-inventory-drone-panel");
+    const panelShouldShow = panelShouldHideForInventory ? false : shouldShowPanel;
 
-    if (!shouldShowPanel) {
+    panel.dataset.active = isActive ? "true" : "false";
+    panel.setAttribute("aria-hidden", panelShouldShow ? "false" : "true");
+
+    if (!panelShouldShow) {
       panel.hidden = true;
       delete panel.dataset.state;
       return;
