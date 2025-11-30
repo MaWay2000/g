@@ -4209,6 +4209,8 @@ const finishClosingInventoryPanel = ({ restoreFocus = true } = {}) => {
   window.clearTimeout(inventoryCloseFallbackId);
   inventoryCloseFallbackId = 0;
 
+  updateDroneStatusUi();
+
   updateBodyModalState(false);
   document.removeEventListener("keydown", handleInventoryPanelKeydown, true);
   sceneController?.setMovementEnabled(true);
@@ -4269,6 +4271,8 @@ const openInventoryPanel = () => {
   window.clearTimeout(inventoryCloseFallbackId);
   inventoryCloseFallbackId = 0;
 
+  updateDroneStatusUi();
+
   updateBodyModalState(true);
   document.addEventListener("keydown", handleInventoryPanelKeydown, true);
 
@@ -4281,8 +4285,6 @@ const openInventoryPanel = () => {
   if (inventoryCloseButton instanceof HTMLElement) {
     inventoryCloseButton.focus({ preventScroll: true });
   }
-
-  updateDroneStatusUi();
 };
 
 const closeInventoryPanel = ({ restoreFocus = true } = {}) => {
@@ -5305,7 +5307,7 @@ function updateDroneStatusUi() {
   const isActive = Boolean(droneState.active);
   const requiresPickup = isDronePickupRequired();
   const shouldHideForInventory = isInventoryOpen();
-  const shouldShowPanel = (isActive || requiresPickup) && !shouldHideForInventory;
+  const baseShouldShowPanel = isActive || requiresPickup;
 
   droneStatusPanels.forEach((panel) => {
     if (!(panel instanceof HTMLElement)) {
@@ -5313,8 +5315,10 @@ function updateDroneStatusUi() {
     }
 
     const panelShouldHideForInventory =
-      shouldHideForInventory && panel.hasAttribute("data-inventory-drone-panel");
-    const panelShouldShow = panelShouldHideForInventory ? false : shouldShowPanel;
+      shouldHideForInventory && !panel.hasAttribute("data-inventory-drone-panel");
+    const panelShouldShow = panelShouldHideForInventory
+      ? false
+      : baseShouldShowPanel;
 
     panel.dataset.active = isActive ? "true" : "false";
     panel.setAttribute("aria-hidden", panelShouldShow ? "false" : "true");
@@ -5330,7 +5334,7 @@ function updateDroneStatusUi() {
     panel.setAttribute("aria-hidden", "false");
   });
 
-  if (!shouldShowPanel) {
+  if (!baseShouldShowPanel) {
     return;
   }
 
