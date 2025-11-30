@@ -46,6 +46,9 @@ const dronePayloadMeters = Array.from(
   document.querySelectorAll("[data-drone-payload-bar]") ?? []
 );
 const droneFuelMeters = Array.from(document.querySelectorAll("[data-drone-fuel-bar]") ?? []);
+const searchParams = new URL(window.location.href).searchParams;
+const inventoryViewingMode =
+  searchParams.get("inventoryView") === "watch" ? "watch" : "manage";
 const settings = loadStoredSettings();
 const droneRefuelButtons = Array.from(
   document.querySelectorAll("[data-drone-refuel]") ?? []
@@ -245,6 +248,10 @@ const droneInventoryTabButton = inventoryPanel?.querySelector(
 const droneInventorySection = inventoryPanel?.querySelector(
   '[data-inventory-section="drone"]'
 );
+
+if (inventoryPanel instanceof HTMLElement) {
+  inventoryPanel.dataset.inventoryViewMode = inventoryViewingMode;
+}
 
 const inventoryTabButtons = Array.from(
   inventoryPanel?.querySelectorAll("[data-inventory-tab-target]") ?? []
@@ -5170,7 +5177,7 @@ const getDroneMissionSummary = () => {
 };
 
 const updateDroneInventoryTabVisibility = () => {
-  const shouldShowDroneTab = true;
+  const shouldShowDroneTab = inventoryViewingMode !== "watch";
 
   if (droneInventoryTabButton instanceof HTMLButtonElement) {
     droneInventoryTabButton.hidden = !shouldShowDroneTab;
@@ -5183,6 +5190,22 @@ const updateDroneInventoryTabVisibility = () => {
   if (droneInventorySection instanceof HTMLElement) {
     droneInventorySection.hidden =
       !shouldShowDroneTab || activeInventoryTab !== "drone";
+  }
+
+  if (inventoryDroneRefuelButton instanceof HTMLButtonElement) {
+    inventoryDroneRefuelButton.hidden = !shouldShowDroneTab;
+    inventoryDroneRefuelButton.setAttribute(
+      "aria-hidden",
+      shouldShowDroneTab ? "false" : "true",
+    );
+  }
+
+  if (inventoryDroneStatusLabel instanceof HTMLElement) {
+    inventoryDroneStatusLabel.hidden = !shouldShowDroneTab;
+    inventoryDroneStatusLabel.setAttribute(
+      "aria-hidden",
+      shouldShowDroneTab ? "false" : "true",
+    );
   }
 
   if (!shouldShowDroneTab && activeInventoryTab === "drone") {
