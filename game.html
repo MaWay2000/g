@@ -2435,9 +2435,11 @@
               >
                 Auto refuel
               </button>
-              <p class="inventory-panel__action-helper" data-inventory-drone-status>
-                Requires an active drone miner.
-              </p>
+              <label class="inventory-panel__action-helper">
+                <input type="checkbox" data-inventory-drone-auto-refill />
+                Auto refill when empty
+              </label>
+              <p class="inventory-panel__action-helper" data-inventory-drone-status></p>
             </div>
             <section class="drone-inventory" aria-label="Drone inventory overview">
               <div
