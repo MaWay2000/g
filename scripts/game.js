@@ -5307,7 +5307,9 @@ function updateDroneStatusUi() {
   const isActive = Boolean(droneState.active);
   const requiresPickup = isDronePickupRequired();
   const shouldHideForInventory = isInventoryOpen();
-  const baseShouldShowPanel = isActive || requiresPickup;
+  const baseShouldShowPanel = shouldHideForInventory
+    ? false
+    : isActive || requiresPickup;
 
   droneStatusPanels.forEach((panel) => {
     if (!(panel instanceof HTMLElement)) {
