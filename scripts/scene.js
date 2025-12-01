@@ -70,10 +70,29 @@ export const initScene = (
     settings,
   } = {}
 ) => {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const performanceSettings = {
+    lowPerformanceMode: Boolean(settings?.lowPerformanceMode),
+    maxPixelRatio: Number.isFinite(settings?.maxPixelRatio)
+      ? Math.max(0.5, settings.maxPixelRatio)
+      : 1.25,
+  };
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: !performanceSettings.lowPerformanceMode,
+  });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = false;
-  renderer.setPixelRatio(window.devicePixelRatio);
+  const effectivePixelRatioCap = performanceSettings.lowPerformanceMode
+    ? Math.min(performanceSettings.maxPixelRatio, 1)
+    : performanceSettings.maxPixelRatio;
+  const devicePixelRatio =
+    typeof window.devicePixelRatio === "number" && window.devicePixelRatio > 0
+      ? window.devicePixelRatio
+      : 1;
+  renderer.setPixelRatio(
+    Math.min(devicePixelRatio, Math.max(0.5, effectivePixelRatioCap))
+  );
   renderer.setSize(window.innerWidth, window.innerHeight, false);
 
   const scene = new THREE.Scene();
@@ -90,10 +109,6 @@ export const initScene = (
   camera.position.set(0, 0, 8 * ROOM_SCALE_FACTOR);
 
   const textureLoader = new THREE.TextureLoader();
-
-  const performanceSettings = {
-    lowPerformanceMode: Boolean(settings?.lowPerformanceMode),
-  };
 
   const reflectionsEnabled = !performanceSettings.lowPerformanceMode;
   const reflectorResolutionScale = performanceSettings.lowPerformanceMode ? 0.5 : 1;

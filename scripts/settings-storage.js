@@ -2,12 +2,18 @@ const SETTINGS_STORAGE_KEY = "dustyNova.settings";
 
 const DEFAULT_SETTINGS = {
   lowPerformanceMode: false,
+  maxPixelRatio: 1.25,
 };
 
 const normalizeSettings = (settings = {}) => {
+  const pixelRatioCap = Number.isFinite(settings.maxPixelRatio)
+    ? Math.max(0.5, settings.maxPixelRatio)
+    : DEFAULT_SETTINGS.maxPixelRatio;
+
   return {
     ...DEFAULT_SETTINGS,
     lowPerformanceMode: Boolean(settings.lowPerformanceMode),
+    maxPixelRatio: pixelRatioCap,
   };
 };
 
