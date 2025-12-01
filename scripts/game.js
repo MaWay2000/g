@@ -37,6 +37,9 @@ const resourceToolIndicator = document.querySelector(
 );
 const crosshair = document.querySelector(".crosshair");
 const topBar = document.querySelector(".top-bar");
+const settingsMenu = document.querySelector("[data-settings-menu]");
+const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
+const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const lowPerformanceToggle = document.querySelector(
   "[data-low-performance-toggle]"
 );
@@ -161,6 +164,59 @@ if (topBar instanceof HTMLElement) {
   window.addEventListener("orientationchange", applyFullscreenClass);
 
   applyFullscreenClass();
+}
+
+const setSettingsMenuOpen = (isOpen) => {
+  if (
+    !(settingsMenu instanceof HTMLElement) ||
+    !(settingsPanel instanceof HTMLElement) ||
+    !(settingsTrigger instanceof HTMLElement)
+  ) {
+    return;
+  }
+
+  const nextState = Boolean(isOpen);
+  settingsMenu.dataset.open = nextState ? "true" : "false";
+  settingsPanel.hidden = !nextState;
+  settingsTrigger.setAttribute("aria-expanded", String(nextState));
+};
+
+setSettingsMenuOpen(false);
+
+if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLElement) {
+  settingsTrigger.addEventListener("click", () => {
+    const isOpen = settingsMenu instanceof HTMLElement && settingsMenu.dataset.open === "true";
+    setSettingsMenuOpen(!isOpen);
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (settingsMenu?.dataset.open !== "true") {
+      return;
+    }
+
+    if (!(event.target instanceof Node)) {
+      return;
+    }
+
+    if (!(settingsMenu instanceof HTMLElement) || settingsMenu.contains(event.target)) {
+      return;
+    }
+
+    setSettingsMenuOpen(false);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    if (settingsMenu?.dataset.open !== "true") {
+      return;
+    }
+
+    setSettingsMenuOpen(false);
+    settingsTrigger.focus({ preventScroll: true });
+  });
 }
 
 const applyLowPerformanceUiState = () => {

@@ -621,6 +621,69 @@
         pointer-events: none;
       }
 
+      .settings-menu {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .settings-menu__trigger {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(15, 23, 42, 0.55);
+        border: 2px solid rgba(56, 189, 248, 0.5);
+        color: inherit;
+        font-weight: 700;
+        backdrop-filter: blur(8px);
+      }
+
+      .settings-menu__chevron {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: rotate(45deg) translateY(-1px);
+        transition: transform 140ms ease;
+      }
+
+      .settings-menu[data-open="true"] .settings-menu__chevron {
+        transform: rotate(-135deg) translateY(1px);
+      }
+
+      .settings-menu__panel {
+        position: absolute;
+        top: calc(100% + 0.6rem);
+        right: 0;
+        min-width: 280px;
+        padding: 1rem;
+        border-radius: 16px;
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        background: rgba(15, 23, 42, 0.9);
+        box-shadow: 0 18px 40px rgba(8, 47, 73, 0.45);
+        display: grid;
+        gap: 0.9rem;
+        pointer-events: auto;
+        z-index: 20;
+      }
+
+      .settings-menu__panel[hidden] {
+        display: none;
+      }
+
+      .settings-menu__section {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .settings-menu__heading {
+        margin: 0;
+        font-size: 0.95rem;
+        letter-spacing: 0.02em;
+        color: rgba(226, 232, 240, 0.9);
+      }
+
       a,
       button {
         font: inherit;
@@ -671,6 +734,10 @@
         box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
         transition: border-color 150ms ease, box-shadow 150ms ease,
           background 150ms ease, transform 150ms ease;
+      }
+
+      .settings-menu__panel .performance-toggle {
+        width: 100%;
       }
 
       .performance-toggle:hover,
@@ -756,6 +823,10 @@
         font-weight: 700;
         letter-spacing: 0.01em;
         box-shadow: 0 12px 32px rgba(16, 185, 129, 0.2);
+      }
+
+      .settings-menu__panel .performance-badge {
+        justify-self: flex-start;
       }
 
       .performance-badge::before {
@@ -2561,25 +2632,50 @@
         <button class="reset" type="button" data-reset-button>
           Reset Progress
         </button>
-        <label class="performance-toggle">
-          <input
-            class="performance-toggle__input"
-            type="checkbox"
-            role="switch"
-            aria-label="Toggle performance saving mode"
-            data-low-performance-toggle
-          />
-          <span class="performance-toggle__track" aria-hidden="true">
-            <span class="performance-toggle__thumb" aria-hidden="true"></span>
-          </span>
-          <span class="performance-toggle__text">
-            <span class="performance-toggle__title">Performance saver</span>
-            <span class="performance-toggle__hint">Reduce rendering load</span>
-          </span>
-        </label>
-        <span class="performance-badge" data-low-performance-indicator hidden>
-          Saver active
-        </span>
+        <div class="settings-menu" data-settings-menu>
+          <button
+            class="settings-menu__trigger"
+            type="button"
+            data-settings-trigger
+            aria-expanded="false"
+            aria-controls="settingsMenuPanel"
+            aria-label="Open settings menu"
+          >
+            Settings
+            <span class="settings-menu__chevron" aria-hidden="true"></span>
+          </button>
+          <div
+            class="settings-menu__panel"
+            id="settingsMenuPanel"
+            data-settings-panel
+            role="menu"
+            aria-label="Game settings"
+            hidden
+          >
+            <div class="settings-menu__section" role="group" aria-label="Performance">
+              <p class="settings-menu__heading">Performance</p>
+              <label class="performance-toggle">
+                <input
+                  class="performance-toggle__input"
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Toggle performance saver mode"
+                  data-low-performance-toggle
+                />
+                <span class="performance-toggle__track" aria-hidden="true">
+                  <span class="performance-toggle__thumb" aria-hidden="true"></span>
+                </span>
+                <span class="performance-toggle__text">
+                  <span class="performance-toggle__title">Performance saver</span>
+                  <span class="performance-toggle__hint">Reduce rendering load</span>
+                </span>
+              </label>
+              <span class="performance-badge" data-low-performance-indicator hidden>
+                Saver active
+              </span>
+            </div>
+          </div>
+        </div>
         <button class="logout" type="button" data-logout-button>Log out</button>
       </div>
 
