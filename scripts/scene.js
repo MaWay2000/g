@@ -298,7 +298,7 @@ export const initScene = (
 
   const createQuickAccessFallbackTexture = () => {
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1200" viewBox="0 0 1024 1200">
   <defs>
     <linearGradient id="screen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#051120" />
@@ -313,27 +313,27 @@ export const initScene = (
       <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.18" />
     </linearGradient>
   </defs>
-  <rect width="1024" height="768" fill="url(#screen-bg)" />
-  <rect width="1024" height="768" fill="url(#screen-vignette)" />
+  <rect width="1024" height="1200" fill="url(#screen-bg)" />
+  <rect width="1024" height="1200" fill="url(#screen-vignette)" />
   <g fill="none" stroke="#60a5fa" stroke-width="3" opacity="0.28">
-    <rect x="40" y="40" width="944" height="688" rx="36" ry="36" />
+    <rect x="40" y="40" width="944" height="1120" rx="36" ry="36" />
   </g>
   <g>
-    <text x="96" y="116" fill="#94a3b8" fill-opacity="0.82" font-size="44" font-family="'Segoe UI', 'Inter', sans-serif" font-weight="600" letter-spacing="6">TERMINAL</text>
+    <text x="96" y="181" fill="#94a3b8" fill-opacity="0.82" font-size="44" font-family="'Segoe UI', 'Inter', sans-serif" font-weight="600" letter-spacing="6">TERMINAL</text>
   </g>
-  <line x1="84" y1="256" x2="940" y2="256" stroke="#334155" stroke-opacity="0.55" stroke-width="3" />
+  <line x1="84" y1="400" x2="940" y2="400" stroke="#334155" stroke-opacity="0.55" stroke-width="3" />
   <g font-family="'Segoe UI', 'Inter', sans-serif">
-    <g transform="translate(96 292)">
+    <g transform="translate(96 456)">
       <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
       <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">NEWS</text>
       <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Latest mission intelligence</text>
     </g>
-    <g transform="translate(96 472)">
+    <g transform="translate(96 738)">
       <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
       <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">WEATHER</text>
       <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Atmospheric reports</text>
     </g>
-    <g transform="translate(96 652)">
+    <g transform="translate(96 1020)">
       <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
       <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">MISSIONS</text>
       <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Active assignments</text>
@@ -1343,7 +1343,7 @@ export const initScene = (
 
     group.userData.notifyCollidersChanged = notifyCollidersChanged;
 
-    let quickAccessTextureSize = { width: 1024, height: 768 };
+    let quickAccessTextureSize = { width: 1024, height: 1200 };
     let quickAccessZones = [];
 
     const deskHeight = 0.78 * 1.3;
@@ -1405,7 +1405,7 @@ export const initScene = (
 
     const createMonitorDisplayTexture = () => {
       const width = 1024;
-      const height = 900;
+      const height = 1200;
 
       quickAccessTextureSize = { width, height };
 
