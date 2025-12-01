@@ -3532,65 +3532,6 @@ const renderInventoryEntries = () => {
       symbolElement.textContent = entry.element.symbol || "???";
       item.appendChild(symbolElement);
 
-      const detailsElement = document.createElement("div");
-      detailsElement.className = "inventory-panel__details";
-
-      if (resourceName) {
-        const nameElement = document.createElement("p");
-        nameElement.className = "inventory-panel__resource-name";
-        nameElement.textContent = resourceName;
-        detailsElement.appendChild(nameElement);
-      }
-
-      if (entry.element.number !== null) {
-        const numberElement = document.createElement("p");
-        numberElement.className = "inventory-panel__resource-number";
-        numberElement.textContent = `Atomic #${entry.element.number}`;
-        detailsElement.appendChild(numberElement);
-      }
-
-      if (detailsElement.childElementCount > 0) {
-        item.appendChild(detailsElement);
-      }
-
-      const quickMeta = document.createElement("ul");
-      quickMeta.className = "inventory-panel__meta-list";
-
-      const appendQuickMetaRow = (label, value, fallback) => {
-        const displayValue = value || fallback;
-
-        if (!displayValue) {
-          return;
-        }
-
-        const row = document.createElement("li");
-        row.className = "inventory-panel__meta-item";
-
-        const rowLabel = document.createElement("span");
-        rowLabel.className = "inventory-panel__meta-label";
-        rowLabel.textContent = label;
-
-        const rowValue = document.createElement("span");
-        rowValue.className = "inventory-panel__meta-value";
-        rowValue.textContent = displayValue;
-
-        row.appendChild(rowLabel);
-        row.appendChild(rowValue);
-        quickMeta.appendChild(row);
-      };
-
-      appendQuickMetaRow("Category", item.dataset.inventoryCategory, "Unknown");
-      appendQuickMetaRow("Mass", formattedMass, "Mass unknown");
-
-      if (quickMeta.childElementCount > 0) {
-        item.appendChild(quickMeta);
-      }
-
-      const countElement = document.createElement("span");
-      countElement.className = "inventory-panel__count";
-      countElement.textContent = `×${entry.count}`;
-      item.appendChild(countElement);
-
       const metaSegments = [];
 
       if (item.dataset.inventoryCategory) {
