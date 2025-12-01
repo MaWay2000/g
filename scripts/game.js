@@ -10,6 +10,7 @@ import {
   persistDroneCargoState,
 } from "./drone-state-storage.js";
 import { clearStoredSettings, loadStoredSettings } from "./settings-storage.js";
+import { PERIODIC_ELEMENTS } from "./data/periodic-elements.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -386,6 +387,30 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
     return number;
   };
 
+  const PERIODIC_ELEMENT_BY_SYMBOL = new Map(
+    PERIODIC_ELEMENTS.map((element) => [element.symbol.toLowerCase(), element])
+  );
+  const PERIODIC_ELEMENT_BY_NAME = new Map(
+    PERIODIC_ELEMENTS.map((element) => [element.name.toLowerCase(), element])
+  );
+
+  const getPeriodicElementDetails = (symbol, name) => {
+    const normalizedSymbol =
+      typeof symbol === "string" ? symbol.trim().toLowerCase() : "";
+    const normalizedName =
+      typeof name === "string" ? name.trim().toLowerCase() : "";
+
+    if (normalizedSymbol && PERIODIC_ELEMENT_BY_SYMBOL.has(normalizedSymbol)) {
+      return PERIODIC_ELEMENT_BY_SYMBOL.get(normalizedSymbol);
+    }
+
+    if (normalizedName && PERIODIC_ELEMENT_BY_NAME.has(normalizedName)) {
+      return PERIODIC_ELEMENT_BY_NAME.get(normalizedName);
+    }
+
+    return null;
+  };
+
   const getInventoryElementWeight = (element) => {
     if (!element || typeof element !== "object") {
       return DEFAULT_ELEMENT_WEIGHT_GRAMS;
@@ -411,31 +436,74 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   };
 
   const sanitizeInventoryElement = (element = {}) => {
-    const symbol =
-      typeof element.symbol === "string" ? element.symbol.trim() : "";
-    const name = typeof element.name === "string" ? element.name.trim() : "";
-    const number = Number.isFinite(element.number) ? element.number : null;
-    const category =
+    let symbol = typeof element.symbol === "string" ? element.symbol.trim() : "";
+    let name = typeof element.name === "string" ? element.name.trim() : "";
+    let number = Number.isFinite(element.number) ? element.number : null;
+    let category =
       typeof element.category === "string" ? element.category.trim() : "";
-    const atomicMass =
+    let atomicMass =
       Number.isFinite(element.atomicMass) && element.atomicMass > 0
         ? element.atomicMass
         : null;
-    const meltingPoint =
+    let meltingPoint =
       Number.isFinite(element.meltingPoint) && element.meltingPoint > 0
         ? element.meltingPoint
         : null;
-    const boilingPoint =
+    let boilingPoint =
       Number.isFinite(element.boilingPoint) && element.boilingPoint > 0
         ? element.boilingPoint
         : null;
-    const discoveryYear = Number.isFinite(element.discoveryYear)
+    let discoveryYear = Number.isFinite(element.discoveryYear)
       ? element.discoveryYear
       : null;
-    const discoverer =
+    let discoverer =
       typeof element.discoverer === "string" ? element.discoverer.trim() : "";
-    const summary =
+    let summary =
       typeof element.summary === "string" ? element.summary.trim() : "";
+
+    const periodicFallback = getPeriodicElementDetails(symbol, name);
+
+    if (periodicFallback) {
+      if (!symbol && periodicFallback.symbol) {
+        symbol = periodicFallback.symbol;
+      }
+
+      if (!name && periodicFallback.name) {
+        name = periodicFallback.name;
+      }
+
+      if (number === null && Number.isFinite(periodicFallback.number)) {
+        number = periodicFallback.number;
+      }
+
+      if (!category && periodicFallback.category) {
+        category = periodicFallback.category;
+      }
+
+      if (atomicMass === null && Number.isFinite(periodicFallback.atomicMass)) {
+        atomicMass = periodicFallback.atomicMass;
+      }
+
+      if (meltingPoint === null && Number.isFinite(periodicFallback.meltingPoint)) {
+        meltingPoint = periodicFallback.meltingPoint;
+      }
+
+      if (boilingPoint === null && Number.isFinite(periodicFallback.boilingPoint)) {
+        boilingPoint = periodicFallback.boilingPoint;
+      }
+
+      if (discoveryYear === null && Number.isFinite(periodicFallback.discoveryYear)) {
+        discoveryYear = periodicFallback.discoveryYear;
+      }
+
+      if (!discoverer && periodicFallback.discoverer) {
+        discoverer = periodicFallback.discoverer;
+      }
+
+      if (!summary && periodicFallback.summary) {
+        summary = periodicFallback.summary.trim();
+      }
+    }
 
     let weight =
       Number.isFinite(element.weight) && element.weight > 0
@@ -448,6 +516,19 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
     if (weight === null && atomicMass !== null) {
       weight = atomicMass;
+    }
+
+    if (
+      weight === null &&
+      periodicFallback &&
+      Number.isFinite(periodicFallback.atomicMass) &&
+      periodicFallback.atomicMass > 0
+    ) {
+      weight = periodicFallback.atomicMass;
+    }
+
+    if (weight === null && element.weight === 0) {
+      weight = 0;
     }
 
     return {
