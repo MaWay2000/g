@@ -1,52 +1,14 @@
+import missionDefinitions from "./data/missions.json" assert { type: "json" };
+
 const MISSION_STORAGE_KEY = "dustyNova.missions";
 export const MAX_ACTIVE_MISSIONS = 3;
 
-const missionDefinitions = [
-  {
-    id: "silent-relay",
-    title: "Silent Relay",
-    description: "Reboot the dormant subspace beacon before the next eclipse to restore comms.",
-    priorityLabel: "Alpha",
-    priorityVariant: "critical",
-    unlockOrder: 0,
-  },
-  {
-    id: "drift-cleanup",
-    title: "Drift Cleanup",
-    description: "Collect volatile debris near the old mining rigs; expect low-grav turbulence.",
-    priorityLabel: "Bravo",
-    priorityVariant: "stable",
-    unlockOrder: 1,
-  },
-  {
-    id: "archive-escort",
-    title: "Archive Escort",
-    description:
-      "Protect archivists transporting recovered AI cores to the secure vault.",
-    priorityLabel: "Charlie",
-    priorityVariant: "stable",
-    unlockOrder: 2,
-  },
-  {
-    id: "ridge-survey",
-    title: "Ridge Survey",
-    description: "Map the fractures across Arcus Ridge before the next ion squall.",
-    priorityLabel: "Delta",
-    priorityVariant: "stable",
-    unlockOrder: 3,
-  },
-  {
-    id: "relay-defense",
-    title: "Relay Defense",
-    description: "Deploy shielding pylons while the beacon synchronizes with orbital relays.",
-    priorityLabel: "Echo",
-    priorityVariant: "critical",
-    unlockOrder: 4,
-  },
-];
+const normalizedMissionDefinitions = Array.isArray(missionDefinitions) ? missionDefinitions : [];
 
-const missionLookup = new Map(missionDefinitions.map((mission) => [mission.id, mission]));
-const orderedMissions = missionDefinitions
+const missionLookup = new Map(
+  normalizedMissionDefinitions.map((mission) => [mission.id, mission])
+);
+const orderedMissions = normalizedMissionDefinitions
   .slice()
   .sort((a, b) => a.unlockOrder - b.unlockOrder);
 
@@ -92,7 +54,7 @@ const createDefaultMissionState = () => {
   orderedMissions.forEach((mission, index) => {
     statuses[mission.id] = index < MAX_ACTIVE_MISSIONS ? "active" : "pending";
   });
-  return { statuses };
+  return { statuses, completedLog: [] };
 };
 
 const loadStoredMissionState = () => {
@@ -120,7 +82,16 @@ const loadStoredMissionState = () => {
       normalizedStatuses[mission.id] = getMissionStatus(statuses[mission.id]);
     });
 
-    return { statuses: normalizedStatuses };
+    const completedLog = Array.isArray(parsed?.completedLog)
+      ? parsed.completedLog
+          .filter((entry) => entry && typeof entry === "object" && typeof entry.id === "string")
+          .map((entry) => ({
+            id: entry.id,
+            completedAt: typeof entry.completedAt === "string" ? entry.completedAt : null,
+          }))
+      : [];
+
+    return { statuses: normalizedStatuses, completedLog };
   } catch (error) {
     console.warn("Unable to read stored missions", error);
   }
@@ -225,6 +196,8 @@ export const getActiveMissions = () => getMissions().filter((mission) => mission
 export const getPendingMissions = () =>
   getMissions().filter((mission) => mission.status === "pending");
 
+export const getCompletedMissions = () => missionState.completedLog.slice();
+
 export const subscribeToMissionState = (listener) => {
   if (typeof listener !== "function") {
     return () => {};
@@ -252,6 +225,7 @@ export const completeMission = (missionId) => {
   }
 
   missionState.statuses[missionId] = "completed";
+  missionState.completedLog.push({ id: missionId, completedAt: new Date().toISOString() });
 
   const promoted = enforceActiveSlots();
   persistMissionState();
