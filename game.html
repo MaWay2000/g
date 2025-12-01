@@ -1400,10 +1400,10 @@
       }
 
       .mission-roster__layout {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        display: flex;
+        flex-direction: column;
         gap: 1.1rem;
-        align-items: start;
+        align-items: stretch;
       }
 
       .mission-roster__panel {
@@ -1549,6 +1549,16 @@
 
       .mission-roster__card-grid {
         margin-top: 0.35rem;
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+        scroll-snap-type: x mandatory;
+      }
+
+      .mission-roster__card-grid .quick-access-modal__card {
+        flex: 1 0 260px;
+        scroll-snap-align: start;
       }
 
       .quick-access-modal__action {
@@ -3207,19 +3217,6 @@
       <section class="quick-access-modal__section">
         <div class="mission-roster">
           <div class="mission-roster__layout">
-            <div class="mission-roster__panel mission-roster__panel--queue">
-              <div class="mission-roster__panel-heading">
-                <p class="mission-roster__eyebrow">Queue summary</p>
-                <h3 class="mission-roster__title">Squad updates</h3>
-                <p class="mission-roster__description">
-                  Live deployment queue for drop teams, navsync relays, and ground support.
-                </p>
-              </div>
-              <ul
-                class="quick-access-modal__list mission-roster__list mission-queue"
-                data-mission-queue
-              ></ul>
-            </div>
             <div class="mission-roster__panel mission-roster__panel--priority">
               <div class="mission-roster__panel-heading">
                 <p class="mission-roster__eyebrow">Priority ops</p>
