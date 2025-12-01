@@ -1,4 +1,4 @@
-import missionDefinitions from "./data/missions.json" assert { type: "json" };
+import missionDefinitions from "./data/missions.js";
 
 const MISSION_STORAGE_KEY = "dustyNova.missions";
 export const MAX_ACTIVE_MISSIONS = 3;
