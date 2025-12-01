@@ -104,7 +104,9 @@ export const initScene = (
   const camera = new THREE.PerspectiveCamera(
     75,
     window.innerWidth / window.innerHeight,
-    0.1,
+    // Use a tighter near clip plane so nearby objects (like the terminal
+    // monitor) don't disappear when the player gets close to interact.
+    0.05,
     200
   );
   const MIN_PLAYER_HEIGHT = 0.1;
