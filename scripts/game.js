@@ -222,6 +222,9 @@ const inventorySummaryLabel = inventoryPanel?.querySelector(
 const inventorySummaryTooltip = inventoryPanel?.querySelector(
   "[data-inventory-summary-tooltip]"
 );
+const inventoryCapacityWarning = inventoryPanel?.querySelector(
+  "[data-inventory-capacity-warning]"
+);
 const inventoryCloseButton = inventoryPanel?.querySelector(
   "[data-inventory-close-button]"
 );
@@ -1747,6 +1750,8 @@ const inventoryState = {
   entryMap: new Map(),
   customOrder: createEmptyInventorySlotOrder(),
   capacityKg: DEFAULT_INVENTORY_CAPACITY_KG,
+  currentLoadGrams: 0,
+  capacityRejection: null,
 };
 let activeInventoryTab = "inventory";
 
@@ -3340,6 +3345,72 @@ const getInventoryCapacityKg = () => {
   return DEFAULT_INVENTORY_CAPACITY_KG;
 };
 
+const getInventoryCapacityGrams = () => {
+  const capacityKg = getInventoryCapacityKg();
+  const normalizedGrams =
+    Number.isFinite(capacityKg) && capacityKg > 0
+      ? capacityKg * GRAMS_PER_KILOGRAM
+      : 0;
+
+  return normalizedGrams || INVENTORY_CAPACITY_GRAMS;
+};
+
+const recalculateInventoryLoad = () => {
+  const totalWeight = inventoryState.entries.reduce(
+    (sum, entry) => sum + getInventoryEntryWeight(entry),
+    0
+  );
+
+  inventoryState.currentLoadGrams = Math.max(0, totalWeight);
+  return inventoryState.currentLoadGrams;
+};
+
+const updateInventoryCapacityWarning = () => {
+  if (!(inventoryCapacityWarning instanceof HTMLElement)) {
+    return;
+  }
+
+  const message =
+    typeof inventoryState.capacityRejection === "string"
+      ? inventoryState.capacityRejection.trim()
+      : "";
+
+  if (message) {
+    inventoryCapacityWarning.hidden = false;
+    inventoryCapacityWarning.textContent = message;
+    return;
+  }
+
+  inventoryCapacityWarning.hidden = true;
+  inventoryCapacityWarning.textContent = "";
+};
+
+const setInventoryCapacityRejection = (message) => {
+  const normalizedMessage = typeof message === "string" ? message.trim() : "";
+  inventoryState.capacityRejection = normalizedMessage || null;
+  updateInventoryCapacityWarning();
+  schedulePersistInventoryState();
+};
+
+const clearInventoryCapacityRejection = () => {
+  if (!inventoryState.capacityRejection) {
+    return;
+  }
+
+  inventoryState.capacityRejection = null;
+  updateInventoryCapacityWarning();
+  schedulePersistInventoryState();
+};
+
+const canAcceptInventoryWeight = (additionalWeight) => {
+  const normalizedAdditional = Math.max(0, Number(additionalWeight) || 0);
+  const currentLoad = Number.isFinite(inventoryState.currentLoadGrams)
+    ? inventoryState.currentLoadGrams
+    : recalculateInventoryLoad();
+
+  return currentLoad + normalizedAdditional <= getInventoryCapacityGrams();
+};
+
 const updateInventorySummary = () => {
   const summaryElement =
     inventorySummary instanceof HTMLElement ? inventorySummary : null;
@@ -3352,12 +3423,15 @@ const updateInventorySummary = () => {
       ? inventorySummaryTooltip
       : null;
 
-  const totalWeight = inventoryState.entries.reduce(
-    (sum, entry) => sum + getInventoryEntryWeight(entry),
-    0
-  );
+  const totalWeight = Number.isFinite(inventoryState.currentLoadGrams)
+    ? inventoryState.currentLoadGrams
+    : recalculateInventoryLoad();
 
-  const capacityKg = getInventoryCapacityKg();
+  const capacityGrams = Math.max(0, getInventoryCapacityGrams());
+  const capacityKg =
+    capacityGrams > 0
+      ? capacityGrams / GRAMS_PER_KILOGRAM
+      : getInventoryCapacityKg();
 
   if (!summaryElement) {
     return;
@@ -3366,8 +3440,6 @@ const updateInventorySummary = () => {
   const formattedWeight = formatGrams(totalWeight);
   const formattedCapacity = formatKilograms(capacityKg);
   const summaryText = `${formattedWeight} / ${formattedCapacity} max`;
-
-  const capacityGrams = Math.max(0, capacityKg * 1000);
   const fillPercentage = capacityGrams
     ? Math.min(totalWeight / capacityGrams, 1) * 100
     : 0;
@@ -3895,9 +3967,11 @@ const handleInventoryWindowResize = () => {
 };
 
 const refreshInventoryUi = () => {
+  recalculateInventoryLoad();
   renderInventoryEntries();
   updateInventorySummary();
   renderDroneInventoryUi();
+  updateInventoryCapacityWarning();
 };
 
 const normalizeTerrainLabel = (value) => {
@@ -3997,6 +4071,8 @@ const serializeInventoryStateForPersistence = () => {
           top: Math.round(inventoryLayoutState.position.top),
         }
       : null,
+    loadGrams: Math.max(0, Math.round(inventoryState.currentLoadGrams || 0)),
+    capacityRejection: inventoryState.capacityRejection,
   };
 };
 
@@ -4158,6 +4234,20 @@ const restoreInventoryStateFromStorage = () => {
 
         normalizeInventoryCustomOrder();
 
+        const computedLoad = recalculateInventoryLoad();
+        if (Number.isFinite(data.loadGrams) && data.loadGrams >= 0) {
+          inventoryState.currentLoadGrams = Math.max(computedLoad, data.loadGrams);
+        } else {
+          inventoryState.currentLoadGrams = computedLoad;
+        }
+
+        if (typeof data.capacityRejection === "string") {
+          const rejection = data.capacityRejection.trim();
+          inventoryState.capacityRejection = rejection || null;
+        } else {
+          inventoryState.capacityRejection = null;
+        }
+
         restored = true;
       }
     } else {
@@ -4177,7 +4267,7 @@ const restoreInventoryStateFromStorage = () => {
 
 const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
   if (!detail?.element) {
-    return;
+    return false;
   }
 
   const resourceSource =
@@ -4195,6 +4285,22 @@ const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
     elementDetails.number === null
   ) {
     elementDetails.name = "Unknown resource";
+  }
+
+  const entryWeight = getInventoryElementWeight(elementDetails);
+  const normalizedWeight = Number.isFinite(entryWeight) ? entryWeight : 0;
+
+  if (!canAcceptInventoryWeight(normalizedWeight)) {
+    const itemLabel =
+      elementDetails.name || elementDetails.symbol || "This resource";
+    const attemptedWeight = formatGrams(normalizedWeight || 0);
+    const capacityText = formatKilograms(getInventoryCapacityKg());
+
+    setInventoryCapacityRejection(
+      `${itemLabel} cannot be added. Capacity reached (${attemptedWeight} would exceed ${capacityText}).`
+    );
+
+    return false;
   }
 
   const key = getInventoryEntryKey(elementDetails);
@@ -4296,8 +4402,11 @@ const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
       : Date.now();
   entry.lastCollectedAt = timestamp;
 
+  recalculateInventoryLoad();
+  clearInventoryCapacityRejection();
   refreshInventoryUi();
   schedulePersistInventoryState();
+  return true;
 };
 
 const getInventoryResourceEntry = (element) => {
@@ -4334,6 +4443,11 @@ const spendInventoryResource = (element, count = 1) => {
         inventoryState.customOrder[index] = null;
       }
     }
+  }
+
+  recalculateInventoryLoad();
+  if (inventoryState.currentLoadGrams <= getInventoryCapacityGrams()) {
+    clearInventoryCapacityRejection();
   }
 
   refreshInventoryUi();
@@ -5740,7 +5854,8 @@ const storeDroneSample = (detail) => {
 };
 
 const deliverDroneCargo = () => {
-  const deliveries = droneState.cargo.splice(0);
+  const deliveries = droneState.cargo.slice();
+  const remainingCargo = [];
   let deliveredCount = 0;
   let deliveredWeight = 0;
 
@@ -5749,12 +5864,30 @@ const deliverDroneCargo = () => {
       return;
     }
 
-    recordInventoryResource(sample, { allowDroneSource: true });
+    const sampleWeight = getInventoryElementWeight(sample.element);
+    const normalizedWeight = Number.isFinite(sampleWeight) ? sampleWeight : 0;
+
+    if (!canAcceptInventoryWeight(normalizedWeight)) {
+      remainingCargo.push(sample);
+      return;
+    }
+
+    const recorded = recordInventoryResource(sample, { allowDroneSource: true });
+
+    if (!recorded) {
+      remainingCargo.push(sample);
+      return;
+    }
+
     deliveredCount += 1;
-    deliveredWeight += getInventoryElementWeight(sample.element);
+    deliveredWeight += normalizedWeight;
   });
 
-  droneState.payloadGrams = 0;
+  droneState.cargo = remainingCargo;
+  droneState.payloadGrams = remainingCargo.reduce((total, sample) => {
+    const weight = getInventoryElementWeight(sample.element);
+    return total + (Number.isFinite(weight) ? weight : 0);
+  }, 0);
   persistDroneCargoSnapshot();
 
   return { deliveredCount, deliveredWeight };
