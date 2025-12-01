@@ -232,6 +232,12 @@ const inventoryTooltipName = inventoryTooltip?.querySelector(
 const inventoryTooltipMeta = inventoryTooltip?.querySelector(
   "[data-inventory-tooltip-meta]"
 );
+const inventoryTooltipDetails = inventoryTooltip?.querySelector(
+  "[data-inventory-tooltip-details]"
+);
+const inventoryTooltipSummary = inventoryTooltip?.querySelector(
+  "[data-inventory-tooltip-summary]"
+);
 const inventoryDroneRefuelButton = inventoryPanel?.querySelector(
   "[data-inventory-drone-refuel]"
 );
@@ -406,6 +412,27 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
       typeof element.symbol === "string" ? element.symbol.trim() : "";
     const name = typeof element.name === "string" ? element.name.trim() : "";
     const number = Number.isFinite(element.number) ? element.number : null;
+    const category =
+      typeof element.category === "string" ? element.category.trim() : "";
+    const atomicMass =
+      Number.isFinite(element.atomicMass) && element.atomicMass > 0
+        ? element.atomicMass
+        : null;
+    const meltingPoint =
+      Number.isFinite(element.meltingPoint) && element.meltingPoint > 0
+        ? element.meltingPoint
+        : null;
+    const boilingPoint =
+      Number.isFinite(element.boilingPoint) && element.boilingPoint > 0
+        ? element.boilingPoint
+        : null;
+    const discoveryYear = Number.isFinite(element.discoveryYear)
+      ? element.discoveryYear
+      : null;
+    const discoverer =
+      typeof element.discoverer === "string" ? element.discoverer.trim() : "";
+    const summary =
+      typeof element.summary === "string" ? element.summary.trim() : "";
 
     let weight =
       Number.isFinite(element.weight) && element.weight > 0
@@ -416,7 +443,23 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
       weight = getElementWeightFromAtomicNumber(number);
     }
 
-    return { symbol, name, number, weight };
+    if (weight === null && atomicMass !== null) {
+      weight = atomicMass;
+    }
+
+    return {
+      symbol,
+      name,
+      number,
+      weight,
+      category,
+      atomicMass,
+      meltingPoint,
+      boilingPoint,
+      discoveryYear,
+      discoverer,
+      summary,
+    };
   };
 
   const getInventoryEntryKey = (element) => {
@@ -2120,6 +2163,65 @@ const showInventoryTooltipForItem = (item) => {
     }
   }
 
+  if (inventoryTooltipDetails instanceof HTMLElement) {
+    inventoryTooltipDetails.innerHTML = "";
+
+    const detailItems = [
+      {
+        label: "Category",
+        value: item.dataset.inventoryCategory,
+        fallback: "Unknown",
+      },
+      {
+        label: "Atomic mass",
+        value: item.dataset.inventoryMass,
+        fallback: "Unknown",
+      },
+      {
+        label: "Melting point",
+        value: item.dataset.inventoryMelting,
+        fallback: "Not recorded",
+      },
+      {
+        label: "Boiling point",
+        value: item.dataset.inventoryBoiling,
+        fallback: "Not recorded",
+      },
+      {
+        label: "Discovery",
+        value: item.dataset.inventoryDiscovery,
+        fallback: "Not recorded",
+      },
+    ];
+
+    detailItems.forEach((detail) => {
+      const itemElement = document.createElement("li");
+      itemElement.className = "inventory-panel__tooltip-item";
+
+      const labelElement = document.createElement("span");
+      labelElement.className = "inventory-panel__tooltip-label";
+      labelElement.textContent = detail.label;
+
+      const valueElement = document.createElement("span");
+      valueElement.className = "inventory-panel__tooltip-value";
+      valueElement.textContent = detail.value || detail.fallback;
+
+      itemElement.appendChild(labelElement);
+      itemElement.appendChild(valueElement);
+      inventoryTooltipDetails.appendChild(itemElement);
+    });
+
+    inventoryTooltipDetails.hidden = false;
+  }
+
+  if (inventoryTooltipSummary instanceof HTMLElement) {
+    const summaryText = item.dataset.inventorySummary || "";
+    inventoryTooltipSummary.textContent = summaryText
+      ? summaryText
+      : "No additional discovery info.";
+    inventoryTooltipSummary.hidden = false;
+  }
+
   positionInventoryTooltipForItem(item);
 
   if (inventoryTooltip instanceof HTMLElement) {
@@ -3340,6 +3442,43 @@ const getOrderedInventoryEntries = () => {
   return slotEntries;
 };
 
+const formatAtomicMassLabel = (atomicMass) => {
+  if (!Number.isFinite(atomicMass) || atomicMass <= 0) {
+    return null;
+  }
+
+  return `${atomicMass.toFixed(3)} u`;
+};
+
+const formatTemperatureLabel = (kelvin) => {
+  if (!Number.isFinite(kelvin) || kelvin <= 0) {
+    return null;
+  }
+
+  const kelvinRounded = Math.round(kelvin * 10) / 10;
+  const celsiusRounded = Math.round((kelvin - 273.15) * 10) / 10;
+
+  return `${celsiusRounded.toFixed(1)}°C / ${kelvinRounded.toFixed(1)}K`;
+};
+
+const formatDiscoveryLabel = (year, discoverer) => {
+  const segments = [];
+
+  if (Number.isFinite(year)) {
+    segments.push(String(Math.trunc(year)));
+  }
+
+  if (discoverer) {
+    segments.push(discoverer);
+  }
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return segments.join(" • ");
+};
+
 const renderInventoryEntries = () => {
   if (!(inventoryList instanceof HTMLElement)) {
     return;
@@ -3370,10 +3509,23 @@ const renderInventoryEntries = () => {
       item.tabIndex = 0;
       item.dataset.inventoryKey = entry.key;
       item.dataset.inventoryDraggable = "true";
+      const formattedMass = formatAtomicMassLabel(entry.element.atomicMass);
+      const formattedMelting = formatTemperatureLabel(entry.element.meltingPoint);
+      const formattedBoiling = formatTemperatureLabel(entry.element.boilingPoint);
+      const discoveryLabel = formatDiscoveryLabel(
+        entry.element.discoveryYear,
+        entry.element.discoverer
+      );
 
       const resourceName =
         entry.element.name || entry.element.symbol || "Unknown resource";
       item.dataset.inventoryName = resourceName;
+      item.dataset.inventoryCategory = entry.element.category || "";
+      item.dataset.inventoryMass = formattedMass || "";
+      item.dataset.inventoryMelting = formattedMelting || "";
+      item.dataset.inventoryBoiling = formattedBoiling || "";
+      item.dataset.inventoryDiscovery = discoveryLabel || "";
+      item.dataset.inventorySummary = entry.element.summary || "";
 
       const symbolElement = document.createElement("span");
       symbolElement.className = "inventory-panel__symbol";
@@ -3401,12 +3553,53 @@ const renderInventoryEntries = () => {
         item.appendChild(detailsElement);
       }
 
+      const quickMeta = document.createElement("ul");
+      quickMeta.className = "inventory-panel__meta-list";
+
+      const appendQuickMetaRow = (label, value, fallback) => {
+        const displayValue = value || fallback;
+
+        if (!displayValue) {
+          return;
+        }
+
+        const row = document.createElement("li");
+        row.className = "inventory-panel__meta-item";
+
+        const rowLabel = document.createElement("span");
+        rowLabel.className = "inventory-panel__meta-label";
+        rowLabel.textContent = label;
+
+        const rowValue = document.createElement("span");
+        rowValue.className = "inventory-panel__meta-value";
+        rowValue.textContent = displayValue;
+
+        row.appendChild(rowLabel);
+        row.appendChild(rowValue);
+        quickMeta.appendChild(row);
+      };
+
+      appendQuickMetaRow("Category", item.dataset.inventoryCategory, "Unknown");
+      appendQuickMetaRow("Mass", formattedMass, "Mass unknown");
+
+      if (quickMeta.childElementCount > 0) {
+        item.appendChild(quickMeta);
+      }
+
       const countElement = document.createElement("span");
       countElement.className = "inventory-panel__count";
       countElement.textContent = `×${entry.count}`;
       item.appendChild(countElement);
 
       const metaSegments = [];
+
+      if (item.dataset.inventoryCategory) {
+        metaSegments.push(item.dataset.inventoryCategory);
+      }
+
+      if (formattedMass) {
+        metaSegments.push(formattedMass);
+      }
 
       if (entry.element.number !== null) {
         metaSegments.push(`Atomic #${entry.element.number}`);
@@ -3429,10 +3622,30 @@ const renderInventoryEntries = () => {
         resourceLabelSegments.push(resourceName);
       }
 
+      if (item.dataset.inventoryCategory) {
+        resourceLabelSegments.push(`Category: ${item.dataset.inventoryCategory}`);
+      }
+
+      if (formattedMass) {
+        resourceLabelSegments.push(`Mass ${formattedMass}`);
+      }
+
       if (entry.count === 1) {
         resourceLabelSegments.push("1 collected");
       } else if (entry.count > 1) {
         resourceLabelSegments.push(`${entry.count} collected`);
+      }
+
+      if (formattedMelting) {
+        resourceLabelSegments.push(`Melting ${formattedMelting}`);
+      }
+
+      if (formattedBoiling) {
+        resourceLabelSegments.push(`Boiling ${formattedBoiling}`);
+      }
+
+      if (discoveryLabel) {
+        resourceLabelSegments.push(`Discovery ${discoveryLabel}`);
       }
 
       if (metaSegments.length > 0) {
@@ -4062,6 +4275,49 @@ const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
 
     if (entry.element.number === null && elementDetails.number !== null) {
       entry.element.number = elementDetails.number;
+    }
+
+    if (!entry.element.category && elementDetails.category) {
+      entry.element.category = elementDetails.category;
+    }
+
+    if (
+      (!Number.isFinite(entry.element.atomicMass) || entry.element.atomicMass <= 0) &&
+      Number.isFinite(elementDetails.atomicMass) &&
+      elementDetails.atomicMass > 0
+    ) {
+      entry.element.atomicMass = elementDetails.atomicMass;
+    }
+
+    if (
+      (!Number.isFinite(entry.element.meltingPoint) || entry.element.meltingPoint <= 0) &&
+      Number.isFinite(elementDetails.meltingPoint) &&
+      elementDetails.meltingPoint > 0
+    ) {
+      entry.element.meltingPoint = elementDetails.meltingPoint;
+    }
+
+    if (
+      (!Number.isFinite(entry.element.boilingPoint) || entry.element.boilingPoint <= 0) &&
+      Number.isFinite(elementDetails.boilingPoint) &&
+      elementDetails.boilingPoint > 0
+    ) {
+      entry.element.boilingPoint = elementDetails.boilingPoint;
+    }
+
+    if (
+      entry.element.discoveryYear === null &&
+      elementDetails.discoveryYear !== null
+    ) {
+      entry.element.discoveryYear = elementDetails.discoveryYear;
+    }
+
+    if (!entry.element.discoverer && elementDetails.discoverer) {
+      entry.element.discoverer = elementDetails.discoverer;
+    }
+
+    if (!entry.element.summary && elementDetails.summary) {
+      entry.element.summary = elementDetails.summary;
     }
 
     if (
