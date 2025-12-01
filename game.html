@@ -1383,6 +1383,13 @@
         box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
       }
 
+      .inventory-panel__summary-warning {
+        margin: 4px 0 0;
+        color: #ffb4a2;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
       .inventory-panel__summary-tooltip {
         position: absolute;
         left: 0;
@@ -2374,6 +2381,12 @@
                 0 G / 10 KG MAX
               </div>
             </div>
+            <p
+              class="inventory-panel__summary-warning"
+              data-inventory-capacity-warning
+              hidden
+              aria-live="polite"
+            ></p>
           </div>
           <div class="inventory-panel__tabs" role="tablist">
             <button
