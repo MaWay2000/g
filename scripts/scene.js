@@ -5220,15 +5220,16 @@ export const initScene = (
       eventDetail.success = true;
     }
 
+    const elementWeight = getElementWeightFromAtomicNumber(element.number);
+    const elementDetail =
+      element && typeof element === "object"
+        ? { ...element, weight: elementWeight }
+        : { weight: elementWeight };
+
     dispatchResourceCollectionDetail({
       ...baseDetail,
       source: sessionSource,
-      element: {
-        number: element.number,
-        symbol: element.symbol,
-        name: element.name,
-        weight: getElementWeightFromAtomicNumber(element.number),
-      },
+      element: elementDetail,
       found: true,
     });
     if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
