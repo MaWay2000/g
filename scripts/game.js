@@ -239,9 +239,6 @@ const inventoryTooltipMeta = inventoryTooltip?.querySelector(
 const inventoryTooltipDetails = inventoryTooltip?.querySelector(
   "[data-inventory-tooltip-details]"
 );
-const inventoryTooltipSummary = inventoryTooltip?.querySelector(
-  "[data-inventory-tooltip-summary]"
-);
 const inventoryDroneRefuelButton = inventoryPanel?.querySelector(
   "[data-inventory-drone-refuel]"
 );
@@ -2273,11 +2270,6 @@ const showInventoryTooltipForItem = (item) => {
         value: item.dataset.inventoryBoiling,
         fallback: "Not recorded",
       },
-      {
-        label: "Discovery",
-        value: item.dataset.inventoryDiscovery,
-        fallback: "Not recorded",
-      },
     ];
 
     detailItems.forEach((detail) => {
@@ -2298,14 +2290,6 @@ const showInventoryTooltipForItem = (item) => {
     });
 
     inventoryTooltipDetails.hidden = false;
-  }
-
-  if (inventoryTooltipSummary instanceof HTMLElement) {
-    const summaryText = item.dataset.inventorySummary || "";
-    inventoryTooltipSummary.textContent = summaryText
-      ? summaryText
-      : "No additional discovery info.";
-    inventoryTooltipSummary.hidden = false;
   }
 
   positionInventoryTooltipForItem(item);
@@ -3624,24 +3608,6 @@ const formatTemperatureLabel = (kelvin) => {
   return `${celsiusRounded.toFixed(1)}°C / ${kelvinRounded.toFixed(1)}K`;
 };
 
-const formatDiscoveryLabel = (year, discoverer) => {
-  const segments = [];
-
-  if (Number.isFinite(year)) {
-    segments.push(String(Math.trunc(year)));
-  }
-
-  if (discoverer) {
-    segments.push(discoverer);
-  }
-
-  if (segments.length === 0) {
-    return null;
-  }
-
-  return segments.join(" • ");
-};
-
 const renderInventoryEntries = () => {
   if (!(inventoryList instanceof HTMLElement)) {
     return;
@@ -3675,10 +3641,6 @@ const renderInventoryEntries = () => {
       const formattedMass = formatAtomicMassLabel(entry.element.atomicMass);
       const formattedMelting = formatTemperatureLabel(entry.element.meltingPoint);
       const formattedBoiling = formatTemperatureLabel(entry.element.boilingPoint);
-      const discoveryLabel = formatDiscoveryLabel(
-        entry.element.discoveryYear,
-        entry.element.discoverer
-      );
 
       const resourceName =
         entry.element.name || entry.element.symbol || "Unknown resource";
@@ -3687,8 +3649,6 @@ const renderInventoryEntries = () => {
       item.dataset.inventoryMass = formattedMass || "";
       item.dataset.inventoryMelting = formattedMelting || "";
       item.dataset.inventoryBoiling = formattedBoiling || "";
-      item.dataset.inventoryDiscovery = discoveryLabel || "";
-      item.dataset.inventorySummary = entry.element.summary || "";
       if (Number.isFinite(entry.element.number)) {
         item.dataset.inventoryNumber = String(entry.element.number);
       } else {
@@ -3753,10 +3713,6 @@ const renderInventoryEntries = () => {
 
       if (formattedBoiling) {
         resourceLabelSegments.push(`Boiling ${formattedBoiling}`);
-      }
-
-      if (discoveryLabel) {
-        resourceLabelSegments.push(`Discovery ${discoveryLabel}`);
       }
 
       if (metaSegments.length > 0) {
