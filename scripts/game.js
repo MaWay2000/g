@@ -3441,14 +3441,47 @@ const renderMissionModalMissions = () => {
 
     if (pendingMissions.length === 0) {
       const item = document.createElement("li");
-      item.className = "quick-access-modal__list-item";
+      item.className = "mission-queue__empty";
       item.textContent = "All queued assignments are deployed.";
       queue.appendChild(item);
     } else {
-      pendingMissions.slice(0, 3).forEach((mission) => {
+      const queueStates = [
+        "launch window confirmed",
+        "crew checks green",
+        "navsync uplink pending",
+      ];
+
+      pendingMissions.slice(0, 3).forEach((mission, index) => {
         const item = document.createElement("li");
-        item.className = "quick-access-modal__list-item";
-        item.textContent = `${mission.priorityLabel} queued: ${mission.title}`;
+        item.className = "mission-queue__item";
+
+        const icon = document.createElement("span");
+        icon.className = "mission-queue__icon";
+        icon.dataset.icon = index === 0 ? "rocket" : "circle";
+        item.appendChild(icon);
+
+        const content = document.createElement("div");
+        content.className = "mission-queue__content";
+
+        const label = document.createElement("p");
+        label.className = "mission-queue__label";
+        label.textContent = `${mission.priorityLabel} queued`;
+        content.appendChild(label);
+
+        const title = document.createElement("p");
+        title.className = "mission-queue__title";
+        title.textContent = mission.title;
+        content.appendChild(title);
+
+        const stateText = queueStates[index % queueStates.length];
+        if (stateText) {
+          const state = document.createElement("p");
+          state.className = "mission-queue__state";
+          state.textContent = stateText;
+          content.appendChild(state);
+        }
+
+        item.appendChild(content);
         queue.appendChild(item);
       });
     }
