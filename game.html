@@ -1713,11 +1713,11 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        gap: clamp(0.15rem, 0.9vw, 0.3rem);
-        min-height: clamp(3.4rem, 9vw, 4.4rem);
-        aspect-ratio: 1 / 1;
-        padding: clamp(0.3rem, 0.9vw, 0.5rem);
+        justify-content: flex-start;
+        gap: clamp(0.2rem, 1.1vw, 0.5rem);
+        min-height: clamp(4.4rem, 11vw, 5.8rem);
+        aspect-ratio: auto;
+        padding: clamp(0.4rem, 1.1vw, 0.65rem);
         border-radius: clamp(0.85rem, 2vw, 1.1rem);
         background: radial-gradient(
             circle at top,
@@ -1886,6 +1886,42 @@
         color: rgba(148, 163, 184, 0.85);
       }
 
+      .inventory-panel__meta-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0.12rem;
+      }
+
+      .inventory-panel__meta-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.35rem;
+        padding: 0.2rem 0.35rem;
+        width: 100%;
+        border-radius: 0.55rem;
+        background: rgba(8, 47, 73, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.1);
+      }
+
+      .inventory-panel__meta-label {
+        font-size: clamp(0.52rem, 1.1vw, 0.68rem);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .inventory-panel__meta-value {
+        font-size: clamp(0.56rem, 1.3vw, 0.78rem);
+        font-weight: 600;
+        color: rgba(226, 232, 240, 0.92);
+        text-align: right;
+      }
+
       .inventory-panel__item:not(.inventory-panel__item--empty):hover .inventory-panel__symbol,
       .inventory-panel__item:not(.inventory-panel__item--empty):focus-visible
         .inventory-panel__symbol,
@@ -1965,6 +2001,47 @@
 
       .inventory-panel__meta[hidden] {
         display: none;
+      }
+
+      .inventory-panel__tooltip-list {
+        list-style: none;
+        margin: 0.45rem 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        text-align: left;
+      }
+
+      .inventory-panel__tooltip-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.25rem 0.4rem;
+        border-radius: 0.5rem;
+        background: rgba(94, 234, 212, 0.08);
+        box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.1);
+      }
+
+      .inventory-panel__tooltip-label {
+        font-size: clamp(0.68rem, 1.4vw, 0.82rem);
+        color: rgba(226, 232, 240, 0.9);
+        font-weight: 600;
+      }
+
+      .inventory-panel__tooltip-value {
+        font-size: clamp(0.62rem, 1.2vw, 0.78rem);
+        color: rgba(148, 163, 184, 0.92);
+        text-align: right;
+      }
+
+      .inventory-panel__tooltip-summary {
+        margin: 0.5rem 0 0;
+        font-size: clamp(0.66rem, 1.4vw, 0.82rem);
+        color: rgba(148, 163, 184, 0.9);
+        line-height: 1.4;
+        text-align: left;
       }
 
       .inventory-panel__empty-slot {
@@ -2478,6 +2555,14 @@
             class="inventory-panel__meta"
             data-inventory-tooltip-meta
             hidden
+          ></p>
+          <ul
+            class="inventory-panel__tooltip-list"
+            data-inventory-tooltip-details
+          ></ul>
+          <p
+            class="inventory-panel__tooltip-summary"
+            data-inventory-tooltip-summary
           ></p>
         </div>
       </div>
