@@ -1431,6 +1431,16 @@ export const initScene = (
           description: "Active assignments",
         },
         {
+          id: "research",
+          title: "RESEARCH",
+          description: "Lab projects & prototypes",
+        },
+        {
+          id: "market",
+          title: "MARKET",
+          description: "Trade hub & requisitions",
+        },
+        {
           id: "map",
           title: "MAP",
           description: "Expedition routes & caches",
