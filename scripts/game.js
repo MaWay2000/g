@@ -3655,7 +3655,6 @@ const renderInventoryEntries = () => {
       if (resourceLabelSegments.length > 0) {
         const label = resourceLabelSegments.join(", ");
         item.setAttribute("aria-label", label);
-        item.title = resourceLabelSegments.join(" • ");
       }
     } else {
       item.className = "inventory-panel__item inventory-panel__item--empty";
