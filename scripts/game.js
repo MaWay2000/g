@@ -9,7 +9,11 @@ import {
   loadStoredDroneState,
   persistDroneCargoState,
 } from "./drone-state-storage.js";
-import { clearStoredSettings, loadStoredSettings } from "./settings-storage.js";
+import {
+  clearStoredSettings,
+  loadStoredSettings,
+  persistSettings,
+} from "./settings-storage.js";
 import { PERIODIC_ELEMENTS } from "./data/periodic-elements.js";
 import {
   MAX_ACTIVE_MISSIONS,
@@ -33,6 +37,12 @@ const resourceToolIndicator = document.querySelector(
 );
 const crosshair = document.querySelector(".crosshair");
 const topBar = document.querySelector(".top-bar");
+const lowPerformanceToggle = document.querySelector(
+  "[data-low-performance-toggle]"
+);
+const lowPerformanceIndicator = document.querySelector(
+  "[data-low-performance-indicator]"
+);
 const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
   "[data-mission-indicator-active]"
@@ -65,7 +75,7 @@ const droneFuelMeters = Array.from(document.querySelectorAll("[data-drone-fuel-b
 const searchParams = new URL(window.location.href).searchParams;
 const inventoryViewingMode =
   searchParams.get("inventoryView") === "watch" ? "watch" : "manage";
-const settings = loadStoredSettings();
+let currentSettings = loadStoredSettings();
 const droneRefuelButtons = Array.from(
   document.querySelectorAll("[data-drone-refuel]") ?? []
 );
@@ -152,6 +162,26 @@ if (topBar instanceof HTMLElement) {
 
   applyFullscreenClass();
 }
+
+const applyLowPerformanceUiState = () => {
+  const isLowPerformanceMode = Boolean(currentSettings?.lowPerformanceMode);
+
+  if (lowPerformanceToggle instanceof HTMLInputElement) {
+    lowPerformanceToggle.checked = isLowPerformanceMode;
+    lowPerformanceToggle.setAttribute("aria-pressed", String(isLowPerformanceMode));
+  }
+
+  if (lowPerformanceIndicator instanceof HTMLElement) {
+    lowPerformanceIndicator.hidden = !isLowPerformanceMode;
+    lowPerformanceIndicator.dataset.active = isLowPerformanceMode ? "true" : "false";
+  }
+
+  if (bodyElement instanceof HTMLBodyElement) {
+    bodyElement.classList.toggle("is-low-performance", isLowPerformanceMode);
+  }
+};
+
+applyLowPerformanceUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -6574,8 +6604,10 @@ const bootstrapScene = () => {
     return;
   }
 
+  sceneController?.dispose?.();
+
   sceneController = initScene(canvas, {
-    settings,
+    settings: currentSettings,
     onControlsLocked() {
       instructions?.setAttribute("hidden", "");
       setPointerLockImmersiveModeEnabled(true);
@@ -6708,6 +6740,20 @@ const bootstrapScene = () => {
   sceneController?.setLiftInteractionsEnabled?.(!editModeActive);
 
 };
+
+const rebuildSceneWithCurrentSettings = () => {
+  applyLowPerformanceUiState();
+  window.requestAnimationFrame(bootstrapScene);
+};
+
+if (lowPerformanceToggle instanceof HTMLInputElement) {
+  lowPerformanceToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, lowPerformanceMode: enabled };
+    persistSettings(currentSettings);
+    rebuildSceneWithCurrentSettings();
+  });
+}
 
 const scheduleBootstrapScene = () => {
   const start = () => window.requestAnimationFrame(bootstrapScene);

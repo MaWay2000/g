@@ -655,6 +655,127 @@
         backdrop-filter: blur(8px);
       }
 
+      .performance-toggle {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.55rem 0.85rem 0.55rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.65);
+        background: rgba(15, 23, 42, 0.5);
+        color: inherit;
+        cursor: pointer;
+        user-select: none;
+        min-width: 0;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+        transition: border-color 150ms ease, box-shadow 150ms ease,
+          background 150ms ease, transform 150ms ease;
+      }
+
+      .performance-toggle:hover,
+      .performance-toggle:focus-within {
+        border-color: rgba(94, 234, 212, 0.65);
+        box-shadow: 0 14px 32px rgba(59, 130, 246, 0.15);
+        transform: translateY(-1px);
+      }
+
+      .performance-toggle__input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+        margin: 0;
+      }
+
+      .performance-toggle__track {
+        position: relative;
+        width: 46px;
+        height: 26px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.35);
+        border: 1px solid rgba(148, 163, 184, 0.65);
+        display: inline-flex;
+        align-items: center;
+        padding: 2px;
+        transition: background 160ms ease, border-color 160ms ease;
+      }
+
+      .performance-toggle__thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.35);
+        transition: transform 160ms ease, background 160ms ease;
+        transform: translateX(0);
+      }
+
+      .performance-toggle__input:checked + .performance-toggle__track {
+        background: linear-gradient(
+          135deg,
+          rgba(52, 211, 153, 0.25),
+          rgba(34, 197, 94, 0.38)
+        );
+        border-color: rgba(74, 222, 128, 0.8);
+      }
+
+      .performance-toggle__input:checked + .performance-toggle__track .performance-toggle__thumb {
+        transform: translateX(18px);
+        background: #4ade80;
+        box-shadow: 0 10px 20px rgba(22, 163, 74, 0.4);
+      }
+
+      .performance-toggle__text {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        min-width: 0;
+      }
+
+      .performance-toggle__title {
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .performance-toggle__hint {
+        color: rgba(226, 232, 240, 0.75);
+        font-size: 0.82rem;
+        letter-spacing: 0.01em;
+      }
+
+      .performance-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(74, 222, 128, 0.7);
+        background: rgba(22, 163, 74, 0.18);
+        color: #bbf7d0;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        box-shadow: 0 12px 32px rgba(16, 185, 129, 0.2);
+      }
+
+      .performance-badge::before {
+        content: "";
+        width: 0.75rem;
+        height: 0.75rem;
+        border-radius: 50%;
+        background: radial-gradient(circle, #4ade80 40%, rgba(34, 197, 94, 0.9));
+        box-shadow: 0 0 12px rgba(74, 222, 128, 0.55);
+      }
+
+      .performance-badge[hidden] {
+        display: none;
+      }
+
+      body.is-low-performance .performance-toggle {
+        border-color: rgba(74, 222, 128, 0.7);
+        box-shadow: 0 12px 28px rgba(22, 163, 74, 0.2);
+      }
+
       .mission-indicator {
         align-self: flex-start;
         margin: 0 var(--ui-gutter);
@@ -2349,6 +2470,25 @@
         <button class="reset" type="button" data-reset-button>
           Reset Progress
         </button>
+        <label class="performance-toggle">
+          <input
+            class="performance-toggle__input"
+            type="checkbox"
+            role="switch"
+            aria-label="Toggle performance saving mode"
+            data-low-performance-toggle
+          />
+          <span class="performance-toggle__track" aria-hidden="true">
+            <span class="performance-toggle__thumb" aria-hidden="true"></span>
+          </span>
+          <span class="performance-toggle__text">
+            <span class="performance-toggle__title">Performance saver</span>
+            <span class="performance-toggle__hint">Reduce rendering load</span>
+          </span>
+        </label>
+        <span class="performance-badge" data-low-performance-indicator hidden>
+          Saver active
+        </span>
         <button class="logout" type="button" data-logout-button>Log out</button>
       </div>
 
