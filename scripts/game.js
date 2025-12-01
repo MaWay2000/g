@@ -2269,6 +2269,16 @@ const handleInventoryItemPointerOut = (event) => {
   hideInventoryTooltip();
 };
 
+const handleInventoryItemClick = (event) => {
+  const item = getInventoryItemElement(event.target);
+
+  if (!item) {
+    return;
+  }
+
+  showInventoryTooltipForItem(item);
+};
+
 const handleInventoryItemFocusIn = (event) => {
   const item = getInventoryItemElement(event.target);
 
@@ -5356,6 +5366,7 @@ if (inventoryList instanceof HTMLElement) {
     handleInventoryItemPointerOver
   );
   inventoryList.addEventListener("pointerout", handleInventoryItemPointerOut);
+  inventoryList.addEventListener("click", handleInventoryItemClick);
   inventoryList.addEventListener("focusin", handleInventoryItemFocusIn);
   inventoryList.addEventListener("focusout", handleInventoryItemFocusOut);
 }
