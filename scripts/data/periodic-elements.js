@@ -1575,6 +1575,8 @@ export const samplePeriodicElement = (randomFn = Math.random) => {
       if (!element) {
         break;
       }
+      // Return the full element object so downstream consumers receive all
+      // available metadata instead of a pared-down subset.
       return { ...element };
     }
   }
