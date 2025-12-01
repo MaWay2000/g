@@ -11,6 +11,14 @@ import {
 } from "./drone-state-storage.js";
 import { clearStoredSettings, loadStoredSettings } from "./settings-storage.js";
 import { PERIODIC_ELEMENTS } from "./data/periodic-elements.js";
+import {
+  MAX_ACTIVE_MISSIONS,
+  completeMission,
+  getActiveMissions,
+  getMissions,
+  getPendingMissions,
+  subscribeToMissionState,
+} from "./missions.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -25,6 +33,13 @@ const resourceToolIndicator = document.querySelector(
 );
 const crosshair = document.querySelector(".crosshair");
 const topBar = document.querySelector(".top-bar");
+const missionIndicator = document.querySelector("[data-mission-indicator]");
+const missionIndicatorActiveLabel = missionIndicator?.querySelector(
+  "[data-mission-indicator-active]"
+);
+const missionIndicatorNextLabel = missionIndicator?.querySelector(
+  "[data-mission-indicator-next]"
+);
 const quickSlotBar = document.querySelector("[data-quick-slot-bar]");
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
 const resourceToolDescription = document.querySelector(
@@ -1818,6 +1833,7 @@ let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let sceneController = null;
 let liftModalActive = false;
+let missionModalActive = false;
 
 const INVENTORY_SLOT_COUNT = 100;
 const DEFAULT_INVENTORY_CAPACITY_KG = 10;
@@ -3329,11 +3345,146 @@ const renderLiftModalFloors = () => {
   updateLiftModalActiveState();
 };
 
+const createMissionCard = (mission) => {
+  const card = document.createElement("article");
+  card.className = "quick-access-modal__card";
+
+  const status = document.createElement("p");
+  status.className = "quick-access-modal__status-tag";
+  if (mission.priorityVariant === "critical") {
+    status.dataset.status = "critical";
+  }
+  status.textContent = mission.priorityLabel || "Mission";
+  card.appendChild(status);
+
+  const title = document.createElement("h3");
+  title.textContent = mission.title;
+  card.appendChild(title);
+
+  const description = document.createElement("p");
+  description.textContent = mission.description;
+  card.appendChild(description);
+
+  if (mission.status === "active") {
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "quick-access-modal__action";
+    action.textContent = "Mark complete";
+
+    action.addEventListener("click", () => {
+      completeMission(mission.id);
+    });
+
+    card.appendChild(action);
+  }
+
+  return card;
+};
+
+const renderMissionModalMissions = () => {
+  if (!missionModalActive || !quickAccessModalContent) {
+    return;
+  }
+
+  const grid = quickAccessModalContent.querySelector("[data-mission-card-grid]");
+  const queue = quickAccessModalContent.querySelector("[data-mission-queue]");
+  const empty = quickAccessModalContent.querySelector("[data-mission-empty]");
+  const subtitle = quickAccessModalContent.querySelector("[data-mission-subtitle]");
+
+  const activeMissions = getActiveMissions();
+  const pendingMissions = getPendingMissions();
+
+  if (grid instanceof HTMLElement) {
+    grid.innerHTML = "";
+    activeMissions.forEach((mission) => {
+      const card = createMissionCard(mission);
+      grid.appendChild(card);
+    });
+  }
+
+  if (empty instanceof HTMLElement) {
+    empty.hidden = activeMissions.length > 0;
+  }
+
+  if (queue instanceof HTMLElement) {
+    queue.innerHTML = "";
+
+    if (pendingMissions.length === 0) {
+      const item = document.createElement("li");
+      item.className = "quick-access-modal__list-item";
+      item.textContent = "All queued assignments are deployed.";
+      queue.appendChild(item);
+    } else {
+      pendingMissions.slice(0, 3).forEach((mission) => {
+        const item = document.createElement("li");
+        item.className = "quick-access-modal__list-item";
+        item.textContent = `${mission.priorityLabel} queued: ${mission.title}`;
+        queue.appendChild(item);
+      });
+    }
+  }
+
+  if (subtitle instanceof HTMLElement) {
+    subtitle.textContent = `${activeMissions.length} / ${MAX_ACTIVE_MISSIONS} active assignments`;
+  }
+};
+
+const updateMissionIndicator = () => {
+  const activeMissions = getActiveMissions();
+  const pendingMissions = getPendingMissions();
+
+  if (missionIndicator instanceof HTMLElement) {
+    missionIndicator.hidden = false;
+  }
+
+  if (missionIndicatorActiveLabel instanceof HTMLElement) {
+    missionIndicatorActiveLabel.textContent = `${activeMissions.length} active`;
+  }
+
+  if (missionIndicatorNextLabel instanceof HTMLElement) {
+    const nextMission = pendingMissions[0];
+    missionIndicatorNextLabel.textContent = nextMission
+      ? `Next: ${nextMission.title}`
+      : activeMissions.length > 0
+        ? "All queued assignments deployed"
+        : "Awaiting mission dispatch";
+  }
+};
+
+const handleMissionStateChanged = (detail = {}) => {
+  updateMissionIndicator();
+
+  if (missionModalActive) {
+    renderMissionModalMissions();
+  }
+
+  if (detail?.type === "completed") {
+    const mission = getMissions().find((item) => item.id === detail.missionId);
+    const promotedTitle = detail.promoted?.[0]?.title;
+
+    if (mission) {
+      const description = promotedTitle
+        ? `${promotedTitle} promoted to active.`
+        : "Mission slot cleared.";
+
+      showTerminalToast({ title: `${mission.title} completed`, description });
+    }
+  }
+};
+
+updateMissionIndicator();
+subscribeToMissionState(handleMissionStateChanged);
+
 const initializeQuickAccessModalContent = (option) => {
   liftModalActive = option?.id === LIFT_MODAL_OPTION.id;
+  missionModalActive = option?.id === "missions";
 
   if (liftModalActive) {
     renderLiftModalFloors();
+  }
+
+  if (missionModalActive) {
+    renderMissionModalMissions();
   }
 };
 
@@ -5262,6 +5413,7 @@ const finishClosingQuickAccessModal = () => {
   }
 
   liftModalActive = false;
+  missionModalActive = false;
   quickAccessModal.hidden = true;
   quickAccessModalContent.innerHTML = "";
   stopQuickAccessMatrix();

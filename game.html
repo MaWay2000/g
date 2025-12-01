@@ -655,6 +655,46 @@
         backdrop-filter: blur(8px);
       }
 
+      .mission-indicator {
+        align-self: flex-start;
+        margin: 0 var(--ui-gutter);
+        padding: 0.85rem 1.2rem 1rem;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.78);
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        box-shadow: 0 16px 40px rgba(8, 47, 73, 0.35);
+        backdrop-filter: blur(12px);
+        max-width: 320px;
+      }
+
+      .mission-indicator__pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.18);
+        color: rgba(125, 211, 252, 0.95);
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 0 0 0.35rem;
+      }
+
+      .mission-indicator__title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: rgba(226, 232, 240, 0.96);
+      }
+
+      .mission-indicator__subtitle {
+        margin: 0.25rem 0 0;
+        font-size: 0.95rem;
+        color: rgba(148, 163, 184, 0.95);
+      }
+
       a.cta:focus-visible,
       a.cta:hover {
         transform: translateY(-2px);
@@ -1138,6 +1178,28 @@
       .quick-access-modal__status-tag[data-status="critical"] {
         background: rgba(248, 113, 113, 0.18);
         color: #fecaca;
+      }
+
+      .quick-access-modal__action {
+        margin-top: 0.65rem;
+        padding: 0.55rem 0.85rem;
+        border-radius: 12px;
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        background: rgba(56, 189, 248, 0.16);
+        color: #e2e8f0;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease,
+          background 160ms ease, border-color 160ms ease;
+      }
+
+      .quick-access-modal__action:hover,
+      .quick-access-modal__action:focus-visible {
+        outline: none;
+        transform: translateY(-2px);
+        border-color: rgba(96, 165, 250, 0.8);
+        box-shadow: 0 16px 36px rgba(59, 130, 246, 0.3);
+        background: rgba(56, 189, 248, 0.22);
       }
 
       .inventory-panel {
@@ -2221,6 +2283,16 @@
         <button class="logout" type="button" data-logout-button>Log out</button>
       </div>
 
+      <div class="mission-indicator" data-mission-indicator>
+        <div class="mission-indicator__pill">Mission queue</div>
+        <p class="mission-indicator__title" data-mission-indicator-active>
+          0 active
+        </p>
+        <p class="mission-indicator__subtitle" data-mission-indicator-next>
+          Loading missions…
+        </p>
+      </div>
+
       <div
         class="resource-tool-indicator"
         aria-hidden="true"
@@ -2695,47 +2767,21 @@
       <header class="quick-access-modal__header">
         <p class="quick-access-modal__eyebrow">Terminal quick access</p>
         <h2 class="quick-access-modal__title">Mission Roster</h2>
-        <p class="quick-access-modal__subtitle">
+        <p class="quick-access-modal__subtitle" data-mission-subtitle>
           Active Dusty Nova assignments awaiting specialist deployment.
         </p>
       </header>
       <section class="quick-access-modal__section">
         <h3 class="quick-access-modal__section-title">Priority ops</h3>
-        <div class="quick-access-modal__card-grid">
-          <article class="quick-access-modal__card">
-            <p class="quick-access-modal__status-tag" data-status="critical">Alpha</p>
-            <h3>Silent Relay</h3>
-            <p>
-              Reboot the dormant subspace beacon before the next eclipse to restore comms.
-            </p>
-          </article>
-          <article class="quick-access-modal__card">
-            <p class="quick-access-modal__status-tag">Bravo</p>
-            <h3>Drift Cleanup</h3>
-            <p>
-              Collect volatile debris near the old mining rigs; expect low-grav turbulence.
-            </p>
-          </article>
-          <article class="quick-access-modal__card">
-            <p class="quick-access-modal__status-tag">Charlie</p>
-            <h3>Archive Escort</h3>
-            <p>
-              Protect archivists transporting recovered AI cores to the secure vault.
-            </p>
-          </article>
-        </div>
+        <p class="quick-access-modal__list-item" data-mission-empty>
+          No missions are active. Command will dispatch the next objective automatically.
+        </p>
+        <div class="quick-access-modal__card-grid" data-mission-card-grid></div>
       </section>
       <hr class="quick-access-modal__divider" />
       <section class="quick-access-modal__section">
         <h3 class="quick-access-modal__section-title">Squad updates</h3>
-        <ul class="quick-access-modal__list">
-          <li class="quick-access-modal__list-item">
-            Echo squad rerouted to Silent Relay—requesting additional engineers on standby.
-          </li>
-          <li class="quick-access-modal__list-item">
-            Logistics will auto-sync mission telemetry once you clear the command terminal.
-          </li>
-        </ul>
+        <ul class="quick-access-modal__list" data-mission-queue></ul>
       </section>
     </template>
 

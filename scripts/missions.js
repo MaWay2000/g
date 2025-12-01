@@ -1,0 +1,268 @@
+const MISSION_STORAGE_KEY = "dustyNova.missions";
+export const MAX_ACTIVE_MISSIONS = 3;
+
+const missionDefinitions = [
+  {
+    id: "silent-relay",
+    title: "Silent Relay",
+    description: "Reboot the dormant subspace beacon before the next eclipse to restore comms.",
+    priorityLabel: "Alpha",
+    priorityVariant: "critical",
+    unlockOrder: 0,
+  },
+  {
+    id: "drift-cleanup",
+    title: "Drift Cleanup",
+    description: "Collect volatile debris near the old mining rigs; expect low-grav turbulence.",
+    priorityLabel: "Bravo",
+    priorityVariant: "stable",
+    unlockOrder: 1,
+  },
+  {
+    id: "archive-escort",
+    title: "Archive Escort",
+    description:
+      "Protect archivists transporting recovered AI cores to the secure vault.",
+    priorityLabel: "Charlie",
+    priorityVariant: "stable",
+    unlockOrder: 2,
+  },
+  {
+    id: "ridge-survey",
+    title: "Ridge Survey",
+    description: "Map the fractures across Arcus Ridge before the next ion squall.",
+    priorityLabel: "Delta",
+    priorityVariant: "stable",
+    unlockOrder: 3,
+  },
+  {
+    id: "relay-defense",
+    title: "Relay Defense",
+    description: "Deploy shielding pylons while the beacon synchronizes with orbital relays.",
+    priorityLabel: "Echo",
+    priorityVariant: "critical",
+    unlockOrder: 4,
+  },
+];
+
+const missionLookup = new Map(missionDefinitions.map((mission) => [mission.id, mission]));
+const orderedMissions = missionDefinitions
+  .slice()
+  .sort((a, b) => a.unlockOrder - b.unlockOrder);
+
+const getMissionStorage = (() => {
+  let resolved = false;
+  let storage = null;
+
+  return () => {
+    if (resolved) {
+      return storage;
+    }
+
+    resolved = true;
+
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    try {
+      storage = window.localStorage;
+      const probeKey = `${MISSION_STORAGE_KEY}.probe`;
+      storage.setItem(probeKey, "1");
+      storage.removeItem(probeKey);
+    } catch (error) {
+      console.warn("Unable to access mission storage", error);
+      storage = null;
+    }
+
+    return storage;
+  };
+})();
+
+const getMissionStatus = (value) => {
+  if (value === "active" || value === "completed") {
+    return value;
+  }
+
+  return "pending";
+};
+
+const createDefaultMissionState = () => {
+  const statuses = {};
+  orderedMissions.forEach((mission, index) => {
+    statuses[mission.id] = index < MAX_ACTIVE_MISSIONS ? "active" : "pending";
+  });
+  return { statuses };
+};
+
+const loadStoredMissionState = () => {
+  const storage = getMissionStorage();
+
+  if (!storage) {
+    return null;
+  }
+
+  try {
+    const serialized = storage.getItem(MISSION_STORAGE_KEY);
+
+    if (!serialized) {
+      return null;
+    }
+
+    const parsed = JSON.parse(serialized);
+    const statuses = parsed?.statuses;
+    if (!statuses || typeof statuses !== "object") {
+      return null;
+    }
+
+    const normalizedStatuses = {};
+    orderedMissions.forEach((mission) => {
+      normalizedStatuses[mission.id] = getMissionStatus(statuses[mission.id]);
+    });
+
+    return { statuses: normalizedStatuses };
+  } catch (error) {
+    console.warn("Unable to read stored missions", error);
+  }
+
+  return null;
+};
+
+let missionState = createDefaultMissionState();
+
+const persistMissionState = () => {
+  const storage = getMissionStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(MISSION_STORAGE_KEY, JSON.stringify(missionState));
+  } catch (error) {
+    console.warn("Unable to persist missions", error);
+  }
+};
+
+const enforceActiveSlots = () => {
+  const promotedMissions = [];
+  const activeMissions = [];
+
+  orderedMissions.forEach((mission) => {
+    const status = getMissionStatus(missionState.statuses[mission.id]);
+    if (status === "active") {
+      activeMissions.push(mission);
+    }
+  });
+
+  if (activeMissions.length > MAX_ACTIVE_MISSIONS) {
+    for (let index = MAX_ACTIVE_MISSIONS; index < activeMissions.length; index += 1) {
+      const mission = activeMissions[index];
+      if (mission) {
+        missionState.statuses[mission.id] = "pending";
+      }
+    }
+  }
+
+  const activeIds = new Set(
+    orderedMissions
+      .filter((mission) => getMissionStatus(missionState.statuses[mission.id]) === "active")
+      .map((mission) => mission.id)
+  );
+
+  if (activeIds.size < MAX_ACTIVE_MISSIONS) {
+    for (const mission of orderedMissions) {
+      if (activeIds.size >= MAX_ACTIVE_MISSIONS) {
+        break;
+      }
+
+      if (getMissionStatus(missionState.statuses[mission.id]) !== "pending") {
+        continue;
+      }
+
+      missionState.statuses[mission.id] = "active";
+      activeIds.add(mission.id);
+      promotedMissions.push(mission);
+    }
+  }
+
+  return promotedMissions;
+};
+
+const initializeMissionState = () => {
+  const storedState = loadStoredMissionState();
+
+  if (storedState) {
+    missionState = storedState;
+  }
+
+  enforceActiveSlots();
+  persistMissionState();
+};
+
+initializeMissionState();
+
+const listeners = new Set();
+
+const notifyMissionListeners = (detail = {}) => {
+  listeners.forEach((listener) => {
+    try {
+      listener(detail);
+    } catch (error) {
+      console.warn("Mission listener failed", error);
+    }
+  });
+};
+
+export const getMissions = () =>
+  orderedMissions.map((mission) => ({
+    ...mission,
+    status: getMissionStatus(missionState.statuses[mission.id]),
+  }));
+
+export const getActiveMissions = () => getMissions().filter((mission) => mission.status === "active");
+
+export const getPendingMissions = () =>
+  getMissions().filter((mission) => mission.status === "pending");
+
+export const subscribeToMissionState = (listener) => {
+  if (typeof listener !== "function") {
+    return () => {};
+  }
+
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+export const completeMission = (missionId) => {
+  const mission = missionLookup.get(missionId);
+
+  if (!mission) {
+    return { completed: null, promoted: [] };
+  }
+
+  const currentStatus = getMissionStatus(missionState.statuses[missionId]);
+
+  if (currentStatus === "completed") {
+    return { completed: mission, promoted: [] };
+  }
+
+  if (currentStatus !== "active") {
+    return { completed: null, promoted: [] };
+  }
+
+  missionState.statuses[missionId] = "completed";
+
+  const promoted = enforceActiveSlots();
+  persistMissionState();
+  notifyMissionListeners({ type: "completed", missionId, promoted });
+
+  return { completed: mission, promoted };
+};
+
+export const resetMissions = () => {
+  missionState = createDefaultMissionState();
+  enforceActiveSlots();
+  persistMissionState();
+  notifyMissionListeners({ type: "reset" });
+};
