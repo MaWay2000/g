@@ -320,7 +320,6 @@ export const initScene = (
   </g>
   <g>
     <text x="96" y="116" fill="#94a3b8" fill-opacity="0.82" font-size="44" font-family="'Segoe UI', 'Inter', sans-serif" font-weight="600" letter-spacing="6">TERMINAL</text>
-    <text x="96" y="220" fill="#38bdf8" font-size="102" font-family="'Segoe UI', 'Inter', sans-serif" font-weight="700">Quick Access</text>
   </g>
   <line x1="84" y1="256" x2="940" y2="256" stroke="#334155" stroke-opacity="0.55" stroke-width="3" />
   <g font-family="'Segoe UI', 'Inter', sans-serif">
@@ -1639,10 +1638,6 @@ export const initScene = (
           context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
           context.textBaseline = "middle";
           context.fillText("TERMINAL", bezelInset + 36, bezelInset + 48);
-
-          context.fillStyle = "#38bdf8";
-          context.font = "700 70px 'Segoe UI', 'Inter', sans-serif";
-          context.fillText("Quick Access", bezelInset + 36, bezelInset + 132);
 
           const optionZones = quickAccessZones;
 
