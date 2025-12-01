@@ -1406,7 +1406,7 @@ export const initScene = (
 
     const createMonitorDisplayTexture = () => {
       const width = 1024;
-      const height = 768;
+      const height = 900;
 
       quickAccessTextureSize = { width, height };
 
@@ -1433,14 +1433,22 @@ export const initScene = (
         },
       ];
 
-      const bezelInset = 48;
-      const optionHeight = 132;
-      const optionSpacing = 24;
+      const bezelInset = 56;
+      const optionHeight = 148;
+      const optionStartOffset = bezelInset + 140;
 
       const computeQuickAccessZones = () => {
         const optionX = bezelInset + 40;
         const optionWidth = width - optionX * 2;
-        let optionY = bezelInset + 120;
+        const optionCount = quickAccessOptionDefinitions.length;
+        const availableHeight =
+          height - optionStartOffset - bezelInset - optionHeight * optionCount;
+        const optionSpacing = Math.max(
+          24,
+          availableHeight / Math.max(optionCount - 1, 1)
+        );
+
+        let optionY = optionStartOffset;
 
         return quickAccessOptionDefinitions.map((definition) => {
           const zone = {
