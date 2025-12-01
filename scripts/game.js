@@ -2222,14 +2222,19 @@ const showInventoryTooltipForItem = (item) => {
     return;
   }
 
-  const name = typeof item.dataset.inventoryName === "string"
+  const rawName = typeof item.dataset.inventoryName === "string"
     ? item.dataset.inventoryName.trim()
     : "";
-  const meta = typeof item.dataset.inventoryMeta === "string"
-    ? item.dataset.inventoryMeta.trim()
+  const number = typeof item.dataset.inventoryNumber === "string"
+    ? item.dataset.inventoryNumber.trim()
+    : "";
+  const name = rawName || number
+    ? rawName && number
+      ? `${rawName} #${number}`
+      : rawName || `#${number}`
     : "";
 
-  if (!name && !meta) {
+  if (!name) {
     hideInventoryTooltip();
     return;
   }
@@ -2240,13 +2245,8 @@ const showInventoryTooltipForItem = (item) => {
   }
 
   if (inventoryTooltipMeta instanceof HTMLElement) {
-    if (meta) {
-      inventoryTooltipMeta.textContent = meta;
-      inventoryTooltipMeta.hidden = false;
-    } else {
-      inventoryTooltipMeta.textContent = "";
-      inventoryTooltipMeta.hidden = true;
-    }
+    inventoryTooltipMeta.textContent = "";
+    inventoryTooltipMeta.hidden = true;
   }
 
   if (inventoryTooltipDetails instanceof HTMLElement) {
@@ -2264,12 +2264,12 @@ const showInventoryTooltipForItem = (item) => {
         fallback: "Unknown",
       },
       {
-        label: "Melting point",
+        label: "Melting",
         value: item.dataset.inventoryMelting,
         fallback: "Not recorded",
       },
       {
-        label: "Boiling point",
+        label: "Boiling",
         value: item.dataset.inventoryBoiling,
         fallback: "Not recorded",
       },
@@ -3689,6 +3689,11 @@ const renderInventoryEntries = () => {
       item.dataset.inventoryBoiling = formattedBoiling || "";
       item.dataset.inventoryDiscovery = discoveryLabel || "";
       item.dataset.inventorySummary = entry.element.summary || "";
+      if (Number.isFinite(entry.element.number)) {
+        item.dataset.inventoryNumber = String(entry.element.number);
+      } else {
+        delete item.dataset.inventoryNumber;
+      }
 
       const symbolElement = document.createElement("span");
       symbolElement.className = "inventory-panel__symbol";
@@ -3723,12 +3728,6 @@ const renderInventoryEntries = () => {
         metaSegments.push("Multiple sites");
       }
 
-      if (metaSegments.length > 0) {
-        item.dataset.inventoryMeta = metaSegments.join(" • ");
-      } else {
-        delete item.dataset.inventoryMeta;
-      }
-
       const resourceLabelSegments = [];
       if (resourceName) {
         resourceLabelSegments.push(resourceName);
@@ -3761,7 +3760,8 @@ const renderInventoryEntries = () => {
       }
 
       if (metaSegments.length > 0) {
-        resourceLabelSegments.push(metaSegments.join(", "));
+        const metaLabel = metaSegments.join(", ");
+        resourceLabelSegments.push(metaLabel);
       }
 
       if (resourceLabelSegments.length > 0) {
@@ -3774,6 +3774,7 @@ const renderInventoryEntries = () => {
       item.setAttribute("aria-hidden", "true");
       delete item.dataset.inventoryName;
       delete item.dataset.inventoryMeta;
+      delete item.dataset.inventoryNumber;
       delete item.dataset.inventoryKey;
       delete item.dataset.inventoryDraggable;
 
