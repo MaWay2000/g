@@ -3532,6 +3532,14 @@ const renderInventoryEntries = () => {
       symbolElement.textContent = entry.element.symbol || "???";
       item.appendChild(symbolElement);
 
+      if (entry.count >= 1) {
+        const countElement = document.createElement("span");
+        countElement.className = "inventory-panel__count";
+        countElement.textContent = `×${entry.count}`;
+        countElement.setAttribute("aria-hidden", "true");
+        item.appendChild(countElement);
+      }
+
       const metaSegments = [];
 
       if (item.dataset.inventoryCategory) {
