@@ -3456,7 +3456,8 @@ const createMissionCard = (mission) => {
   if (mission.priorityVariant === "critical") {
     status.dataset.status = "critical";
   }
-  status.textContent = mission.priorityLabel || "Mission";
+  status.textContent =
+    mission.priorityVariant === "critical" ? "Critical assignment" : "Active assignment";
   card.appendChild(status);
 
   const title = document.createElement("h3");
@@ -3489,12 +3490,10 @@ const renderMissionModalMissions = () => {
   }
 
   const grid = quickAccessModalContent.querySelector("[data-mission-card-grid]");
-  const queue = quickAccessModalContent.querySelector("[data-mission-queue]");
   const empty = quickAccessModalContent.querySelector("[data-mission-empty]");
   const subtitle = quickAccessModalContent.querySelector("[data-mission-subtitle]");
 
   const activeMissions = getActiveMissions();
-  const pendingMissions = getPendingMissions();
 
   if (grid instanceof HTMLElement) {
     grid.innerHTML = "";
@@ -3506,57 +3505,6 @@ const renderMissionModalMissions = () => {
 
   if (empty instanceof HTMLElement) {
     empty.hidden = activeMissions.length > 0;
-  }
-
-  if (queue instanceof HTMLElement) {
-    queue.innerHTML = "";
-
-    if (pendingMissions.length === 0) {
-      const item = document.createElement("li");
-      item.className = "mission-queue__empty";
-      item.textContent = "All queued assignments are deployed.";
-      queue.appendChild(item);
-    } else {
-      const queueStates = [
-        "launch window confirmed",
-        "crew checks green",
-        "navsync uplink pending",
-      ];
-
-      pendingMissions.slice(0, 3).forEach((mission, index) => {
-        const item = document.createElement("li");
-        item.className = "mission-queue__item";
-
-        const icon = document.createElement("span");
-        icon.className = "mission-queue__icon";
-        icon.dataset.icon = index === 0 ? "rocket" : "circle";
-        item.appendChild(icon);
-
-        const content = document.createElement("div");
-        content.className = "mission-queue__content";
-
-        const label = document.createElement("p");
-        label.className = "mission-queue__label";
-        label.textContent = `${mission.priorityLabel} queued`;
-        content.appendChild(label);
-
-        const title = document.createElement("p");
-        title.className = "mission-queue__title";
-        title.textContent = mission.title;
-        content.appendChild(title);
-
-        const stateText = queueStates[index % queueStates.length];
-        if (stateText) {
-          const state = document.createElement("p");
-          state.className = "mission-queue__state";
-          state.textContent = stateText;
-          content.appendChild(state);
-        }
-
-        item.appendChild(content);
-        queue.appendChild(item);
-      });
-    }
   }
 
   if (subtitle instanceof HTMLElement) {
