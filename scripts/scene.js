@@ -80,11 +80,14 @@ export const initScene = (
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: !performanceSettings.lowPerformanceMode,
+    powerPreference: performanceSettings.lowPerformanceMode
+      ? "low-power"
+      : "high-performance",
   });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = false;
   const effectivePixelRatioCap = performanceSettings.lowPerformanceMode
-    ? Math.min(performanceSettings.maxPixelRatio, 1)
+    ? Math.min(performanceSettings.maxPixelRatio, 0.85)
     : performanceSettings.maxPixelRatio;
   const devicePixelRatio =
     typeof window.devicePixelRatio === "number" && window.devicePixelRatio > 0
@@ -111,7 +114,7 @@ export const initScene = (
   const textureLoader = new THREE.TextureLoader();
 
   const reflectionsEnabled = !performanceSettings.lowPerformanceMode;
-  const reflectorResolutionScale = performanceSettings.lowPerformanceMode ? 0.5 : 1;
+  const reflectorResolutionScale = performanceSettings.lowPerformanceMode ? 0.35 : 1;
 
   const liftInteractables = [];
   const liftUiControllers = new Set();
