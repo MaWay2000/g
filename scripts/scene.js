@@ -1622,16 +1622,6 @@ export const initScene = (
 
           renderMatrixOverlay();
 
-          context.save();
-          context.strokeStyle = "rgba(56, 189, 248, 0.18)";
-          context.lineWidth = 2;
-          context.setLineDash([12, 10]);
-          context.beginPath();
-          context.moveTo(bezelInset + 32, bezelInset + 160);
-          context.lineTo(width - (bezelInset + 32), bezelInset + 160);
-          context.stroke();
-          context.restore();
-
           context.fillStyle = "rgba(148, 163, 184, 0.7)";
           context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
           context.textBaseline = "middle";
