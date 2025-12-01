@@ -4,6 +4,7 @@ import {
   DEFAULT_PLAYER_HEIGHT,
   clearStoredPlayerState,
 } from "./player-state-storage.js";
+import { FpsMeter } from "./fps-meter.js";
 import {
   clearStoredDroneState,
   loadStoredDroneState,
@@ -46,6 +47,8 @@ const lowPerformanceToggle = document.querySelector(
 const lowPerformanceIndicator = document.querySelector(
   "[data-low-performance-indicator]"
 );
+const fpsToggle = document.querySelector("[data-fps-toggle]");
+const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
   "[data-mission-indicator-active]"
@@ -79,6 +82,7 @@ const searchParams = new URL(window.location.href).searchParams;
 const inventoryViewingMode =
   searchParams.get("inventoryView") === "watch" ? "watch" : "manage";
 let currentSettings = loadStoredSettings();
+const fpsMeter = new FpsMeter(fpsMeterElement);
 const droneRefuelButtons = Array.from(
   document.querySelectorAll("[data-drone-refuel]") ?? []
 );
@@ -237,7 +241,19 @@ const applyLowPerformanceUiState = () => {
   }
 };
 
+const applyFpsUiState = () => {
+  const shouldShowFps = Boolean(currentSettings?.showFpsCounter);
+
+  if (fpsToggle instanceof HTMLInputElement) {
+    fpsToggle.checked = shouldShowFps;
+    fpsToggle.setAttribute("aria-pressed", String(shouldShowFps));
+  }
+
+  fpsMeter.setEnabled(shouldShowFps);
+};
+
 applyLowPerformanceUiState();
+applyFpsUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -6832,6 +6848,7 @@ const bootstrapScene = () => {
 
 const rebuildSceneWithCurrentSettings = () => {
   applyLowPerformanceUiState();
+  applyFpsUiState();
   window.requestAnimationFrame(bootstrapScene);
 };
 
@@ -6841,6 +6858,15 @@ if (lowPerformanceToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, lowPerformanceMode: enabled };
     persistSettings(currentSettings);
     rebuildSceneWithCurrentSettings();
+  });
+}
+
+if (fpsToggle instanceof HTMLInputElement) {
+  fpsToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, showFpsCounter: enabled };
+    persistSettings(currentSettings);
+    applyFpsUiState();
   });
 }
 
