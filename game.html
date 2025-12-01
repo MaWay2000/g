@@ -1180,6 +1180,75 @@
         color: #fecaca;
       }
 
+      .mission-roster {
+        border-radius: 1.25rem;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(8, 47, 73, 0.64));
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        box-shadow: 0 30px 60px rgba(15, 23, 42, 0.4);
+        padding: 1.15rem;
+      }
+
+      .mission-roster__layout {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1.1rem;
+        align-items: start;
+      }
+
+      .mission-roster__panel {
+        position: relative;
+        padding: 1rem 1.1rem 1.15rem;
+        border-radius: 1rem;
+        background: rgba(15, 23, 42, 0.86);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        box-shadow: inset 0 1px 0 rgba(226, 232, 240, 0.05);
+      }
+
+      .mission-roster__panel--queue::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: radial-gradient(circle at 10% 12%, rgba(59, 130, 246, 0.12), transparent 45%);
+        pointer-events: none;
+        opacity: 0.85;
+      }
+
+      .mission-roster__panel-heading {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        margin-bottom: 0.6rem;
+      }
+
+      .mission-roster__eyebrow {
+        margin: 0;
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(125, 211, 252, 0.9);
+      }
+
+      .mission-roster__title {
+        margin: 0;
+        font-size: 1.05rem;
+        color: #f8fafc;
+      }
+
+      .mission-roster__description {
+        margin: 0;
+        color: rgba(226, 232, 240, 0.72);
+        font-size: 0.95rem;
+      }
+
+      .mission-roster__list {
+        margin: 0;
+      }
+
+      .mission-roster__card-grid {
+        margin-top: 0.35rem;
+      }
+
       .quick-access-modal__action {
         margin-top: 0.65rem;
         padding: 0.55rem 0.85rem;
@@ -2772,16 +2841,37 @@
         </p>
       </header>
       <section class="quick-access-modal__section">
-        <h3 class="quick-access-modal__section-title">Priority ops</h3>
-        <p class="quick-access-modal__list-item" data-mission-empty>
-          No missions are active. Command will dispatch the next objective automatically.
-        </p>
-        <div class="quick-access-modal__card-grid" data-mission-card-grid></div>
-      </section>
-      <hr class="quick-access-modal__divider" />
-      <section class="quick-access-modal__section">
-        <h3 class="quick-access-modal__section-title">Squad updates</h3>
-        <ul class="quick-access-modal__list" data-mission-queue></ul>
+        <div class="mission-roster">
+          <div class="mission-roster__layout">
+            <div class="mission-roster__panel mission-roster__panel--queue">
+              <div class="mission-roster__panel-heading">
+                <p class="mission-roster__eyebrow">Queue summary</p>
+                <h3 class="mission-roster__title">Squad updates</h3>
+                <p class="mission-roster__description">
+                  Live deployment queue for drop teams, navsync relays, and ground support.
+                </p>
+              </div>
+              <ul
+                class="quick-access-modal__list mission-roster__list"
+                data-mission-queue
+              ></ul>
+            </div>
+            <div class="mission-roster__panel mission-roster__panel--priority">
+              <div class="mission-roster__panel-heading">
+                <p class="mission-roster__eyebrow">Priority ops</p>
+                <h3 class="mission-roster__title">Mission cards</h3>
+                <p class="quick-access-modal__list-item" data-mission-empty>
+                  No missions are active. Command will dispatch the next objective
+                  automatically.
+                </p>
+              </div>
+              <div
+                class="quick-access-modal__card-grid mission-roster__card-grid"
+                data-mission-card-grid
+              ></div>
+            </div>
+          </div>
+        </div>
       </section>
     </template>
 
