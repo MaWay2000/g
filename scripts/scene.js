@@ -321,22 +321,27 @@ export const initScene = (
   <g>
     <text x="96" y="181" fill="#94a3b8" fill-opacity="0.82" font-size="44" font-family="'Segoe UI', 'Inter', sans-serif" font-weight="600" letter-spacing="6">TERMINAL</text>
   </g>
-  <line x1="84" y1="400" x2="940" y2="400" stroke="#334155" stroke-opacity="0.55" stroke-width="3" />
+  <line x1="84" y1="260" x2="940" y2="260" stroke="#334155" stroke-opacity="0.55" stroke-width="3" />
   <g font-family="'Segoe UI', 'Inter', sans-serif">
-    <g transform="translate(96 456)">
+    <g transform="translate(96 128)">
       <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
       <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">NEWS</text>
       <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Latest mission intelligence</text>
     </g>
-    <g transform="translate(96 738)">
+    <g transform="translate(96 296)">
       <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
       <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">WEATHER</text>
       <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Atmospheric reports</text>
     </g>
-    <g transform="translate(96 1020)">
+    <g transform="translate(96 464)">
       <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
       <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">MISSIONS</text>
       <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Active assignments</text>
+    </g>
+    <g transform="translate(96 632)">
+      <rect width="832" height="156" rx="28" fill="url(#option-gradient)" stroke="#94a3b8" stroke-opacity="0.35" stroke-width="4" />
+      <text x="60" y="68" fill="#e2e8f0" font-size="88" font-weight="700">MAP</text>
+      <text x="60" y="120" fill="#94a3b8" fill-opacity="0.85" font-size="48" font-weight="500">Expedition routes &amp; caches</text>
     </g>
   </g>
 </svg>`;
@@ -1434,19 +1439,12 @@ export const initScene = (
 
       const bezelInset = 56;
       const optionHeight = 148;
-      const optionStartOffset = bezelInset + 140;
+      const optionStartOffset = bezelInset + 72;
+      const optionSpacing = 12;
 
       const computeQuickAccessZones = () => {
         const optionX = bezelInset + 40;
         const optionWidth = width - optionX * 2;
-        const optionCount = quickAccessOptionDefinitions.length;
-        const availableHeight =
-          height - optionStartOffset - bezelInset - optionHeight * optionCount;
-        const optionSpacing = Math.max(
-          24,
-          availableHeight / Math.max(optionCount - 1, 1)
-        );
-
         let optionY = optionStartOffset;
 
         return quickAccessOptionDefinitions.map((definition) => {
