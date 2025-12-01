@@ -292,6 +292,8 @@ const quickAccessModalTemplates = {
   news: document.getElementById("quick-access-modal-news"),
   weather: document.getElementById("quick-access-modal-weather"),
   missions: document.getElementById("quick-access-modal-missions"),
+  research: document.getElementById("quick-access-modal-research"),
+  market: document.getElementById("quick-access-modal-market"),
   map: document.getElementById("quick-access-modal-map"),
 };
 
