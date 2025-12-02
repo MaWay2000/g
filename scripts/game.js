@@ -6181,7 +6181,7 @@ const cancelDroneAutomationRetry = () => {
 };
 
 const promptInventoryForDroneFuel = () => {
-  activeInventoryTab = "inventory";
+  activeInventoryTab = "drone";
   openInventoryPanel();
 };
 
