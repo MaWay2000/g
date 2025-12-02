@@ -41,12 +41,6 @@ const topBar = document.querySelector(".top-bar");
 const settingsMenu = document.querySelector("[data-settings-menu]");
 const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
 const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
-const lowPerformanceToggle = document.querySelector(
-  "[data-low-performance-toggle]"
-);
-const lowPerformanceIndicator = document.querySelector(
-  "[data-low-performance-indicator]"
-);
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
@@ -229,24 +223,6 @@ if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLEleme
   });
 }
 
-const applyLowPerformanceUiState = () => {
-  const isLowPerformanceMode = Boolean(currentSettings?.lowPerformanceMode);
-
-  if (lowPerformanceToggle instanceof HTMLInputElement) {
-    lowPerformanceToggle.checked = isLowPerformanceMode;
-    lowPerformanceToggle.setAttribute("aria-pressed", String(isLowPerformanceMode));
-  }
-
-  if (lowPerformanceIndicator instanceof HTMLElement) {
-    lowPerformanceIndicator.hidden = !isLowPerformanceMode;
-    lowPerformanceIndicator.dataset.active = isLowPerformanceMode ? "true" : "false";
-  }
-
-  if (bodyElement instanceof HTMLBodyElement) {
-    bodyElement.classList.toggle("is-low-performance", isLowPerformanceMode);
-  }
-};
-
 const applyFpsUiState = () => {
   const shouldShowFps = Boolean(currentSettings?.showFpsCounter);
 
@@ -258,7 +234,6 @@ const applyFpsUiState = () => {
   fpsMeter.setEnabled(shouldShowFps);
 };
 
-applyLowPerformanceUiState();
 applyFpsUiState();
 
 if (previousCrosshairInteractableState) {
@@ -6871,21 +6846,6 @@ const bootstrapScene = () => {
   sceneController?.setLiftInteractionsEnabled?.(!editModeActive);
 
 };
-
-const rebuildSceneWithCurrentSettings = () => {
-  applyLowPerformanceUiState();
-  applyFpsUiState();
-  window.requestAnimationFrame(bootstrapScene);
-};
-
-if (lowPerformanceToggle instanceof HTMLInputElement) {
-  lowPerformanceToggle.addEventListener("change", (event) => {
-    const enabled = Boolean(event.target?.checked);
-    currentSettings = { ...currentSettings, lowPerformanceMode: enabled };
-    persistSettings(currentSettings);
-    rebuildSceneWithCurrentSettings();
-  });
-}
 
 if (fpsToggle instanceof HTMLInputElement) {
   fpsToggle.addEventListener("change", (event) => {

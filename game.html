@@ -811,42 +811,6 @@
         letter-spacing: 0.01em;
       }
 
-      .performance-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.5rem 0.9rem;
-        border-radius: 999px;
-        border: 1px solid rgba(74, 222, 128, 0.7);
-        background: rgba(22, 163, 74, 0.18);
-        color: #bbf7d0;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-        box-shadow: 0 12px 32px rgba(16, 185, 129, 0.2);
-      }
-
-      .settings-menu__panel .performance-badge {
-        justify-self: flex-start;
-      }
-
-      .performance-badge::before {
-        content: "";
-        width: 0.75rem;
-        height: 0.75rem;
-        border-radius: 50%;
-        background: radial-gradient(circle, #4ade80 40%, rgba(34, 197, 94, 0.9));
-        box-shadow: 0 0 12px rgba(74, 222, 128, 0.55);
-      }
-
-      .performance-badge[hidden] {
-        display: none;
-      }
-
-      body.is-low-performance .performance-toggle {
-        border-color: rgba(74, 222, 128, 0.7);
-        box-shadow: 0 12px 28px rgba(22, 163, 74, 0.2);
-      }
-
       .fps-meter {
         position: absolute;
         right: var(--ui-gutter);
@@ -2718,25 +2682,6 @@
           >
             <div class="settings-menu__section" role="group" aria-label="Performance">
               <p class="settings-menu__heading">Performance</p>
-              <label class="performance-toggle">
-                <input
-                  class="performance-toggle__input"
-                  type="checkbox"
-                  role="switch"
-                  aria-label="Toggle performance saver mode"
-                  data-low-performance-toggle
-                />
-                <span class="performance-toggle__track" aria-hidden="true">
-                  <span class="performance-toggle__thumb" aria-hidden="true"></span>
-                </span>
-                <span class="performance-toggle__text">
-                  <span class="performance-toggle__title">Performance saver</span>
-                  <span class="performance-toggle__hint">Reduce rendering load</span>
-                </span>
-              </label>
-              <span class="performance-badge" data-low-performance-indicator hidden>
-                Saver active
-              </span>
               <label class="performance-toggle">
                 <input
                   class="performance-toggle__input"
