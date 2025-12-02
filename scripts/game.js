@@ -3451,17 +3451,8 @@ const createMissionCard = (mission) => {
   const card = document.createElement("article");
   card.className = "quick-access-modal__card";
 
-  const status = document.createElement("p");
-  status.className = "quick-access-modal__status-tag";
-  if (mission.priorityVariant === "critical") {
-    status.dataset.status = "critical";
-  }
-  status.textContent =
-    mission.priorityVariant === "critical" ? "Critical assignment" : "Active assignment";
-  card.appendChild(status);
-
   const title = document.createElement("h3");
-  title.textContent = mission.title;
+  title.textContent = mission.title.replace(/\s+\d+$/, "");
   card.appendChild(title);
 
   const description = document.createElement("p");
