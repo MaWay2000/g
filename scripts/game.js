@@ -81,6 +81,12 @@ const droneFuelMeters = Array.from(document.querySelectorAll("[data-drone-fuel-b
 const searchParams = new URL(window.location.href).searchParams;
 const inventoryViewingMode =
   searchParams.get("inventoryView") === "watch" ? "watch" : "manage";
+const periodicElementLookup = new Map(
+  (Array.isArray(PERIODIC_ELEMENTS) ? PERIODIC_ELEMENTS : []).map((element) => [
+    (element?.symbol ?? "").toUpperCase(),
+    element,
+  ])
+);
 let currentSettings = loadStoredSettings();
 const fpsMeter = new FpsMeter(fpsMeterElement);
 const droneRefuelButtons = Array.from(
@@ -3447,6 +3453,45 @@ const renderLiftModalFloors = () => {
   updateLiftModalActiveState();
 };
 
+const resolveMissionRequirement = (mission) => {
+  const description = typeof mission?.description === "string" ? mission.description : "";
+  const title = typeof mission?.title === "string" ? mission.title : "";
+  const requirementMatch = description.match(/Collect\s+(\d+)\s+units?\s+of\s+([A-Za-z]{1,3})/i);
+
+  const symbolCandidate = requirementMatch?.[2]
+    ? requirementMatch[2]
+    : title.split(" ")[0] ?? "";
+  const symbol = symbolCandidate.trim().toUpperCase();
+  const count = Number.parseInt(requirementMatch?.[1] ?? "1", 10);
+  const normalizedCount = Number.isFinite(count) ? Math.max(1, count) : 1;
+
+  if (!symbol) {
+    return null;
+  }
+
+  const periodicElement = periodicElementLookup.get(symbol);
+  const elementDetails = periodicElement
+    ? { ...periodicElement }
+    : { symbol, name: symbol, number: null };
+
+  return { element: elementDetails, count: normalizedCount };
+};
+
+const getMissionRequirementStatus = (mission) => {
+  const requirement = resolveMissionRequirement(mission);
+
+  if (!requirement) {
+    return { requirement: null, hasRequiredResources: true, availableCount: 0 };
+  }
+
+  const availableCount = getInventoryResourceCount(requirement.element);
+  return {
+    requirement,
+    availableCount,
+    hasRequiredResources: availableCount >= requirement.count,
+  };
+};
+
 const createMissionCard = (mission) => {
   const card = document.createElement("article");
   card.className = "quick-access-modal__card";
@@ -3459,13 +3504,51 @@ const createMissionCard = (mission) => {
   description.textContent = mission.description;
   card.appendChild(description);
 
+  const { requirement, hasRequiredResources, availableCount } =
+    getMissionRequirementStatus(mission);
+
+  if (requirement) {
+    const requirementLabel = document.createElement("p");
+    requirementLabel.className = "mission-requirement";
+    const nameLabel = requirement.element.name || requirement.element.symbol || "resource";
+    requirementLabel.innerHTML =
+      `<span class="mission-requirement__label">Requires</span> ${requirement.count}× ${nameLabel}`;
+
+    if (!hasRequiredResources) {
+      requirementLabel.innerHTML += ` (have ${availableCount})`;
+    }
+
+    card.appendChild(requirementLabel);
+  }
+
   if (mission.status === "active") {
     const action = document.createElement("button");
     action.type = "button";
     action.className = "quick-access-modal__action";
-    action.textContent = "Mark complete";
+    action.textContent = hasRequiredResources ? "Mark complete" : "Need resources";
+    action.disabled = !hasRequiredResources;
+    action.setAttribute("aria-disabled", String(!hasRequiredResources));
 
     action.addEventListener("click", () => {
+      const status = getMissionRequirementStatus(mission);
+
+      if (status.requirement && !status.hasRequiredResources) {
+        const nameLabel =
+          status.requirement.element.name || status.requirement.element.symbol || "resources";
+
+        showTerminalToast({
+          title: "Resources needed",
+          description: `Collect ${status.requirement.count}× ${nameLabel} to complete this mission.`,
+        });
+
+        renderMissionModalMissions();
+        return;
+      }
+
+      if (status.requirement) {
+        spendInventoryResource(status.requirement.element, status.requirement.count);
+      }
+
       completeMission(mission.id);
     });
 
@@ -4247,6 +4330,10 @@ const refreshInventoryUi = () => {
   updateInventorySummary();
   renderDroneInventoryUi();
   updateInventoryCapacityWarning();
+
+  if (missionModalActive) {
+    renderMissionModalMissions();
+  }
 };
 
 const normalizeTerrainLabel = (value) => {

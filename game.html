@@ -1598,6 +1598,26 @@
         background: rgba(56, 189, 248, 0.22);
       }
 
+      .quick-access-modal__action:disabled,
+      .quick-access-modal__action[aria-disabled="true"] {
+        opacity: 0.6;
+        cursor: not-allowed;
+        border-color: rgba(148, 163, 184, 0.5);
+        background: rgba(148, 163, 184, 0.12);
+        box-shadow: none;
+      }
+
+      .mission-requirement {
+        margin: 0.15rem 0 0.35rem;
+        color: rgba(226, 232, 240, 0.85);
+        font-size: 0.9rem;
+        letter-spacing: 0.01em;
+      }
+
+      .mission-requirement__label {
+        color: #94a3b8;
+      }
+
       .inventory-panel {
         --inventory-panel-top: 50%;
         --inventory-panel-left: 50%;
