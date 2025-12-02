@@ -1136,7 +1136,7 @@
 
       .quick-access-modal__dialog {
         position: relative;
-        width: min(720px, 92vw);
+        width: min(1040px, 96vw);
         max-height: min(88vh, 680px);
         border-radius: clamp(1.25rem, 2vw, 1.75rem);
         background: rgba(15, 23, 42, 0.94);
@@ -1550,12 +1550,8 @@
       .mission-roster__card-grid {
         margin-top: 0.35rem;
         display: grid;
-        grid-auto-flow: column;
-        grid-auto-columns: minmax(260px, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 1.15rem;
-        overflow-x: auto;
-        padding: 0 0 0.25rem 0.1rem;
-        scroll-snap-type: x mandatory;
         align-items: stretch;
       }
 
