@@ -2600,7 +2600,7 @@
         grid-area: 1 / 1 / 2 / 2;
         align-self: center;
         justify-self: center;
-        width: min(540px, 92vw);
+        width: min(680px, 94vw);
         max-height: min(640px, 92vh);
         background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 36%),
           rgba(15, 23, 42, 0.92);
@@ -2695,7 +2695,7 @@
 
       .todo-panel__item {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 0.75rem;
         padding: 0.85rem 0.95rem;
         border: 1px solid rgba(148, 163, 184, 0.25);
@@ -2713,7 +2713,7 @@
         display: grid;
         grid-template-columns: auto 1fr;
         gap: 0.5rem;
-        align-items: center;
+        align-items: flex-start;
       }
 
       .todo-panel__index {
@@ -2723,12 +2723,16 @@
 
       .todo-panel__input {
         width: 100%;
-        padding: 0.65rem 0.75rem;
-        border-radius: 10px;
+        padding: 0.75rem 0.85rem;
+        border-radius: 12px;
         border: 1px solid rgba(148, 163, 184, 0.35);
         background: rgba(15, 23, 42, 0.85);
         color: #e2e8f0;
         font-size: 1rem;
+        line-height: 1.45;
+        min-height: 3.1rem;
+        resize: vertical;
+        box-sizing: border-box;
       }
 
       .todo-panel__input:focus-visible {

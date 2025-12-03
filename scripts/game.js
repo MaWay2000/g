@@ -5565,10 +5565,10 @@ const renderTodoList = () => {
     indexLabel.className = "todo-panel__index";
     indexLabel.textContent = `${index + 1}.`;
 
-    const input = document.createElement("input");
+    const input = document.createElement("textarea");
     input.className = "todo-panel__input";
-    input.type = "text";
     input.value = item.text;
+    input.rows = 2;
     input.dataset.todoInput = "true";
     input.setAttribute("aria-label", `Todo ${index + 1}`);
 
@@ -5878,7 +5878,10 @@ const handleTodoHotkey = (event) => {
 const handleTodoListInput = (event) => {
   const target = event.target;
 
-  if (!(target instanceof HTMLInputElement) || target.dataset.todoInput !== "true") {
+  const isTodoInput =
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
+  if (!isTodoInput || target.dataset.todoInput !== "true") {
     return;
   }
 
