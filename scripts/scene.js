@@ -2795,6 +2795,7 @@ export const initScene = (
         depthTest: false,
       })
     );
+    skyDome.frustumCulled = false;
     skyDome.position.set(0, roomFloorY + skyDomeYOffset, skyCenterZ);
     group.add(skyDome);
 
@@ -2829,6 +2830,7 @@ export const initScene = (
       roomFloorY + starYOffset,
       skyDome.position.z
     );
+    starField.frustumCulled = false;
     group.add(starField);
 
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
@@ -3454,6 +3456,7 @@ export const initScene = (
     // Raise the stars so the lowest stars start 10 units above the floor.
     const starYOffset = skyRadius + 10;
 
+    skyDome.frustumCulled = false;
     skyDome.position.set(0, roomFloorY + skyDomeYOffset, 0);
     group.add(skyDome);
 
@@ -3487,6 +3490,7 @@ export const initScene = (
 
     const starField = new THREE.Points(starGeometry, starMaterial);
     starField.position.set(0, roomFloorY + starYOffset, 0);
+    starField.frustumCulled = false;
     group.add(starField);
 
     const ambientLight = new THREE.AmbientLight(0x0f172a, 0.6);
