@@ -472,6 +472,8 @@ export const initScene = (
     elevationOffset: 0,
   };
 
+  const OUTSIDE_TERRAIN_CLEARANCE = 0.02;
+
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
     [
       "void",
@@ -2594,7 +2596,7 @@ export const initScene = (
           tile.scale.set(cellSize, tileHeight, cellSize);
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
-            roomFloorY - tileHeight / 2 + elevationOffset,
+            roomFloorY - tileHeight / 2 + elevationOffset + OUTSIDE_TERRAIN_CLEARANCE,
             mapNearEdge + row * cellSize + cellSize / 2
           );
           tile.castShadow = false;
