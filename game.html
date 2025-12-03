@@ -1032,14 +1032,15 @@
       }
 
       .resource-toast {
-        align-self: flex-end;
-        margin: 0 2.5rem 2.5rem;
+        align-self: flex-start;
+        margin: 0 var(--ui-gutter) 0.85rem;
         padding: 1rem 1.8rem;
         border-radius: 18px;
         background: rgba(30, 41, 59, 0.92);
         box-shadow: 0 24px 52px rgba(15, 23, 42, 0.55);
         min-width: 16rem;
         max-width: min(24rem, 90vw);
+        min-height: 4.35rem;
         font-size: 0.95rem;
         pointer-events: none;
         opacity: 0;
@@ -1056,7 +1057,9 @@
       }
 
       .resource-toast[hidden] {
-        display: none;
+        display: flex !important;
+        visibility: hidden;
+        opacity: 0;
       }
 
       .resource-toast__title {
@@ -2769,11 +2772,11 @@
       <div class="crosshair__pointer" aria-hidden="true"></div>
     </div>
 
-    <div class="ui-overlay">
-      <div class="top-bar">
-        <a class="cta" href="index.html">Return to Lobby</a>
-        <button class="reset" type="button" data-reset-button>
-          Reset Progress
+      <div class="ui-overlay">
+        <div class="top-bar">
+          <a class="cta" href="index.html">Return to Lobby</a>
+          <button class="reset" type="button" data-reset-button>
+            Reset Progress
         </button>
         <div class="settings-menu" data-settings-menu>
           <button
@@ -2817,13 +2820,20 @@
           </div>
         </div>
         <button class="logout" type="button" data-logout-button>Log out</button>
-      </div>
+        </div>
+        <div
+          class="resource-toast"
+          id="resourceToast"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></div>
 
-      <div class="mission-indicator" data-mission-indicator>
-        <div class="mission-indicator__header">
-          <div class="mission-indicator__pill">Mission queue</div>
-          <p class="mission-indicator__title" data-mission-indicator-active>
-            0 active
+        <div class="mission-indicator" data-mission-indicator>
+          <div class="mission-indicator__header">
+            <div class="mission-indicator__pill">Mission queue</div>
+            <p class="mission-indicator__title" data-mission-indicator-active>
+              0 active
           </p>
         </div>
         <ul class="mission-indicator__list" data-mission-indicator-list>
@@ -2929,15 +2939,6 @@
         aria-live="polite"
         hidden
       ></div>
-
-      <div
-        class="resource-toast"
-        id="resourceToast"
-        role="status"
-        aria-live="polite"
-        hidden
-      ></div>
-
       <div
         class="instructions"
         data-instructions
