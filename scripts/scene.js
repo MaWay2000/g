@@ -106,6 +106,44 @@ export const initScene = (
     });
   };
 
+  const updateStarFieldPositions = () => {
+    const playerPosition = playerObject?.position;
+
+    if (!playerPosition) {
+      return;
+    }
+
+    registeredStarFields.forEach((starField) => {
+      if (!starField?.position) {
+        return;
+      }
+
+      const hasStoredOffset = Number.isFinite(starField?.userData?.starYOffset);
+
+      if (!hasStoredOffset) {
+        const offsetY = Number.isFinite(starField.position.y)
+          ? starField.position.y - playerPosition.y
+          : 0;
+
+        if (!starField.userData) {
+          starField.userData = {};
+        }
+
+        starField.userData.starYOffset = offsetY;
+      }
+
+      const yOffset = Number.isFinite(starField.userData?.starYOffset)
+        ? starField.userData.starYOffset
+        : 0;
+
+      starField.position.set(
+        playerPosition.x,
+        playerPosition.y + yOffset,
+        playerPosition.z
+      );
+    });
+  };
+
   const createStarField = ({
     radius,
     count = 1400,
@@ -6981,6 +7019,7 @@ export const initScene = (
     updateResourceTool(delta, elapsedTime);
     updateDroneMiner(delta, elapsedTime);
     updateResourceSessions(delta);
+    updateStarFieldPositions();
 
     renderer.render(scene, camera);
   };
