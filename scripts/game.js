@@ -5593,7 +5593,6 @@ const persistTodoItems = ({ showErrors = false } = {}) => {
   }
 
   todoItems = sanitizedTodos;
-  renderTodoList();
 
   return true;
 };
