@@ -5535,6 +5535,38 @@ const setTodoStatus = (message) => {
   todoStatusMessage.textContent = normalizedMessage;
 };
 
+const getTodoInputMinHeight = (input) => {
+  if (!(input instanceof HTMLTextAreaElement)) {
+    return 0;
+  }
+
+  const cachedMinHeight = Number.parseFloat(input.dataset.todoMinHeight ?? "");
+  if (Number.isFinite(cachedMinHeight)) {
+    return cachedMinHeight;
+  }
+
+  const computedStyles = window.getComputedStyle(input);
+  const computedMinHeight = Number.parseFloat(computedStyles?.minHeight ?? "");
+
+  if (Number.isFinite(computedMinHeight)) {
+    input.dataset.todoMinHeight = String(computedMinHeight);
+    return computedMinHeight;
+  }
+
+  return 0;
+};
+
+const autoSizeTodoInput = (input) => {
+  if (!(input instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  const minHeight = getTodoInputMinHeight(input);
+
+  input.style.height = "auto";
+  input.style.height = `${Math.max(input.scrollHeight, minHeight)}px`;
+};
+
 const renderTodoList = () => {
   if (!(todoListElement instanceof HTMLElement)) {
     return;
@@ -5582,6 +5614,8 @@ const renderTodoList = () => {
     label.append(indexLabel, input);
     listItem.append(label, deleteButton);
     todoListElement.appendChild(listItem);
+
+    autoSizeTodoInput(input);
   });
 };
 
@@ -5896,6 +5930,7 @@ const handleTodoListInput = (event) => {
 
   if (todo) {
     todo.text = target.value;
+    autoSizeTodoInput(target);
     scheduleTodoPersist();
   }
 };
