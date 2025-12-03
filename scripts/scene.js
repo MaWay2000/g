@@ -3447,6 +3447,38 @@ export const initScene = (
     skyDome.position.set(0, roomFloorY + skyRadius * 0.3, 0);
     group.add(skyDome);
 
+    const starCount = 1200;
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const radius = skyRadius * (0.45 + Math.random() * 0.5);
+      const index = i * 3;
+
+      starPositions[index] = radius * Math.sin(phi) * Math.cos(theta);
+      starPositions[index + 1] = radius * Math.cos(phi);
+      starPositions[index + 2] = radius * Math.sin(phi) * Math.sin(theta);
+    }
+
+    starGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(starPositions, 3)
+    );
+
+    const starMaterial = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.06,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.7,
+      depthWrite: false,
+    });
+
+    const starField = new THREE.Points(starGeometry, starMaterial);
+    starField.position.copy(skyDome.position);
+    group.add(starField);
+
     const ambientLight = new THREE.AmbientLight(0x0f172a, 0.6);
     group.add(ambientLight);
 
@@ -3487,6 +3519,7 @@ export const initScene = (
 
       horizonLight.position.y = roomFloorY + 3.2;
       skyDome.position.y = roomFloorY + skyRadius * 0.3;
+      starField.position.y = skyDome.position.y;
     };
 
     const teleportOffset = new THREE.Vector3(
