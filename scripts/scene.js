@@ -2842,53 +2842,6 @@ export const initScene = (
     const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
     const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
 
-    const walkwayWalls = [];
-    let walkwayWallHeight = null;
-    {
-      const walkwayWidth = Number.isFinite(walkway.geometry?.parameters?.width)
-        ? walkway.geometry.parameters.width
-        : OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 0.46;
-      const walkwayHalfWidth = walkwayWidth / 2;
-      const walkwayWallThickness = ROOM_SCALE_FACTOR * 0.6;
-      const walkwayWallDepth = ROOM_SCALE_FACTOR * 4.8;
-      walkwayWallHeight = Math.max(
-        (returnDoorHeight || BASE_DOOR_HEIGHT) * 0.82,
-        ROOM_SCALE_FACTOR * 6
-      );
-      const walkwayWallMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x111d26),
-        roughness: 0.62,
-        metalness: 0.28,
-        emissive: new THREE.Color(0x0f172a),
-        emissiveIntensity: 0.32,
-      });
-      const walkwayWallOffsetX =
-        walkwayHalfWidth - walkwayWallThickness / 2;
-      const walkwayWallCenterZ = walkwayFrontEdge + walkwayWallDepth / 2;
-
-      const portWalkwayWall = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          walkwayWallThickness,
-          walkwayWallHeight,
-          walkwayWallDepth
-        ),
-        walkwayWallMaterial
-      );
-      portWalkwayWall.position.set(
-        -walkwayWallOffsetX,
-        roomFloorY + walkwayWallHeight / 2,
-        walkwayWallCenterZ
-      );
-      portWalkwayWall.castShadow = false;
-      portWalkwayWall.receiveShadow = false;
-      group.add(portWalkwayWall);
-      walkwayWalls.push(portWalkwayWall);
-
-      const starboardWalkwayWall = portWalkwayWall.clone();
-      starboardWalkwayWall.position.x = walkwayWallOffsetX;
-      group.add(starboardWalkwayWall);
-      walkwayWalls.push(starboardWalkwayWall);
-    }
 
     const returnDoorControl = new THREE.Mesh(
       new THREE.PlaneGeometry(returnDoorWidth * 0.82, returnDoorHeight * 0.5),
@@ -2945,15 +2898,6 @@ export const initScene = (
       { object: skyDome, offset: skyYOffset },
       { object: starField, offset: skyYOffset },
     ];
-
-    if (walkwayWalls.length > 0 && Number.isFinite(walkwayWallHeight)) {
-      walkwayWalls.forEach((wall) => {
-        adjustableEntries.push({
-          object: wall,
-          offset: walkwayWallHeight / 2,
-        });
-      });
-    }
 
     if (mapAdjustableEntries.length > 0) {
       adjustableEntries.push(...mapAdjustableEntries);
