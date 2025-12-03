@@ -165,16 +165,17 @@ export const initScene = (
 
     for (let i = 0; i < count; i += 1) {
       const index = i * 3;
-      const isPlanar = distribution === "planar";
+      const isDome = distribution === "dome" || distribution === "planar";
 
-      if (isPlanar) {
-        const theta = Math.random() * Math.PI * 2;
-        const distance =
-          effectiveRadius * 10 * Math.sqrt(Math.random());
+      if (isDome) {
+        const phi = Math.random() * Math.PI * 2;
+        const cosTheta = Math.random();
+        const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
+        const distance = effectiveRadius * (0.7 + Math.random() * 0.45);
 
-        starPositions[index] = distance * Math.cos(theta);
-        starPositions[index + 1] = planarHeight;
-        starPositions[index + 2] = distance * Math.sin(theta);
+        starPositions[index] = distance * sinTheta * Math.cos(phi);
+        starPositions[index + 1] = planarHeight + Math.abs(distance * cosTheta);
+        starPositions[index + 2] = distance * sinTheta * Math.sin(phi);
       } else {
         const y = i * offset - 1 + offset / 2;
         const radiusFactor = Math.sqrt(1 - y * y);
@@ -209,7 +210,7 @@ export const initScene = (
     });
 
     const starField = new THREE.Points(starGeometry, starMaterial);
-    if (distribution === "planar") {
+    if (distribution === "dome" || distribution === "planar") {
       starField.position.set(center.x, 0, center.z);
     } else {
       starField.position.copy(center);
@@ -2934,7 +2935,7 @@ export const initScene = (
       center: skyCenter,
       size: 0.072,
       opacity: 0.82,
-      distribution: "planar",
+      distribution: "dome",
     });
     group.add(primaryStarField);
 
@@ -2945,7 +2946,7 @@ export const initScene = (
       size: 0.05,
       opacity: 0.55,
       colorVariance: 0.06,
-      distribution: "planar",
+      distribution: "dome",
     });
     group.add(distantStarField);
 
@@ -3569,7 +3570,7 @@ export const initScene = (
       center: skyCenter,
       size: 0.07,
       opacity: 0.8,
-      distribution: "planar",
+      distribution: "dome",
     });
     group.add(nearStarField);
 
@@ -3580,7 +3581,7 @@ export const initScene = (
       size: 0.05,
       opacity: 0.58,
       colorVariance: 0.06,
-      distribution: "planar",
+      distribution: "dome",
     });
     group.add(farStarField);
 
