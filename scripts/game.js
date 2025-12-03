@@ -31,6 +31,7 @@ import {
   subscribeToCurrency,
 } from "./currency.js";
 import { loadMarketState, persistMarketState } from "./market-state-storage.js";
+import { loadStoredTodos, persistTodos } from "./todo-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -359,6 +360,16 @@ const inventoryDroneStatusLabel = inventoryPanel?.querySelector(
 );
 const inventoryDroneAutoRefillToggle = inventoryPanel?.querySelector(
   "[data-inventory-drone-auto-refill]"
+);
+const todoPanel = document.querySelector("[data-todo-panel]");
+const todoDialog = todoPanel?.querySelector("[data-todo-dialog]");
+const todoListElement = todoPanel?.querySelector("[data-todo-list]");
+const todoEmptyState = todoPanel?.querySelector("[data-todo-empty]");
+const todoStatusMessage = todoPanel?.querySelector("[data-todo-status]");
+const todoAddButton = todoPanel?.querySelector("[data-todo-add]");
+const todoSaveButton = todoPanel?.querySelector("[data-todo-save]");
+const todoCloseButtons = Array.from(
+  todoPanel?.querySelectorAll("[data-todo-close]") ?? []
 );
 const droneFuelGrid = inventoryPanel?.querySelector("[data-drone-fuel-grid]");
 const droneFuelSourceList = inventoryPanel?.querySelector(
@@ -3051,6 +3062,12 @@ let lastSerializedInventoryState = null;
 let inventoryWasPointerLocked = false;
 let lastInventoryFocusedElement = null;
 let inventoryCloseFallbackId = 0;
+let todoItems = [];
+let todoStorageAvailable = true;
+let lastTodoFocusedElement = null;
+let todoPanelWasPointerLocked = false;
+let todoPanelCloseFallbackId = 0;
+let todoPersistTimeoutId = 0;
 
 const attemptToRestorePointerLock = () => {
   const controls = sceneController?.controls;
@@ -5412,6 +5429,426 @@ const handleInventoryHotkey = (event) => {
 
 refreshInventoryUi();
 
+const createTodoId = () =>
+  `todo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+
+const sanitizeTodoItems = (items) => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .map((item) => {
+      const text =
+        typeof item?.text === "string" ? item.text.trim() : String(item?.text ?? "").trim();
+
+      if (!text) {
+        return null;
+      }
+
+      const id =
+        typeof item?.id === "string" && item.id.trim() !== ""
+          ? item.id.trim()
+          : createTodoId();
+
+      return { id, text, completed: Boolean(item?.completed) };
+    })
+    .filter(Boolean);
+};
+
+const setTodoStatus = (message) => {
+  if (!(todoStatusMessage instanceof HTMLElement)) {
+    return;
+  }
+
+  const normalizedMessage = typeof message === "string" ? message.trim() : "";
+
+  todoStatusMessage.hidden = !normalizedMessage;
+  todoStatusMessage.textContent = normalizedMessage;
+};
+
+const renderTodoList = () => {
+  if (!(todoListElement instanceof HTMLElement)) {
+    return;
+  }
+
+  todoListElement.innerHTML = "";
+
+  if (!Array.isArray(todoItems) || todoItems.length === 0) {
+    if (todoEmptyState instanceof HTMLElement) {
+      todoEmptyState.hidden = false;
+    }
+    return;
+  }
+
+  if (todoEmptyState instanceof HTMLElement) {
+    todoEmptyState.hidden = true;
+  }
+
+  todoItems.forEach((item, index) => {
+    const listItem = document.createElement("li");
+    listItem.className = "todo-panel__item";
+    listItem.dataset.todoId = item.id;
+
+    const label = document.createElement("label");
+    label.className = "todo-panel__label";
+
+    const indexLabel = document.createElement("span");
+    indexLabel.className = "todo-panel__index";
+    indexLabel.textContent = `${index + 1}.`;
+
+    const input = document.createElement("input");
+    input.className = "todo-panel__input";
+    input.type = "text";
+    input.value = item.text;
+    input.dataset.todoInput = "true";
+    input.setAttribute("aria-label", `Todo ${index + 1}`);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "todo-panel__delete";
+    deleteButton.type = "button";
+    deleteButton.dataset.todoDelete = "true";
+    deleteButton.setAttribute("aria-label", `Delete todo ${index + 1}`);
+    deleteButton.textContent = "Delete";
+
+    label.append(indexLabel, input);
+    listItem.append(label, deleteButton);
+    todoListElement.appendChild(listItem);
+  });
+};
+
+const focusFirstTodoControl = () => {
+  if (!(todoDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  const firstFocusable = Array.from(
+    todoDialog.querySelectorAll(modalFocusableSelectors)
+  ).find(
+    (element) =>
+      element instanceof HTMLElement &&
+      !element.hasAttribute("disabled") &&
+      element.getAttribute("aria-hidden") !== "true" &&
+      element.tabIndex !== -1 &&
+      isFocusableElementVisible(element)
+  );
+
+  if (firstFocusable instanceof HTMLElement) {
+    firstFocusable.focus({ preventScroll: true });
+  }
+};
+
+const applyTodoStorageState = (storageAvailable) => {
+  todoStorageAvailable = Boolean(storageAvailable);
+
+  if (!todoStorageAvailable) {
+    setTodoStatus("Saving is unavailable while local storage is blocked.");
+  } else if (todoStatusMessage instanceof HTMLElement && !todoStatusMessage.hidden) {
+    setTodoStatus("");
+  }
+};
+
+const loadTodoItems = () => {
+  const { todos, storageAvailable } = loadStoredTodos();
+  applyTodoStorageState(storageAvailable);
+  todoItems = sanitizeTodoItems(todos);
+  renderTodoList();
+};
+
+const persistTodoItems = ({ showErrors = false } = {}) => {
+  const hasEmptyTodos = Array.isArray(todoItems)
+    ? todoItems.some((item) => !String(item?.text ?? "").trim())
+    : false;
+  const sanitizedTodos = sanitizeTodoItems(todoItems);
+
+  if (hasEmptyTodos && sanitizedTodos.length < (todoItems?.length ?? 0)) {
+    if (showErrors) {
+      setTodoStatus("Add a short description to each todo before saving.");
+    }
+
+    return false;
+  }
+
+  const { success, storageAvailable } = persistTodos(sanitizedTodos);
+  applyTodoStorageState(storageAvailable);
+
+  if (!success || !storageAvailable) {
+    if (showErrors || !storageAvailable) {
+      setTodoStatus(
+        "Unable to save todos right now. Local storage may be unavailable."
+      );
+    }
+
+    return false;
+  }
+
+  if (showErrors) {
+    setTodoStatus("");
+  }
+
+  todoItems = sanitizedTodos;
+  renderTodoList();
+
+  return true;
+};
+
+const scheduleTodoPersist = ({ showErrors = false } = {}) => {
+  window.clearTimeout(todoPersistTimeoutId);
+  todoPersistTimeoutId = window.setTimeout(() => {
+    persistTodoItems({ showErrors });
+  }, showErrors ? 0 : 260);
+};
+
+const addTodoItem = () => {
+  const newItem = { id: createTodoId(), text: "New todo", completed: false };
+  todoItems.push(newItem);
+  renderTodoList();
+
+  const newInput = todoListElement?.querySelector(
+    `[data-todo-id="${newItem.id}"] [data-todo-input]`
+  );
+
+  if (newInput instanceof HTMLElement) {
+    newInput.focus({ preventScroll: true });
+  }
+
+  scheduleTodoPersist({ showErrors: true });
+};
+
+const isTodoPanelOpen = () => todoPanel?.dataset.open === "true";
+
+const trapFocusWithinTodoPanel = (event) => {
+  if (!isTodoPanelOpen() || !(todoDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  const focusableElements = Array.from(
+    todoDialog.querySelectorAll(modalFocusableSelectors)
+  ).filter(
+    (element) =>
+      element instanceof HTMLElement &&
+      !element.hasAttribute("disabled") &&
+      element.getAttribute("aria-hidden") !== "true" &&
+      element.tabIndex !== -1 &&
+      isFocusableElementVisible(element)
+  );
+
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const [firstElement] = focusableElements;
+  const lastElement = focusableElements[focusableElements.length - 1];
+  const { activeElement } = document;
+
+  if (event.shiftKey) {
+    if (activeElement === firstElement || !todoDialog.contains(activeElement)) {
+      event.preventDefault();
+      lastElement.focus({ preventScroll: true });
+    }
+
+    return;
+  }
+
+  if (activeElement === lastElement || !todoDialog.contains(activeElement)) {
+    event.preventDefault();
+    firstElement.focus({ preventScroll: true });
+  }
+};
+
+const handleTodoPanelKeydown = (event) => {
+  if (!isTodoPanelOpen()) {
+    return;
+  }
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeTodoPanel();
+  } else if (event.key === "Tab") {
+    trapFocusWithinTodoPanel(event);
+  }
+};
+
+const finishClosingTodoPanel = ({ restoreFocus = true } = {}) => {
+  if (!(todoPanel instanceof HTMLElement)) {
+    return;
+  }
+
+  todoPanel.hidden = true;
+  todoPanel.dataset.open = "false";
+  todoPanel.setAttribute("aria-hidden", "true");
+  window.clearTimeout(todoPanelCloseFallbackId);
+  todoPanelCloseFallbackId = 0;
+
+  updateBodyModalState(false);
+  document.removeEventListener("keydown", handleTodoPanelKeydown, true);
+  sceneController?.setMovementEnabled(true);
+
+  const elementToRefocus = restoreFocus ? lastTodoFocusedElement : null;
+  lastTodoFocusedElement = null;
+
+  if (elementToRefocus instanceof HTMLElement) {
+    elementToRefocus.focus({ preventScroll: true });
+  }
+
+  if (todoPanelWasPointerLocked) {
+    attemptToRestorePointerLock();
+  }
+
+  todoPanelWasPointerLocked = false;
+};
+
+const closeTodoPanel = ({ restoreFocus = true } = {}) => {
+  if (!isTodoPanelOpen() || !(todoPanel instanceof HTMLElement)) {
+    return;
+  }
+
+  todoPanel.classList.remove("is-open");
+  todoPanel.setAttribute("aria-hidden", "true");
+
+  const handleTransitionEnd = (event) => {
+    if (event.target !== todoPanel) {
+      return;
+    }
+
+    todoPanel.removeEventListener("transitionend", handleTransitionEnd);
+    finishClosingTodoPanel({ restoreFocus });
+  };
+
+  todoPanel.addEventListener("transitionend", handleTransitionEnd);
+  todoPanelCloseFallbackId = window.setTimeout(() => {
+    todoPanel.removeEventListener("transitionend", handleTransitionEnd);
+    finishClosingTodoPanel({ restoreFocus });
+  }, 240);
+};
+
+const openTodoPanel = () => {
+  if (!(todoPanel instanceof HTMLElement) || !(todoDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  if (isTodoPanelOpen()) {
+    return;
+  }
+
+  todoPanelWasPointerLocked = Boolean(sceneController?.unlockPointerLock?.());
+  sceneController?.setMovementEnabled(false);
+  hideTerminalToast();
+  hideResourceToast();
+
+  lastTodoFocusedElement =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  loadTodoItems();
+
+  todoPanel.hidden = false;
+  todoPanel.dataset.open = "true";
+  todoPanel.setAttribute("aria-hidden", "false");
+  window.clearTimeout(todoPanelCloseFallbackId);
+  todoPanelCloseFallbackId = 0;
+
+  updateBodyModalState(true);
+  document.addEventListener("keydown", handleTodoPanelKeydown, true);
+
+  requestAnimationFrame(() => {
+    todoPanel.classList.add("is-open");
+    focusFirstTodoControl();
+  });
+};
+
+const shouldIgnoreTodoHotkey = (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName;
+
+  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+
+  return target.isContentEditable;
+};
+
+const handleTodoHotkey = (event) => {
+  if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
+    return;
+  }
+
+  const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
+
+  if (key !== "p") {
+    return;
+  }
+
+  if (shouldIgnoreTodoHotkey(event)) {
+    return;
+  }
+
+  const todoPanelCurrentlyOpen = isTodoPanelOpen();
+
+  if (
+    !todoPanelCurrentlyOpen &&
+    ((quickAccessModal instanceof HTMLElement && !quickAccessModal.hidden) ||
+      isModelPaletteOpen() ||
+      isInventoryOpen())
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (todoPanelCurrentlyOpen) {
+    closeTodoPanel();
+  } else {
+    openTodoPanel();
+  }
+};
+
+const handleTodoListInput = (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLInputElement) || target.dataset.todoInput !== "true") {
+    return;
+  }
+
+  const itemElement = target.closest("[data-todo-id]");
+  const todoId = itemElement instanceof HTMLElement ? itemElement.dataset.todoId : "";
+
+  if (!todoId) {
+    return;
+  }
+
+  const todo = todoItems.find((entry) => entry.id === todoId);
+
+  if (todo) {
+    todo.text = target.value;
+    scheduleTodoPersist();
+  }
+};
+
+const handleTodoListClick = (event) => {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+
+  const deleteButton = target?.closest("[data-todo-delete]");
+
+  if (deleteButton instanceof HTMLElement) {
+    const itemElement = deleteButton.closest("[data-todo-id]");
+    const todoId = itemElement instanceof HTMLElement ? itemElement.dataset.todoId : "";
+
+    if (!todoId) {
+      return;
+    }
+
+    todoItems = todoItems.filter((item) => item.id !== todoId);
+    renderTodoList();
+    scheduleTodoPersist({ showErrors: true });
+  }
+};
+
 const setModelPaletteStatus = (message, { isError = false } = {}) => {
   if (!(modelPaletteStatus instanceof HTMLElement)) {
     return;
@@ -6127,6 +6564,50 @@ if (inventoryPanel instanceof HTMLElement) {
   });
 }
 
+if (todoListElement instanceof HTMLElement) {
+  todoListElement.addEventListener("input", handleTodoListInput);
+  todoListElement.addEventListener("change", handleTodoListInput);
+  todoListElement.addEventListener("click", handleTodoListClick);
+}
+
+if (todoAddButton instanceof HTMLElement) {
+  todoAddButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    addTodoItem();
+  });
+}
+
+if (todoSaveButton instanceof HTMLElement) {
+  todoSaveButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    persistTodoItems({ showErrors: true });
+  });
+}
+
+if (todoCloseButtons.length > 0 || todoPanel instanceof HTMLElement) {
+  const handleTodoCloseClick = (event) => {
+    const target =
+      event.target instanceof HTMLElement
+        ? event.target.closest("[data-todo-close],[data-todo-dismiss]")
+        : null;
+
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    closeTodoPanel();
+  };
+
+  todoCloseButtons.forEach((button) => {
+    if (button instanceof HTMLElement) {
+      button.addEventListener("click", handleTodoCloseClick);
+    }
+  });
+
+  todoPanel?.addEventListener("click", handleTodoCloseClick);
+}
+
 if (modelPalette instanceof HTMLElement) {
   modelPalette.addEventListener("click", (event) => {
     const target =
@@ -6144,6 +6625,7 @@ if (modelPalette instanceof HTMLElement) {
 document.addEventListener("keydown", handleQuickSlotHotkey);
 document.addEventListener("keydown", handleInventoryHotkey);
 document.addEventListener("keydown", handleModelPaletteHotkey);
+document.addEventListener("keydown", handleTodoHotkey);
 
 const hideTerminalToast = () => {
   window.clearTimeout(terminalToastHideTimeoutId);
