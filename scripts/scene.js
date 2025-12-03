@@ -4524,7 +4524,8 @@ export const initScene = (
   const RESOURCE_TOOL_MAX_DISTANCE = 7;
   const RESOURCE_TOOL_MIN_ACTION_DURATION = 3;
   const RESOURCE_TOOL_MAX_ACTION_DURATION = 10;
-  const RESOURCE_TOOL_SUCCESS_PROBABILITY = 0.1;
+  const RESOURCE_TOOL_PLAYER_SUCCESS_PROBABILITY = 0.5;
+  const RESOURCE_TOOL_DRONE_SUCCESS_PROBABILITY = 0.1;
   const RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE = 0.2;
   const RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED =
     RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE ** 2;
@@ -5222,7 +5223,12 @@ export const initScene = (
       resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
     }
 
-    const foundResource = Math.random() < RESOURCE_TOOL_SUCCESS_PROBABILITY;
+    const successProbability =
+      sessionSource === RESOURCE_SESSION_DRONE_SOURCE
+        ? RESOURCE_TOOL_DRONE_SUCCESS_PROBABILITY
+        : RESOURCE_TOOL_PLAYER_SUCCESS_PROBABILITY;
+
+    const foundResource = Math.random() < successProbability;
 
     if (!foundResource) {
       if (eventDetail) {
