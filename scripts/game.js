@@ -24,6 +24,11 @@ import {
   getPendingMissions,
   subscribeToMissionState,
 } from "./missions.js";
+import {
+  getCurrencyBalance,
+  isCurrencyStorageAvailable,
+  subscribeToCurrency,
+} from "./currency.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -49,6 +54,10 @@ const missionIndicatorActiveLabel = missionIndicator?.querySelector(
 );
 const missionIndicatorNextLabel = missionIndicator?.querySelector(
   "[data-mission-indicator-next]"
+);
+const currencyIndicator = document.querySelector("[data-currency-indicator]");
+const currencyIndicatorValue = currencyIndicator?.querySelector(
+  "[data-currency-balance]"
 );
 const quickSlotBar = document.querySelector("[data-quick-slot-bar]");
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
@@ -3467,6 +3476,15 @@ const getMissionRequirementStatus = (mission) => {
   };
 };
 
+const formatMarsMoney = (value) => {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
+  const formatter = Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+  return `${formatter.format(value)} Mars money`;
+};
+
 const createMissionCard = (mission) => {
   const card = document.createElement("article");
   card.className = "quick-access-modal__card";
@@ -3478,6 +3496,15 @@ const createMissionCard = (mission) => {
   const description = document.createElement("p");
   description.textContent = mission.description;
   card.appendChild(description);
+
+  const hasReward = Number.isFinite(mission.rewardMarsMoney);
+
+  const reward = document.createElement("p");
+  reward.className = "mission-reward";
+  reward.textContent = hasReward
+    ? `Reward: ${formatMarsMoney(mission.rewardMarsMoney)}`
+    : "Reward unavailable";
+  card.appendChild(reward);
 
   const { requirement, hasRequiredResources, availableCount } =
     getMissionRequirementStatus(mission);
@@ -3500,12 +3527,18 @@ const createMissionCard = (mission) => {
     const action = document.createElement("button");
     action.type = "button";
     action.className = "quick-access-modal__action";
-    action.textContent = hasRequiredResources ? "Mark complete" : "Need resources";
-    action.disabled = !hasRequiredResources;
-    action.setAttribute("aria-disabled", String(!hasRequiredResources));
+    const isActionDisabled = !hasRequiredResources || !hasReward;
+    action.textContent = !hasReward
+      ? "Reward missing"
+      : hasRequiredResources
+        ? "Mark complete"
+        : "Need resources";
+    action.disabled = isActionDisabled;
+    action.setAttribute("aria-disabled", String(isActionDisabled));
 
     action.addEventListener("click", () => {
       const status = getMissionRequirementStatus(mission);
+      const rewardDefined = Number.isFinite(mission.rewardMarsMoney);
 
       if (status.requirement && !status.hasRequiredResources) {
         const nameLabel =
@@ -3516,6 +3549,15 @@ const createMissionCard = (mission) => {
           description: `Collect ${status.requirement.count}× ${nameLabel} to complete this mission.`,
         });
 
+        renderMissionModalMissions();
+        return;
+      }
+
+      if (!rewardDefined) {
+        showTerminalToast({
+          title: "Reward unavailable",
+          description: "This mission cannot be completed until a reward is configured.",
+        });
         renderMissionModalMissions();
         return;
       }
@@ -3561,6 +3603,26 @@ const renderMissionModalMissions = () => {
   }
 };
 
+const updateCurrencyIndicator = () => {
+  if (!(currencyIndicator instanceof HTMLElement)) {
+    return;
+  }
+
+  if (!isCurrencyStorageAvailable()) {
+    currencyIndicator.hidden = true;
+    currencyIndicator.setAttribute("aria-hidden", "true");
+    return;
+  }
+
+  const balance = getCurrencyBalance();
+  currencyIndicator.hidden = false;
+  currencyIndicator.setAttribute("aria-hidden", "false");
+
+  if (currencyIndicatorValue instanceof HTMLElement) {
+    currencyIndicatorValue.textContent = formatMarsMoney(balance);
+  }
+};
+
 const updateMissionIndicator = () => {
   const activeMissions = getActiveMissions();
   const pendingMissions = getPendingMissions();
@@ -3585,6 +3647,7 @@ const updateMissionIndicator = () => {
 
 const handleMissionStateChanged = (detail = {}) => {
   updateMissionIndicator();
+  updateCurrencyIndicator();
 
   if (missionModalActive) {
     renderMissionModalMissions();
@@ -3593,11 +3656,20 @@ const handleMissionStateChanged = (detail = {}) => {
   if (detail?.type === "completed") {
     const mission = getMissions().find((item) => item.id === detail.missionId);
     const promotedTitle = detail.promoted?.[0]?.title;
+    const rewardText = Number.isFinite(detail.rewardMarsMoney)
+      ? `Earned ${formatMarsMoney(detail.rewardMarsMoney)}.`
+      : null;
+    const balanceText = Number.isFinite(detail.currencyBalance)
+      ? `Balance: ${formatMarsMoney(detail.currencyBalance)}.`
+      : null;
 
     if (mission) {
-      const description = promotedTitle
+      const missionStateText = promotedTitle
         ? `${promotedTitle} promoted to active.`
         : "Mission slot cleared.";
+      const description = [rewardText, balanceText, missionStateText]
+        .filter(Boolean)
+        .join(" ");
 
       showTerminalToast({ title: `${mission.title} completed`, description });
     }
@@ -3605,6 +3677,8 @@ const handleMissionStateChanged = (detail = {}) => {
 };
 
 updateMissionIndicator();
+updateCurrencyIndicator();
+subscribeToCurrency(updateCurrencyIndicator);
 subscribeToMissionState(handleMissionStateChanged);
 
 const initializeQuickAccessModalContent = (option) => {

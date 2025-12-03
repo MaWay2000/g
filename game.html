@@ -870,6 +870,50 @@
         color: rgba(148, 163, 184, 0.95);
       }
 
+      .currency-indicator {
+        align-self: flex-start;
+        margin: 0 var(--ui-gutter);
+        padding: 0.75rem 1.05rem 0.9rem;
+        border-radius: 12px;
+        background: rgba(22, 30, 46, 0.8);
+        border: 1px solid rgba(74, 222, 128, 0.35);
+        box-shadow: 0 14px 32px rgba(22, 101, 52, 0.35);
+        backdrop-filter: blur(12px);
+        color: rgba(226, 232, 240, 0.96);
+        min-width: 200px;
+        outline: none;
+      }
+
+      .currency-indicator:focus-visible {
+        box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.45), 0 14px 32px rgba(22, 101, 52, 0.35);
+      }
+
+      .currency-indicator__pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(74, 222, 128, 0.16);
+        color: rgba(134, 239, 172, 0.96);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin: 0 0 0.3rem;
+      }
+
+      .currency-indicator__value {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: rgba(226, 232, 240, 0.96);
+      }
+
+      .currency-indicator[hidden] {
+        display: none;
+      }
+
       a.cta:focus-visible,
       a.cta:hover {
         transform: translateY(-2px);
@@ -2712,6 +2756,19 @@
         <p class="mission-indicator__subtitle" data-mission-indicator-next>
           Loading missions…
         </p>
+      </div>
+
+      <div
+        class="currency-indicator"
+        data-currency-indicator
+        tabindex="0"
+        role="status"
+        aria-live="polite"
+        aria-label="Mars money balance"
+        hidden
+      >
+        <div class="currency-indicator__pill">Mars money</div>
+        <p class="currency-indicator__value" data-currency-balance>—</p>
       </div>
 
       <div
