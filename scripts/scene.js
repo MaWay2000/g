@@ -76,6 +76,36 @@ export const initScene = (
       : 1.25,
   };
 
+  const sceneSettings = {
+    showStars: settings?.showStars !== false,
+  };
+
+  const registeredStarFields = new Set();
+  const registerStarField = (starField) => {
+    if (!starField?.isObject3D) {
+      return;
+    }
+
+    starField.visible = Boolean(sceneSettings.showStars);
+    registeredStarFields.add(starField);
+  };
+
+  const unregisterStarFields = (fields = []) => {
+    fields.forEach((field) => {
+      registeredStarFields.delete(field);
+    });
+  };
+
+  const applyStarVisibility = () => {
+    const visible = Boolean(sceneSettings.showStars);
+
+    registeredStarFields.forEach((starField) => {
+      if (starField) {
+        starField.visible = visible;
+      }
+    });
+  };
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -2811,6 +2841,7 @@ export const initScene = (
     const starField = new THREE.Points(starGeometry, starMaterial);
     starField.position.set(0, roomFloorY + starYOffset, skyCenterZ);
     starField.frustumCulled = false;
+    registerStarField(starField);
     group.add(starField);
 
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
@@ -3183,6 +3214,7 @@ export const initScene = (
       liftDoor,
       updateForRoomHeight,
       teleportOffset,
+      starFields: [starField],
       bounds: floorBounds,
     };
   };
@@ -3454,6 +3486,7 @@ export const initScene = (
     const starField = new THREE.Points(starGeometry, starMaterial);
     starField.position.set(0, roomFloorY + starYOffset, 0);
     starField.frustumCulled = false;
+    registerStarField(starField);
     group.add(starField);
 
     const ambientLight = new THREE.AmbientLight(0x0f172a, 0.6);
@@ -3509,6 +3542,7 @@ export const initScene = (
       liftDoor,
       updateForRoomHeight,
       teleportOffset,
+      starFields: [starField],
       bounds: floorBounds,
     };
   };
@@ -3803,6 +3837,12 @@ export const initScene = (
           )
         : [];
 
+      const starFields = Array.isArray(environment?.starFields)
+        ? environment.starFields.filter((field) => field?.isObject3D)
+        : [];
+
+      starFields.forEach(registerStarField);
+
       resourceTargetsByEnvironment.set(id, resourceTargets);
 
       state = {
@@ -3812,6 +3852,7 @@ export const initScene = (
         registeredColliders,
         bounds: resolvedBounds,
         resourceTargets,
+        starFields,
       };
 
       updateEnvironmentForPlayerHeight();
@@ -3839,6 +3880,8 @@ export const initScene = (
       ) {
         unregisterColliderDescriptors(state.registeredColliders);
       }
+
+      unregisterStarFields(state.starFields ?? []);
 
       resourceTargetsByEnvironment.delete(id);
 
@@ -6946,6 +6989,16 @@ export const initScene = (
         ? droneMinerState.basePosition.clone()
         : null,
     setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
+    setStarsEnabled: (enabled) => {
+      const nextState = Boolean(enabled);
+
+      if (sceneSettings.showStars === nextState) {
+        return;
+      }
+
+      sceneSettings.showStars = nextState;
+      applyStarVisibility();
+    },
     unlockPointerLock: () => {
       if (controls.isLocked) {
         controls.unlock();
@@ -7049,6 +7102,7 @@ export const initScene = (
       }
       resourceTargetsByEnvironment.clear();
       activeResourceTargets = [];
+      registeredStarFields.clear();
       savePlayerState(true);
       activateDeckEnvironment(null);
       colliderDescriptors.length = 0;

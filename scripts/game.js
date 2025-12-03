@@ -50,6 +50,7 @@ const settingsMenu = document.querySelector("[data-settings-menu]");
 const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
 const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
+const starsToggle = document.querySelector("[data-stars-toggle]");
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
@@ -250,6 +251,19 @@ const applyFpsUiState = () => {
 };
 
 applyFpsUiState();
+
+const applyStarsUiState = () => {
+  const shouldShowStars = currentSettings?.showStars !== false;
+
+  if (starsToggle instanceof HTMLInputElement) {
+    starsToggle.checked = shouldShowStars;
+    starsToggle.setAttribute("aria-pressed", String(shouldShowStars));
+  }
+
+  sceneController?.setStarsEnabled?.(shouldShowStars);
+};
+
+applyStarsUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -7980,6 +7994,15 @@ if (fpsToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, showFpsCounter: enabled };
     persistSettings(currentSettings);
     applyFpsUiState();
+  });
+}
+
+if (starsToggle instanceof HTMLInputElement) {
+  starsToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, showStars: enabled };
+    persistSettings(currentSettings);
+    applyStarsUiState();
   });
 }
 

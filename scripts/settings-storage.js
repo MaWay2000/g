@@ -3,6 +3,7 @@ const SETTINGS_STORAGE_KEY = "dustyNova.settings";
 const DEFAULT_SETTINGS = {
   maxPixelRatio: 1.25,
   showFpsCounter: false,
+  showStars: true,
 };
 
 const normalizeSettings = (settings = {}) => {
@@ -14,6 +15,7 @@ const normalizeSettings = (settings = {}) => {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
     showFpsCounter: Boolean(settings.showFpsCounter),
+    showStars: settings.showStars !== false,
   };
 };
 
