@@ -2689,6 +2689,52 @@ const resetInventoryReorderState = ({ preserveReorderClass = false } = {}) => {
   }
 };
 
+const isPointWithinInventoryDialog = (clientX, clientY) => {
+  if (!(inventoryDialog instanceof HTMLElement)) {
+    return false;
+  }
+
+  const rect = inventoryDialog.getBoundingClientRect();
+
+  return (
+    clientX >= rect.left &&
+    clientX <= rect.right &&
+    clientY >= rect.top &&
+    clientY <= rect.bottom
+  );
+};
+
+const getInventoryEntryDisplayName = (entry) => {
+  const symbol = entry?.element?.symbol ?? "";
+  const name = entry?.element?.name ?? "";
+
+  if (symbol && name) {
+    return `${symbol} (${name})`;
+  }
+
+  if (symbol || name) {
+    return symbol || name;
+  }
+
+  return "this item";
+};
+
+const confirmInventoryDrop = (entry) => {
+  if (typeof window?.confirm !== "function") {
+    return false;
+  }
+
+  const name = getInventoryEntryDisplayName(entry);
+  const countLabel =
+    typeof entry?.count === "number" && entry.count > 1
+      ? `${entry.count} items`
+      : "this item";
+
+  return window.confirm(
+    `Drop ${name} outside the inventory panel? This will remove ${countLabel} from your inventory.`
+  );
+};
+
 const startInventoryReorderForItem = (item) => {
   if (!(item instanceof HTMLElement)) {
     return false;
@@ -2806,6 +2852,10 @@ function finishInventoryPointerReorder(clientX, clientY) {
   const fuelSlot = getDroneFuelSlotElement(element);
   const fuelSource = getFuelSourceForElement(draggedEntry?.element);
   const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
+  const droppedOutsideInventory =
+    sourceIndex >= 0 &&
+    !isPointWithinInventoryDialog(clientX, clientY) &&
+    !fuelSlot;
 
   if (fuelSlot && fuelSource && droneState.fuelRemaining < capacity) {
     const preferredIndex = getDroneFuelSlotIndex(fuelSlot);
@@ -2826,6 +2876,18 @@ function finishInventoryPointerReorder(clientX, clientY) {
           description: `${fuelLabel} added to fuel reserves.`,
         });
       }
+    }
+
+    return;
+  }
+
+  if (droppedOutsideInventory) {
+    const confirmed = confirmInventoryDrop(draggedEntry);
+
+    resetInventoryReorderState();
+
+    if (confirmed && draggedEntry) {
+      spendInventoryResource(draggedEntry.element, draggedEntry.count || 1);
     }
 
     return;
