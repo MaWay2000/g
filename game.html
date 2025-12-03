@@ -1821,6 +1821,176 @@
         opacity: 1;
       }
 
+      .inventory-drop-confirm {
+        position: fixed;
+        inset: 0;
+        z-index: 160;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(1rem, 3vw, 1.6rem);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 200ms ease;
+      }
+
+      .inventory-drop-confirm[data-visible="true"] {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .inventory-drop-confirm__backdrop {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+            circle at 20% 20%,
+            rgba(125, 211, 252, 0.12),
+            transparent 32%
+          ),
+          linear-gradient(
+            140deg,
+            rgba(8, 47, 73, 0.9) 15%,
+            rgba(12, 74, 110, 0.82) 55%,
+            rgba(8, 47, 73, 0.95) 95%
+          );
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(125, 211, 252, 0.35);
+        box-shadow: 0 30px 80px rgba(7, 89, 133, 0.45);
+        opacity: 0.98;
+      }
+
+      .inventory-drop-confirm__dialog {
+        position: relative;
+        width: min(520px, 96vw);
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(8, 47, 73, 0.96));
+        border-radius: 1.2rem;
+        border: 1px solid rgba(125, 211, 252, 0.35);
+        box-shadow: 0 26px 58px rgba(7, 89, 133, 0.45), 0 0 0 1px rgba(14, 165, 233, 0.18) inset;
+        padding: clamp(1.2rem, 3vw, 1.7rem);
+        color: rgba(226, 232, 240, 0.96);
+        overflow: hidden;
+      }
+
+      .inventory-drop-confirm__dialog::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        background: radial-gradient(
+            circle at 20% 20%,
+            rgba(14, 165, 233, 0.12),
+            transparent 24%
+          ),
+          radial-gradient(circle at 82% 18%, rgba(52, 211, 153, 0.08), transparent 28%);
+        opacity: 0.9;
+        pointer-events: none;
+      }
+
+      .inventory-drop-confirm__content {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+        isolation: isolate;
+      }
+
+      .inventory-drop-confirm__close {
+        position: absolute;
+        top: 0.85rem;
+        right: 0.85rem;
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        border: 1px solid rgba(94, 234, 212, 0.35);
+        background: rgba(15, 23, 42, 0.85);
+        color: rgba(226, 232, 240, 0.9);
+        font-size: 1.35rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: transform 140ms ease, background 140ms ease, color 140ms ease;
+      }
+
+      .inventory-drop-confirm__close:hover,
+      .inventory-drop-confirm__close:focus-visible {
+        transform: translateY(-1px);
+        background: rgba(16, 185, 129, 0.16);
+        color: rgba(226, 232, 240, 1);
+        outline: none;
+      }
+
+      .inventory-drop-confirm__eyebrow {
+        margin: 0;
+        color: #38bdf8;
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .inventory-drop-confirm__title {
+        margin: 0;
+        font-size: clamp(1.35rem, 3.2vw, 1.6rem);
+        letter-spacing: 0.01em;
+      }
+
+      .inventory-drop-confirm__message {
+        margin: 0;
+        color: rgba(226, 232, 240, 0.82);
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .inventory-drop-confirm__highlight {
+        color: #fbbf24;
+        font-weight: 600;
+      }
+
+      .inventory-drop-confirm__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-top: 0.5rem;
+      }
+
+      .inventory-drop-confirm__button {
+        flex: 1 1 140px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        padding: 0.85rem 1rem;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(14, 165, 233, 0.45);
+        background: linear-gradient(180deg, rgba(59, 130, 246, 0.28), rgba(14, 165, 233, 0.35));
+        color: rgba(241, 245, 249, 0.98);
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+      }
+
+      .inventory-drop-confirm__button:hover,
+      .inventory-drop-confirm__button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(52, 211, 153, 0.8);
+        box-shadow: 0 10px 26px rgba(14, 165, 233, 0.35);
+        outline: none;
+      }
+
+      .inventory-drop-confirm__button--ghost {
+        border-color: rgba(148, 163, 184, 0.45);
+        background: rgba(30, 41, 59, 0.7);
+        color: rgba(226, 232, 240, 0.92);
+      }
+
+      .inventory-drop-confirm__button--ghost:hover,
+      .inventory-drop-confirm__button--ghost:focus-visible {
+        border-color: rgba(94, 234, 212, 0.6);
+        box-shadow: 0 10px 24px rgba(94, 234, 212, 0.2);
+      }
+
       .inventory-panel__dialog.is-dragging {
         transition: none;
       }
@@ -3437,6 +3607,63 @@
             class="inventory-panel__tooltip-list"
             data-inventory-tooltip-details
           ></ul>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="inventory-drop-confirm"
+      data-inventory-drop-confirm
+      data-visible="false"
+      hidden
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Confirm drop"
+    >
+      <div class="inventory-drop-confirm__backdrop" data-inventory-drop-backdrop></div>
+      <div class="inventory-drop-confirm__dialog" role="document">
+        <div class="inventory-drop-confirm__content">
+          <button
+            class="inventory-drop-confirm__close"
+            type="button"
+            data-inventory-drop-close
+            aria-label="Cancel drop"
+          >
+            &times;
+          </button>
+          <p class="inventory-drop-confirm__eyebrow">Inventory</p>
+          <h3 class="inventory-drop-confirm__title" data-inventory-drop-title>
+            Drop item?
+          </h3>
+          <p
+            class="inventory-drop-confirm__message"
+            data-inventory-drop-message
+          >
+            Are you sure you want to drop this item?
+          </p>
+          <p
+            class="inventory-drop-confirm__message"
+            data-inventory-drop-detail
+          >
+            This cannot be undone and the item will be lost permanently.
+          </p>
+          <div class="inventory-drop-confirm__actions">
+            <button
+              class="inventory-drop-confirm__button inventory-drop-confirm__button--ghost"
+              type="button"
+              data-inventory-drop-cancel-button
+            >
+              Keep item
+            </button>
+            <button
+              class="inventory-drop-confirm__button"
+              type="button"
+              data-inventory-drop-confirm-button
+            >
+              Drop item
+            </button>
+          </div>
         </div>
       </div>
     </div>
