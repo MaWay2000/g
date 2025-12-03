@@ -5095,16 +5095,16 @@ const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
   return true;
 };
 
-const getInventoryResourceEntry = (element) => {
+function getInventoryResourceEntry(element) {
   const sanitized = sanitizeInventoryElement(element ?? {});
   const key = getInventoryEntryKey(sanitized);
   return inventoryState.entryMap.get(key) ?? null;
-};
+}
 
-const getInventoryResourceCount = (element) => {
+function getInventoryResourceCount(element) {
   const entry = getInventoryResourceEntry(element);
   return entry?.count ?? 0;
-};
+}
 
 const spendInventoryResource = (element, count = 1) => {
   const entry = getInventoryResourceEntry(element);
