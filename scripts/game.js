@@ -54,6 +54,9 @@ const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
   "[data-mission-indicator-active]"
 );
+const missionIndicatorList = missionIndicator?.querySelector(
+  "[data-mission-indicator-list]"
+);
 const missionIndicatorNextLabel = missionIndicator?.querySelector(
   "[data-mission-indicator-next]"
 );
@@ -3488,6 +3491,22 @@ const formatMarsMoney = (value) => {
   return `${formatter.format(value)} Mars money`;
 };
 
+const formatMissionIndicatorLabel = (mission) => {
+  const requirement = resolveMissionRequirement(mission);
+
+  if (requirement?.element) {
+    const symbol = requirement.element.symbol ?? requirement.element.name ?? "";
+    const count = requirement.count ?? 1;
+    return `Collect ${count} ${symbol}`.trim();
+  }
+
+  if (typeof mission?.title === "string" && mission.title.trim() !== "") {
+    return mission.title.trim();
+  }
+
+  return "Active assignment";
+};
+
 const MARKET_PRICE_INCREASE_FACTOR = 1.05;
 const MARKET_PRICE_DECREASE_FACTOR = 0.97;
 const MARKET_MIN_PRICE = 1;
@@ -3842,6 +3861,30 @@ const updateMissionIndicator = () => {
 
   if (missionIndicatorActiveLabel instanceof HTMLElement) {
     missionIndicatorActiveLabel.textContent = `${activeMissions.length} active`;
+  }
+
+  if (missionIndicatorList instanceof HTMLElement) {
+    missionIndicatorList.innerHTML = "";
+
+    if (activeMissions.length === 0) {
+      const emptyItem = document.createElement("li");
+      emptyItem.className = "mission-indicator__item mission-indicator__item--empty";
+      emptyItem.textContent = "No active missions";
+      missionIndicatorList.appendChild(emptyItem);
+    } else {
+      activeMissions.forEach((mission) => {
+        const item = document.createElement("li");
+        item.className = "mission-indicator__item";
+        item.textContent = formatMissionIndicatorLabel(mission);
+
+        const requirementStatus = getMissionRequirementStatus(mission);
+        if (requirementStatus.hasRequiredResources) {
+          item.classList.add("mission-indicator__item--ready");
+        }
+
+        missionIndicatorList.appendChild(item);
+      });
+    }
   }
 
   if (missionIndicatorNextLabel instanceof HTMLElement) {
@@ -5042,6 +5085,12 @@ const recordInventoryResource = (detail, { allowDroneSource = false } = {}) => {
   recalculateInventoryLoad();
   clearInventoryCapacityRejection();
   refreshInventoryUi();
+  updateMissionIndicator();
+
+  if (missionModalActive) {
+    renderMissionModalMissions();
+  }
+
   schedulePersistInventoryState();
   return true;
 };
@@ -5088,6 +5137,12 @@ const spendInventoryResource = (element, count = 1) => {
   }
 
   refreshInventoryUi();
+  updateMissionIndicator();
+
+  if (missionModalActive) {
+    renderMissionModalMissions();
+  }
+
   schedulePersistInventoryState();
   return true;
 };
