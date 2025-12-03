@@ -78,28 +78,6 @@ export const initScene = (
 
   const sceneSettings = {
     showStars: settings?.showStars !== false,
-    showSkyDome: settings?.showSkyDome !== false,
-  };
-
-  const registeredSkyDomes = new Set();
-  const skyDomeBuilders = [];
-  const registerSkyDome = (skyDome) => {
-    if (!skyDome?.isObject3D) {
-      return;
-    }
-
-    skyDome.visible = Boolean(sceneSettings.showSkyDome);
-    registeredSkyDomes.add(skyDome);
-  };
-
-  const applySkyDomeVisibility = () => {
-    const visible = Boolean(sceneSettings.showSkyDome);
-
-    registeredSkyDomes.forEach((skyDome) => {
-      if (skyDome) {
-        skyDome.visible = visible;
-      }
-    });
   };
 
   const registeredStarFields = new Set();
@@ -126,47 +104,6 @@ export const initScene = (
         starField.visible = visible;
       }
     });
-  };
-
-  const createSkyDome = (radius, center, options = {}) => {
-    const { opacity = 0.92, topColor = 0x0b1d31, bottomColor = 0x040910 } = options;
-
-    const skyGeometry = new THREE.SphereGeometry(radius, 48, 32);
-    const skyMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        topColor: { value: new THREE.Color(topColor) },
-        bottomColor: { value: new THREE.Color(bottomColor) },
-      },
-      vertexShader: `
-        varying vec3 vWorldPosition;
-
-        void main() {
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPosition.xyz;
-          gl_Position = projectionMatrix * viewMatrix * worldPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 topColor;
-        uniform vec3 bottomColor;
-        varying vec3 vWorldPosition;
-
-        void main() {
-          float h = normalize(vWorldPosition).y * 0.5 + 0.5;
-          vec3 skyColor = mix(bottomColor, topColor, smoothstep(0.0, 1.0, h));
-          gl_FragColor = vec4(skyColor, ${opacity.toFixed(2)});
-        }
-      `,
-      side: THREE.BackSide,
-      depthWrite: false,
-      transparent: true,
-    });
-
-    const skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
-    skyDome.position.copy(center);
-    skyDome.frustumCulled = false;
-
-    return skyDome;
   };
 
   const createStarField = ({
@@ -244,7 +181,7 @@ export const initScene = (
   renderer.setSize(window.innerWidth, window.innerHeight, false);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0f172a);
+  scene.background = new THREE.Color(0x000000);
 
   const camera = new THREE.PerspectiveCamera(
     75,
@@ -2934,30 +2871,6 @@ export const initScene = (
     const starYOffset = skyRadius + 10;
     const skyCenter = new THREE.Vector3(0, roomFloorY + starYOffset, skyCenterZ);
 
-    let skyDome = null;
-    const ensureSkyDome = () => {
-      if (skyDome) {
-        skyDome.visible = true;
-        return skyDome;
-      }
-
-      skyDome = createSkyDome(skyRadius * 1.3, skyCenter, {
-        topColor: 0x0b1d35,
-        bottomColor: 0x050a14,
-        opacity: 0.94,
-      });
-      registerSkyDome(skyDome);
-      group.add(skyDome);
-
-      return skyDome;
-    };
-
-    skyDomeBuilders.push(ensureSkyDome);
-
-    if (sceneSettings.showSkyDome) {
-      ensureSkyDome();
-    }
-
     const primaryStarField = createStarField({
       radius: skyRadius,
       count: 1700,
@@ -3048,7 +2961,6 @@ export const initScene = (
         { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
         { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
         { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
-        { object: skyDome, offset: starYOffset },
         { object: primaryStarField, offset: starYOffset },
         { object: distantStarField, offset: starYOffset },
       ];
@@ -3591,31 +3503,6 @@ export const initScene = (
     // Raise the stars so the lowest stars start 10 units above the floor.
     const starYOffset = skyRadius + 10;
     const skyCenter = new THREE.Vector3(0, roomFloorY + starYOffset, 0);
-
-    let skyDome = null;
-    const ensureSkyDome = () => {
-      if (skyDome) {
-        skyDome.visible = true;
-        return skyDome;
-      }
-
-      skyDome = createSkyDome(skyRadius * 1.25, skyCenter, {
-        topColor: 0x0b2036,
-        bottomColor: 0x050b15,
-        opacity: 0.92,
-      });
-      registerSkyDome(skyDome);
-      group.add(skyDome);
-      adjustableEntries.push({ object: skyDome, offset: starYOffset });
-
-      return skyDome;
-    };
-
-    skyDomeBuilders.push(ensureSkyDome);
-
-    if (sceneSettings.showSkyDome) {
-      ensureSkyDome();
-    }
 
     const nearStarField = createStarField({
       radius: skyRadius,
@@ -7149,22 +7036,6 @@ export const initScene = (
 
       sceneSettings.showStars = nextState;
       applyStarVisibility();
-    },
-    setSkyDomeEnabled: (enabled) => {
-      const nextState = Boolean(enabled);
-
-      if (sceneSettings.showSkyDome === nextState) {
-        return;
-      }
-
-      if (nextState) {
-        skyDomeBuilders.forEach((buildSkyDome) => {
-          buildSkyDome?.();
-        });
-      }
-
-      sceneSettings.showSkyDome = nextState;
-      applySkyDomeVisibility();
     },
     unlockPointerLock: () => {
       if (controls.isLocked) {
