@@ -106,6 +106,104 @@ export const initScene = (
     });
   };
 
+  const createSkyDome = (radius, center, options = {}) => {
+    const { opacity = 0.92, topColor = 0x0b1d31, bottomColor = 0x040910 } = options;
+
+    const skyGeometry = new THREE.SphereGeometry(radius, 48, 32);
+    const skyMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        topColor: { value: new THREE.Color(topColor) },
+        bottomColor: { value: new THREE.Color(bottomColor) },
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 bottomColor;
+        varying vec3 vWorldPosition;
+
+        void main() {
+          float h = normalize(vWorldPosition).y * 0.5 + 0.5;
+          vec3 skyColor = mix(bottomColor, topColor, smoothstep(0.0, 1.0, h));
+          gl_FragColor = vec4(skyColor, ${opacity.toFixed(2)});
+        }
+      `,
+      side: THREE.BackSide,
+      depthWrite: false,
+      transparent: true,
+    });
+
+    const skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
+    skyDome.position.copy(center);
+    skyDome.frustumCulled = false;
+
+    return skyDome;
+  };
+
+  const createStarField = ({
+    radius,
+    count = 1400,
+    center = new THREE.Vector3(),
+    size = 0.06,
+    opacity = 0.78,
+    colorVariance = 0.08,
+  } = {}) => {
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(count * 3);
+    const starColors = new Float32Array(count * 3);
+    const tempColor = new THREE.Color();
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const offset = 2 / count;
+
+    for (let i = 0; i < count; i += 1) {
+      const y = i * offset - 1 + offset / 2;
+      const radiusFactor = Math.sqrt(1 - y * y);
+      const phi = i * goldenAngle;
+      const distance = radius * (0.55 + Math.random() * 0.45);
+      const index = i * 3;
+
+      starPositions[index] = distance * Math.cos(phi) * radiusFactor;
+      starPositions[index + 1] = distance * y;
+      starPositions[index + 2] = distance * Math.sin(phi) * radiusFactor;
+
+      const hue = 0.58 + (Math.random() - 0.5) * colorVariance;
+      const saturation = 0.08 + Math.random() * 0.12;
+      const lightness = 0.7 + Math.random() * 0.2;
+      tempColor.setHSL(hue, saturation, lightness);
+
+      starColors[index] = tempColor.r;
+      starColors[index + 1] = tempColor.g;
+      starColors[index + 2] = tempColor.b;
+    }
+
+    starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+    starGeometry.setAttribute("color", new THREE.BufferAttribute(starColors, 3));
+
+    const starMaterial = new THREE.PointsMaterial({
+      size,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      vertexColors: true,
+    });
+
+    const starField = new THREE.Points(starGeometry, starMaterial);
+    starField.position.copy(center);
+    starField.frustumCulled = false;
+
+    registerStarField(starField);
+
+    return starField;
+  };
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -2812,37 +2910,33 @@ export const initScene = (
 
     // Keep the lowest stars comfortably above the floor.
     const starYOffset = skyRadius + 10;
+    const skyCenter = new THREE.Vector3(0, roomFloorY + starYOffset, skyCenterZ);
 
-    const starCount = 1200;
-    const starGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount; i += 1) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const radius = skyRadius * (0.5 + Math.random() * 0.45);
-      const index = i * 3;
-
-      starPositions[index] = radius * Math.sin(phi) * Math.cos(theta);
-      starPositions[index + 1] = radius * Math.cos(phi);
-      starPositions[index + 2] = radius * Math.sin(phi) * Math.sin(theta);
-    }
-
-    starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
-
-    const starMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.06,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 0.72,
-      depthWrite: false,
+    const skyDome = createSkyDome(skyRadius * 1.3, skyCenter, {
+      topColor: 0x0b1d35,
+      bottomColor: 0x050a14,
+      opacity: 0.94,
     });
+    group.add(skyDome);
 
-    const starField = new THREE.Points(starGeometry, starMaterial);
-    starField.position.set(0, roomFloorY + starYOffset, skyCenterZ);
-    starField.frustumCulled = false;
-    registerStarField(starField);
-    group.add(starField);
+    const primaryStarField = createStarField({
+      radius: skyRadius,
+      count: 1700,
+      center: skyCenter,
+      size: 0.072,
+      opacity: 0.82,
+    });
+    group.add(primaryStarField);
+
+    const distantStarField = createStarField({
+      radius: skyRadius * 1.38,
+      count: 850,
+      center: skyCenter,
+      size: 0.05,
+      opacity: 0.55,
+      colorVariance: 0.06,
+    });
+    group.add(distantStarField);
 
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
     group.add(ambient);
@@ -2909,14 +3003,16 @@ export const initScene = (
       },
     };
 
-    const adjustableEntries = [
-      { object: platform, offset: -platformThickness / 2 },
-      { object: walkway, offset: 0.06 },
-      { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
-      { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
-      { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
-      { object: starField, offset: starYOffset },
-    ];
+      const adjustableEntries = [
+        { object: platform, offset: -platformThickness / 2 },
+        { object: walkway, offset: 0.06 },
+        { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
+        { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
+        { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
+        { object: skyDome, offset: starYOffset },
+        { object: primaryStarField, offset: starYOffset },
+        { object: distantStarField, offset: starYOffset },
+      ];
 
     if (mapAdjustableEntries.length > 0) {
       adjustableEntries.push(...mapAdjustableEntries);
@@ -2990,15 +3086,16 @@ export const initScene = (
 
     const teleportOffset = operationsExteriorTeleportOffset.clone();
 
-    return {
-      group,
-      liftDoor: returnDoor,
-      liftDoors: [returnDoor],
-      updateForRoomHeight,
-      teleportOffset,
-      bounds: resolvedEnvironmentBounds,
-      resourceTargets: environmentResourceTargets,
-    };
+      return {
+        group,
+        liftDoor: returnDoor,
+        liftDoors: [returnDoor],
+        updateForRoomHeight,
+        teleportOffset,
+        bounds: resolvedEnvironmentBounds,
+        resourceTargets: environmentResourceTargets,
+        starFields: [primaryStarField, distantStarField],
+      };
   };
 
   const createEngineeringBayEnvironment = () => {
@@ -3210,13 +3307,13 @@ export const initScene = (
     const teleportOffset = new THREE.Vector3(0, 0, -bayDepth / 2 + 1.8);
 
     return {
-      group,
-      liftDoor,
-      updateForRoomHeight,
-      teleportOffset,
-      starFields: [starField],
-      bounds: floorBounds,
-    };
+        group,
+        liftDoor,
+        updateForRoomHeight,
+        teleportOffset,
+        starFields: [],
+        bounds: floorBounds,
+      };
   };
 
   const createExteriorOutpostEnvironment = () => {
@@ -3454,40 +3551,39 @@ export const initScene = (
     const skyRadius = plazaWidth * 2.8;
     // Raise the stars so the lowest stars start 10 units above the floor.
     const starYOffset = skyRadius + 10;
+    const skyCenter = new THREE.Vector3(0, roomFloorY + starYOffset, 0);
 
-    const starCount = 1200;
-    const starGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const radius = skyRadius * (0.45 + Math.random() * 0.5);
-      const index = i * 3;
-
-      starPositions[index] = radius * Math.sin(phi) * Math.cos(theta);
-      starPositions[index + 1] = radius * Math.cos(phi);
-      starPositions[index + 2] = radius * Math.sin(phi) * Math.sin(theta);
-    }
-
-    starGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(starPositions, 3)
-    );
-
-    const starMaterial = new THREE.PointsMaterial({
-      color: 0xffffff,
-      size: 0.06,
-      sizeAttenuation: true,
-      transparent: true,
-      opacity: 0.7,
-      depthWrite: false,
+    const skyDome = createSkyDome(skyRadius * 1.25, skyCenter, {
+      topColor: 0x0b2036,
+      bottomColor: 0x050b15,
+      opacity: 0.92,
     });
+    group.add(skyDome);
 
-    const starField = new THREE.Points(starGeometry, starMaterial);
-    starField.position.set(0, roomFloorY + starYOffset, 0);
-    starField.frustumCulled = false;
-    registerStarField(starField);
-    group.add(starField);
+    const nearStarField = createStarField({
+      radius: skyRadius,
+      count: 1650,
+      center: skyCenter,
+      size: 0.07,
+      opacity: 0.8,
+    });
+    group.add(nearStarField);
+
+    const farStarField = createStarField({
+      radius: skyRadius * 1.32,
+      count: 900,
+      center: skyCenter,
+      size: 0.05,
+      opacity: 0.58,
+      colorVariance: 0.06,
+    });
+    group.add(farStarField);
+
+    adjustableEntries.push(
+      { object: skyDome, offset: starYOffset },
+      { object: nearStarField, offset: starYOffset },
+      { object: farStarField, offset: starYOffset }
+    );
 
     const ambientLight = new THREE.AmbientLight(0x0f172a, 0.6);
     group.add(ambientLight);
@@ -3528,7 +3624,6 @@ export const initScene = (
       });
 
       horizonLight.position.y = roomFloorY + 3.2;
-      starField.position.y = roomFloorY + starYOffset;
     };
 
     const teleportOffset = new THREE.Vector3(
@@ -3537,14 +3632,14 @@ export const initScene = (
       -plazaDepth / 2 + 1.9
     );
 
-    return {
-      group,
-      liftDoor,
-      updateForRoomHeight,
-      teleportOffset,
-      starFields: [starField],
-      bounds: floorBounds,
-    };
+      return {
+        group,
+        liftDoor,
+        updateForRoomHeight,
+        teleportOffset,
+        starFields: [nearStarField, farStarField],
+        bounds: floorBounds,
+      };
   };
 
   const createLastUpdatedDisplay = () => {
