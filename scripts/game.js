@@ -5567,6 +5567,14 @@ const autoSizeTodoInput = (input) => {
   input.style.height = `${Math.max(input.scrollHeight, minHeight)}px`;
 };
 
+const autoSizeAllTodoInputs = () => {
+  const inputs = todoListElement?.querySelectorAll('[data-todo-input="true"]');
+
+  inputs?.forEach((input) => {
+    autoSizeTodoInput(input);
+  });
+};
+
 const renderTodoList = () => {
   if (!(todoListElement instanceof HTMLElement)) {
     return;
@@ -5854,6 +5862,7 @@ const openTodoPanel = () => {
 
   requestAnimationFrame(() => {
     todoPanel.classList.add("is-open");
+    autoSizeAllTodoInputs();
     focusFirstTodoControl();
   });
 };
