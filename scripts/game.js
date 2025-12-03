@@ -51,6 +51,7 @@ const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
 const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
+const skyDomeToggle = document.querySelector("[data-sky-dome-toggle]");
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
@@ -265,6 +266,19 @@ const applyStarsUiState = () => {
 };
 
 applyStarsUiState();
+
+const applySkyDomeUiState = () => {
+  const shouldShowSkyDome = currentSettings?.showSkyDome !== false;
+
+  if (skyDomeToggle instanceof HTMLInputElement) {
+    skyDomeToggle.checked = shouldShowSkyDome;
+    skyDomeToggle.setAttribute("aria-pressed", String(shouldShowSkyDome));
+  }
+
+  sceneController?.setSkyDomeEnabled?.(shouldShowSkyDome);
+};
+
+applySkyDomeUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -8003,6 +8017,15 @@ if (starsToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, showStars: enabled };
     persistSettings(currentSettings);
     applyStarsUiState();
+  });
+}
+
+if (skyDomeToggle instanceof HTMLInputElement) {
+  skyDomeToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, showSkyDome: enabled };
+    persistSettings(currentSettings);
+    applySkyDomeUiState();
   });
 }
 

@@ -4,6 +4,7 @@ const DEFAULT_SETTINGS = {
   maxPixelRatio: 1.25,
   showFpsCounter: false,
   showStars: true,
+  showSkyDome: true,
 };
 
 const normalizeSettings = (settings = {}) => {
@@ -16,6 +17,7 @@ const normalizeSettings = (settings = {}) => {
     maxPixelRatio: pixelRatioCap,
     showFpsCounter: Boolean(settings.showFpsCounter),
     showStars: settings.showStars !== false,
+    showSkyDome: settings.showSkyDome !== false,
   };
 };
 
