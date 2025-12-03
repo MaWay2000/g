@@ -113,6 +113,8 @@ export const initScene = (
     size = 0.06,
     opacity = 0.78,
     colorVariance = 0.08,
+    distribution = "spherical",
+    planeY = center?.y ?? 0,
   } = {}) => {
     const starGeometry = new THREE.BufferGeometry();
     const starPositions = new Float32Array(count * 3);
@@ -120,17 +122,30 @@ export const initScene = (
     const tempColor = new THREE.Color();
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
     const offset = 2 / count;
+    const planarHeight = Number.isFinite(planeY) ? planeY : center?.y ?? 0;
+    const effectiveRadius = Number.isFinite(radius) && radius > 0 ? radius : 1;
 
     for (let i = 0; i < count; i += 1) {
-      const y = i * offset - 1 + offset / 2;
-      const radiusFactor = Math.sqrt(1 - y * y);
-      const phi = i * goldenAngle;
-      const distance = radius * (0.55 + Math.random() * 0.45);
       const index = i * 3;
+      const isPlanar = distribution === "planar";
 
-      starPositions[index] = distance * Math.cos(phi) * radiusFactor;
-      starPositions[index + 1] = distance * y;
-      starPositions[index + 2] = distance * Math.sin(phi) * radiusFactor;
+      if (isPlanar) {
+        const theta = Math.random() * Math.PI * 2;
+        const distance = effectiveRadius * Math.sqrt(Math.random());
+
+        starPositions[index] = distance * Math.cos(theta);
+        starPositions[index + 1] = planarHeight;
+        starPositions[index + 2] = distance * Math.sin(theta);
+      } else {
+        const y = i * offset - 1 + offset / 2;
+        const radiusFactor = Math.sqrt(1 - y * y);
+        const phi = i * goldenAngle;
+        const distance = radius * (0.55 + Math.random() * 0.45);
+
+        starPositions[index] = distance * Math.cos(phi) * radiusFactor;
+        starPositions[index + 1] = distance * y;
+        starPositions[index + 2] = distance * Math.sin(phi) * radiusFactor;
+      }
 
       const hue = 0.58 + (Math.random() - 0.5) * colorVariance;
       const saturation = 0.08 + Math.random() * 0.12;
@@ -155,7 +170,11 @@ export const initScene = (
     });
 
     const starField = new THREE.Points(starGeometry, starMaterial);
-    starField.position.copy(center);
+    if (distribution === "planar") {
+      starField.position.set(center.x, 0, center.z);
+    } else {
+      starField.position.copy(center);
+    }
     starField.frustumCulled = false;
 
     registerStarField(starField);
@@ -2866,10 +2885,9 @@ export const initScene = (
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : 0;
-
-    // Keep the lowest stars comfortably above the floor.
-    const starYOffset = skyRadius + 10;
-    const skyCenter = new THREE.Vector3(0, roomFloorY + starYOffset, skyCenterZ);
+    const starPlaneY = 75;
+    const starYOffset = starPlaneY - roomFloorY;
+    const skyCenter = new THREE.Vector3(0, starPlaneY, skyCenterZ);
 
     const primaryStarField = createStarField({
       radius: skyRadius,
@@ -2877,6 +2895,7 @@ export const initScene = (
       center: skyCenter,
       size: 0.072,
       opacity: 0.82,
+      distribution: "planar",
     });
     group.add(primaryStarField);
 
@@ -2887,6 +2906,7 @@ export const initScene = (
       size: 0.05,
       opacity: 0.55,
       colorVariance: 0.06,
+      distribution: "planar",
     });
     group.add(distantStarField);
 
@@ -2955,15 +2975,15 @@ export const initScene = (
       },
     };
 
-      const adjustableEntries = [
-        { object: platform, offset: -platformThickness / 2 },
-        { object: walkway, offset: 0.06 },
-        { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
-        { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
-        { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
-        { object: primaryStarField, offset: starYOffset },
-        { object: distantStarField, offset: starYOffset },
-      ];
+    const adjustableEntries = [
+      { object: platform, offset: -platformThickness / 2 },
+      { object: walkway, offset: 0.06 },
+      { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
+      { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
+      { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
+      { object: primaryStarField, offset: starYOffset },
+      { object: distantStarField, offset: starYOffset },
+    ];
 
     if (mapAdjustableEntries.length > 0) {
       adjustableEntries.push(...mapAdjustableEntries);
@@ -3500,9 +3520,9 @@ export const initScene = (
     group.add(nebula);
 
     const skyRadius = plazaWidth * 2.8;
-    // Raise the stars so the lowest stars start 10 units above the floor.
-    const starYOffset = skyRadius + 10;
-    const skyCenter = new THREE.Vector3(0, roomFloorY + starYOffset, 0);
+    const starPlaneY = 75;
+    const starYOffset = starPlaneY - roomFloorY;
+    const skyCenter = new THREE.Vector3(0, starPlaneY, 0);
 
     const nearStarField = createStarField({
       radius: skyRadius,
@@ -3510,6 +3530,7 @@ export const initScene = (
       center: skyCenter,
       size: 0.07,
       opacity: 0.8,
+      distribution: "planar",
     });
     group.add(nearStarField);
 
@@ -3520,6 +3541,7 @@ export const initScene = (
       size: 0.05,
       opacity: 0.58,
       colorVariance: 0.06,
+      distribution: "planar",
     });
     group.add(farStarField);
 
