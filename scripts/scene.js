@@ -158,17 +158,23 @@ export const initScene = (
     registeredLiftDoors.push(door);
 
     const controller = door.userData?.liftUi ?? null;
-    let registeredControl = null;
+    let registeredControls = [];
 
     if (controller) {
       liftUiControllers.add(controller);
-      const control = controller.control ?? null;
-      if (control && !liftInteractables.includes(control)) {
+      const controls = [controller.control]
+        .concat(Array.isArray(controller.controls) ? controller.controls : [])
+        .filter(Boolean);
+
+      controls.forEach((control) => {
+        if (liftInteractables.includes(control)) {
+          registeredControls.push(control);
+          return;
+        }
+
         liftInteractables.push(control);
-        registeredControl = control;
-      } else if (control) {
-        registeredControl = control;
-      }
+        registeredControls.push(control);
+      });
 
       try {
         notifyLiftUiControllersChanged();
@@ -187,12 +193,14 @@ export const initScene = (
         liftUiControllers.delete(controller);
       }
 
-      if (registeredControl) {
-        const controlIndex = liftInteractables.indexOf(registeredControl);
-        if (controlIndex >= 0) {
-          liftInteractables.splice(controlIndex, 1);
-        }
-      }
+      registeredControls
+        .filter(Boolean)
+        .forEach((control) => {
+          const controlIndex = liftInteractables.indexOf(control);
+          if (controlIndex >= 0) {
+            liftInteractables.splice(controlIndex, 1);
+          }
+        });
 
       try {
         notifyLiftUiControllersChanged();
@@ -1305,6 +1313,20 @@ export const initScene = (
     liftControlHitArea.userData.isLiftControl = true;
     controlPanel.add(liftControlHitArea);
 
+    const doorSurfaceHitArea = new THREE.Mesh(
+      new THREE.PlaneGeometry(doorWidth * 0.98, doorHeight * 0.94),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    doorSurfaceHitArea.position.set(0, 0, panelDepth / 2 + 0.08);
+    doorSurfaceHitArea.userData.isLiftControl = true;
+    group.add(doorSurfaceHitArea);
+
     const panelLight = new THREE.PointLight(
       0x38bdf8,
       0.85,
@@ -1326,6 +1348,7 @@ export const initScene = (
 
     group.userData.liftUi = {
       control: liftControlHitArea,
+      controls: [liftControlHitArea, doorSurfaceHitArea],
       updateState: applyLiftUiState,
     };
 
