@@ -3495,9 +3495,27 @@ const formatMissionIndicatorLabel = (mission) => {
   const requirement = resolveMissionRequirement(mission);
 
   if (requirement?.element) {
-    const symbol = requirement.element.symbol ?? requirement.element.name ?? "";
+    const { name, symbol } = requirement.element;
     const count = requirement.count ?? 1;
-    return `Collect ${count} ${symbol}`.trim();
+    const elementName =
+      typeof name === "string" && name.trim() !== ""
+        ? name.trim()
+        : typeof symbol === "string"
+          ? symbol.trim()
+          : "";
+    const elementSymbol = typeof symbol === "string" ? symbol.trim() : "";
+
+    if (elementName !== "" && elementSymbol !== "") {
+      return `Collect ${count} ${elementName} (${elementSymbol}).`.trim();
+    }
+
+    if (elementName !== "") {
+      return `Collect ${count} ${elementName}.`.trim();
+    }
+
+    if (elementSymbol !== "") {
+      return `Collect ${count} ${elementSymbol}.`.trim();
+    }
   }
 
   if (typeof mission?.title === "string" && mission.title.trim() !== "") {
@@ -3860,7 +3878,8 @@ const updateMissionIndicator = () => {
   }
 
   if (missionIndicatorActiveLabel instanceof HTMLElement) {
-    missionIndicatorActiveLabel.textContent = `${activeMissions.length} active`;
+    missionIndicatorActiveLabel.textContent = "";
+    missionIndicatorActiveLabel.hidden = true;
   }
 
   if (missionIndicatorList instanceof HTMLElement) {
@@ -3888,12 +3907,8 @@ const updateMissionIndicator = () => {
   }
 
   if (missionIndicatorNextLabel instanceof HTMLElement) {
-    const nextMission = pendingMissions[0];
-    missionIndicatorNextLabel.textContent = nextMission
-      ? `Next: ${nextMission.title}`
-      : activeMissions.length > 0
-        ? "All queued assignments deployed"
-        : "Awaiting mission dispatch";
+    missionIndicatorNextLabel.textContent = "";
+    missionIndicatorNextLabel.hidden = true;
   }
 };
 
