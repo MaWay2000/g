@@ -1,4 +1,5 @@
 import missionDefinitions from "./data/missions.js";
+import { addMarsMoney } from "./currency.js";
 
 const MISSION_STORAGE_KEY = "dustyNova.missions";
 export const MAX_ACTIVE_MISSIONS = 3;
@@ -227,11 +228,23 @@ export const completeMission = (missionId) => {
   missionState.statuses[missionId] = "completed";
   missionState.completedLog.push({ id: missionId, completedAt: new Date().toISOString() });
 
+  const rewardMarsMoney = Number.isFinite(mission.rewardMarsMoney)
+    ? Math.max(0, Math.round(mission.rewardMarsMoney))
+    : null;
+
+  const currencyBalance = rewardMarsMoney ? addMarsMoney(rewardMarsMoney) : null;
+
   const promoted = enforceActiveSlots();
   persistMissionState();
-  notifyMissionListeners({ type: "completed", missionId, promoted });
+  notifyMissionListeners({
+    type: "completed",
+    missionId,
+    promoted,
+    rewardMarsMoney,
+    currencyBalance,
+  });
 
-  return { completed: mission, promoted };
+  return { completed: mission, promoted, rewardMarsMoney, currencyBalance };
 };
 
 export const resetMissions = () => {

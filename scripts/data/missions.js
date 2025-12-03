@@ -5,7 +5,8 @@ export default [
     "description": "Collect 1 unit of H (Hydrogen) from ice vents near the crater rim and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 0
+    "unlockOrder": 0,
+    "rewardMarsMoney": 50
   },
   {
     "id": "mission-002",
@@ -13,7 +14,8 @@ export default [
     "description": "Collect 1 unit of He (Helium) from sun-facing ridge balloons and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 1
+    "unlockOrder": 1,
+    "rewardMarsMoney": 51
   },
   {
     "id": "mission-003",
@@ -21,7 +23,8 @@ export default [
     "description": "Collect 1 unit of Li (Lithium) from deserted battery caches and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 2
+    "unlockOrder": 2,
+    "rewardMarsMoney": 52
   },
   {
     "id": "mission-004",
@@ -29,7 +32,8 @@ export default [
     "description": "Collect 1 unit of Be (Beryllium) from silicate shelves and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 3
+    "unlockOrder": 3,
+    "rewardMarsMoney": 53
   },
   {
     "id": "mission-005",
@@ -37,7 +41,8 @@ export default [
     "description": "Collect 1 unit of B (Boron) from collapsed mine drifts and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 4
+    "unlockOrder": 4,
+    "rewardMarsMoney": 54
   },
   {
     "id": "mission-006",
@@ -45,7 +50,8 @@ export default [
     "description": "Collect 2 units of C (Carbon) from charcoal vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 5
+    "unlockOrder": 5,
+    "rewardMarsMoney": 55
   },
   {
     "id": "mission-007",
@@ -53,7 +59,8 @@ export default [
     "description": "Collect 2 units of N (Nitrogen) from permafrost pockets and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 6
+    "unlockOrder": 6,
+    "rewardMarsMoney": 56
   },
   {
     "id": "mission-008",
@@ -61,7 +68,8 @@ export default [
     "description": "Collect 2 units of O (Oxygen) from oxidized canyons and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 7
+    "unlockOrder": 7,
+    "rewardMarsMoney": 57
   },
   {
     "id": "mission-009",
@@ -69,7 +77,8 @@ export default [
     "description": "Collect 2 units of F (Fluorine) from fluorite clusters and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 8
+    "unlockOrder": 8,
+    "rewardMarsMoney": 58
   },
   {
     "id": "mission-010",
@@ -77,7 +86,8 @@ export default [
     "description": "Collect 2 units of Ne (Neon) from ionized geysers and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 9
+    "unlockOrder": 9,
+    "rewardMarsMoney": 59
   },
   {
     "id": "mission-011",
@@ -85,7 +95,8 @@ export default [
     "description": "Collect 3 units of Na (Sodium) from salt flats and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "critical",
-    "unlockOrder": 10
+    "unlockOrder": 10,
+    "rewardMarsMoney": 60
   },
   {
     "id": "mission-012",
@@ -93,7 +104,8 @@ export default [
     "description": "Collect 3 units of Mg (Magnesium) from meteor shards and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "critical",
-    "unlockOrder": 11
+    "unlockOrder": 11,
+    "rewardMarsMoney": 61
   },
   {
     "id": "mission-013",
@@ -101,7 +113,8 @@ export default [
     "description": "Collect 3 units of Al (Aluminum) from ancient hull plating and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "critical",
-    "unlockOrder": 12
+    "unlockOrder": 12,
+    "rewardMarsMoney": 62
   },
   {
     "id": "mission-014",
@@ -109,7 +122,8 @@ export default [
     "description": "Collect 3 units of Si (Silicon) from glassfield dunes and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "critical",
-    "unlockOrder": 13
+    "unlockOrder": 13,
+    "rewardMarsMoney": 63
   },
   {
     "id": "mission-015",
@@ -117,7 +131,8 @@ export default [
     "description": "Collect 3 units of P (Phosphorus) from phosphor caverns and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "critical",
-    "unlockOrder": 14
+    "unlockOrder": 14,
+    "rewardMarsMoney": 64
   },
   {
     "id": "mission-016",
@@ -125,7 +140,8 @@ export default [
     "description": "Collect 4 units of S (Sulfur) from sulfuric vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 15
+    "unlockOrder": 15,
+    "rewardMarsMoney": 65
   },
   {
     "id": "mission-017",
@@ -133,7 +149,8 @@ export default [
     "description": "Collect 4 units of Cl (Chlorine) from halogen pools and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 16
+    "unlockOrder": 16,
+    "rewardMarsMoney": 66
   },
   {
     "id": "mission-018",
@@ -141,7 +158,8 @@ export default [
     "description": "Collect 4 units of Ar (Argon) from sealed vault canisters and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 17
+    "unlockOrder": 17,
+    "rewardMarsMoney": 67
   },
   {
     "id": "mission-019",
@@ -149,7 +167,8 @@ export default [
     "description": "Collect 4 units of K (Potassium) from basalt columns and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 18
+    "unlockOrder": 18,
+    "rewardMarsMoney": 68
   },
   {
     "id": "mission-020",
@@ -157,7 +176,8 @@ export default [
     "description": "Collect 4 units of Ca (Calcium) from fossilized reef and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 19
+    "unlockOrder": 19,
+    "rewardMarsMoney": 69
   },
   {
     "id": "mission-021",
@@ -165,7 +185,8 @@ export default [
     "description": "Collect 5 units of H (Hydrogen) from ice vents near the crater rim and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 20
+    "unlockOrder": 20,
+    "rewardMarsMoney": 70
   },
   {
     "id": "mission-022",
@@ -173,7 +194,8 @@ export default [
     "description": "Collect 5 units of He (Helium) from sun-facing ridge balloons and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 21
+    "unlockOrder": 21,
+    "rewardMarsMoney": 71
   },
   {
     "id": "mission-023",
@@ -181,7 +203,8 @@ export default [
     "description": "Collect 5 units of Li (Lithium) from deserted battery caches and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 22
+    "unlockOrder": 22,
+    "rewardMarsMoney": 72
   },
   {
     "id": "mission-024",
@@ -189,7 +212,8 @@ export default [
     "description": "Collect 5 units of Be (Beryllium) from silicate shelves and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 23
+    "unlockOrder": 23,
+    "rewardMarsMoney": 73
   },
   {
     "id": "mission-025",
@@ -197,7 +221,8 @@ export default [
     "description": "Collect 5 units of B (Boron) from collapsed mine drifts and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 24
+    "unlockOrder": 24,
+    "rewardMarsMoney": 74
   },
   {
     "id": "mission-026",
@@ -205,7 +230,8 @@ export default [
     "description": "Collect 6 units of C (Carbon) from charcoal vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "critical",
-    "unlockOrder": 25
+    "unlockOrder": 25,
+    "rewardMarsMoney": 75
   },
   {
     "id": "mission-027",
@@ -213,7 +239,8 @@ export default [
     "description": "Collect 6 units of N (Nitrogen) from permafrost pockets and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "critical",
-    "unlockOrder": 26
+    "unlockOrder": 26,
+    "rewardMarsMoney": 76
   },
   {
     "id": "mission-028",
@@ -221,7 +248,8 @@ export default [
     "description": "Collect 6 units of O (Oxygen) from oxidized canyons and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "critical",
-    "unlockOrder": 27
+    "unlockOrder": 27,
+    "rewardMarsMoney": 77
   },
   {
     "id": "mission-029",
@@ -229,7 +257,8 @@ export default [
     "description": "Collect 6 units of F (Fluorine) from fluorite clusters and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "critical",
-    "unlockOrder": 28
+    "unlockOrder": 28,
+    "rewardMarsMoney": 78
   },
   {
     "id": "mission-030",
@@ -237,7 +266,8 @@ export default [
     "description": "Collect 6 units of Ne (Neon) from ionized geysers and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "critical",
-    "unlockOrder": 29
+    "unlockOrder": 29,
+    "rewardMarsMoney": 79
   },
   {
     "id": "mission-031",
@@ -245,7 +275,8 @@ export default [
     "description": "Collect 7 units of Na (Sodium) from salt flats and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 30
+    "unlockOrder": 30,
+    "rewardMarsMoney": 80
   },
   {
     "id": "mission-032",
@@ -253,7 +284,8 @@ export default [
     "description": "Collect 7 units of Mg (Magnesium) from meteor shards and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 31
+    "unlockOrder": 31,
+    "rewardMarsMoney": 81
   },
   {
     "id": "mission-033",
@@ -261,7 +293,8 @@ export default [
     "description": "Collect 7 units of Al (Aluminum) from ancient hull plating and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 32
+    "unlockOrder": 32,
+    "rewardMarsMoney": 82
   },
   {
     "id": "mission-034",
@@ -269,7 +302,8 @@ export default [
     "description": "Collect 7 units of Si (Silicon) from glassfield dunes and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 33
+    "unlockOrder": 33,
+    "rewardMarsMoney": 83
   },
   {
     "id": "mission-035",
@@ -277,7 +311,8 @@ export default [
     "description": "Collect 7 units of P (Phosphorus) from phosphor caverns and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 34
+    "unlockOrder": 34,
+    "rewardMarsMoney": 84
   },
   {
     "id": "mission-036",
@@ -285,7 +320,8 @@ export default [
     "description": "Collect 8 units of S (Sulfur) from sulfuric vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 35
+    "unlockOrder": 35,
+    "rewardMarsMoney": 85
   },
   {
     "id": "mission-037",
@@ -293,7 +329,8 @@ export default [
     "description": "Collect 8 units of Cl (Chlorine) from halogen pools and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 36
+    "unlockOrder": 36,
+    "rewardMarsMoney": 86
   },
   {
     "id": "mission-038",
@@ -301,7 +338,8 @@ export default [
     "description": "Collect 8 units of Ar (Argon) from sealed vault canisters and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 37
+    "unlockOrder": 37,
+    "rewardMarsMoney": 87
   },
   {
     "id": "mission-039",
@@ -309,7 +347,8 @@ export default [
     "description": "Collect 8 units of K (Potassium) from basalt columns and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 38
+    "unlockOrder": 38,
+    "rewardMarsMoney": 88
   },
   {
     "id": "mission-040",
@@ -317,7 +356,8 @@ export default [
     "description": "Collect 8 units of Ca (Calcium) from fossilized reef and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 39
+    "unlockOrder": 39,
+    "rewardMarsMoney": 89
   },
   {
     "id": "mission-041",
@@ -325,7 +365,8 @@ export default [
     "description": "Collect 9 units of H (Hydrogen) from ice vents near the crater rim and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "critical",
-    "unlockOrder": 40
+    "unlockOrder": 40,
+    "rewardMarsMoney": 90
   },
   {
     "id": "mission-042",
@@ -333,7 +374,8 @@ export default [
     "description": "Collect 9 units of He (Helium) from sun-facing ridge balloons and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "critical",
-    "unlockOrder": 41
+    "unlockOrder": 41,
+    "rewardMarsMoney": 91
   },
   {
     "id": "mission-043",
@@ -341,7 +383,8 @@ export default [
     "description": "Collect 9 units of Li (Lithium) from deserted battery caches and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "critical",
-    "unlockOrder": 42
+    "unlockOrder": 42,
+    "rewardMarsMoney": 92
   },
   {
     "id": "mission-044",
@@ -349,7 +392,8 @@ export default [
     "description": "Collect 9 units of Be (Beryllium) from silicate shelves and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "critical",
-    "unlockOrder": 43
+    "unlockOrder": 43,
+    "rewardMarsMoney": 93
   },
   {
     "id": "mission-045",
@@ -357,7 +401,8 @@ export default [
     "description": "Collect 9 units of B (Boron) from collapsed mine drifts and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "critical",
-    "unlockOrder": 44
+    "unlockOrder": 44,
+    "rewardMarsMoney": 94
   },
   {
     "id": "mission-046",
@@ -365,7 +410,8 @@ export default [
     "description": "Collect 10 units of C (Carbon) from charcoal vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 45
+    "unlockOrder": 45,
+    "rewardMarsMoney": 95
   },
   {
     "id": "mission-047",
@@ -373,7 +419,8 @@ export default [
     "description": "Collect 10 units of N (Nitrogen) from permafrost pockets and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 46
+    "unlockOrder": 46,
+    "rewardMarsMoney": 96
   },
   {
     "id": "mission-048",
@@ -381,7 +428,8 @@ export default [
     "description": "Collect 10 units of O (Oxygen) from oxidized canyons and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 47
+    "unlockOrder": 47,
+    "rewardMarsMoney": 97
   },
   {
     "id": "mission-049",
@@ -389,7 +437,8 @@ export default [
     "description": "Collect 10 units of F (Fluorine) from fluorite clusters and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 48
+    "unlockOrder": 48,
+    "rewardMarsMoney": 98
   },
   {
     "id": "mission-050",
@@ -397,7 +446,8 @@ export default [
     "description": "Collect 10 units of Ne (Neon) from ionized geysers and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 49
+    "unlockOrder": 49,
+    "rewardMarsMoney": 99
   },
   {
     "id": "mission-051",
@@ -405,7 +455,8 @@ export default [
     "description": "Collect 11 units of Na (Sodium) from salt flats and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 50
+    "unlockOrder": 50,
+    "rewardMarsMoney": 100
   },
   {
     "id": "mission-052",
@@ -413,7 +464,8 @@ export default [
     "description": "Collect 11 units of Mg (Magnesium) from meteor shards and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 51
+    "unlockOrder": 51,
+    "rewardMarsMoney": 101
   },
   {
     "id": "mission-053",
@@ -421,7 +473,8 @@ export default [
     "description": "Collect 11 units of Al (Aluminum) from ancient hull plating and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 52
+    "unlockOrder": 52,
+    "rewardMarsMoney": 102
   },
   {
     "id": "mission-054",
@@ -429,7 +482,8 @@ export default [
     "description": "Collect 11 units of Si (Silicon) from glassfield dunes and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 53
+    "unlockOrder": 53,
+    "rewardMarsMoney": 103
   },
   {
     "id": "mission-055",
@@ -437,7 +491,8 @@ export default [
     "description": "Collect 11 units of P (Phosphorus) from phosphor caverns and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 54
+    "unlockOrder": 54,
+    "rewardMarsMoney": 104
   },
   {
     "id": "mission-056",
@@ -445,7 +500,8 @@ export default [
     "description": "Collect 12 units of S (Sulfur) from sulfuric vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "critical",
-    "unlockOrder": 55
+    "unlockOrder": 55,
+    "rewardMarsMoney": 105
   },
   {
     "id": "mission-057",
@@ -453,7 +509,8 @@ export default [
     "description": "Collect 12 units of Cl (Chlorine) from halogen pools and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "critical",
-    "unlockOrder": 56
+    "unlockOrder": 56,
+    "rewardMarsMoney": 106
   },
   {
     "id": "mission-058",
@@ -461,7 +518,8 @@ export default [
     "description": "Collect 12 units of Ar (Argon) from sealed vault canisters and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "critical",
-    "unlockOrder": 57
+    "unlockOrder": 57,
+    "rewardMarsMoney": 107
   },
   {
     "id": "mission-059",
@@ -469,7 +527,8 @@ export default [
     "description": "Collect 12 units of K (Potassium) from basalt columns and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "critical",
-    "unlockOrder": 58
+    "unlockOrder": 58,
+    "rewardMarsMoney": 108
   },
   {
     "id": "mission-060",
@@ -477,7 +536,8 @@ export default [
     "description": "Collect 12 units of Ca (Calcium) from fossilized reef and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "critical",
-    "unlockOrder": 59
+    "unlockOrder": 59,
+    "rewardMarsMoney": 109
   },
   {
     "id": "mission-061",
@@ -485,7 +545,8 @@ export default [
     "description": "Collect 13 units of H (Hydrogen) from ice vents near the crater rim and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 60
+    "unlockOrder": 60,
+    "rewardMarsMoney": 110
   },
   {
     "id": "mission-062",
@@ -493,7 +554,8 @@ export default [
     "description": "Collect 13 units of He (Helium) from sun-facing ridge balloons and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 61
+    "unlockOrder": 61,
+    "rewardMarsMoney": 111
   },
   {
     "id": "mission-063",
@@ -501,7 +563,8 @@ export default [
     "description": "Collect 13 units of Li (Lithium) from deserted battery caches and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 62
+    "unlockOrder": 62,
+    "rewardMarsMoney": 112
   },
   {
     "id": "mission-064",
@@ -509,7 +572,8 @@ export default [
     "description": "Collect 13 units of Be (Beryllium) from silicate shelves and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 63
+    "unlockOrder": 63,
+    "rewardMarsMoney": 113
   },
   {
     "id": "mission-065",
@@ -517,7 +581,8 @@ export default [
     "description": "Collect 13 units of B (Boron) from collapsed mine drifts and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 64
+    "unlockOrder": 64,
+    "rewardMarsMoney": 114
   },
   {
     "id": "mission-066",
@@ -525,7 +590,8 @@ export default [
     "description": "Collect 14 units of C (Carbon) from charcoal vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 65
+    "unlockOrder": 65,
+    "rewardMarsMoney": 115
   },
   {
     "id": "mission-067",
@@ -533,7 +599,8 @@ export default [
     "description": "Collect 14 units of N (Nitrogen) from permafrost pockets and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 66
+    "unlockOrder": 66,
+    "rewardMarsMoney": 116
   },
   {
     "id": "mission-068",
@@ -541,7 +608,8 @@ export default [
     "description": "Collect 14 units of O (Oxygen) from oxidized canyons and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 67
+    "unlockOrder": 67,
+    "rewardMarsMoney": 117
   },
   {
     "id": "mission-069",
@@ -549,7 +617,8 @@ export default [
     "description": "Collect 14 units of F (Fluorine) from fluorite clusters and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 68
+    "unlockOrder": 68,
+    "rewardMarsMoney": 118
   },
   {
     "id": "mission-070",
@@ -557,7 +626,8 @@ export default [
     "description": "Collect 14 units of Ne (Neon) from ionized geysers and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 69
+    "unlockOrder": 69,
+    "rewardMarsMoney": 119
   },
   {
     "id": "mission-071",
@@ -565,7 +635,8 @@ export default [
     "description": "Collect 15 units of Na (Sodium) from salt flats and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "critical",
-    "unlockOrder": 70
+    "unlockOrder": 70,
+    "rewardMarsMoney": 120
   },
   {
     "id": "mission-072",
@@ -573,7 +644,8 @@ export default [
     "description": "Collect 15 units of Mg (Magnesium) from meteor shards and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "critical",
-    "unlockOrder": 71
+    "unlockOrder": 71,
+    "rewardMarsMoney": 121
   },
   {
     "id": "mission-073",
@@ -581,7 +653,8 @@ export default [
     "description": "Collect 15 units of Al (Aluminum) from ancient hull plating and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "critical",
-    "unlockOrder": 72
+    "unlockOrder": 72,
+    "rewardMarsMoney": 122
   },
   {
     "id": "mission-074",
@@ -589,7 +662,8 @@ export default [
     "description": "Collect 15 units of Si (Silicon) from glassfield dunes and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "critical",
-    "unlockOrder": 73
+    "unlockOrder": 73,
+    "rewardMarsMoney": 123
   },
   {
     "id": "mission-075",
@@ -597,7 +671,8 @@ export default [
     "description": "Collect 15 units of P (Phosphorus) from phosphor caverns and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "critical",
-    "unlockOrder": 74
+    "unlockOrder": 74,
+    "rewardMarsMoney": 124
   },
   {
     "id": "mission-076",
@@ -605,7 +680,8 @@ export default [
     "description": "Collect 16 units of S (Sulfur) from sulfuric vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 75
+    "unlockOrder": 75,
+    "rewardMarsMoney": 125
   },
   {
     "id": "mission-077",
@@ -613,7 +689,8 @@ export default [
     "description": "Collect 16 units of Cl (Chlorine) from halogen pools and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 76
+    "unlockOrder": 76,
+    "rewardMarsMoney": 126
   },
   {
     "id": "mission-078",
@@ -621,7 +698,8 @@ export default [
     "description": "Collect 16 units of Ar (Argon) from sealed vault canisters and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 77
+    "unlockOrder": 77,
+    "rewardMarsMoney": 127
   },
   {
     "id": "mission-079",
@@ -629,7 +707,8 @@ export default [
     "description": "Collect 16 units of K (Potassium) from basalt columns and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 78
+    "unlockOrder": 78,
+    "rewardMarsMoney": 128
   },
   {
     "id": "mission-080",
@@ -637,7 +716,8 @@ export default [
     "description": "Collect 16 units of Ca (Calcium) from fossilized reef and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 79
+    "unlockOrder": 79,
+    "rewardMarsMoney": 129
   },
   {
     "id": "mission-081",
@@ -645,7 +725,8 @@ export default [
     "description": "Collect 17 units of H (Hydrogen) from ice vents near the crater rim and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 80
+    "unlockOrder": 80,
+    "rewardMarsMoney": 130
   },
   {
     "id": "mission-082",
@@ -653,7 +734,8 @@ export default [
     "description": "Collect 17 units of He (Helium) from sun-facing ridge balloons and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 81
+    "unlockOrder": 81,
+    "rewardMarsMoney": 131
   },
   {
     "id": "mission-083",
@@ -661,7 +743,8 @@ export default [
     "description": "Collect 17 units of Li (Lithium) from deserted battery caches and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 82
+    "unlockOrder": 82,
+    "rewardMarsMoney": 132
   },
   {
     "id": "mission-084",
@@ -669,7 +752,8 @@ export default [
     "description": "Collect 17 units of Be (Beryllium) from silicate shelves and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 83
+    "unlockOrder": 83,
+    "rewardMarsMoney": 133
   },
   {
     "id": "mission-085",
@@ -677,7 +761,8 @@ export default [
     "description": "Collect 17 units of B (Boron) from collapsed mine drifts and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 84
+    "unlockOrder": 84,
+    "rewardMarsMoney": 134
   },
   {
     "id": "mission-086",
@@ -685,7 +770,8 @@ export default [
     "description": "Collect 18 units of C (Carbon) from charcoal vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "critical",
-    "unlockOrder": 85
+    "unlockOrder": 85,
+    "rewardMarsMoney": 135
   },
   {
     "id": "mission-087",
@@ -693,7 +779,8 @@ export default [
     "description": "Collect 18 units of N (Nitrogen) from permafrost pockets and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "critical",
-    "unlockOrder": 86
+    "unlockOrder": 86,
+    "rewardMarsMoney": 136
   },
   {
     "id": "mission-088",
@@ -701,7 +788,8 @@ export default [
     "description": "Collect 18 units of O (Oxygen) from oxidized canyons and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "critical",
-    "unlockOrder": 87
+    "unlockOrder": 87,
+    "rewardMarsMoney": 137
   },
   {
     "id": "mission-089",
@@ -709,7 +797,8 @@ export default [
     "description": "Collect 18 units of F (Fluorine) from fluorite clusters and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "critical",
-    "unlockOrder": 88
+    "unlockOrder": 88,
+    "rewardMarsMoney": 138
   },
   {
     "id": "mission-090",
@@ -717,7 +806,8 @@ export default [
     "description": "Collect 18 units of Ne (Neon) from ionized geysers and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "critical",
-    "unlockOrder": 89
+    "unlockOrder": 89,
+    "rewardMarsMoney": 139
   },
   {
     "id": "mission-091",
@@ -725,7 +815,8 @@ export default [
     "description": "Collect 19 units of Na (Sodium) from salt flats and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 90
+    "unlockOrder": 90,
+    "rewardMarsMoney": 140
   },
   {
     "id": "mission-092",
@@ -733,7 +824,8 @@ export default [
     "description": "Collect 19 units of Mg (Magnesium) from meteor shards and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 91
+    "unlockOrder": 91,
+    "rewardMarsMoney": 141
   },
   {
     "id": "mission-093",
@@ -741,7 +833,8 @@ export default [
     "description": "Collect 19 units of Al (Aluminum) from ancient hull plating and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 92
+    "unlockOrder": 92,
+    "rewardMarsMoney": 142
   },
   {
     "id": "mission-094",
@@ -749,7 +842,8 @@ export default [
     "description": "Collect 19 units of Si (Silicon) from glassfield dunes and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 93
+    "unlockOrder": 93,
+    "rewardMarsMoney": 143
   },
   {
     "id": "mission-095",
@@ -757,7 +851,8 @@ export default [
     "description": "Collect 19 units of P (Phosphorus) from phosphor caverns and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 94
+    "unlockOrder": 94,
+    "rewardMarsMoney": 144
   },
   {
     "id": "mission-096",
@@ -765,7 +860,8 @@ export default [
     "description": "Collect 20 units of S (Sulfur) from sulfuric vents and deliver to the primary refinery pad.",
     "priorityLabel": "Alpha",
     "priorityVariant": "stable",
-    "unlockOrder": 95
+    "unlockOrder": 95,
+    "rewardMarsMoney": 145
   },
   {
     "id": "mission-097",
@@ -773,7 +869,8 @@ export default [
     "description": "Collect 20 units of Cl (Chlorine) from halogen pools and deliver to the mobile lab.",
     "priorityLabel": "Bravo",
     "priorityVariant": "stable",
-    "unlockOrder": 96
+    "unlockOrder": 96,
+    "rewardMarsMoney": 146
   },
   {
     "id": "mission-098",
@@ -781,7 +878,8 @@ export default [
     "description": "Collect 20 units of Ar (Argon) from sealed vault canisters and deliver to the eastern launch rail.",
     "priorityLabel": "Charlie",
     "priorityVariant": "stable",
-    "unlockOrder": 97
+    "unlockOrder": 97,
+    "rewardMarsMoney": 147
   },
   {
     "id": "mission-099",
@@ -789,7 +887,8 @@ export default [
     "description": "Collect 20 units of K (Potassium) from basalt columns and deliver to the mid-bay recycler.",
     "priorityLabel": "Delta",
     "priorityVariant": "stable",
-    "unlockOrder": 98
+    "unlockOrder": 98,
+    "rewardMarsMoney": 148
   },
   {
     "id": "mission-100",
@@ -797,6 +896,7 @@ export default [
     "description": "Collect 20 units of Ca (Calcium) from fossilized reef and deliver to the command barge intake.",
     "priorityLabel": "Echo",
     "priorityVariant": "stable",
-    "unlockOrder": 99
+    "unlockOrder": 99,
+    "rewardMarsMoney": 149
   }
 ];
