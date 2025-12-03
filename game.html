@@ -602,6 +602,27 @@
         justify-content: space-between;
       }
 
+      .ui-overlay__left-stack {
+        position: fixed;
+        left: var(--ui-gutter);
+        bottom: clamp(1.75rem, 3.5vw, 3rem);
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+        pointer-events: none;
+        z-index: 6;
+      }
+
+      .ui-overlay__left-stack > * {
+        pointer-events: auto;
+      }
+
+      .ui-overlay__left-stack .mission-indicator,
+      .ui-overlay__left-stack .currency-indicator {
+        margin: 0;
+      }
+
       .top-bar {
         display: flex;
         align-items: center;
@@ -3129,35 +3150,37 @@
           hidden
         ></div>
 
-        <div class="mission-indicator" data-mission-indicator>
-          <div class="mission-indicator__header">
-            <div class="mission-indicator__pill">Mission queue</div>
-            <p class="mission-indicator__title" data-mission-indicator-active>
-              0 active
-          </p>
-        </div>
-        <ul class="mission-indicator__list" data-mission-indicator-list>
-          <li class="mission-indicator__item mission-indicator__item--empty">
-            Loading missions…
-          </li>
-        </ul>
-        <p class="mission-indicator__subtitle" data-mission-indicator-next>
-          Loading missions…
-        </p>
-      </div>
+        <div class="ui-overlay__left-stack">
+          <div class="mission-indicator" data-mission-indicator>
+            <div class="mission-indicator__header">
+              <div class="mission-indicator__pill">Mission queue</div>
+              <p class="mission-indicator__title" data-mission-indicator-active>
+                0 active
+              </p>
+            </div>
+            <ul class="mission-indicator__list" data-mission-indicator-list>
+              <li class="mission-indicator__item mission-indicator__item--empty">
+                Loading missions…
+              </li>
+            </ul>
+            <p class="mission-indicator__subtitle" data-mission-indicator-next>
+              Loading missions…
+            </p>
+          </div>
 
-      <div
-        class="currency-indicator"
-        data-currency-indicator
-        tabindex="0"
-        role="status"
-        aria-live="polite"
-        aria-label="Mars money balance"
-        hidden
-      >
-        <div class="currency-indicator__pill">Mars money</div>
-        <p class="currency-indicator__value" data-currency-balance>—</p>
-      </div>
+          <div
+            class="currency-indicator"
+            data-currency-indicator
+            tabindex="0"
+            role="status"
+            aria-live="polite"
+            aria-label="Mars money balance"
+            hidden
+          >
+            <div class="currency-indicator__pill">Mars money</div>
+            <p class="currency-indicator__value" data-currency-balance>—</p>
+          </div>
+        </div>
 
       <div
         class="resource-tool-indicator"
