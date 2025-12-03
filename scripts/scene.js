@@ -2786,9 +2786,9 @@ export const initScene = (
     const skyDome = new THREE.Mesh(
       new THREE.SphereGeometry(skyRadius, 48, 32),
       new THREE.MeshBasicMaterial({
-        color: 0x01060c,
+        color: 0x0d1b2f,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.45,
         side: THREE.BackSide,
       })
     );
@@ -3435,9 +3435,9 @@ export const initScene = (
     const skyDome = new THREE.Mesh(
       new THREE.SphereGeometry(skyRadius, 48, 32),
       new THREE.MeshBasicMaterial({
-        color: 0x01060c,
+        color: 0x0d1b2f,
         transparent: true,
-        opacity: 0.92,
+        opacity: 0.45,
         side: THREE.BackSide,
       })
     );
