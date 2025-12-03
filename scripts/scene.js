@@ -2780,7 +2780,8 @@ export const initScene = (
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : 0;
 
-    const skyYOffset = skyRadius * 0.28;
+    // Keep the lowest stars comfortably above the floor.
+    const skyYOffset = skyRadius + 10;
 
     const skyDome = new THREE.Mesh(
       new THREE.SphereGeometry(skyRadius, 48, 32),
@@ -3496,7 +3497,10 @@ export const initScene = (
         side: THREE.BackSide,
       })
     );
-    skyDome.position.set(0, roomFloorY + skyRadius * 0.3, 0);
+    // Raise the dome so the lowest stars start 10 units above the floor.
+    const skyYOffset = skyRadius + 10;
+
+    skyDome.position.set(0, roomFloorY + skyYOffset, 0);
     group.add(skyDome);
 
     const starCount = 1200;
@@ -3570,7 +3574,7 @@ export const initScene = (
       });
 
       horizonLight.position.y = roomFloorY + 3.2;
-      skyDome.position.y = roomFloorY + skyRadius * 0.3;
+      skyDome.position.y = roomFloorY + skyYOffset;
       starField.position.y = skyDome.position.y;
     };
 
