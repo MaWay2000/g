@@ -3772,12 +3772,12 @@ const createMissionCard = (mission) => {
   if (mission.status === "active") {
     const action = document.createElement("button");
     action.type = "button";
-    action.className = "quick-access-modal__action";
+    action.className = "quick-access-modal__action quick-access-modal__action--complete";
     const isActionDisabled = !hasRequiredResources || !hasReward;
     action.textContent = !hasReward
       ? "Reward missing"
       : hasRequiredResources
-        ? "Mark complete"
+        ? "Complete"
         : "Need resources";
     action.disabled = isActionDisabled;
     action.setAttribute("aria-disabled", String(isActionDisabled));
