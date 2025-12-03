@@ -2773,6 +2773,56 @@ export const initScene = (
       outsideMapBounds = builtOutsideTerrain.bounds;
     }
 
+    const skyRadius =
+      Math.max(OPERATIONS_EXTERIOR_PLATFORM_WIDTH, OPERATIONS_EXTERIOR_PLATFORM_DEPTH) * 2.2;
+    const skyCenterZ =
+      Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
+        ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
+        : 0;
+
+    const skyYOffset = skyRadius * 0.28;
+
+    const skyDome = new THREE.Mesh(
+      new THREE.SphereGeometry(skyRadius, 48, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x01060c,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.BackSide,
+      })
+    );
+    skyDome.position.set(0, roomFloorY + skyYOffset, skyCenterZ);
+    group.add(skyDome);
+
+    const starCount = 1200;
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i += 1) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const radius = skyRadius * (0.5 + Math.random() * 0.45);
+      const index = i * 3;
+
+      starPositions[index] = radius * Math.sin(phi) * Math.cos(theta);
+      starPositions[index + 1] = radius * Math.cos(phi);
+      starPositions[index + 2] = radius * Math.sin(phi) * Math.sin(theta);
+    }
+
+    starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+
+    const starMaterial = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.06,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+    });
+
+    const starField = new THREE.Points(starGeometry, starMaterial);
+    starField.position.copy(skyDome.position);
+    group.add(starField);
+
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
     group.add(ambient);
 
@@ -2891,6 +2941,8 @@ export const initScene = (
       { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
       { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
       { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
+      { object: skyDome, offset: skyYOffset },
+      { object: starField, offset: skyYOffset },
     ];
 
     if (walkwayWalls.length > 0 && Number.isFinite(walkwayWallHeight)) {
