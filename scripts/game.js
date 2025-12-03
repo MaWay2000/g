@@ -352,6 +352,30 @@ const inventoryTooltipMeta = inventoryTooltip?.querySelector(
 const inventoryTooltipDetails = inventoryTooltip?.querySelector(
   "[data-inventory-tooltip-details]"
 );
+const inventoryDropConfirm = document.querySelector(
+  "[data-inventory-drop-confirm]"
+);
+const inventoryDropConfirmTitle = inventoryDropConfirm?.querySelector(
+  "[data-inventory-drop-title]"
+);
+const inventoryDropConfirmMessage = inventoryDropConfirm?.querySelector(
+  "[data-inventory-drop-message]"
+);
+const inventoryDropConfirmDetail = inventoryDropConfirm?.querySelector(
+  "[data-inventory-drop-detail]"
+);
+const inventoryDropConfirmConfirmButton = inventoryDropConfirm?.querySelector(
+  "[data-inventory-drop-confirm-button]"
+);
+const inventoryDropConfirmCancelButton = inventoryDropConfirm?.querySelector(
+  "[data-inventory-drop-cancel-button]"
+);
+const inventoryDropConfirmCloseButton = inventoryDropConfirm?.querySelector(
+  "[data-inventory-drop-close]"
+);
+const inventoryDropConfirmBackdrop = inventoryDropConfirm?.querySelector(
+  "[data-inventory-drop-backdrop]"
+);
 const inventoryDroneRefuelButton = inventoryPanel?.querySelector(
   "[data-inventory-drone-refuel]"
 );
@@ -1998,6 +2022,10 @@ const inventoryReorderState = {
 const inventoryDroneFuelDropState = {
   slot: null,
 };
+const inventoryDropConfirmState = {
+  resolver: null,
+  closeTimeoutId: 0,
+};
 const inventoryPointerReorderState = {
   active: false,
   pointerId: null,
@@ -2718,21 +2746,117 @@ const getInventoryEntryDisplayName = (entry) => {
 
   return "this item";
 };
-
-const confirmInventoryDrop = (entry) => {
-  if (typeof window?.confirm !== "function") {
-    return false;
-  }
-
+const getInventoryDropWarningCopy = (entry) => {
   const name = getInventoryEntryDisplayName(entry);
   const countLabel =
     typeof entry?.count === "number" && entry.count > 1
       ? `${entry.count} items`
       : "this item";
 
+  return {
+    name,
+    countLabel,
+    title: `Drop ${name}?`,
+    detail: `Use Keep item to return ${name} to your inventory.`,
+  };
+};
+
+const setInventoryDropConfirmMessage = (countLabel) => {
+  if (!(inventoryDropConfirmMessage instanceof HTMLElement)) {
+    return;
+  }
+
+  const prefix = document.createTextNode("Dropping ");
+  const highlight = document.createElement("span");
+  const suffix = document.createTextNode(
+    " outside the inventory will permanently remove it."
+  );
+
+  highlight.className = "inventory-drop-confirm__highlight";
+  highlight.textContent = countLabel;
+
+  inventoryDropConfirmMessage.innerHTML = "";
+  inventoryDropConfirmMessage.append(prefix, highlight, suffix);
+};
+
+const confirmInventoryDropFallback = (entry) => {
+  if (typeof window?.confirm !== "function") {
+    return false;
+  }
+
+  const { name, countLabel } = getInventoryDropWarningCopy(entry);
+
   return window.confirm(
     `Drop ${name} outside the inventory panel? This will remove ${countLabel} from your inventory.`
   );
+};
+
+const hideInventoryDropConfirm = (result = false) => {
+  if (!(inventoryDropConfirm instanceof HTMLElement)) {
+    const resolver = inventoryDropConfirmState.resolver;
+    inventoryDropConfirmState.resolver = null;
+    resolver?.(result);
+    return;
+  }
+
+  window.clearTimeout(inventoryDropConfirmState.closeTimeoutId);
+  inventoryDropConfirm.dataset.visible = "false";
+  inventoryDropConfirmState.closeTimeoutId = window.setTimeout(() => {
+    inventoryDropConfirm.hidden = true;
+    inventoryDropConfirm.setAttribute("aria-hidden", "true");
+  }, 180);
+
+  const resolver = inventoryDropConfirmState.resolver;
+  inventoryDropConfirmState.resolver = null;
+  resolver?.(result);
+};
+
+const showInventoryDropConfirm = (entry) =>
+  new Promise((resolve) => {
+    if (
+      !(
+        inventoryDropConfirm instanceof HTMLElement &&
+        inventoryDropConfirmTitle instanceof HTMLElement &&
+        inventoryDropConfirmConfirmButton instanceof HTMLButtonElement &&
+        inventoryDropConfirmCancelButton instanceof HTMLButtonElement
+      )
+    ) {
+      resolve(confirmInventoryDropFallback(entry));
+      return;
+    }
+
+    window.clearTimeout(inventoryDropConfirmState.closeTimeoutId);
+
+    if (typeof inventoryDropConfirmState.resolver === "function") {
+      inventoryDropConfirmState.resolver(false);
+    }
+
+    const { title, countLabel, detail, name } = getInventoryDropWarningCopy(entry);
+
+    inventoryDropConfirmState.resolver = resolve;
+    inventoryDropConfirmTitle.textContent = title;
+    setInventoryDropConfirmMessage(countLabel);
+
+    if (inventoryDropConfirmDetail instanceof HTMLElement) {
+      inventoryDropConfirmDetail.textContent =
+        detail || `Use Keep item to return ${name} to your inventory.`;
+    }
+
+    inventoryDropConfirm.hidden = false;
+    inventoryDropConfirm.setAttribute("aria-hidden", "false");
+
+    window.requestAnimationFrame(() => {
+      inventoryDropConfirm.dataset.visible = "true";
+      inventoryDropConfirmConfirmButton.focus({ preventScroll: true });
+    });
+  });
+
+const confirmInventoryDrop = async (entry) => {
+  if (!(inventoryDropConfirm instanceof HTMLElement)) {
+    return confirmInventoryDropFallback(entry);
+  }
+
+  return showInventoryDropConfirm(entry);
 };
 
 const startInventoryReorderForItem = (item) => {
@@ -2841,7 +2965,7 @@ function updateInventoryPointerReorderTarget(clientX, clientY) {
   }
 }
 
-function finishInventoryPointerReorder(clientX, clientY) {
+async function finishInventoryPointerReorder(clientX, clientY) {
   const sourceIndex = inventoryReorderState.sourceSlotIndex;
   let targetIndex = -1;
   const element =
@@ -2882,9 +3006,8 @@ function finishInventoryPointerReorder(clientX, clientY) {
   }
 
   if (droppedOutsideInventory) {
-    const confirmed = confirmInventoryDrop(draggedEntry);
-
     resetInventoryReorderState();
+    const confirmed = await confirmInventoryDrop(draggedEntry);
 
     if (confirmed && draggedEntry) {
       spendInventoryResource(draggedEntry.element, draggedEntry.count || 1);
@@ -2930,7 +3053,7 @@ function handleInventoryPointerReorderMove(event) {
   updateInventoryDragPreviewPosition(event.clientX, event.clientY);
 }
 
-function handleInventoryPointerReorderEnd(event) {
+async function handleInventoryPointerReorderEnd(event) {
   if (
     !inventoryPointerReorderState.active ||
     event.pointerId !== inventoryPointerReorderState.pointerId
@@ -2940,7 +3063,7 @@ function handleInventoryPointerReorderEnd(event) {
 
   event.preventDefault();
   updateInventoryDragPreviewPosition(event.clientX, event.clientY);
-  finishInventoryPointerReorder(event.clientX, event.clientY);
+  await finishInventoryPointerReorder(event.clientX, event.clientY);
 }
 
 const setInventoryDropTargetSlot = (slot) => {
@@ -6598,6 +6721,41 @@ if (quickAccessModal instanceof HTMLElement) {
     }
   });
 }
+
+if (inventoryDropConfirmConfirmButton instanceof HTMLButtonElement) {
+  inventoryDropConfirmConfirmButton.addEventListener("click", () => {
+    hideInventoryDropConfirm(true);
+  });
+}
+
+if (inventoryDropConfirmCancelButton instanceof HTMLButtonElement) {
+  inventoryDropConfirmCancelButton.addEventListener("click", () => {
+    hideInventoryDropConfirm(false);
+  });
+}
+
+if (inventoryDropConfirmCloseButton instanceof HTMLButtonElement) {
+  inventoryDropConfirmCloseButton.addEventListener("click", () => {
+    hideInventoryDropConfirm(false);
+  });
+}
+
+if (inventoryDropConfirmBackdrop instanceof HTMLElement) {
+  inventoryDropConfirmBackdrop.addEventListener("click", () => {
+    hideInventoryDropConfirm(false);
+  });
+}
+
+document.addEventListener("keydown", (event) => {
+  if (
+    event.key === "Escape" &&
+    inventoryDropConfirm instanceof HTMLElement &&
+    inventoryDropConfirm.dataset.visible === "true"
+  ) {
+    event.preventDefault();
+    hideInventoryDropConfirm(false);
+  }
+});
 
 if (inventoryDragHandle instanceof HTMLElement) {
   inventoryDragHandle.addEventListener(
