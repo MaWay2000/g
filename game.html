@@ -1615,6 +1615,17 @@
         box-shadow: none;
       }
 
+      .quick-access-modal__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-top: 0.75rem;
+      }
+
+      .quick-access-modal__actions .quick-access-modal__action {
+        margin-top: 0;
+      }
+
       .mission-requirement {
         margin: 0.15rem 0 0.35rem;
         color: rgba(226, 232, 240, 0.85);
@@ -3342,33 +3353,23 @@
       </header>
       <section class="quick-access-modal__section">
         <h3 class="quick-access-modal__section-title">Contracts</h3>
-        <div class="quick-access-modal__card-grid">
-          <article class="quick-access-modal__card">
-            <p class="quick-access-modal__status-tag">Buy</p>
-            <h3>Ionized ore</h3>
-            <p>Vendors paying a premium for clean ore—bonus for &lt; 2% contamination.</p>
-          </article>
-          <article class="quick-access-modal__card">
-            <p class="quick-access-modal__status-tag" data-status="critical">Sell</p>
-            <h3>Shield capacitors</h3>
-            <p>Fleet retrofit underway. Immediate delivery to hangar bay loading cranes.</p>
-          </article>
-          <article class="quick-access-modal__card">
-            <p class="quick-access-modal__status-tag">Trade</p>
-            <h3>Drone optics</h3>
-            <p>Swap surplus fiber arrays for calibrated survey lenses—limited lots remain.</p>
-          </article>
-        </div>
+        <p class="quick-access-modal__subtitle" data-market-balance>
+          Balance: syncing...
+        </p>
+        <div class="quick-access-modal__card-grid" data-market-grid></div>
+        <p class="quick-access-modal__list-item" data-market-empty hidden>
+          Market feed unavailable. Storage access may be limited.
+        </p>
       </section>
       <hr class="quick-access-modal__divider" />
       <section class="quick-access-modal__section">
         <h3 class="quick-access-modal__section-title">Exchange cues</h3>
         <ul class="quick-access-modal__list">
           <li class="quick-access-modal__list-item">
-            Prices spike after dusk cycle; queue early if you need shielding or batteries.
+            Prices react to each trade; expect surcharges on hot items and relief on selloffs.
           </li>
           <li class="quick-access-modal__list-item">
-            Verified squads can reserve cargo pods remotely—submit your manifest here.
+            Listings persist between shifts. Use quick access to adjust loads before deploying.
           </li>
         </ul>
       </section>

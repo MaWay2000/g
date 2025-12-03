@@ -25,10 +25,12 @@ import {
   subscribeToMissionState,
 } from "./missions.js";
 import {
+  addMarsMoney,
   getCurrencyBalance,
   isCurrencyStorageAvailable,
   subscribeToCurrency,
 } from "./currency.js";
+import { loadMarketState, persistMarketState } from "./market-state-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -1926,6 +1928,7 @@ let lastFocusedElement = null;
 let sceneController = null;
 let liftModalActive = false;
 let missionModalActive = false;
+let marketModalActive = false;
 
 const INVENTORY_SLOT_COUNT = 100;
 const DEFAULT_INVENTORY_CAPACITY_KG = 10;
@@ -3485,6 +3488,212 @@ const formatMarsMoney = (value) => {
   return `${formatter.format(value)} Mars money`;
 };
 
+const MARKET_PRICE_INCREASE_FACTOR = 1.05;
+const MARKET_PRICE_DECREASE_FACTOR = 0.97;
+const MARKET_MIN_PRICE = 1;
+
+let marketState = loadMarketState();
+let teardownMarketActionBinding = null;
+
+const getMarketModalElements = () => {
+  if (!quickAccessModalContent) {
+    return { grid: null, balance: null, empty: null };
+  }
+
+  return {
+    grid: quickAccessModalContent.querySelector("[data-market-grid]"),
+    balance: quickAccessModalContent.querySelector("[data-market-balance]"),
+    empty: quickAccessModalContent.querySelector("[data-market-empty]") ?? null,
+  };
+};
+
+const adjustMarketPrice = (item, direction) => {
+  if (!item) {
+    return;
+  }
+
+  const factor = direction === "buy" ? MARKET_PRICE_INCREASE_FACTOR : MARKET_PRICE_DECREASE_FACTOR;
+  const adjusted = Math.round(item.price * factor);
+  const nextPrice = Math.max(MARKET_MIN_PRICE, adjusted === item.price ? adjusted + (direction === "buy" ? 1 : -1) : adjusted);
+  item.price = nextPrice;
+};
+
+const persistCurrentMarketState = () => {
+  const persisted = persistMarketState(marketState);
+
+  if (persisted) {
+    marketState = loadMarketState();
+  }
+};
+
+const executeMarketTrade = (itemId, action) => {
+  const item = marketState?.items?.find((entry) => entry?.id === itemId);
+
+  if (!item || (action !== "buy" && action !== "sell")) {
+    return;
+  }
+
+  if (action === "buy") {
+    if (item.stock <= 0) {
+      return;
+    }
+
+    const balance = getCurrencyBalance();
+    if (balance < item.price) {
+      return;
+    }
+
+    item.stock -= 1;
+    addMarsMoney(-item.price);
+    adjustMarketPrice(item, "buy");
+  } else {
+    item.stock += 1;
+    addMarsMoney(item.price);
+    adjustMarketPrice(item, "sell");
+  }
+
+  persistCurrentMarketState();
+
+  if (marketModalActive) {
+    renderMarketModal();
+  }
+};
+
+const handleMarketActionClick = (event) => {
+  if (!marketModalActive) {
+    return;
+  }
+
+  const target =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-market-action]")
+      : null;
+
+  if (!(target instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const action = target.dataset.marketAction;
+  const itemId = target.dataset.marketItemId;
+
+  if (!itemId) {
+    return;
+  }
+
+  event.preventDefault();
+  executeMarketTrade(itemId, action);
+};
+
+const teardownMarketModal = () => {
+  marketModalActive = false;
+
+  if (typeof teardownMarketActionBinding === "function") {
+    teardownMarketActionBinding();
+    teardownMarketActionBinding = null;
+  }
+};
+
+const bindMarketModalEvents = () => {
+  const { grid } = getMarketModalElements();
+
+  if (!(grid instanceof HTMLElement) || typeof teardownMarketActionBinding === "function") {
+    return;
+  }
+
+  grid.addEventListener("click", handleMarketActionClick);
+  teardownMarketActionBinding = () => grid.removeEventListener("click", handleMarketActionClick);
+};
+
+const createMarketCard = (item) => {
+  const card = document.createElement("article");
+  card.className = "quick-access-modal__card";
+
+  const status = document.createElement("p");
+  status.className = "quick-access-modal__status-tag";
+  status.textContent = "Live listing";
+  card.appendChild(status);
+
+  const title = document.createElement("h3");
+  title.textContent = `${item.accent ? `${item.accent} ` : ""}${item.name}`;
+  card.appendChild(title);
+
+  if (item.summary) {
+    const summary = document.createElement("p");
+    summary.textContent = item.summary;
+    card.appendChild(summary);
+  }
+
+  const price = document.createElement("p");
+  price.className = "mission-reward";
+  price.textContent = `Price: ${formatMarsMoney(item.price)}`;
+  card.appendChild(price);
+
+  const stock = document.createElement("p");
+  stock.className = "mission-requirement";
+  stock.textContent = `Available: ${item.stock}`;
+  card.appendChild(stock);
+
+  const actions = document.createElement("div");
+  actions.className = "quick-access-modal__actions";
+
+  const balance = getCurrencyBalance();
+
+  const buyButton = document.createElement("button");
+  buyButton.className = "quick-access-modal__action";
+  buyButton.dataset.marketAction = "buy";
+  buyButton.dataset.marketItemId = item.id;
+  buyButton.textContent = "Buy";
+  buyButton.disabled = item.stock <= 0 || balance < item.price;
+  actions.appendChild(buyButton);
+
+  const sellButton = document.createElement("button");
+  sellButton.className = "quick-access-modal__action";
+  sellButton.dataset.marketAction = "sell";
+  sellButton.dataset.marketItemId = item.id;
+  sellButton.textContent = "Sell";
+  actions.appendChild(sellButton);
+
+  card.appendChild(actions);
+
+  return card;
+};
+
+function renderMarketModal() {
+  if (!marketModalActive) {
+    return;
+  }
+
+  const { grid, balance, empty } = getMarketModalElements();
+  const items = marketState?.items ?? [];
+  const hasItems = Array.isArray(items) && items.length > 0;
+
+  if (balance instanceof HTMLElement) {
+    balance.textContent = `Balance: ${formatMarsMoney(getCurrencyBalance())}`;
+  }
+
+  if (!(grid instanceof HTMLElement)) {
+    return;
+  }
+
+  grid.innerHTML = "";
+
+  if (empty instanceof HTMLElement) {
+    empty.hidden = hasItems;
+  }
+
+  if (!hasItems) {
+    return;
+  }
+
+  items.forEach((item) => {
+    if (!item) {
+      return;
+    }
+
+    grid.appendChild(createMarketCard(item));
+  });
+}
+
 const createMissionCard = (mission) => {
   const card = document.createElement("article");
   card.className = "quick-access-modal__card";
@@ -3679,11 +3888,21 @@ const handleMissionStateChanged = (detail = {}) => {
 updateMissionIndicator();
 updateCurrencyIndicator();
 subscribeToCurrency(updateCurrencyIndicator);
+subscribeToCurrency(() => {
+  if (marketModalActive) {
+    renderMarketModal();
+  }
+});
 subscribeToMissionState(handleMissionStateChanged);
+
+const teardownQuickAccessModalContent = () => {
+  teardownMarketModal();
+};
 
 const initializeQuickAccessModalContent = (option) => {
   liftModalActive = option?.id === LIFT_MODAL_OPTION.id;
   missionModalActive = option?.id === "missions";
+  marketModalActive = option?.id === "market";
 
   if (liftModalActive) {
     renderLiftModalFloors();
@@ -3691,6 +3910,13 @@ const initializeQuickAccessModalContent = (option) => {
 
   if (missionModalActive) {
     renderMissionModalMissions();
+  }
+
+  if (marketModalActive) {
+    renderMarketModal();
+    bindMarketModalEvents();
+  } else {
+    teardownMarketModal();
   }
 };
 
@@ -5624,6 +5850,7 @@ const finishClosingQuickAccessModal = () => {
 
   liftModalActive = false;
   missionModalActive = false;
+  teardownQuickAccessModalContent();
   quickAccessModal.hidden = true;
   quickAccessModalContent.innerHTML = "";
   stopQuickAccessMatrix();
@@ -5689,6 +5916,8 @@ const openQuickAccessModal = (option) => {
   if (!quickAccessModal || !quickAccessModalDialog || !quickAccessModalContent) {
     return;
   }
+
+  teardownQuickAccessModalContent();
 
   const template = getModalTemplateForOption(option?.id);
   if (!template) {
