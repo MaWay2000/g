@@ -5207,6 +5207,12 @@ if (!restoredInventoryFromStorage) {
   grantNewGameStarterResources();
 }
 
+updateMissionIndicator();
+
+if (missionModalActive) {
+  renderMissionModalMissions();
+}
+
 const trapFocusWithinInventoryPanel = (event) => {
   if (!(inventoryDialog instanceof HTMLElement)) {
     return;
