@@ -131,7 +131,8 @@ export const initScene = (
 
       if (isPlanar) {
         const theta = Math.random() * Math.PI * 2;
-        const distance = effectiveRadius * Math.sqrt(Math.random());
+        const distance =
+          effectiveRadius * 10 * Math.sqrt(Math.random());
 
         starPositions[index] = distance * Math.cos(theta);
         starPositions[index + 1] = planarHeight;
