@@ -2791,6 +2791,8 @@ export const initScene = (
         transparent: true,
         opacity: 0.45,
         side: THREE.BackSide,
+        depthWrite: false,
+        depthTest: false,
       })
     );
     skyDome.position.set(0, roomFloorY + skyDomeYOffset, skyCenterZ);
@@ -3444,6 +3446,8 @@ export const initScene = (
         transparent: true,
         opacity: 0.45,
         side: THREE.BackSide,
+        depthWrite: false,
+        depthTest: false,
       })
     );
     const skyDomeYOffset = skyRadius;
