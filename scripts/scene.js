@@ -171,7 +171,8 @@ export const initScene = (
         const phi = Math.random() * Math.PI * 2;
         const cosTheta = Math.random();
         const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
-        const distance = effectiveRadius * (0.7 + Math.random() * 0.45);
+        const distanceMultiplier = Math.min(1, 0.2 + Math.random() * 0.9);
+        const distance = effectiveRadius * distanceMultiplier;
 
         starPositions[index] = distance * sinTheta * Math.cos(phi);
         starPositions[index + 1] = planarHeight + Math.abs(distance * cosTheta);
