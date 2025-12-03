@@ -107,6 +107,7 @@ const crosshairStates = {
   edit: false,
   lift: false,
 };
+let sceneController = null;
 let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
 let pointerLockImmersiveModeEnabled = false;
@@ -1977,7 +1978,6 @@ terminalInteractionUnlockEvents.forEach((eventName) => {
 let quickAccessModalClose = null;
 let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
-let sceneController = null;
 let liftModalActive = false;
 let missionModalActive = false;
 let marketModalActive = false;
