@@ -202,7 +202,7 @@ export const initScene = (
     starGeometry.setAttribute("color", new THREE.BufferAttribute(starColors, 3));
 
     const starMaterial = new THREE.PointsMaterial({
-      size: size * 100,
+      size,
       sizeAttenuation: true,
       transparent: true,
       opacity,
