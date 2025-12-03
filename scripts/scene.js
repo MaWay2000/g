@@ -2780,8 +2780,9 @@ export const initScene = (
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : 0;
 
+    const skyDomeYOffset = skyRadius;
     // Keep the lowest stars comfortably above the floor.
-    const skyYOffset = skyRadius + 10;
+    const starYOffset = skyRadius + 10;
 
     const skyDome = new THREE.Mesh(
       new THREE.SphereGeometry(skyRadius, 48, 32),
@@ -2792,7 +2793,7 @@ export const initScene = (
         side: THREE.BackSide,
       })
     );
-    skyDome.position.set(0, roomFloorY + skyYOffset, skyCenterZ);
+    skyDome.position.set(0, roomFloorY + skyDomeYOffset, skyCenterZ);
     group.add(skyDome);
 
     const starCount = 1200;
@@ -2821,7 +2822,11 @@ export const initScene = (
     });
 
     const starField = new THREE.Points(starGeometry, starMaterial);
-    starField.position.copy(skyDome.position);
+    starField.position.set(
+      skyDome.position.x,
+      roomFloorY + starYOffset,
+      skyDome.position.z
+    );
     group.add(starField);
 
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
@@ -2895,8 +2900,8 @@ export const initScene = (
       { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
       { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
       { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
-      { object: skyDome, offset: skyYOffset },
-      { object: starField, offset: skyYOffset },
+      { object: skyDome, offset: skyDomeYOffset },
+      { object: starField, offset: starYOffset },
     ];
 
     if (mapAdjustableEntries.length > 0) {
@@ -3441,10 +3446,11 @@ export const initScene = (
         side: THREE.BackSide,
       })
     );
-    // Raise the dome so the lowest stars start 10 units above the floor.
-    const skyYOffset = skyRadius + 10;
+    const skyDomeYOffset = skyRadius;
+    // Raise the stars so the lowest stars start 10 units above the floor.
+    const starYOffset = skyRadius + 10;
 
-    skyDome.position.set(0, roomFloorY + skyYOffset, 0);
+    skyDome.position.set(0, roomFloorY + skyDomeYOffset, 0);
     group.add(skyDome);
 
     const starCount = 1200;
@@ -3476,7 +3482,7 @@ export const initScene = (
     });
 
     const starField = new THREE.Points(starGeometry, starMaterial);
-    starField.position.copy(skyDome.position);
+    starField.position.set(0, roomFloorY + starYOffset, 0);
     group.add(starField);
 
     const ambientLight = new THREE.AmbientLight(0x0f172a, 0.6);
@@ -3518,8 +3524,8 @@ export const initScene = (
       });
 
       horizonLight.position.y = roomFloorY + 3.2;
-      skyDome.position.y = roomFloorY + skyYOffset;
-      starField.position.y = skyDome.position.y;
+      skyDome.position.y = roomFloorY + skyDomeYOffset;
+      starField.position.y = roomFloorY + starYOffset;
     };
 
     const teleportOffset = new THREE.Vector3(
