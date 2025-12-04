@@ -212,6 +212,10 @@
         border-radius: 0.5rem;
         border: 1px solid rgba(15, 23, 42, 0.4);
         flex-shrink: 0;
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-blend-mode: multiply;
       }
 
       .main {
@@ -320,7 +324,12 @@
         position: absolute;
         inset: 4px;
         border-radius: 0.6rem;
-        background: var(--cell-color, transparent);
+        background-color: var(--cell-color, transparent);
+        background-image: var(--cell-texture, none);
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-blend-mode: multiply;
         transition: transform 120ms ease, box-shadow 120ms ease;
       }
 

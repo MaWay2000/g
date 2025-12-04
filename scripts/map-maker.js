@@ -3,6 +3,7 @@ import {
   OUTSIDE_MAP_LOCAL_STORAGE_KEY as LOCAL_STORAGE_KEY,
   clampOutsideMapDimension,
   getOutsideTerrainById as getTerrainById,
+  getOutsideTerrainTexturePath,
   createDefaultOutsideMap,
   normalizeOutsideMap,
   tryGetOutsideMapStorage,
@@ -49,6 +50,14 @@ function formatTerrainElement(terrain) {
     return name;
   }
   return null;
+}
+
+function getTerrainTextureCssValue(terrainId, variantSeed = 0) {
+  const texturePath = getOutsideTerrainTexturePath(terrainId, variantSeed);
+  if (!texturePath) {
+    return "none";
+  }
+  return `url("${texturePath}")`;
 }
 
 const VOID_TERRAIN_ID = TERRAIN_TYPES[0]?.id ?? "void";
@@ -309,6 +318,7 @@ function renderPalette() {
     button.type = "button";
     button.className = "terrain-button";
     button.dataset.active = String(state.terrain.id === terrain.id);
+    const textureCss = getTerrainTextureCssValue(terrain.id);
     const elementLabel = formatTerrainElement(terrain);
     const hpLabel = formatTerrainHp(terrain);
     const details = [terrain.description];
@@ -319,7 +329,7 @@ function renderPalette() {
       details.push(`Element: ${elementLabel}`);
     }
     button.innerHTML = `
-      <span class="terrain-swatch" style="background:${terrain.color}"></span>
+      <span class="terrain-swatch" style="background:${terrain.color};background-image:${textureCss}"></span>
       <span>
         <strong>${terrain.label}</strong><br />
         <small>${details.join(" · ")}</small>
@@ -344,6 +354,10 @@ function renderGrid() {
     cell.dataset.index = index;
     cell.dataset.terrain = terrain.id;
     cell.style.setProperty("--cell-color", terrain.color);
+    cell.style.setProperty(
+      "--cell-texture",
+      getTerrainTextureCssValue(terrain.id, index)
+    );
     const ariaParts = [`Cell ${index + 1}`, terrain.label];
     const hpLabel = formatTerrainHp(terrain);
     if (hpLabel !== UNKNOWN_HP_LABEL) {
@@ -377,6 +391,10 @@ function paintCell(index, terrainId) {
     const terrain = getTerrainById(terrainId);
     cell.dataset.terrain = terrain.id;
     cell.style.setProperty("--cell-color", terrain.color);
+    cell.style.setProperty(
+      "--cell-texture",
+      getTerrainTextureCssValue(terrain.id, index)
+    );
     const ariaParts = [`Cell ${index + 1}`, terrain.label];
     const hpLabel = formatTerrainHp(terrain);
     if (hpLabel !== UNKNOWN_HP_LABEL) {
