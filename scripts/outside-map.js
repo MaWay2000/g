@@ -110,6 +110,8 @@ export const OUTSIDE_TERRAIN_TEXTURE_PATHS = [
   "/images/tiles/floor/7.png",
   "/images/tiles/floor/8.png",
   "/images/tiles/floor/9.png",
+  "/images/tiles/floor/10.png",
+  "/images/tiles/floor/11.png",
 ];
 
 const OUTSIDE_TERRAIN_TEXTURE_COUNT = OUTSIDE_TERRAIN_TEXTURE_PATHS.length;
