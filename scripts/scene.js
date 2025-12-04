@@ -815,11 +815,11 @@ export const initScene = (
   const DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE = {
     roughness: 0.75,
     metalness: 0.2,
-    height: 0.05,
+    height: 0.001,
     elevationOffset: 0,
   };
 
-  const CONCEAL_OUTSIDE_TERRAIN_TILES = true;
+  const CONCEAL_OUTSIDE_TERRAIN_TILES = false;
   const CONCEALED_OUTSIDE_TERRAIN_COLOR = 0x202736;
 
   const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
@@ -833,7 +833,7 @@ export const initScene = (
         color: 0x0b1220,
         roughness: 0.92,
         metalness: 0.04,
-        height: 0.035,
+        height: 0.001,
         elevationOffset: -0.025,
       },
     ],
@@ -842,7 +842,7 @@ export const initScene = (
       {
         roughness: 0.84,
         metalness: 0.08,
-        height: 0.052,
+        height: 0.001,
         elevationOffset: 0.01,
       },
     ],
@@ -851,7 +851,7 @@ export const initScene = (
       {
         roughness: 0.8,
         metalness: 0.12,
-        height: 0.055,
+        height: 0.001,
         elevationOffset: 0.012,
       },
     ],
@@ -860,7 +860,7 @@ export const initScene = (
       {
         roughness: 0.52,
         metalness: 0.32,
-        height: 0.05,
+        height: 0.001,
         elevationOffset: 0.006,
         emissive: 0xff8c4f,
         emissiveIntensity: 0.12,
@@ -871,7 +871,7 @@ export const initScene = (
       {
         roughness: 0.58,
         metalness: 0.28,
-        height: 0.055,
+        height: 0.001,
         elevationOffset: 0.008,
       },
     ],
@@ -880,7 +880,7 @@ export const initScene = (
       {
         roughness: 0.48,
         metalness: 0.46,
-        height: 0.06,
+        height: 0.001,
         elevationOffset: 0.014,
       },
     ],
@@ -889,7 +889,7 @@ export const initScene = (
       {
         roughness: 0.5,
         metalness: 0.42,
-        height: 0.057,
+        height: 0.001,
         elevationOffset: 0.012,
       },
     ],
@@ -898,7 +898,7 @@ export const initScene = (
       {
         roughness: 0.56,
         metalness: 0.36,
-        height: 0.06,
+        height: 0.001,
         elevationOffset: 0.016,
       },
     ],
@@ -907,7 +907,7 @@ export const initScene = (
       {
         roughness: 0.42,
         metalness: 0.52,
-        height: 0.065,
+        height: 0.001,
         elevationOffset: 0.02,
         emissive: 0x7c3aed,
         emissiveIntensity: 0.18,
@@ -918,7 +918,7 @@ export const initScene = (
       {
         roughness: 0.44,
         metalness: 0.46,
-        height: 0.055,
+        height: 0.001,
         elevationOffset: 0.01,
       },
     ],
@@ -927,7 +927,7 @@ export const initScene = (
       {
         roughness: 0.32,
         metalness: 0.4,
-        height: 0.05,
+        height: 0.001,
         elevationOffset: 0.006,
         emissive: 0x22d3ee,
         emissiveIntensity: 0.22,
@@ -2968,10 +2968,13 @@ export const initScene = (
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
         const texture = getTextureForTerrain(terrainId, variantIndex);
+        const baseColor = texture
+          ? 0xffffff
+          : terrainStyle.color ??
+            terrain?.color ??
+            DEFAULT_OUTSIDE_TERRAIN_COLOR;
         const material = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(
-            terrainStyle.color ?? terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR
-          ),
+          color: new THREE.Color(baseColor),
           roughness:
             terrainStyle.roughness ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.roughness,
           metalness:
