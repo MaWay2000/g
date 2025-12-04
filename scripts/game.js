@@ -253,8 +253,8 @@ const setStarSettingsExpanded = (isExpanded) => {
   if (starSettingsToggleButton instanceof HTMLButtonElement) {
     starSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
     starSettingsToggleButton.textContent = nextState
-      ? "Hide star options"
-      : "Show star options";
+      ? "Hide options"
+      : "Options";
   }
 };
 
