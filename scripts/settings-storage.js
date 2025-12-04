@@ -8,14 +8,7 @@ const DEFAULT_SETTINGS = {
   starDensity: 1,
   starOpacity: 1,
   skyExtent: 1,
-};
-
-const clampNumber = (value, min, max, fallback) => {
-  if (!Number.isFinite(value)) {
-    return fallback;
-  }
-
-  return Math.min(max, Math.max(min, value));
+  skyDomeHeight: 1,
 };
 
 const normalizeSettings = (settings = {}) => {
@@ -23,25 +16,22 @@ const normalizeSettings = (settings = {}) => {
     ? Math.max(0.5, settings.maxPixelRatio)
     : DEFAULT_SETTINGS.maxPixelRatio;
 
+  const normalizeValue = (value, fallback) =>
+    Number.isFinite(value) ? value : fallback;
+
   return {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
     showFpsCounter: Boolean(settings.showFpsCounter),
     showStars: settings.showStars !== false,
-    starSize: clampNumber(settings.starSize, 0.5, 1.5, DEFAULT_SETTINGS.starSize),
-    starDensity: clampNumber(
-      settings.starDensity,
-      0.5,
-      1.5,
-      DEFAULT_SETTINGS.starDensity
+    starSize: normalizeValue(settings.starSize, DEFAULT_SETTINGS.starSize),
+    starDensity: normalizeValue(settings.starDensity, DEFAULT_SETTINGS.starDensity),
+    starOpacity: normalizeValue(settings.starOpacity, DEFAULT_SETTINGS.starOpacity),
+    skyExtent: normalizeValue(settings.skyExtent, DEFAULT_SETTINGS.skyExtent),
+    skyDomeHeight: normalizeValue(
+      settings.skyDomeHeight,
+      DEFAULT_SETTINGS.skyDomeHeight
     ),
-    starOpacity: clampNumber(
-      settings.starOpacity,
-      0.4,
-      1.4,
-      DEFAULT_SETTINGS.starOpacity
-    ),
-    skyExtent: clampNumber(settings.skyExtent, 0.65, 1.45, DEFAULT_SETTINGS.skyExtent),
   };
 };
 
