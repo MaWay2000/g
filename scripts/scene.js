@@ -813,12 +813,13 @@ export const initScene = (
   const BASE_MIRROR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
 
   const DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE = {
-    color: 0x1f2937,
     roughness: 0.75,
     metalness: 0.2,
     height: 0.05,
     elevationOffset: 0,
   };
+
+  const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
 
   const OUTSIDE_TERRAIN_CLEARANCE = 0.02;
 
@@ -834,72 +835,100 @@ export const initScene = (
       },
     ],
     [
-      "path",
+      "nonmetal",
       {
-        color: 0xfacc15,
-        roughness: 0.45,
-        metalness: 0.28,
-        height: 0.05,
-        elevationOffset: 0.008,
-        emissive: 0xfff1a1,
-        emissiveIntensity: 0.1,
+        roughness: 0.84,
+        metalness: 0.08,
+        height: 0.052,
+        elevationOffset: 0.01,
       },
     ],
     [
-      "grass",
+      "metalloid",
       {
-        color: 0x16a34a,
-        roughness: 0.88,
-        metalness: 0.05,
-        height: 0.06,
+        roughness: 0.8,
+        metalness: 0.12,
+        height: 0.055,
         elevationOffset: 0.012,
       },
     ],
     [
-      "rock",
+      "alkali",
       {
-        color: 0x94a3b8,
-        roughness: 0.6,
-        metalness: 0.45,
-        height: 0.085,
-        elevationOffset: 0.02,
-      },
-    ],
-    [
-      "water",
-      {
-        color: 0x38bdf8,
-        roughness: 0.2,
-        metalness: 0.65,
-        height: 0.035,
-        elevationOffset: -0.05,
-        opacity: 0.6,
-        emissive: 0x0ea5e9,
-        emissiveIntensity: 0.4,
-      },
-    ],
-    [
-      "hazard",
-      {
-        color: 0xf97316,
-        roughness: 0.38,
-        metalness: 0.5,
+        roughness: 0.52,
+        metalness: 0.32,
         height: 0.05,
-        elevationOffset: 0.01,
-        emissive: 0xff4d6d,
-        emissiveIntensity: 0.32,
+        elevationOffset: 0.006,
+        emissive: 0xff8c4f,
+        emissiveIntensity: 0.12,
       },
     ],
     [
-      "point",
+      "alkaline-earth",
       {
-        color: 0xf472b6,
-        roughness: 0.35,
-        metalness: 0.62,
+        roughness: 0.58,
+        metalness: 0.28,
         height: 0.055,
-        elevationOffset: 0.015,
-        emissive: 0xdb2777,
-        emissiveIntensity: 0.45,
+        elevationOffset: 0.008,
+      },
+    ],
+    [
+      "transition-metal",
+      {
+        roughness: 0.48,
+        metalness: 0.46,
+        height: 0.06,
+        elevationOffset: 0.014,
+      },
+    ],
+    [
+      "post-transition",
+      {
+        roughness: 0.5,
+        metalness: 0.42,
+        height: 0.057,
+        elevationOffset: 0.012,
+      },
+    ],
+    [
+      "lanthanide",
+      {
+        roughness: 0.56,
+        metalness: 0.36,
+        height: 0.06,
+        elevationOffset: 0.016,
+      },
+    ],
+    [
+      "actinide",
+      {
+        roughness: 0.42,
+        metalness: 0.52,
+        height: 0.065,
+        elevationOffset: 0.02,
+        emissive: 0x7c3aed,
+        emissiveIntensity: 0.18,
+      },
+    ],
+    [
+      "halogen",
+      {
+        roughness: 0.44,
+        metalness: 0.46,
+        height: 0.055,
+        elevationOffset: 0.01,
+      },
+    ],
+    [
+      "noble-gas",
+      {
+        roughness: 0.32,
+        metalness: 0.4,
+        height: 0.05,
+        elevationOffset: 0.006,
+        emissive: 0x22d3ee,
+        emissiveIntensity: 0.22,
+        opacity: 0.95,
       },
     ],
   ]);
@@ -2928,7 +2957,7 @@ export const initScene = (
         const texture = getTextureForTerrain(terrainId, variantIndex);
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(
-            terrainStyle.color ?? terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.color
+            terrainStyle.color ?? terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR
           ),
           roughness:
             terrainStyle.roughness ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.roughness,

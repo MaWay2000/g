@@ -114,39 +114,38 @@ export const OUTSIDE_TERRAIN_TEXTURE_PATHS = [
   "/images/tiles/floor/11.png",
 ];
 
-const OUTSIDE_TERRAIN_TEXTURE_COUNT = OUTSIDE_TERRAIN_TEXTURE_PATHS.length;
-
 const TERRAIN_BY_ID = new Map(
   OUTSIDE_TERRAIN_TYPES.map((terrain) => [terrain.id, terrain])
 );
 
-const hashTerrainTextureIndex = (terrainId, variantSeed = 0) => {
-  if (OUTSIDE_TERRAIN_TEXTURE_COUNT < 1) {
-    return -1;
-  }
-
-  const input = `${terrainId ?? ""}:${variantSeed ?? 0}`;
-  let hash = 0;
-
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
-  }
-
-  return hash % OUTSIDE_TERRAIN_TEXTURE_COUNT;
-};
+const OUTSIDE_TERRAIN_TEXTURE_MAP = new Map([
+  ["void", null],
+  ["nonmetal", OUTSIDE_TERRAIN_TEXTURE_PATHS[0]],
+  ["metalloid", OUTSIDE_TERRAIN_TEXTURE_PATHS[1]],
+  ["alkali", OUTSIDE_TERRAIN_TEXTURE_PATHS[2]],
+  ["alkaline-earth", OUTSIDE_TERRAIN_TEXTURE_PATHS[3]],
+  ["transition-metal", OUTSIDE_TERRAIN_TEXTURE_PATHS[4]],
+  ["post-transition", OUTSIDE_TERRAIN_TEXTURE_PATHS[5]],
+  ["lanthanide", OUTSIDE_TERRAIN_TEXTURE_PATHS[6]],
+  ["actinide", OUTSIDE_TERRAIN_TEXTURE_PATHS[7]],
+  ["halogen", OUTSIDE_TERRAIN_TEXTURE_PATHS[8]],
+  ["noble-gas", OUTSIDE_TERRAIN_TEXTURE_PATHS[9]],
+  // Keep a spare slot for future variants or seasonal swaps.
+  ["fallback", OUTSIDE_TERRAIN_TEXTURE_PATHS[10]],
+]);
 
 export const getOutsideTerrainTexturePath = (terrainId, variantSeed = 0) => {
-  if (terrainId === OUTSIDE_TERRAIN_TYPES[0]?.id) {
-    return null;
+  const key = typeof terrainId === "string" ? terrainId : String(terrainId ?? "");
+
+  if (OUTSIDE_TERRAIN_TEXTURE_MAP.has(key)) {
+    const entry = OUTSIDE_TERRAIN_TEXTURE_MAP.get(key);
+    if (Array.isArray(entry) && entry.length > 0) {
+      return entry[variantSeed % entry.length];
+    }
+    return entry;
   }
 
-  const textureIndex = hashTerrainTextureIndex(terrainId, variantSeed);
-
-  if (textureIndex < 0) {
-    return null;
-  }
-
-  return OUTSIDE_TERRAIN_TEXTURE_PATHS[textureIndex];
+  return OUTSIDE_TERRAIN_TEXTURE_MAP.get("fallback") ?? null;
 };
 
 const MIN_MAP_DIMENSION = 1;
