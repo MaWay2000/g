@@ -764,6 +764,30 @@
         cursor: pointer;
       }
 
+      .settings-slider__controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      .settings-slider__number-input {
+        width: 6rem;
+        padding: 0.45rem 0.6rem;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(15, 23, 42, 0.55);
+        color: #e2e8f0;
+        font-weight: 600;
+        font-size: 0.95rem;
+        outline: none;
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+      }
+
+      .settings-slider__number-input:focus {
+        border-color: rgba(56, 189, 248, 0.7);
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+      }
+
       .settings-slider__range::-moz-range-thumb {
         width: 18px;
         height: 18px;
@@ -3406,16 +3430,27 @@
                   <span class="settings-slider__value" data-star-size-value>100%</span>
                 </div>
                 <p class="settings-slider__hint">Scale how large individual stars appear.</p>
-                <input
-                  id="starSizeRange"
-                  class="settings-slider__range"
-                  type="range"
-                  min="0.5"
-                  max="1.5"
-                  step="0.05"
-                  value="1"
-                  data-star-size-range
-                />
+                <div class="settings-slider__controls">
+                  <input
+                    id="starSizeRange"
+                    class="settings-slider__range"
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.01"
+                    value="1"
+                    data-star-size-range
+                  />
+                  <input
+                    class="settings-slider__number-input"
+                    type="number"
+                    step="0.01"
+                    value="1"
+                    inputmode="decimal"
+                    aria-label="Star size"
+                    data-star-size-input
+                  />
+                </div>
               </label>
               <label class="settings-slider" for="starDensityRange">
                 <div class="settings-slider__header">
@@ -3423,16 +3458,27 @@
                   <span class="settings-slider__value" data-star-density-value>100%</span>
                 </div>
                 <p class="settings-slider__hint">Control how many stars fill the sky.</p>
-                <input
-                  id="starDensityRange"
-                  class="settings-slider__range"
-                  type="range"
-                  min="0.5"
-                  max="1.5"
-                  step="0.05"
-                  value="1"
-                  data-star-density-range
-                />
+                <div class="settings-slider__controls">
+                  <input
+                    id="starDensityRange"
+                    class="settings-slider__range"
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.01"
+                    value="1"
+                    data-star-density-range
+                  />
+                  <input
+                    class="settings-slider__number-input"
+                    type="number"
+                    step="0.01"
+                    value="1"
+                    inputmode="decimal"
+                    aria-label="Star density"
+                    data-star-density-input
+                  />
+                </div>
               </label>
               <label class="settings-slider" for="starOpacityRange">
                 <div class="settings-slider__header">
@@ -3440,33 +3486,83 @@
                   <span class="settings-slider__value" data-star-opacity-value>100%</span>
                 </div>
                 <p class="settings-slider__hint">Adjust glow and visibility of stars.</p>
-                <input
-                  id="starOpacityRange"
-                  class="settings-slider__range"
-                  type="range"
-                  min="0.4"
-                  max="1.4"
-                  step="0.05"
-                  value="1"
-                  data-star-opacity-range
-                />
+                <div class="settings-slider__controls">
+                  <input
+                    id="starOpacityRange"
+                    class="settings-slider__range"
+                    type="range"
+                    min="0.4"
+                    max="1.4"
+                    step="0.01"
+                    value="1"
+                    data-star-opacity-range
+                  />
+                  <input
+                    class="settings-slider__number-input"
+                    type="number"
+                    step="0.01"
+                    value="1"
+                    inputmode="decimal"
+                    aria-label="Star brightness"
+                    data-star-opacity-input
+                  />
+                </div>
               </label>
               <label class="settings-slider" for="skyExtentRange">
                 <div class="settings-slider__header">
-                  <span class="settings-slider__title">Sky extent</span>
+                  <span class="settings-slider__title">Sky dome extent</span>
                   <span class="settings-slider__value" data-sky-extent-value>100%</span>
                 </div>
                 <p class="settings-slider__hint">Increase or reduce how wide the sky dome spans.</p>
-                <input
-                  id="skyExtentRange"
-                  class="settings-slider__range"
-                  type="range"
-                  min="0.65"
-                  max="1.45"
-                  step="0.05"
-                  value="1"
-                  data-sky-extent-range
-                />
+                <div class="settings-slider__controls">
+                  <input
+                    id="skyExtentRange"
+                    class="settings-slider__range"
+                    type="range"
+                    min="0.65"
+                    max="1.45"
+                    step="0.01"
+                    value="1"
+                    data-sky-extent-range
+                  />
+                  <input
+                    class="settings-slider__number-input"
+                    type="number"
+                    step="0.01"
+                    value="1"
+                    inputmode="decimal"
+                    aria-label="Sky dome extent"
+                    data-sky-extent-input
+                  />
+                </div>
+              </label>
+              <label class="settings-slider" for="skyHeightRange">
+                <div class="settings-slider__header">
+                  <span class="settings-slider__title">Sky dome height</span>
+                  <span class="settings-slider__value" data-sky-height-value>100%</span>
+                </div>
+                <p class="settings-slider__hint">Raise or lower the star dome ceiling.</p>
+                <div class="settings-slider__controls">
+                  <input
+                    id="skyHeightRange"
+                    class="settings-slider__range"
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.01"
+                    value="1"
+                    data-sky-height-range
+                  />
+                  <input
+                    class="settings-slider__number-input"
+                    type="number"
+                    step="0.01"
+                    value="1"
+                    inputmode="decimal"
+                    aria-label="Sky dome height"
+                    data-sky-height-input
+                  />
+                </div>
               </label>
             </div>
           </div>

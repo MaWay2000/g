@@ -80,21 +80,24 @@ export const initScene = (
     showStars: settings?.showStars !== false,
   };
 
-  const clampStarSetting = (value, min, max, fallback) => {
+  const parseStarSetting = (value, fallback) => {
     const numericValue = Number(value);
 
     if (!Number.isFinite(numericValue)) {
       return fallback;
     }
 
-    return Math.min(max, Math.max(min, numericValue));
+    return numericValue;
   };
 
+  const getStarPlaneHeight = () => 75 * starSettings.height;
+
   const starSettings = {
-    size: clampStarSetting(settings?.starSize, 0.5, 1.5, 1),
-    density: clampStarSetting(settings?.starDensity, 0.5, 1.5, 1),
-    opacity: clampStarSetting(settings?.starOpacity, 0.4, 1.4, 1),
-    extent: clampStarSetting(settings?.skyExtent, 0.65, 1.45, 1),
+    size: parseStarSetting(settings?.starSize, 1),
+    density: parseStarSetting(settings?.starDensity, 1),
+    opacity: parseStarSetting(settings?.starOpacity, 1),
+    extent: parseStarSetting(settings?.skyExtent, 1),
+    height: parseStarSetting(settings?.skyDomeHeight, 1),
   };
 
   const registeredStarFields = new Set();
@@ -155,36 +158,33 @@ export const initScene = (
   };
 
   const applyStarSettings = (nextSettings = {}) => {
-    const nextSize = clampStarSetting(
+    const nextSize = parseStarSetting(
       nextSettings.starSize ?? nextSettings.size,
-      0.5,
-      1.5,
       starSettings.size
     );
-    const nextDensity = clampStarSetting(
+    const nextDensity = parseStarSetting(
       nextSettings.starDensity ?? nextSettings.density,
-      0.5,
-      1.5,
       starSettings.density
     );
-    const nextOpacity = clampStarSetting(
+    const nextOpacity = parseStarSetting(
       nextSettings.starOpacity ?? nextSettings.opacity,
-      0.4,
-      1.4,
       starSettings.opacity
     );
-    const nextExtent = clampStarSetting(
+    const nextExtent = parseStarSetting(
       nextSettings.skyExtent ?? nextSettings.extent,
-      0.65,
-      1.45,
       starSettings.extent
+    );
+    const nextHeight = parseStarSetting(
+      nextSettings.skyDomeHeight ?? nextSettings.height,
+      starSettings.height
     );
 
     const changed =
       nextSize !== starSettings.size ||
       nextDensity !== starSettings.density ||
       nextOpacity !== starSettings.opacity ||
-      nextExtent !== starSettings.extent;
+      nextExtent !== starSettings.extent ||
+      nextHeight !== starSettings.height;
 
     if (!changed) {
       return false;
@@ -194,6 +194,26 @@ export const initScene = (
     starSettings.density = nextDensity;
     starSettings.opacity = nextOpacity;
     starSettings.extent = nextExtent;
+    starSettings.height = nextHeight;
+
+    const starPlaneY = getStarPlaneHeight();
+    const starYOffset = starPlaneY - roomFloorY;
+    registeredStarFields.forEach((starField) => {
+      if (!starField?.userData) {
+        return;
+      }
+
+      starField.userData.starYOffset = starYOffset;
+
+      if (starField.userData.starConfig) {
+        starField.userData.starConfig.center = (
+          starField.userData.starConfig.center?.clone?.() ??
+          starField.userData.starConfig.center ??
+          new THREE.Vector3()
+        ).setY(starPlaneY);
+        starField.userData.starConfig.planeY = starPlaneY;
+      }
+    });
 
     refreshAllStarFields();
     return true;
@@ -3052,7 +3072,7 @@ export const initScene = (
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : 0;
-    const starPlaneY = 75;
+    const starPlaneY = getStarPlaneHeight();
     const starYOffset = starPlaneY - roomFloorY;
     const skyCenter = new THREE.Vector3(0, starPlaneY, skyCenterZ);
 
@@ -3688,7 +3708,7 @@ export const initScene = (
 
     const baseSkyRadius = plazaWidth * 2.8;
     const skyRadius = baseSkyRadius;
-    const starPlaneY = 75;
+    const starPlaneY = getStarPlaneHeight();
     const starYOffset = starPlaneY - roomFloorY;
     const skyCenter = new THREE.Vector3(0, starPlaneY, 0);
 
