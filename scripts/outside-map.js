@@ -100,19 +100,12 @@ export const OUTSIDE_TERRAIN_TYPES = [
   },
 ];
 
-export const OUTSIDE_TERRAIN_TEXTURE_PATHS = [
-  "/images/tiles/floor/1.png",
-  "/images/tiles/floor/2.png",
-  "/images/tiles/floor/3.png",
-  "/images/tiles/floor/4.png",
-  "/images/tiles/floor/5.png",
-  "/images/tiles/floor/6.png",
-  "/images/tiles/floor/7.png",
-  "/images/tiles/floor/8.png",
-  "/images/tiles/floor/9.png",
-  "/images/tiles/floor/10.png",
-  "/images/tiles/floor/11.png",
-];
+const OUTSIDE_TERRAIN_TEXTURE_BASE = "./images/tiles/floor";
+
+export const OUTSIDE_TERRAIN_TEXTURE_PATHS = Array.from(
+  { length: 11 },
+  (_, index) => `${OUTSIDE_TERRAIN_TEXTURE_BASE}/${index + 1}.png`
+);
 
 const TERRAIN_BY_ID = new Map(
   OUTSIDE_TERRAIN_TYPES.map((terrain) => [terrain.id, terrain])
