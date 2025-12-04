@@ -286,10 +286,11 @@ applyFpsUiState();
 const setStarSettingsAvailability = (enabled) => {
   const shouldShow = Boolean(enabled);
 
-  if (starSettingsSubmenu instanceof HTMLElement) {
-    starSettingsSubmenu.hidden = !shouldShow;
-    starSettingsSubmenu.setAttribute("aria-hidden", String(!shouldShow));
-  }
+  starSettingsSubmenu?.classList.toggle(
+    "settings-menu__submenu--disabled",
+    !shouldShow
+  );
+  starSettingsSubmenu?.setAttribute("aria-disabled", String(!shouldShow));
 
   starSettingsInputs.forEach((input) => {
     if (input instanceof HTMLInputElement) {
