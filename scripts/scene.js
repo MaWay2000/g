@@ -816,7 +816,6 @@ export const initScene = (
     roughness: 0.75,
     metalness: 0.2,
     height: 0.001,
-    elevationOffset: 0,
   };
 
   const CONCEAL_OUTSIDE_TERRAIN_TILES = false;
@@ -824,7 +823,7 @@ export const initScene = (
 
   const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
 
-  const OUTSIDE_TERRAIN_CLEARANCE = 0.02;
+  const OUTSIDE_TERRAIN_CLEARANCE = 0.0005;
 
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
     [
@@ -834,7 +833,6 @@ export const initScene = (
         roughness: 0.92,
         metalness: 0.04,
         height: 0.001,
-        elevationOffset: -0.025,
       },
     ],
     [
@@ -843,7 +841,6 @@ export const initScene = (
         roughness: 0.84,
         metalness: 0.08,
         height: 0.001,
-        elevationOffset: 0.01,
       },
     ],
     [
@@ -852,7 +849,6 @@ export const initScene = (
         roughness: 0.8,
         metalness: 0.12,
         height: 0.001,
-        elevationOffset: 0.012,
       },
     ],
     [
@@ -861,7 +857,6 @@ export const initScene = (
         roughness: 0.52,
         metalness: 0.32,
         height: 0.001,
-        elevationOffset: 0.006,
         emissive: 0xff8c4f,
         emissiveIntensity: 0,
       },
@@ -872,7 +867,6 @@ export const initScene = (
         roughness: 0.58,
         metalness: 0.28,
         height: 0.001,
-        elevationOffset: 0.008,
       },
     ],
     [
@@ -881,7 +875,6 @@ export const initScene = (
         roughness: 0.48,
         metalness: 0.46,
         height: 0.001,
-        elevationOffset: 0.014,
       },
     ],
     [
@@ -890,7 +883,6 @@ export const initScene = (
         roughness: 0.5,
         metalness: 0.42,
         height: 0.001,
-        elevationOffset: 0.012,
       },
     ],
     [
@@ -899,7 +891,6 @@ export const initScene = (
         roughness: 0.56,
         metalness: 0.36,
         height: 0.001,
-        elevationOffset: 0.016,
       },
     ],
     [
@@ -908,7 +899,6 @@ export const initScene = (
         roughness: 0.42,
         metalness: 0.52,
         height: 0.001,
-        elevationOffset: 0.02,
         emissive: 0x7c3aed,
         emissiveIntensity: 0,
       },
@@ -919,7 +909,6 @@ export const initScene = (
         roughness: 0.44,
         metalness: 0.46,
         height: 0.001,
-        elevationOffset: 0.01,
       },
     ],
     [
@@ -928,7 +917,6 @@ export const initScene = (
         roughness: 0.32,
         metalness: 0.4,
         height: 0.001,
-        elevationOffset: 0.006,
         emissive: 0x22d3ee,
         emissiveIntensity: 0,
         opacity: 0.95,
@@ -3006,8 +2994,6 @@ export const initScene = (
             OUTSIDE_TERRAIN_TILE_STYLES.get(resolvedTerrain.id) ||
             DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
           const tileHeight = style.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
-          const elevationOffset =
-            style.elevationOffset ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.elevationOffset ?? 0;
 
           const tile = new THREE.Mesh(
             tileGeometry,
@@ -3016,7 +3002,7 @@ export const initScene = (
           tile.scale.set(cellSize, tileHeight, cellSize);
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
-            roomFloorY - tileHeight / 2 + elevationOffset + OUTSIDE_TERRAIN_CLEARANCE,
+            roomFloorY - tileHeight / 2 + OUTSIDE_TERRAIN_CLEARANCE,
             mapNearEdge + row * cellSize + cellSize / 2
           );
           tile.castShadow = false;
