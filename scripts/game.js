@@ -72,6 +72,9 @@ const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu
 const starSettingsToggleButton = settingsMenu?.querySelector(
   "[data-star-settings-toggle]"
 );
+const starSettingsToggleLabel = starSettingsToggleButton?.querySelector(
+  "[data-star-settings-label]"
+);
 const starSettingsInputs = [
   starFollowToggle,
   starSizeRange,
@@ -240,6 +243,7 @@ const setSettingsMenuOpen = (isOpen) => {
 
 const setStarSettingsExpanded = (isExpanded) => {
   const nextState = Boolean(isExpanded);
+  const labelText = nextState ? "Hide options" : "Options";
 
   if (starSettingsSubmenu instanceof HTMLElement) {
     starSettingsSubmenu.hidden = !nextState;
@@ -252,9 +256,11 @@ const setStarSettingsExpanded = (isExpanded) => {
 
   if (starSettingsToggleButton instanceof HTMLButtonElement) {
     starSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
-    starSettingsToggleButton.textContent = nextState
-      ? "Hide options"
-      : "Options";
+    starSettingsToggleButton.setAttribute("aria-label", labelText);
+  }
+
+  if (starSettingsToggleLabel instanceof HTMLElement) {
+    starSettingsToggleLabel.textContent = labelText;
   }
 };
 
