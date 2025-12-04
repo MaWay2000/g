@@ -99,7 +99,44 @@ export const initScene = (
     opacity: parseStarSetting(settings?.starOpacity, 1),
     extent: parseStarSetting(settings?.skyExtent, 1),
     height: parseStarSetting(settings?.skyDomeHeight, 1),
+    followPlayer: settings?.starFollowPlayer !== false,
   };
+
+  const starSpriteTexture = (() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return null;
+    }
+
+    const center = canvas.width / 2;
+    const gradient = context.createRadialGradient(
+      center,
+      center,
+      0,
+      center,
+      center,
+      center
+    );
+
+    gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+    gradient.addColorStop(0.45, "rgba(255, 255, 255, 0.8)");
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = THREE.LinearMipMapLinearFilter;
+
+    return texture;
+  })();
 
   const registeredStarFields = new Set();
   const registerStarField = (starField) => {
@@ -179,13 +216,18 @@ export const initScene = (
       nextSettings.skyDomeHeight ?? nextSettings.height,
       starSettings.height
     );
+    const nextFollow =
+      nextSettings.starFollowPlayer === undefined
+        ? starSettings.followPlayer
+        : nextSettings.starFollowPlayer !== false;
 
     const changed =
       nextSize !== starSettings.size ||
       nextDensity !== starSettings.density ||
       nextOpacity !== starSettings.opacity ||
       nextExtent !== starSettings.extent ||
-      nextHeight !== starSettings.height;
+      nextHeight !== starSettings.height ||
+      nextFollow !== starSettings.followPlayer;
 
     if (!changed) {
       return false;
@@ -196,6 +238,7 @@ export const initScene = (
     starSettings.opacity = nextOpacity;
     starSettings.extent = nextExtent;
     starSettings.height = nextHeight;
+    starSettings.followPlayer = nextFollow;
 
     const starPlaneY = getStarPlaneHeight();
     const starYOffset = starPlaneY - roomFloorY;
@@ -242,12 +285,18 @@ export const initScene = (
         return;
       }
 
+      const baseCenter = starField?.userData?.starConfig?.center ?? null;
+      const targetBaseX = Number.isFinite(baseCenter?.x) ? baseCenter.x : 0;
+      const targetBaseZ = Number.isFinite(baseCenter?.z) ? baseCenter.z : 0;
+      const planeY = Number.isFinite(starField?.userData?.starConfig?.planeY)
+        ? starField.userData.starConfig.planeY
+        : Number.isFinite(baseCenter?.y)
+          ? baseCenter.y
+          : playerPosition.y;
       const hasStoredOffset = Number.isFinite(starField?.userData?.starYOffset);
 
       if (!hasStoredOffset) {
-        const offsetY = Number.isFinite(starField.position.y)
-          ? starField.position.y - playerPosition.y
-          : 0;
+        const offsetY = planeY - playerPosition.y;
 
         if (!starField.userData) {
           starField.userData = {};
@@ -260,11 +309,15 @@ export const initScene = (
         ? starField.userData.starYOffset
         : 0;
 
-      starField.position.set(
-        playerPosition.x,
-        playerPosition.y + yOffset,
-        playerPosition.z
-      );
+      if (starSettings.followPlayer) {
+        starField.position.set(
+          playerPosition.x,
+          playerPosition.y + yOffset,
+          playerPosition.z
+        );
+      } else {
+        starField.position.set(targetBaseX, planeY, targetBaseZ);
+      }
     });
   };
 
@@ -339,6 +392,8 @@ export const initScene = (
       transparent: true,
       opacity: appliedOpacity,
       depthWrite: false,
+      alphaTest: 0.01,
+      map: starSpriteTexture,
       vertexColors: true,
     });
 

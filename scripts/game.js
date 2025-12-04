@@ -51,6 +51,7 @@ const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
 const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
+const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
@@ -319,7 +320,12 @@ const applyStarVisualUiState = () => {
   const starOpacity = Number(currentSettings?.starOpacity ?? 1);
   const skyExtent = Number(currentSettings?.skyExtent ?? 1);
   const skyHeight = Number(currentSettings?.skyDomeHeight ?? 1);
+  const starsFollowPlayer = currentSettings?.starFollowPlayer !== false;
 
+  if (starFollowToggle instanceof HTMLInputElement) {
+    starFollowToggle.checked = starsFollowPlayer;
+    starFollowToggle.setAttribute("aria-pressed", String(starsFollowPlayer));
+  }
   setRangeInputValue(starSizeRange, starSize);
   setRangeInputValue(starDensityRange, starDensity);
   setRangeInputValue(starOpacityRange, starOpacity);
@@ -343,6 +349,7 @@ const applyStarVisualUiState = () => {
     starOpacity,
     skyExtent,
     skyDomeHeight: skyHeight,
+    starFollowPlayer: starsFollowPlayer,
   });
 };
 
@@ -8087,6 +8094,15 @@ if (starsToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, showStars: enabled };
     persistSettings(currentSettings);
     applyStarsUiState();
+  });
+}
+
+if (starFollowToggle instanceof HTMLInputElement) {
+  starFollowToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, starFollowPlayer: enabled };
+    persistSettings(currentSettings);
+    applyStarVisualUiState();
   });
 }
 

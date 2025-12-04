@@ -4,11 +4,12 @@ const DEFAULT_SETTINGS = {
   maxPixelRatio: 1.25,
   showFpsCounter: false,
   showStars: true,
-  starSize: 1,
-  starDensity: 1,
-  starOpacity: 1,
-  skyExtent: 1,
-  skyDomeHeight: 1,
+  starFollowPlayer: true,
+  starSize: 3,
+  starDensity: 20,
+  starOpacity: 0.8,
+  skyExtent: 10,
+  skyDomeHeight: 0,
 };
 
 const normalizeSettings = (settings = {}) => {
@@ -24,6 +25,7 @@ const normalizeSettings = (settings = {}) => {
     maxPixelRatio: pixelRatioCap,
     showFpsCounter: Boolean(settings.showFpsCounter),
     showStars: settings.showStars !== false,
+    starFollowPlayer: settings.starFollowPlayer !== false,
     starSize: normalizeValue(settings.starSize, DEFAULT_SETTINGS.starSize),
     starDensity: normalizeValue(settings.starDensity, DEFAULT_SETTINGS.starDensity),
     starOpacity: normalizeValue(settings.starOpacity, DEFAULT_SETTINGS.starOpacity),
