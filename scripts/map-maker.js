@@ -353,7 +353,6 @@ function renderGrid() {
     cell.className = "map-cell";
     cell.dataset.index = index;
     cell.dataset.terrain = terrain.id;
-    cell.style.setProperty("--cell-color", terrain.color);
     cell.style.setProperty(
       "--cell-texture",
       getTerrainTextureCssValue(terrain.id, index)
@@ -390,7 +389,6 @@ function paintCell(index, terrainId) {
   if (cell) {
     const terrain = getTerrainById(terrainId);
     cell.dataset.terrain = terrain.id;
-    cell.style.setProperty("--cell-color", terrain.color);
     cell.style.setProperty(
       "--cell-texture",
       getTerrainTextureCssValue(terrain.id, index)
