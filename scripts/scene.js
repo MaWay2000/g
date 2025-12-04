@@ -819,6 +819,9 @@ export const initScene = (
     elevationOffset: 0,
   };
 
+  const CONCEAL_OUTSIDE_TERRAIN_TILES = true;
+  const CONCEALED_OUTSIDE_TERRAIN_COLOR = 0x202736;
+
   const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
 
   const OUTSIDE_TERRAIN_CLEARANCE = 0.02;
@@ -2927,6 +2930,12 @@ export const initScene = (
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
 
+      const concealedTerrainMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
+        roughness: 0.78,
+        metalness: 0.18,
+      });
+
       const getTextureForTerrain = (terrainId, variantIndex) => {
         const texturePath = getOutsideTerrainTexturePath(terrainId, variantIndex);
 
@@ -2943,6 +2952,10 @@ export const initScene = (
       };
 
       const getMaterialForTerrain = (terrainId, variantIndex) => {
+        if (CONCEAL_OUTSIDE_TERRAIN_TILES) {
+          return concealedTerrainMaterial;
+        }
+
         const texturePath = getOutsideTerrainTexturePath(terrainId, variantIndex);
         const materialKey = `${terrainId}:${texturePath ?? "none"}`;
 
