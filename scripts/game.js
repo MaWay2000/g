@@ -48,6 +48,7 @@ const crosshair = document.querySelector(".crosshair");
 const topBar = document.querySelector(".top-bar");
 const settingsMenu = document.querySelector("[data-settings-menu]");
 const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
+const settingsPanelsContainer = settingsMenu?.querySelector("[data-settings-panels]");
 const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
@@ -221,6 +222,7 @@ const setSettingsMenuOpen = (isOpen) => {
   if (
     !(settingsMenu instanceof HTMLElement) ||
     !(settingsPanel instanceof HTMLElement) ||
+    !(settingsPanelsContainer instanceof HTMLElement) ||
     !(settingsTrigger instanceof HTMLElement)
   ) {
     return;
@@ -228,6 +230,7 @@ const setSettingsMenuOpen = (isOpen) => {
 
   const nextState = Boolean(isOpen);
   settingsMenu.dataset.open = nextState ? "true" : "false";
+  settingsPanelsContainer.hidden = !nextState;
   settingsPanel.hidden = !nextState;
   settingsTrigger.setAttribute("aria-expanded", String(nextState));
 };
