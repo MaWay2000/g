@@ -656,6 +656,12 @@
         gap: 0.75rem;
       }
 
+      .settings-menu__row {
+        display: flex;
+        align-items: stretch;
+        gap: 0.6rem;
+      }
+
       .settings-menu__trigger {
         display: inline-flex;
         align-items: center;
@@ -722,6 +728,10 @@
       .settings-menu__panel--stars {
         min-width: 320px;
         gap: 0.75rem;
+      }
+
+      .settings-menu__panel--stars[hidden] {
+        display: none;
       }
 
       .settings-menu__section {
@@ -905,11 +915,38 @@
         width: 100%;
       }
 
+      .settings-menu__row .performance-toggle {
+        flex: 1;
+      }
+
       .performance-toggle:hover,
       .performance-toggle:focus-within {
         border-color: rgba(94, 234, 212, 0.65);
         box-shadow: 0 14px 32px rgba(59, 130, 246, 0.15);
         transform: translateY(-1px);
+      }
+
+      .settings-menu__submenu-toggle {
+        align-self: center;
+        padding: 0.6rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.65);
+        background: rgba(15, 23, 42, 0.5);
+        color: inherit;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        transition: border-color 150ms ease, background 150ms ease,
+          transform 150ms ease, box-shadow 150ms ease;
+        white-space: nowrap;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+      }
+
+      .settings-menu__submenu-toggle:hover,
+      .settings-menu__submenu-toggle:focus-visible {
+        border-color: rgba(94, 234, 212, 0.65);
+        transform: translateY(-1px);
+        box-shadow: 0 14px 32px rgba(59, 130, 246, 0.15);
       }
 
       .performance-toggle__input {
@@ -3454,29 +3491,39 @@
                       </span>
                       <span class="performance-toggle__text">
                         <span class="performance-toggle__title">Show FPS</span>
-                        <span class="performance-toggle__hint">Display current frame rate</span>
                       </span>
                     </label>
-                    <label class="performance-toggle">
-                      <input
-                        class="performance-toggle__input"
-                        type="checkbox"
-                        role="switch"
-                        aria-label="Toggle starfield visibility"
-                        data-stars-toggle
-                      />
-                      <span class="performance-toggle__track" aria-hidden="true">
-                        <span class="performance-toggle__thumb" aria-hidden="true"></span>
-                      </span>
-                      <span class="performance-toggle__text">
-                        <span class="performance-toggle__title">Stars</span>
-                        <span class="performance-toggle__hint">Show the night sky backdrop</span>
-                      </span>
-                    </label>
+                    <div class="settings-menu__row">
+                      <label class="performance-toggle">
+                        <input
+                          class="performance-toggle__input"
+                          type="checkbox"
+                          role="switch"
+                          aria-label="Toggle starfield visibility"
+                          data-stars-toggle
+                        />
+                        <span class="performance-toggle__track" aria-hidden="true">
+                          <span class="performance-toggle__thumb" aria-hidden="true"></span>
+                        </span>
+                        <span class="performance-toggle__text">
+                          <span class="performance-toggle__title">Stars</span>
+                        </span>
+                      </label>
+                      <button
+                        class="settings-menu__submenu-toggle"
+                        type="button"
+                        data-star-settings-toggle
+                        aria-controls="starSettingsPanel"
+                        aria-expanded="false"
+                      >
+                        Show star options
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div
                   class="settings-menu__panel settings-menu__panel--stars"
+                  id="starSettingsPanel"
                   role="menu"
                   aria-label="Starfield options"
                   data-stars-settings-submenu

@@ -69,6 +69,9 @@ const starOpacityValue = document.querySelector("[data-star-opacity-value]");
 const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const skyHeightValue = document.querySelector("[data-sky-height-value]");
 const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu]");
+const starSettingsToggleButton = settingsMenu?.querySelector(
+  "[data-star-settings-toggle]"
+);
 const starSettingsInputs = [
   starFollowToggle,
   starSizeRange,
@@ -235,7 +238,28 @@ const setSettingsMenuOpen = (isOpen) => {
   settingsTrigger.setAttribute("aria-expanded", String(nextState));
 };
 
+const setStarSettingsExpanded = (isExpanded) => {
+  const nextState = Boolean(isExpanded);
+
+  if (starSettingsSubmenu instanceof HTMLElement) {
+    starSettingsSubmenu.hidden = !nextState;
+    starSettingsSubmenu.dataset.expanded = nextState ? "true" : "false";
+  }
+
+  if (settingsMenu instanceof HTMLElement) {
+    settingsMenu.classList.toggle("settings-menu--stars-open", nextState);
+  }
+
+  if (starSettingsToggleButton instanceof HTMLButtonElement) {
+    starSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
+    starSettingsToggleButton.textContent = nextState
+      ? "Hide star options"
+      : "Show star options";
+  }
+};
+
 setSettingsMenuOpen(false);
+setStarSettingsExpanded(false);
 
 if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLElement) {
   settingsTrigger.addEventListener("click", () => {
@@ -270,6 +294,15 @@ if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLEleme
 
     setSettingsMenuOpen(false);
     settingsTrigger.focus({ preventScroll: true });
+  });
+}
+
+if (starSettingsToggleButton instanceof HTMLButtonElement) {
+  starSettingsToggleButton.addEventListener("click", () => {
+    const isExpanded =
+      starSettingsSubmenu instanceof HTMLElement && starSettingsSubmenu.hidden !== true;
+
+    setStarSettingsExpanded(!isExpanded);
   });
 }
 
