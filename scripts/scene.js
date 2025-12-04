@@ -37,6 +37,7 @@ import {
   loadOutsideMapFromStorage,
   normalizeOutsideMap,
   getOutsideTerrainById,
+  getOutsideTerrainTexturePath,
 } from "./outside-map.js";
 import { samplePeriodicElement } from "./data/periodic-elements.js";
 
@@ -2840,16 +2841,36 @@ export const initScene = (
       const adjustable = [{ object: base, offset: -0.04 }];
       const resourceTargets = [];
       const terrainMaterials = new Map();
+      const terrainTextures = new Map();
 
-      const getMaterialForTerrain = (terrainId) => {
-        if (terrainMaterials.has(terrainId)) {
-          return terrainMaterials.get(terrainId);
+      const getTextureForTerrain = (terrainId, variantIndex) => {
+        const texturePath = getOutsideTerrainTexturePath(terrainId, variantIndex);
+
+        if (!texturePath) {
+          return null;
+        }
+
+        if (!terrainTextures.has(texturePath)) {
+          const texture = loadClampedTexture(texturePath);
+          terrainTextures.set(texturePath, texture);
+        }
+
+        return terrainTextures.get(texturePath);
+      };
+
+      const getMaterialForTerrain = (terrainId, variantIndex) => {
+        const texturePath = getOutsideTerrainTexturePath(terrainId, variantIndex);
+        const materialKey = `${terrainId}:${texturePath ?? "none"}`;
+
+        if (terrainMaterials.has(materialKey)) {
+          return terrainMaterials.get(materialKey);
         }
 
         const terrainStyle =
           OUTSIDE_TERRAIN_TILE_STYLES.get(terrainId) ||
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
+        const texture = getTextureForTerrain(terrainId, variantIndex);
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(
             terrainStyle.color ?? terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.color
@@ -2860,12 +2881,13 @@ export const initScene = (
             terrainStyle.metalness ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.metalness,
           emissive: new THREE.Color(terrainStyle.emissive ?? 0x000000),
           emissiveIntensity: terrainStyle.emissiveIntensity ?? 0,
+          map: texture ?? null,
           transparent:
             typeof terrainStyle.opacity === "number" &&
             terrainStyle.opacity < 1,
           opacity: terrainStyle.opacity ?? 1,
         });
-        terrainMaterials.set(terrainId, material);
+        terrainMaterials.set(materialKey, material);
         return material;
       };
 
@@ -2883,7 +2905,7 @@ export const initScene = (
 
           const tile = new THREE.Mesh(
             tileGeometry,
-            getMaterialForTerrain(resolvedTerrain.id)
+            getMaterialForTerrain(resolvedTerrain.id, index)
           );
           tile.scale.set(cellSize, tileHeight, cellSize);
           tile.position.set(

@@ -100,9 +100,52 @@ export const OUTSIDE_TERRAIN_TYPES = [
   },
 ];
 
+export const OUTSIDE_TERRAIN_TEXTURE_PATHS = [
+  "/images/tiles/floor/1.png",
+  "/images/tiles/floor/2.png",
+  "/images/tiles/floor/3.png",
+  "/images/tiles/floor/4.png",
+  "/images/tiles/floor/5.png",
+  "/images/tiles/floor/6.png",
+  "/images/tiles/floor/7.png",
+  "/images/tiles/floor/8.png",
+  "/images/tiles/floor/9.png",
+];
+
+const OUTSIDE_TERRAIN_TEXTURE_COUNT = OUTSIDE_TERRAIN_TEXTURE_PATHS.length;
+
 const TERRAIN_BY_ID = new Map(
   OUTSIDE_TERRAIN_TYPES.map((terrain) => [terrain.id, terrain])
 );
+
+const hashTerrainTextureIndex = (terrainId, variantSeed = 0) => {
+  if (OUTSIDE_TERRAIN_TEXTURE_COUNT < 1) {
+    return -1;
+  }
+
+  const input = `${terrainId ?? ""}:${variantSeed ?? 0}`;
+  let hash = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+
+  return hash % OUTSIDE_TERRAIN_TEXTURE_COUNT;
+};
+
+export const getOutsideTerrainTexturePath = (terrainId, variantSeed = 0) => {
+  if (terrainId === OUTSIDE_TERRAIN_TYPES[0]?.id) {
+    return null;
+  }
+
+  const textureIndex = hashTerrainTextureIndex(terrainId, variantSeed);
+
+  if (textureIndex < 0) {
+    return null;
+  }
+
+  return OUTSIDE_TERRAIN_TEXTURE_PATHS[textureIndex];
+};
 
 const MIN_MAP_DIMENSION = 1;
 const MAX_MAP_DIMENSION = 200;
