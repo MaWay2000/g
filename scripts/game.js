@@ -51,6 +51,14 @@ const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
 const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
+const starSizeRange = document.querySelector("[data-star-size-range]");
+const starDensityRange = document.querySelector("[data-star-density-range]");
+const starOpacityRange = document.querySelector("[data-star-opacity-range]");
+const skyExtentRange = document.querySelector("[data-sky-extent-range]");
+const starSizeValue = document.querySelector("[data-star-size-value]");
+const starDensityValue = document.querySelector("[data-star-density-value]");
+const starOpacityValue = document.querySelector("[data-star-opacity-value]");
+const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
@@ -265,6 +273,46 @@ const applyStarsUiState = () => {
 };
 
 applyStarsUiState();
+
+const setRangeInputValue = (input, value) => {
+  if (input instanceof HTMLInputElement && Number.isFinite(value)) {
+    input.value = String(value);
+  }
+};
+
+const setValueLabel = (element, value) => {
+  if (element instanceof HTMLElement) {
+    element.textContent = value;
+  }
+};
+
+const formatPercentage = (value) => `${Math.round(Number(value ?? 0) * 100)}%`;
+
+const applyStarVisualUiState = () => {
+  const starSize = Number(currentSettings?.starSize ?? 1);
+  const starDensity = Number(currentSettings?.starDensity ?? 1);
+  const starOpacity = Number(currentSettings?.starOpacity ?? 1);
+  const skyExtent = Number(currentSettings?.skyExtent ?? 1);
+
+  setRangeInputValue(starSizeRange, starSize);
+  setRangeInputValue(starDensityRange, starDensity);
+  setRangeInputValue(starOpacityRange, starOpacity);
+  setRangeInputValue(skyExtentRange, skyExtent);
+
+  setValueLabel(starSizeValue, formatPercentage(starSize));
+  setValueLabel(starDensityValue, formatPercentage(starDensity));
+  setValueLabel(starOpacityValue, formatPercentage(starOpacity));
+  setValueLabel(skyExtentValue, formatPercentage(skyExtent));
+
+  sceneController?.setStarVisualSettings?.({
+    starSize,
+    starDensity,
+    starOpacity,
+    skyExtent,
+  });
+};
+
+applyStarVisualUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -7980,6 +8028,8 @@ const bootstrapScene = () => {
     onDroneReturnComplete: handleDroneReturnComplete,
   });
 
+  applyStarVisualUiState();
+
   updateDroneStatusUi();
   relaunchDroneAfterRestoreIfNeeded();
 
@@ -8005,6 +8055,32 @@ if (starsToggle instanceof HTMLInputElement) {
     applyStarsUiState();
   });
 }
+
+const bindStarSettingInput = (key, input) => {
+  if (!(input instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const commit = () => {
+    const value = Number.parseFloat(input.value);
+
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    currentSettings = { ...currentSettings, [key]: value };
+    persistSettings(currentSettings);
+    applyStarVisualUiState();
+  };
+
+  input.addEventListener("input", commit);
+  input.addEventListener("change", commit);
+};
+
+bindStarSettingInput("starSize", starSizeRange);
+bindStarSettingInput("starDensity", starDensityRange);
+bindStarSettingInput("starOpacity", starOpacityRange);
+bindStarSettingInput("skyExtent", skyExtentRange);
 
 const scheduleBootstrapScene = () => {
   const start = () => window.requestAnimationFrame(bootstrapScene);

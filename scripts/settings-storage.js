@@ -4,6 +4,18 @@ const DEFAULT_SETTINGS = {
   maxPixelRatio: 1.25,
   showFpsCounter: false,
   showStars: true,
+  starSize: 1,
+  starDensity: 1,
+  starOpacity: 1,
+  skyExtent: 1,
+};
+
+const clampNumber = (value, min, max, fallback) => {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, value));
 };
 
 const normalizeSettings = (settings = {}) => {
@@ -16,6 +28,20 @@ const normalizeSettings = (settings = {}) => {
     maxPixelRatio: pixelRatioCap,
     showFpsCounter: Boolean(settings.showFpsCounter),
     showStars: settings.showStars !== false,
+    starSize: clampNumber(settings.starSize, 0.5, 1.5, DEFAULT_SETTINGS.starSize),
+    starDensity: clampNumber(
+      settings.starDensity,
+      0.5,
+      1.5,
+      DEFAULT_SETTINGS.starDensity
+    ),
+    starOpacity: clampNumber(
+      settings.starOpacity,
+      0.4,
+      1.4,
+      DEFAULT_SETTINGS.starOpacity
+    ),
+    skyExtent: clampNumber(settings.skyExtent, 0.65, 1.45, DEFAULT_SETTINGS.skyExtent),
   };
 };
 
