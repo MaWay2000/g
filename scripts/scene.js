@@ -2939,6 +2939,10 @@ export const initScene = (
       const getTextureForTerrain = (terrainId, variantIndex) => {
         const texturePath = getOutsideTerrainTexturePath(terrainId, variantIndex);
 
+        if (!texturePath && terrainId !== "void") {
+          return getTextureForTerrain("fallback", variantIndex);
+        }
+
         if (!texturePath) {
           return null;
         }
@@ -2970,9 +2974,11 @@ export const initScene = (
         const texture = getTextureForTerrain(terrainId, variantIndex);
         const baseColor = texture
           ? 0xffffff
-          : terrainStyle.color ??
-            terrain?.color ??
-            DEFAULT_OUTSIDE_TERRAIN_COLOR;
+          : terrainId === "void"
+            ? terrainStyle.color ??
+              terrain?.color ??
+              DEFAULT_OUTSIDE_TERRAIN_COLOR
+            : 0xffffff;
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
           roughness:
