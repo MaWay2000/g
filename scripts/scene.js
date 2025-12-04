@@ -80,6 +80,8 @@ export const initScene = (
     showStars: settings?.showStars !== false,
   };
 
+  const STAR_EXTENT_MULTIPLIER = 100;
+
   const registeredStarFields = new Set();
   const registerStarField = (starField) => {
     if (!starField?.isObject3D) {
@@ -2920,8 +2922,9 @@ export const initScene = (
       outsideMapBounds = builtOutsideTerrain.bounds;
     }
 
-    const skyRadius =
+    const baseSkyRadius =
       Math.max(OPERATIONS_EXTERIOR_PLATFORM_WIDTH, OPERATIONS_EXTERIOR_PLATFORM_DEPTH) * 2.2;
+    const skyRadius = baseSkyRadius * STAR_EXTENT_MULTIPLIER;
     const skyCenterZ =
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
@@ -3560,7 +3563,8 @@ export const initScene = (
     nebula.rotation.x = -Math.PI / 3;
     group.add(nebula);
 
-    const skyRadius = plazaWidth * 2.8;
+    const baseSkyRadius = plazaWidth * 2.8;
+    const skyRadius = baseSkyRadius * STAR_EXTENT_MULTIPLIER;
     const starPlaneY = 75;
     const starYOffset = starPlaneY - roomFloorY;
     const skyCenter = new THREE.Vector3(0, starPlaneY, 0);
