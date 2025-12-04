@@ -80,7 +80,7 @@ export const initScene = (
     showStars: settings?.showStars !== false,
   };
 
-  const STAR_EXTENT_MULTIPLIER = 10;
+  const STAR_EXTENT_MULTIPLIER = 1;
 
   const registeredStarFields = new Set();
   const registerStarField = (starField) => {
