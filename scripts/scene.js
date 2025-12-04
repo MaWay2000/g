@@ -80,7 +80,22 @@ export const initScene = (
     showStars: settings?.showStars !== false,
   };
 
-  const STAR_EXTENT_MULTIPLIER = 1;
+  const clampStarSetting = (value, min, max, fallback) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return fallback;
+    }
+
+    return Math.min(max, Math.max(min, numericValue));
+  };
+
+  const starSettings = {
+    size: clampStarSetting(settings?.starSize, 0.5, 1.5, 1),
+    density: clampStarSetting(settings?.starDensity, 0.5, 1.5, 1),
+    opacity: clampStarSetting(settings?.starOpacity, 0.4, 1.4, 1),
+    extent: clampStarSetting(settings?.skyExtent, 0.65, 1.45, 1),
+  };
 
   const registeredStarFields = new Set();
   const registerStarField = (starField) => {
@@ -96,6 +111,92 @@ export const initScene = (
     fields.forEach((field) => {
       registeredStarFields.delete(field);
     });
+  };
+
+  const refreshStarField = (starField) => {
+    const config = starField?.userData?.starConfig ?? null;
+    const parent = starField?.parent ?? null;
+
+    if (!config || !parent) {
+      return null;
+    }
+
+    const yOffset = Number.isFinite(starField.userData?.starYOffset)
+      ? starField.userData.starYOffset
+      : null;
+
+    unregisterStarFields([starField]);
+    parent.remove(starField);
+    starField.geometry?.dispose?.();
+    starField.material?.dispose?.();
+
+    const refreshed = createStarField(config);
+
+    if (refreshed) {
+      if (Number.isFinite(yOffset)) {
+        if (!refreshed.userData) {
+          refreshed.userData = {};
+        }
+
+        refreshed.userData.starYOffset = yOffset;
+      }
+
+      parent.add(refreshed);
+    }
+
+    return refreshed;
+  };
+
+  const refreshAllStarFields = () => {
+    const starFields = Array.from(registeredStarFields);
+    starFields.forEach((field) => refreshStarField(field));
+    applyStarVisibility();
+    updateStarFieldPositions();
+  };
+
+  const applyStarSettings = (nextSettings = {}) => {
+    const nextSize = clampStarSetting(
+      nextSettings.starSize ?? nextSettings.size,
+      0.5,
+      1.5,
+      starSettings.size
+    );
+    const nextDensity = clampStarSetting(
+      nextSettings.starDensity ?? nextSettings.density,
+      0.5,
+      1.5,
+      starSettings.density
+    );
+    const nextOpacity = clampStarSetting(
+      nextSettings.starOpacity ?? nextSettings.opacity,
+      0.4,
+      1.4,
+      starSettings.opacity
+    );
+    const nextExtent = clampStarSetting(
+      nextSettings.skyExtent ?? nextSettings.extent,
+      0.65,
+      1.45,
+      starSettings.extent
+    );
+
+    const changed =
+      nextSize !== starSettings.size ||
+      nextDensity !== starSettings.density ||
+      nextOpacity !== starSettings.opacity ||
+      nextExtent !== starSettings.extent;
+
+    if (!changed) {
+      return false;
+    }
+
+    starSettings.size = nextSize;
+    starSettings.density = nextDensity;
+    starSettings.opacity = nextOpacity;
+    starSettings.extent = nextExtent;
+
+    refreshAllStarFields();
+    return true;
   };
 
   const applyStarVisibility = () => {
@@ -156,16 +257,24 @@ export const initScene = (
     distribution = "spherical",
     planeY = center?.y ?? 0,
   } = {}) => {
+    const baseCenter = center?.clone?.() ?? center ?? new THREE.Vector3();
+    const baseCount = Number.isFinite(count) ? count : 1400;
+    const appliedRadius =
+      Math.max(1, Number.isFinite(radius) && radius > 0 ? radius : 1) * starSettings.extent;
+    const appliedCount = Math.max(24, Math.round(baseCount * starSettings.density));
+    const appliedSize = Math.max(0.01, size * starSettings.size);
+    const appliedOpacity = Math.min(1, Math.max(0.05, opacity * starSettings.opacity));
+
     const starGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(count * 3);
-    const starColors = new Float32Array(count * 3);
+    const starPositions = new Float32Array(appliedCount * 3);
+    const starColors = new Float32Array(appliedCount * 3);
     const tempColor = new THREE.Color();
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    const offset = 2 / count;
-    const planarHeight = Number.isFinite(planeY) ? planeY : center?.y ?? 0;
-    const effectiveRadius = Number.isFinite(radius) && radius > 0 ? radius : 1;
+    const offset = 2 / appliedCount;
+    const planarHeight = Number.isFinite(planeY) ? planeY : baseCenter?.y ?? 0;
+    const effectiveRadius = appliedRadius;
 
-    for (let i = 0; i < count; i += 1) {
+    for (let i = 0; i < appliedCount; i += 1) {
       const index = i * 3;
       const isDome = distribution === "dome" || distribution === "planar";
 
@@ -183,7 +292,7 @@ export const initScene = (
         const y = i * offset - 1 + offset / 2;
         const radiusFactor = Math.sqrt(1 - y * y);
         const phi = i * goldenAngle;
-        const distance = radius * (0.55 + Math.random() * 0.45);
+        const distance = appliedRadius * (0.55 + Math.random() * 0.45);
 
         starPositions[index] = distance * Math.cos(phi) * radiusFactor;
         starPositions[index + 1] = distance * y;
@@ -204,21 +313,35 @@ export const initScene = (
     starGeometry.setAttribute("color", new THREE.BufferAttribute(starColors, 3));
 
     const starMaterial = new THREE.PointsMaterial({
-      size,
+      size: appliedSize,
       sizeAttenuation: true,
       transparent: true,
-      opacity,
+      opacity: appliedOpacity,
       depthWrite: false,
       vertexColors: true,
     });
 
     const starField = new THREE.Points(starGeometry, starMaterial);
     if (distribution === "dome" || distribution === "planar") {
-      starField.position.set(center.x, 0, center.z);
+      starField.position.set(baseCenter.x, 0, baseCenter.z);
     } else {
-      starField.position.copy(center);
+      starField.position.copy(baseCenter);
     }
     starField.frustumCulled = false;
+
+    starField.userData = {
+      ...(starField.userData ?? {}),
+      starConfig: {
+        radius,
+        count: baseCount,
+        center: baseCenter.clone?.() ?? baseCenter,
+        size,
+        opacity,
+        colorVariance,
+        distribution,
+        planeY,
+      },
+    };
 
     registerStarField(starField);
 
@@ -2924,7 +3047,7 @@ export const initScene = (
 
     const baseSkyRadius =
       Math.max(OPERATIONS_EXTERIOR_PLATFORM_WIDTH, OPERATIONS_EXTERIOR_PLATFORM_DEPTH) * 2.2;
-    const skyRadius = baseSkyRadius * STAR_EXTENT_MULTIPLIER;
+    const skyRadius = baseSkyRadius;
     const skyCenterZ =
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
@@ -3564,7 +3687,7 @@ export const initScene = (
     group.add(nebula);
 
     const baseSkyRadius = plazaWidth * 2.8;
-    const skyRadius = baseSkyRadius * STAR_EXTENT_MULTIPLIER;
+    const skyRadius = baseSkyRadius;
     const starPlaneY = 75;
     const starYOffset = starPlaneY - roomFloorY;
     const skyCenter = new THREE.Vector3(0, starPlaneY, 0);
@@ -7088,18 +7211,21 @@ export const initScene = (
     },
     placeModelFromManifestEntry,
     setManifestEditModeEnabled,
-    isManifestEditModeEnabled,
-    hasManifestPlacements,
-    getDroneBasePosition: () =>
-      droneMinerState.hasBasePosition
-        ? droneMinerState.basePosition.clone()
-        : null,
-    setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
-    setStarsEnabled: (enabled) => {
-      const nextState = Boolean(enabled);
+      isManifestEditModeEnabled,
+      hasManifestPlacements,
+      getDroneBasePosition: () =>
+        droneMinerState.hasBasePosition
+          ? droneMinerState.basePosition.clone()
+          : null,
+      setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
+      setStarVisualSettings: (nextSettings) => {
+        applyStarSettings(nextSettings ?? {});
+      },
+      setStarsEnabled: (enabled) => {
+        const nextState = Boolean(enabled);
 
-      if (sceneSettings.showStars === nextState) {
-        return;
+        if (sceneSettings.showStars === nextState) {
+          return;
       }
 
       sceneSettings.showStars = nextState;

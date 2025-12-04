@@ -705,6 +705,75 @@
         color: rgba(226, 232, 240, 0.9);
       }
 
+      .settings-slider {
+        display: grid;
+        gap: 0.35rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.35);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+      }
+
+      .settings-slider__header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+
+      .settings-slider__title {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: rgba(226, 232, 240, 0.95);
+      }
+
+      .settings-slider__value {
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: #38bdf8;
+      }
+
+      .settings-slider__hint {
+        margin: 0;
+        font-size: 0.85rem;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .settings-slider__range {
+        width: 100%;
+        accent-color: #38bdf8;
+        appearance: none;
+        height: 6px;
+        border-radius: 999px;
+        background: linear-gradient(
+          90deg,
+          rgba(56, 189, 248, 0.8),
+          rgba(129, 140, 248, 0.8)
+        );
+        outline: none;
+      }
+
+      .settings-slider__range::-webkit-slider-thumb {
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        background: #e2e8f0;
+        border-radius: 50%;
+        box-shadow: 0 6px 14px rgba(8, 47, 73, 0.45);
+        border: 2px solid rgba(56, 189, 248, 0.65);
+        cursor: pointer;
+      }
+
+      .settings-slider__range::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        background: #e2e8f0;
+        border-radius: 50%;
+        box-shadow: 0 6px 14px rgba(8, 47, 73, 0.45);
+        border: 2px solid rgba(56, 189, 248, 0.65);
+        cursor: pointer;
+      }
+
       a,
       button {
         font: inherit;
@@ -3327,6 +3396,77 @@
                   <span class="performance-toggle__title">Stars</span>
                   <span class="performance-toggle__hint">Show the night sky backdrop</span>
                 </span>
+              </label>
+            </div>
+            <div class="settings-menu__section" role="group" aria-label="Sky visuals">
+              <p class="settings-menu__heading">Sky</p>
+              <label class="settings-slider" for="starSizeRange">
+                <div class="settings-slider__header">
+                  <span class="settings-slider__title">Star size</span>
+                  <span class="settings-slider__value" data-star-size-value>100%</span>
+                </div>
+                <p class="settings-slider__hint">Scale how large individual stars appear.</p>
+                <input
+                  id="starSizeRange"
+                  class="settings-slider__range"
+                  type="range"
+                  min="0.5"
+                  max="1.5"
+                  step="0.05"
+                  value="1"
+                  data-star-size-range
+                />
+              </label>
+              <label class="settings-slider" for="starDensityRange">
+                <div class="settings-slider__header">
+                  <span class="settings-slider__title">Star density</span>
+                  <span class="settings-slider__value" data-star-density-value>100%</span>
+                </div>
+                <p class="settings-slider__hint">Control how many stars fill the sky.</p>
+                <input
+                  id="starDensityRange"
+                  class="settings-slider__range"
+                  type="range"
+                  min="0.5"
+                  max="1.5"
+                  step="0.05"
+                  value="1"
+                  data-star-density-range
+                />
+              </label>
+              <label class="settings-slider" for="starOpacityRange">
+                <div class="settings-slider__header">
+                  <span class="settings-slider__title">Star brightness</span>
+                  <span class="settings-slider__value" data-star-opacity-value>100%</span>
+                </div>
+                <p class="settings-slider__hint">Adjust glow and visibility of stars.</p>
+                <input
+                  id="starOpacityRange"
+                  class="settings-slider__range"
+                  type="range"
+                  min="0.4"
+                  max="1.4"
+                  step="0.05"
+                  value="1"
+                  data-star-opacity-range
+                />
+              </label>
+              <label class="settings-slider" for="skyExtentRange">
+                <div class="settings-slider__header">
+                  <span class="settings-slider__title">Sky extent</span>
+                  <span class="settings-slider__value" data-sky-extent-value>100%</span>
+                </div>
+                <p class="settings-slider__hint">Increase or reduce how wide the sky dome spans.</p>
+                <input
+                  id="skyExtentRange"
+                  class="settings-slider__range"
+                  type="range"
+                  min="0.65"
+                  max="1.45"
+                  step="0.05"
+                  value="1"
+                  data-sky-extent-range
+                />
               </label>
             </div>
           </div>
