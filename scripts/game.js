@@ -67,6 +67,20 @@ const starDensityValue = document.querySelector("[data-star-density-value]");
 const starOpacityValue = document.querySelector("[data-star-opacity-value]");
 const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const skyHeightValue = document.querySelector("[data-sky-height-value]");
+const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu]");
+const starSettingsInputs = [
+  starFollowToggle,
+  starSizeRange,
+  starDensityRange,
+  starOpacityRange,
+  skyExtentRange,
+  skyHeightRange,
+  starSizeInput,
+  starDensityInput,
+  starOpacityInput,
+  skyExtentInput,
+  skyHeightInput,
+];
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
@@ -269,6 +283,21 @@ const applyFpsUiState = () => {
 
 applyFpsUiState();
 
+const setStarSettingsAvailability = (enabled) => {
+  const shouldShow = Boolean(enabled);
+
+  if (starSettingsSubmenu instanceof HTMLElement) {
+    starSettingsSubmenu.hidden = !shouldShow;
+    starSettingsSubmenu.setAttribute("aria-hidden", String(!shouldShow));
+  }
+
+  starSettingsInputs.forEach((input) => {
+    if (input instanceof HTMLInputElement) {
+      input.disabled = !shouldShow;
+    }
+  });
+};
+
 const applyStarsUiState = () => {
   const shouldShowStars = currentSettings?.showStars !== false;
 
@@ -277,6 +306,7 @@ const applyStarsUiState = () => {
     starsToggle.setAttribute("aria-pressed", String(shouldShowStars));
   }
 
+  setStarSettingsAvailability(shouldShowStars);
   sceneController?.setStarsEnabled?.(shouldShowStars);
 };
 
