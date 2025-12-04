@@ -863,7 +863,7 @@ export const initScene = (
         height: 0.001,
         elevationOffset: 0.006,
         emissive: 0xff8c4f,
-        emissiveIntensity: 0.12,
+        emissiveIntensity: 0,
       },
     ],
     [
@@ -910,7 +910,7 @@ export const initScene = (
         height: 0.001,
         elevationOffset: 0.02,
         emissive: 0x7c3aed,
-        emissiveIntensity: 0.18,
+        emissiveIntensity: 0,
       },
     ],
     [
@@ -930,7 +930,7 @@ export const initScene = (
         height: 0.001,
         elevationOffset: 0.006,
         emissive: 0x22d3ee,
-        emissiveIntensity: 0.22,
+        emissiveIntensity: 0,
         opacity: 0.95,
       },
     ],
