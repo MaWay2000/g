@@ -813,8 +813,11 @@ export const initScene = (
   const BASE_MIRROR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
 
   const DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE = {
-    roughness: 0.75,
-    metalness: 0.2,
+    roughness: 1,
+    metalness: 1,
+    emissive: 1,
+    emissiveIntensity: 1,
+    opacity: 1,
     height: 0.001,
   };
 
@@ -826,102 +829,7 @@ export const initScene = (
   const OUTSIDE_TERRAIN_CLEARANCE = 0.0005;
 
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
-    [
-      "void",
-      {
-        color: 0x0b1220,
-        roughness: 0.92,
-        metalness: 0.04,
-        height: 0.001,
-      },
-    ],
-    [
-      "nonmetal",
-      {
-        roughness: 0.84,
-        metalness: 0.08,
-        height: 0.001,
-      },
-    ],
-    [
-      "metalloid",
-      {
-        roughness: 0.8,
-        metalness: 0.12,
-        height: 0.001,
-      },
-    ],
-    [
-      "alkali",
-      {
-        roughness: 0.52,
-        metalness: 0.32,
-        height: 0.001,
-        emissive: 0xff8c4f,
-        emissiveIntensity: 0,
-      },
-    ],
-    [
-      "alkaline-earth",
-      {
-        roughness: 0.58,
-        metalness: 0.28,
-        height: 0.001,
-      },
-    ],
-    [
-      "transition-metal",
-      {
-        roughness: 0.48,
-        metalness: 0.46,
-        height: 0.001,
-      },
-    ],
-    [
-      "post-transition",
-      {
-        roughness: 0.5,
-        metalness: 0.42,
-        height: 0.001,
-      },
-    ],
-    [
-      "lanthanide",
-      {
-        roughness: 0.56,
-        metalness: 0.36,
-        height: 0.001,
-      },
-    ],
-    [
-      "actinide",
-      {
-        roughness: 0.42,
-        metalness: 0.52,
-        height: 0.001,
-        emissive: 0x7c3aed,
-        emissiveIntensity: 0,
-      },
-    ],
-    [
-      "halogen",
-      {
-        roughness: 0.44,
-        metalness: 0.46,
-        height: 0.001,
-      },
-    ],
-    [
-      "noble-gas",
-      {
-        roughness: 0.32,
-        metalness: 0.4,
-        height: 0.001,
-        emissive: 0x22d3ee,
-        emissiveIntensity: 0,
-        opacity: 0.95,
-      },
-    ],
+    ["default", DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE],
   ]);
 
   const roomWidth = BASE_ROOM_WIDTH;
@@ -2955,8 +2863,7 @@ export const initScene = (
           return terrainMaterials.get(materialKey);
         }
 
-        const terrainStyle =
-          OUTSIDE_TERRAIN_TILE_STYLES.get(terrainId) ||
+        const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
         const texture = getTextureForTerrain(terrainId, variantIndex);
@@ -2969,17 +2876,13 @@ export const initScene = (
             : 0xffffff;
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
-          roughness:
-            terrainStyle.roughness ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.roughness,
-          metalness:
-            terrainStyle.metalness ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.metalness,
-          emissive: new THREE.Color(terrainStyle.emissive ?? 0x000000),
-          emissiveIntensity: terrainStyle.emissiveIntensity ?? 0,
+          roughness: terrainStyle.roughness,
+          metalness: terrainStyle.metalness,
+          emissive: new THREE.Color(terrainStyle.emissive),
+          emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
           map: texture ?? null,
-          transparent:
-            typeof terrainStyle.opacity === "number" &&
-            terrainStyle.opacity < 1,
-          opacity: terrainStyle.opacity ?? 1,
+          transparent: false,
+          opacity: terrainStyle.opacity,
         });
         terrainMaterials.set(materialKey, material);
         return material;
@@ -2990,8 +2893,7 @@ export const initScene = (
           const index = row * width + column;
           const terrainId = String(rawCells[index] ?? "void");
           const resolvedTerrain = getOutsideTerrainById(terrainId);
-          const style =
-            OUTSIDE_TERRAIN_TILE_STYLES.get(resolvedTerrain.id) ||
+          const style = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
             DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
           const tileHeight = style.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
 
