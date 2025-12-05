@@ -2775,8 +2775,8 @@ export const initScene = (
 
       const desiredWorldWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 1.4;
       const desiredWorldDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 2.3;
-      const minCellSize = ROOM_SCALE_FACTOR * 0.9;
-      const maxCellSize = ROOM_SCALE_FACTOR * 2.4;
+      const minCellSize = ROOM_SCALE_FACTOR * 13.5;
+      const maxCellSize = ROOM_SCALE_FACTOR * 36;
       const computedCellSize = Math.min(
         desiredWorldWidth / width,
         desiredWorldDepth / height
@@ -2788,7 +2788,7 @@ export const initScene = (
         minCellSize,
         maxCellSize
       );
-      const desiredCellSize = ROOM_SCALE_FACTOR * 4;
+      const desiredCellSize = ROOM_SCALE_FACTOR * 60;
       const cellSize =
         Number.isFinite(desiredCellSize) && desiredCellSize > 0
           ? desiredCellSize
