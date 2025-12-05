@@ -527,7 +527,7 @@ export const initScene = (
     return dome;
   };
 
-  const daySkyTexture = textureLoader.load("images/wallpapers/1.png");
+  const daySkyTexture = textureLoader.load("images/game/sky/day.png");
   daySkyTexture.colorSpace = THREE.SRGBColorSpace;
   daySkyTexture.mapping = THREE.EquirectangularReflectionMapping;
 
