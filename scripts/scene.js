@@ -2825,7 +2825,6 @@ export const initScene = (
       const adjustable = [{ object: base, offset: -0.04 }];
       const resourceTargets = [];
       const terrainMaterials = new Map();
-      const terrainTextures = new Map();
 
       const applyWorldSpaceUVs = (material) => {
         material.onBeforeCompile = (shader) => {
@@ -2865,26 +2864,7 @@ uniform float worldUvScale;
           return null;
         }
 
-        if (!terrainTextures.has(texturePath)) {
-          const resolvedUrl = resolveAssetUrl(texturePath);
-
-          if (!resolvedUrl) {
-            throw new Error("Unable to resolve texture path");
-          }
-
-          const texture = textureLoader.load(resolvedUrl);
-          texture.colorSpace = THREE.SRGBColorSpace;
-          texture.wrapS = THREE.RepeatWrapping;
-          texture.wrapT = THREE.RepeatWrapping;
-          texture.generateMipmaps = true;
-          texture.minFilter = THREE.LinearMipMapLinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-          terrainTextures.set(texturePath, texture);
-        }
-
-        return terrainTextures.get(texturePath);
+        return null;
       };
 
       const getMaterialForTerrain = (terrainId, variantIndex) => {
