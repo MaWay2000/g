@@ -100,16 +100,13 @@ export const OUTSIDE_TERRAIN_TYPES = [
   },
 ];
 
-// Asset paths should stay stable regardless of the hosting page location. Resolve
-// against the module URL instead of the current document path so the map maker
-// UI and Three.js scene both point at the correct texture directory.
-const OUTSIDE_TERRAIN_TEXTURE_BASE = new URL(
-  "../images/tiles/floor/",
-  import.meta.url
-);
+// Asset paths should be rooted at the hosting page so textures resolve in-game
+// and in the map maker instead of escaping the project directory.
+const OUTSIDE_TERRAIN_TEXTURE_BASE = "images/tiles/floor";
 
-export const OUTSIDE_TERRAIN_TEXTURE_PATHS = Array.from({ length: 11 }, (_, index) =>
-  new URL(`${index + 1}.png`, OUTSIDE_TERRAIN_TEXTURE_BASE).toString()
+export const OUTSIDE_TERRAIN_TEXTURE_PATHS = Array.from(
+  { length: 11 },
+  (_, index) => `${OUTSIDE_TERRAIN_TEXTURE_BASE}/${index + 1}.png`
 );
 
 const TERRAIN_BY_ID = new Map(
