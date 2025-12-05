@@ -100,7 +100,7 @@ export const OUTSIDE_TERRAIN_TYPES = [
   },
 ];
 
-const OUTSIDE_TERRAIN_TEXTURE_BASE = "../images/tiles/floor";
+const OUTSIDE_TERRAIN_TEXTURE_BASE = "./images/tiles/floor";
 
 export const OUTSIDE_TERRAIN_TEXTURE_PATHS = Array.from(
   { length: 11 },
