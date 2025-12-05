@@ -751,31 +751,6 @@ export const initScene = (
     return texture;
   };
 
-  const loadRepeatingTexture = (path, onLoad) => {
-    const resolvedUrl = resolveAssetUrl(path);
-
-    if (!resolvedUrl) {
-      throw new Error("Unable to resolve texture path");
-    }
-
-    const texture = textureLoader.load(
-      resolvedUrl,
-      (loadedTexture) => {
-        if (typeof onLoad === "function") {
-          onLoad(loadedTexture);
-        }
-      }
-    );
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.generateMipmaps = true;
-    texture.minFilter = THREE.LinearMipMapLinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    return texture;
-  };
-
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(ambientLight);
 
@@ -2891,7 +2866,21 @@ uniform float worldUvScale;
         }
 
         if (!terrainTextures.has(texturePath)) {
-          const texture = loadRepeatingTexture(texturePath);
+          const resolvedUrl = resolveAssetUrl(texturePath);
+
+          if (!resolvedUrl) {
+            throw new Error("Unable to resolve texture path");
+          }
+
+          const texture = textureLoader.load(resolvedUrl);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          texture.generateMipmaps = true;
+          texture.minFilter = THREE.LinearMipMapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
           terrainTextures.set(texturePath, texture);
         }
 
