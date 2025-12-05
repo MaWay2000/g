@@ -139,6 +139,7 @@ export const initScene = (
   })();
 
   const registeredStarFields = new Set();
+  let allowStarsForTimeOfDay = true;
   const registerStarField = (starField) => {
     if (!starField?.isObject3D) {
       return;
@@ -264,13 +265,18 @@ export const initScene = (
   };
 
   const applyStarVisibility = () => {
-    const visible = Boolean(sceneSettings.showStars);
+    const visible = Boolean(sceneSettings.showStars) && allowStarsForTimeOfDay;
 
     registeredStarFields.forEach((starField) => {
       if (starField) {
         starField.visible = visible;
       }
     });
+  };
+
+  const setStarsEnabledForTimeOfDay = (enabled = true) => {
+    allowStarsForTimeOfDay = Boolean(enabled);
+    applyStarVisibility();
   };
 
   const updateStarFieldPositions = () => {
@@ -442,7 +448,8 @@ export const initScene = (
   renderer.setSize(window.innerWidth, window.innerHeight, false);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
+  const nightBackground = new THREE.Color(0x000000);
+  scene.background = nightBackground;
 
   const camera = new THREE.PerspectiveCamera(
     75,
@@ -457,6 +464,125 @@ export const initScene = (
   camera.position.set(0, 0, 8 * ROOM_SCALE_FACTOR);
 
   const textureLoader = new THREE.TextureLoader();
+
+  const DAY_START_HOUR = 6;
+  const NIGHT_START_HOUR = 18;
+  const TIME_OF_DAY_REFRESH_SECONDS = 5;
+  const timeOfDayState = {
+    isDaytime: null,
+  };
+
+  const createSunSprite = () => {
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+
+    if (context) {
+      const gradient = context.createRadialGradient(
+        size / 2,
+        size / 2,
+        size * 0.1,
+        size / 2,
+        size / 2,
+        size * 0.5
+      );
+      gradient.addColorStop(0, "rgba(255, 244, 199, 0.95)");
+      gradient.addColorStop(0.35, "rgba(255, 221, 138, 0.8)");
+      gradient.addColorStop(1, "rgba(255, 193, 94, 0)");
+
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, size, size);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+    });
+
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(18, 18, 1);
+    sprite.renderOrder = -1;
+
+    return sprite;
+  };
+
+  const createSkyDome = (texture) => {
+    const geometry = new THREE.SphereGeometry(650, 48, 32);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture ?? null,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+    });
+    const dome = new THREE.Mesh(geometry, material);
+    dome.renderOrder = -2;
+    return dome;
+  };
+
+  const daySkyTexture = textureLoader.load("images/wallpapers/1.png");
+  daySkyTexture.colorSpace = THREE.SRGBColorSpace;
+  daySkyTexture.mapping = THREE.EquirectangularReflectionMapping;
+
+  const skyDome = createSkyDome(daySkyTexture);
+  skyDome.visible = false;
+  scene.add(skyDome);
+
+  const sunSprite = createSunSprite();
+  sunSprite.visible = false;
+  scene.add(sunSprite);
+
+  const applyTimeOfDayVisuals = () => {
+    const isDaytime = Boolean(timeOfDayState.isDaytime);
+    const daySkyReady = Boolean(daySkyTexture);
+
+    skyDome.visible = isDaytime && daySkyReady;
+    sunSprite.visible = isDaytime;
+    setStarsEnabledForTimeOfDay(!isDaytime);
+
+    scene.background = isDaytime && daySkyReady ? daySkyTexture : nightBackground;
+  };
+
+  let lastTimeOfDayCheck = 0;
+
+  const updateTimeOfDay = (force = false) => {
+    const nowSeconds = performance.now() / 1000;
+
+    if (!force && nowSeconds - lastTimeOfDayCheck < TIME_OF_DAY_REFRESH_SECONDS) {
+      return;
+    }
+
+    lastTimeOfDayCheck = nowSeconds;
+
+    const now = new Date();
+    const hour = now.getHours() + now.getMinutes() / 60;
+    const isDaytime = hour >= DAY_START_HOUR && hour < NIGHT_START_HOUR;
+
+    if (force || isDaytime !== timeOfDayState.isDaytime) {
+      timeOfDayState.isDaytime = isDaytime;
+      applyTimeOfDayVisuals();
+    }
+  };
+
+  const updateSkyBackdrop = () => {
+    const playerPosition = playerObject?.position;
+
+    if (!playerPosition) {
+      return;
+    }
+
+    skyDome.position.copy(playerPosition);
+    sunSprite.position.set(playerPosition.x, playerPosition.y + 48, playerPosition.z - 120);
+  };
+
+  updateTimeOfDay(true);
 
   const reflectionsEnabled = true;
   const reflectorResolutionScale = 1;
@@ -7184,7 +7310,9 @@ export const initScene = (
     updateResourceTool(delta, elapsedTime);
     updateDroneMiner(delta, elapsedTime);
     updateResourceSessions(delta);
+    updateTimeOfDay();
     updateStarFieldPositions();
+    updateSkyBackdrop();
 
     renderer.render(scene, camera);
   };
@@ -7368,6 +7496,17 @@ export const initScene = (
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
+      if (skyDome.parent) {
+        skyDome.parent.remove(skyDome);
+      }
+      skyDome.geometry?.dispose?.();
+      skyDome.material?.map?.dispose?.();
+      skyDome.material?.dispose?.();
+      if (sunSprite.parent) {
+        sunSprite.parent.remove(sunSprite);
+      }
+      sunSprite.material?.map?.dispose?.();
+      sunSprite.material?.dispose?.();
       resourceTargetsByEnvironment.clear();
       activeResourceTargets = [];
       registeredStarFields.clear();
