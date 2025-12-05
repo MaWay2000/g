@@ -769,6 +769,9 @@ export const initScene = (
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
+    texture.generateMipmaps = true;
+    texture.minFilter = THREE.LinearMipMapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     return texture;
   };
