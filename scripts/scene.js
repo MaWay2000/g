@@ -2897,27 +2897,10 @@ export const initScene = (
             DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
           const tileHeight = style.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
 
-          const baseMaterial = getMaterialForTerrain(resolvedTerrain.id, index);
-          let tileMaterial = baseMaterial;
-          const baseTexture = baseMaterial?.map ?? null;
-
-          if (baseTexture) {
-            // Use a deterministic seed derived from the tile index so maps can be
-            // reproduced when generated procedurally.
-            const tileTexture = baseTexture.clone();
-            const rotationIndex = Math.floor(
-              (((Math.sin(index + 1) + 1) / 2) * 4) % 4
-            );
-            tileTexture.center.set(0.5, 0.5);
-            tileTexture.rotation = rotationIndex * (Math.PI / 2);
-            tileTexture.needsUpdate = true;
-
-            tileMaterial = baseMaterial.clone();
-            tileMaterial.map = tileTexture;
-            tileMaterial.needsUpdate = true;
-          }
-
-          const tile = new THREE.Mesh(tileGeometry, tileMaterial);
+          const tile = new THREE.Mesh(
+            tileGeometry,
+            getMaterialForTerrain(resolvedTerrain.id, index)
+          );
           tile.scale.set(cellSize, tileHeight, cellSize);
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
