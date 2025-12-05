@@ -751,28 +751,6 @@ export const initScene = (
     return texture;
   };
 
-  const loadRepeatingTexture = (path, onLoad) => {
-    const resolvedUrl = resolveAssetUrl(path);
-
-    if (!resolvedUrl) {
-      throw new Error("Unable to resolve texture path");
-    }
-
-    const texture = textureLoader.load(
-      resolvedUrl,
-      (loadedTexture) => {
-        if (typeof onLoad === "function") {
-          onLoad(loadedTexture);
-        }
-      }
-    );
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    return texture;
-  };
-
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(ambientLight);
 
@@ -2823,7 +2801,6 @@ export const initScene = (
       const mapCenterZ = (mapNearEdge + mapFarEdge) / 2;
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
-      const terrainTextureScale = Math.max(cellSize, 0.001);
 
       const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
       const mapGroup = new THREE.Group();
@@ -2849,27 +2826,6 @@ export const initScene = (
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
 
-      const applyWorldSpaceUVs = (material) => {
-        material.onBeforeCompile = (shader) => {
-          shader.uniforms.worldUvScale = { value: terrainTextureScale };
-          shader.vertexShader = shader.vertexShader.replace(
-            "#include <common>",
-            `#include <common>
-uniform float worldUvScale;
-`
-          );
-          shader.vertexShader = shader.vertexShader.replace(
-            "#include <uv_vertex>",
-            `#ifdef USE_UV
-  vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-  vUv = worldPos.xz / worldUvScale;
-#endif
-`
-          );
-        };
-        material.needsUpdate = true;
-      };
-
       const concealedTerrainMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
         roughness: 0.78,
@@ -2888,7 +2844,7 @@ uniform float worldUvScale;
         }
 
         if (!terrainTextures.has(texturePath)) {
-          const texture = loadRepeatingTexture(texturePath);
+          const texture = loadClampedTexture(texturePath);
           terrainTextures.set(texturePath, texture);
         }
 
@@ -2928,9 +2884,6 @@ uniform float worldUvScale;
           transparent: false,
           opacity: terrainStyle.opacity,
         });
-        if (material.map) {
-          applyWorldSpaceUVs(material);
-        }
         terrainMaterials.set(materialKey, material);
         return material;
       };
