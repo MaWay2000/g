@@ -1,4 +1,4 @@
-import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
+import * as THREE from "three";
 
 const _vector = new THREE.Vector3();
 const CHANGE_EVENT = { type: "change" };
