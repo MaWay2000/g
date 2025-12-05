@@ -2870,6 +2870,9 @@ uniform float worldUvScale;
         }
 
         const texture = loadClampedTexture(texturePath);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.needsUpdate = true;
         terrainTextureCache.set(texturePath, texture);
 
         return texture;
