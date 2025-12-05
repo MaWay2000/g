@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 
 const PLAYER_STATE_STORAGE_KEY = "dustyNova.playerState";
 const PLAYER_HEIGHT_STORAGE_KEY = `${PLAYER_STATE_STORAGE_KEY}.height`;

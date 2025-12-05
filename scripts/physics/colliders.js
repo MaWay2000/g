@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 
 export const colliderDescriptors = [];
 
