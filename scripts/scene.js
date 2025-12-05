@@ -2826,7 +2826,7 @@ export const initScene = (
       const mapCenterZ = (mapNearEdge + mapFarEdge) / 2;
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
-      const terrainTextureScale = Math.max(cellSize, 0.001);
+      const terrainTextureScale = Math.max(cellSize, 0.1);
 
       const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
       const mapGroup = new THREE.Group();
