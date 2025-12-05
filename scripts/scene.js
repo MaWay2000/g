@@ -840,7 +840,7 @@ export const initScene = (
     emissive: 1,
     emissiveIntensity: 1,
     opacity: 1,
-    height: 0.001,
+    height: 0.12,
   };
 
   const CONCEAL_OUTSIDE_TERRAIN_TILES = false;
@@ -848,7 +848,7 @@ export const initScene = (
 
   const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
 
-  const OUTSIDE_TERRAIN_CLEARANCE = 0.0005;
+  const OUTSIDE_TERRAIN_CLEARANCE = 0.05;
 
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
     ["default", DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE],
