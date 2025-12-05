@@ -2825,6 +2825,7 @@ export const initScene = (
       const adjustable = [{ object: base, offset: -0.04 }];
       const resourceTargets = [];
       const terrainMaterials = new Map();
+      const terrainTextureCache = new Map();
 
       const applyWorldSpaceUVs = (material) => {
         material.onBeforeCompile = (shader) => {
@@ -2864,7 +2865,14 @@ uniform float worldUvScale;
           return null;
         }
 
-        return null;
+        if (terrainTextureCache.has(texturePath)) {
+          return terrainTextureCache.get(texturePath);
+        }
+
+        const texture = loadClampedTexture(texturePath);
+        terrainTextureCache.set(texturePath, texture);
+
+        return texture;
       };
 
       const getMaterialForTerrain = (terrainId, variantIndex) => {
