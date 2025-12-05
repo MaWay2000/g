@@ -100,7 +100,9 @@ export const OUTSIDE_TERRAIN_TYPES = [
   },
 ];
 
-const OUTSIDE_TERRAIN_TEXTURE_BASE = "../images/tiles/floor";
+// Asset paths should be rooted at the hosting page so textures resolve in-game
+// and in the map maker instead of escaping the project directory.
+const OUTSIDE_TERRAIN_TEXTURE_BASE = "images/tiles/floor";
 
 export const OUTSIDE_TERRAIN_TEXTURE_PATHS = Array.from(
   { length: 11 },
