@@ -775,11 +775,21 @@
         border: 1px solid rgba(148, 163, 184, 0.14);
       }
 
+      .settings-slider--compact {
+        padding: 0.65rem 0.9rem;
+        gap: 0.45rem;
+      }
+
       .settings-slider__header {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
         gap: 0.5rem;
+      }
+
+      .settings-slider__header--solo {
+        justify-content: flex-start;
+        gap: 0.35rem;
       }
 
       .settings-slider__title {
@@ -792,6 +802,12 @@
         font-weight: 700;
         font-size: 0.9rem;
         color: #38bdf8;
+      }
+
+      .settings-slider__value-label {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.25rem;
       }
 
       .settings-slider__hint {
@@ -3562,16 +3578,13 @@
                       <span class="performance-toggle__title">Static stars</span>
                     </span>
                   </label>
-                  <label class="settings-slider" for="timeOffsetRange">
-                    <div class="settings-slider__header">
-                      <span class="settings-slider__title">GMT offset</span>
-                      <span class="settings-slider__value" data-time-offset-value
-                        >+0h</span
-                      >
+                  <label class="settings-slider settings-slider--compact" for="timeOffsetRange">
+                    <div class="settings-slider__header settings-slider__header--solo">
+                      <span class="settings-slider__value settings-slider__value-label">
+                        GMT
+                        <span data-time-offset-value>+0h</span>
+                      </span>
                     </div>
-                    <p class="settings-slider__hint">
-                      Manually adjust the sky's day/night cycle using your GMT offset.
-                    </p>
                     <div class="settings-slider__controls">
                       <input
                         id="timeOffsetRange"
@@ -3581,6 +3594,7 @@
                         max="14"
                         step="0.5"
                         value="0"
+                        aria-label="GMT time in hours"
                         data-time-offset-range
                       />
                       <input
@@ -3589,7 +3603,7 @@
                         step="0.5"
                         value="0"
                         inputmode="decimal"
-                        aria-label="GMT offset in hours"
+                        aria-label="GMT time in hours"
                         data-time-offset-input
                       />
                     </div>
