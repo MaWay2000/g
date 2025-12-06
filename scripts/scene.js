@@ -462,8 +462,8 @@ export const initScene = (
   renderer.setSize(window.innerWidth, window.innerHeight, false);
 
   const scene = new THREE.Scene();
-  const nightBackground = new THREE.Color(0x000000);
-  scene.background = nightBackground;
+  const skyBackgroundColor = new THREE.Color(0x000000);
+  scene.background = skyBackgroundColor;
 
   const camera = new THREE.PerspectiveCamera(
     75,
@@ -530,24 +530,61 @@ export const initScene = (
     return sprite;
   };
 
-  const createSkyDome = (texture) => {
+  const skyGradientUniforms = {
+    topColor: { value: new THREE.Color("#0b1024") },
+    bottomColor: { value: new THREE.Color("#0f172a") },
+    brightness: { value: 1 },
+    opacity: { value: 0 },
+    exponent: { value: 1.45 },
+  };
+
+  const skyPalette = {
+    nightTop: new THREE.Color("#0b1024"),
+    nightBottom: new THREE.Color("#0f172a"),
+    dayTop: new THREE.Color("#38bdf8"),
+    dayBottom: new THREE.Color("#cdeafe"),
+    warmTop: new THREE.Color("#f6a956"),
+    warmBottom: new THREE.Color("#f16b43"),
+  };
+
+  const createSkyDome = () => {
     const geometry = new THREE.SphereGeometry(650, 48, 32);
-    const material = new THREE.MeshBasicMaterial({
-      map: texture ?? null,
+    const material = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       transparent: true,
       depthWrite: false,
+      uniforms: skyGradientUniforms,
+      vertexShader: `
+        varying float vGradientStrength;
+
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vec3 normalizedPosition = normalize(worldPosition.xyz);
+          vGradientStrength = clamp(normalizedPosition.y * 0.5 + 0.5, 0.0, 1.0);
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 bottomColor;
+        uniform float brightness;
+        uniform float opacity;
+        uniform float exponent;
+        varying float vGradientStrength;
+
+        void main() {
+          float gradient = pow(vGradientStrength, exponent);
+          vec3 baseColor = mix(bottomColor, topColor, gradient);
+          gl_FragColor = vec4(baseColor * brightness, opacity);
+        }
+      `,
     });
     const dome = new THREE.Mesh(geometry, material);
     dome.renderOrder = -2;
     return dome;
   };
 
-  const daySkyTexture = textureLoader.load("images/game/sky/day.png");
-  daySkyTexture.colorSpace = THREE.SRGBColorSpace;
-  daySkyTexture.mapping = THREE.EquirectangularReflectionMapping;
-
-  const skyDome = createSkyDome(daySkyTexture);
+  const skyDome = createSkyDome();
   skyDome.visible = false;
   scene.add(skyDome);
 
@@ -561,22 +598,43 @@ export const initScene = (
       0,
       1
     );
-    const daySkyReady = Boolean(daySkyTexture);
 
-    if (skyDome.material) {
-      skyDome.material.opacity = daylightFactor;
-    }
+    const warmthInfluence = THREE.MathUtils.clamp(daylightFactor + 0.2, 0, 1);
+    const topColor = skyGradientUniforms.topColor.value;
+    const bottomColor = skyGradientUniforms.bottomColor.value;
+
+    topColor
+      .copy(skyPalette.nightTop)
+      .lerp(skyPalette.dayTop, daylightFactor)
+      .lerp(skyPalette.warmTop, warmthInfluence * 0.35);
+
+    bottomColor
+      .copy(skyPalette.nightBottom)
+      .lerp(skyPalette.dayBottom, daylightFactor)
+      .lerp(skyPalette.warmBottom, warmthInfluence * 0.75);
+
+    const brightness = 0.08 + daylightFactor * 0.92;
+    skyGradientUniforms.brightness.value = brightness;
+    skyGradientUniforms.opacity.value = THREE.MathUtils.clamp(
+      daylightFactor + 0.1,
+      0,
+      1
+    );
 
     if (sunSprite.material) {
       sunSprite.material.opacity = daylightFactor;
     }
 
-    skyDome.visible = daylightFactor > 0.01 && daySkyReady;
+    skyDome.visible = daylightFactor > 0.01;
     sunSprite.visible = daylightFactor > 0.02;
     setStarsEnabledForTimeOfDay(daylightFactor < 0.4);
 
-    scene.background = daylightFactor > 0.05 && daySkyReady ? daySkyTexture : nightBackground;
-    renderer.toneMappingExposure = 0.35 + daylightFactor * 0.65;
+    skyBackgroundColor
+      .copy(bottomColor)
+      .lerp(topColor, 0.35)
+      .multiplyScalar(brightness);
+    scene.background = skyBackgroundColor;
+    renderer.toneMappingExposure = 0.3 + daylightFactor * 0.7;
   };
 
   let lastTimeOfDayCheck = 0;
