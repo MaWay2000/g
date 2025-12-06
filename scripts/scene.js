@@ -91,6 +91,16 @@ export const initScene = (
     return numericValue;
   };
 
+  const normalizeTimeOffset = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 0;
+    }
+
+    return Math.min(14, Math.max(-12, numericValue));
+  };
+
   const getStarPlaneHeight = () => 75 * starSettings.height;
 
   const starSettings = {
@@ -100,6 +110,10 @@ export const initScene = (
     extent: parseStarSetting(settings?.skyExtent, 1),
     height: parseStarSetting(settings?.skyDomeHeight, 1),
     followPlayer: settings?.starFollowPlayer !== false,
+  };
+
+  const timeSettings = {
+    gmtOffsetHours: normalizeTimeOffset(settings?.timeZoneOffsetHours),
   };
 
   const starSpriteTexture = (() => {
@@ -470,6 +484,8 @@ export const initScene = (
   const TIME_OF_DAY_REFRESH_SECONDS = 5;
   const timeOfDayState = {
     isDaytime: null,
+    daylightFactor: 0,
+    hour: null,
   };
 
   const createSunSprite = () => {
@@ -540,17 +556,60 @@ export const initScene = (
   scene.add(sunSprite);
 
   const applyTimeOfDayVisuals = () => {
-    const isDaytime = Boolean(timeOfDayState.isDaytime);
+    const daylightFactor = THREE.MathUtils.clamp(
+      Number(timeOfDayState.daylightFactor ?? 0),
+      0,
+      1
+    );
     const daySkyReady = Boolean(daySkyTexture);
 
-    skyDome.visible = isDaytime && daySkyReady;
-    sunSprite.visible = isDaytime;
-    setStarsEnabledForTimeOfDay(!isDaytime);
+    if (skyDome.material) {
+      skyDome.material.opacity = daylightFactor;
+    }
 
-    scene.background = isDaytime && daySkyReady ? daySkyTexture : nightBackground;
+    if (sunSprite.material) {
+      sunSprite.material.opacity = daylightFactor;
+    }
+
+    skyDome.visible = daylightFactor > 0.01 && daySkyReady;
+    sunSprite.visible = daylightFactor > 0.02;
+    setStarsEnabledForTimeOfDay(daylightFactor < 0.4);
+
+    scene.background = daylightFactor > 0.05 && daySkyReady ? daySkyTexture : nightBackground;
+    renderer.toneMappingExposure = 0.35 + daylightFactor * 0.65;
   };
 
   let lastTimeOfDayCheck = 0;
+
+  const getAdjustedHour = () => {
+    const now = new Date();
+    const utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
+    const adjusted = utcHour + timeSettings.gmtOffsetHours;
+
+    return ((adjusted % 24) + 24) % 24;
+  };
+
+  const calculateDaylightFactor = (hour) => {
+    const wrappedHour = ((hour % 24) + 24) % 24;
+    const sunriseStart = DAY_START_HOUR - 1;
+    const sunriseEnd = DAY_START_HOUR;
+    const sunsetStart = NIGHT_START_HOUR;
+    const sunsetEnd = NIGHT_START_HOUR + 1;
+
+    if (wrappedHour >= sunriseEnd && wrappedHour < sunsetStart) {
+      return 1;
+    }
+
+    if (wrappedHour >= sunriseStart && wrappedHour < sunriseEnd) {
+      return (wrappedHour - sunriseStart) / (sunriseEnd - sunriseStart);
+    }
+
+    if (wrappedHour >= sunsetStart && wrappedHour < sunsetEnd) {
+      return 1 - (wrappedHour - sunsetStart) / (sunsetEnd - sunsetStart);
+    }
+
+    return 0;
+  };
 
   const updateTimeOfDay = (force = false) => {
     const nowSeconds = performance.now() / 1000;
@@ -561,12 +620,18 @@ export const initScene = (
 
     lastTimeOfDayCheck = nowSeconds;
 
-    const now = new Date();
-    const hour = now.getHours() + now.getMinutes() / 60;
-    const isDaytime = hour >= DAY_START_HOUR && hour < NIGHT_START_HOUR;
+    const hour = getAdjustedHour();
+    const daylightFactor = calculateDaylightFactor(hour);
+    const isDaytime = daylightFactor >= 0.5;
 
-    if (force || isDaytime !== timeOfDayState.isDaytime) {
+    if (
+      force ||
+      isDaytime !== timeOfDayState.isDaytime ||
+      Math.abs(daylightFactor - (timeOfDayState.daylightFactor ?? 0)) > 0.01
+    ) {
       timeOfDayState.isDaytime = isDaytime;
+      timeOfDayState.daylightFactor = daylightFactor;
+      timeOfDayState.hour = hour;
       applyTimeOfDayVisuals();
     }
   };
@@ -7375,21 +7440,32 @@ export const initScene = (
     },
     placeModelFromManifestEntry,
     setManifestEditModeEnabled,
-      isManifestEditModeEnabled,
-      hasManifestPlacements,
-      getDroneBasePosition: () =>
-        droneMinerState.hasBasePosition
-          ? droneMinerState.basePosition.clone()
-          : null,
-      setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
-      setStarVisualSettings: (nextSettings) => {
-        applyStarSettings(nextSettings ?? {});
-      },
-      setStarsEnabled: (enabled) => {
-        const nextState = Boolean(enabled);
+    isManifestEditModeEnabled,
+    hasManifestPlacements,
+    getDroneBasePosition: () =>
+      droneMinerState.hasBasePosition
+        ? droneMinerState.basePosition.clone()
+        : null,
+    setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
+    setStarVisualSettings: (nextSettings) => {
+      applyStarSettings(nextSettings ?? {});
+    },
+    setTimeSettings: (nextSettings = {}) => {
+      const nextOffset = normalizeTimeOffset(nextSettings.timeZoneOffsetHours);
 
-        if (sceneSettings.showStars === nextState) {
-          return;
+      if (nextOffset === timeSettings.gmtOffsetHours) {
+        return timeSettings.gmtOffsetHours;
+      }
+
+      timeSettings.gmtOffsetHours = nextOffset;
+      updateTimeOfDay(true);
+      return timeSettings.gmtOffsetHours;
+    },
+    setStarsEnabled: (enabled) => {
+      const nextState = Boolean(enabled);
+
+      if (sceneSettings.showStars === nextState) {
+        return;
       }
 
       sceneSettings.showStars = nextState;

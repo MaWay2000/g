@@ -1,5 +1,20 @@
 const SETTINGS_STORAGE_KEY = "dustyNova.settings";
 
+const getDefaultTimeZoneOffsetHours = () => {
+  try {
+    const minutesOffset = new Date().getTimezoneOffset();
+    const hoursOffset = -minutesOffset / 60;
+
+    if (Number.isFinite(hoursOffset)) {
+      return Math.min(14, Math.max(-12, hoursOffset));
+    }
+  } catch (error) {
+    console.warn("Unable to read timezone offset", error);
+  }
+
+  return 0;
+};
+
 const DEFAULT_SETTINGS = {
   maxPixelRatio: 1.25,
   showFpsCounter: false,
@@ -10,6 +25,7 @@ const DEFAULT_SETTINGS = {
   starOpacity: 0.8,
   skyExtent: 10,
   skyDomeHeight: 0,
+  timeZoneOffsetHours: getDefaultTimeZoneOffsetHours(),
 };
 
 const normalizeSettings = (settings = {}) => {
@@ -33,6 +49,10 @@ const normalizeSettings = (settings = {}) => {
     skyDomeHeight: normalizeValue(
       settings.skyDomeHeight,
       DEFAULT_SETTINGS.skyDomeHeight
+    ),
+    timeZoneOffsetHours: normalizeValue(
+      settings.timeZoneOffsetHours,
+      DEFAULT_SETTINGS.timeZoneOffsetHours
     ),
   };
 };

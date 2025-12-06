@@ -56,16 +56,19 @@ const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
+const timeOffsetRange = document.querySelector("[data-time-offset-range]");
 const skyExtentRange = document.querySelector("[data-sky-extent-range]");
 const starSizeInput = document.querySelector("[data-star-size-input]");
 const starDensityInput = document.querySelector("[data-star-density-input]");
 const starOpacityInput = document.querySelector("[data-star-opacity-input]");
+const timeOffsetInput = document.querySelector("[data-time-offset-input]");
 const skyExtentInput = document.querySelector("[data-sky-extent-input]");
 const skyHeightRange = document.querySelector("[data-sky-height-range]");
 const skyHeightInput = document.querySelector("[data-sky-height-input]");
 const starSizeValue = document.querySelector("[data-star-size-value]");
 const starDensityValue = document.querySelector("[data-star-density-value]");
 const starOpacityValue = document.querySelector("[data-star-opacity-value]");
+const timeOffsetValue = document.querySelector("[data-time-offset-value]");
 const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const skyHeightValue = document.querySelector("[data-sky-height-value]");
 const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu]");
@@ -88,6 +91,7 @@ const starSettingsInputs = [
   skyExtentInput,
   skyHeightInput,
 ];
+const timeSettingInputs = [timeOffsetRange, timeOffsetInput];
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
 const missionIndicatorActiveLabel = missionIndicator?.querySelector(
@@ -386,6 +390,15 @@ const setValueLabel = (element, value) => {
 };
 
 const formatPercentage = (value) => `${Math.round(Number(value ?? 0) * 100)}%`;
+const formatGmtOffset = (value) => {
+  const numericValue = Number.isFinite(value) ? value : 0;
+  const clamped = Math.max(-12, Math.min(14, numericValue));
+  const displayValue = Number.isInteger(clamped)
+    ? clamped.toFixed(0)
+    : clamped.toFixed(1);
+
+  return `${clamped >= 0 ? "+" : ""}${displayValue}h`;
+};
 
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
@@ -427,6 +440,18 @@ const applyStarVisualUiState = () => {
 };
 
 applyStarVisualUiState();
+
+const applyTimeSettingsUiState = () => {
+  const timeZoneOffsetHours = Number(currentSettings?.timeZoneOffsetHours ?? 0);
+
+  setRangeInputValue(timeOffsetRange, timeZoneOffsetHours);
+  setNumberInputValue(timeOffsetInput, timeZoneOffsetHours);
+  setValueLabel(timeOffsetValue, formatGmtOffset(timeZoneOffsetHours));
+
+  sceneController?.setTimeSettings?.({ timeZoneOffsetHours });
+};
+
+applyTimeSettingsUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -8209,11 +8234,46 @@ const bindStarSettingInput = (key, inputs) => {
   });
 };
 
+const bindTimeSettingInput = (key, inputs, onUpdate) => {
+  const elements = Array.isArray(inputs) ? inputs : [inputs];
+  const validElements = elements.filter(
+    (element) => element instanceof HTMLInputElement
+  );
+
+  if (validElements.length === 0) {
+    return;
+  }
+
+  const commit = () => {
+    const activeInput = validElements.find((element) => document.activeElement === element);
+    const source = activeInput ?? validElements[0];
+    const value = Number.parseFloat(source.value);
+
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    currentSettings = { ...currentSettings, [key]: value };
+    persistSettings(currentSettings);
+    onUpdate?.();
+  };
+
+  validElements.forEach((element) => {
+    element.addEventListener("input", commit);
+    element.addEventListener("change", commit);
+  });
+};
+
 bindStarSettingInput("starSize", [starSizeRange, starSizeInput]);
 bindStarSettingInput("starDensity", [starDensityRange, starDensityInput]);
 bindStarSettingInput("starOpacity", [starOpacityRange, starOpacityInput]);
 bindStarSettingInput("skyExtent", [skyExtentRange, skyExtentInput]);
 bindStarSettingInput("skyDomeHeight", [skyHeightRange, skyHeightInput]);
+bindTimeSettingInput(
+  "timeZoneOffsetHours",
+  timeSettingInputs,
+  applyTimeSettingsUiState
+);
 
 const scheduleBootstrapScene = () => {
   const start = () => window.requestAnimationFrame(bootstrapScene);
