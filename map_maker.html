@@ -325,10 +325,16 @@
         inset: 4px;
         border-radius: 0.6rem;
         background-image: var(--cell-texture, none);
+        background-color: transparent;
         background-size: cover;
         background-repeat: no-repeat;
         background-position: center;
         transition: transform 120ms ease, box-shadow 120ms ease;
+      }
+
+      .map-grid[data-show-colors="true"] .map-cell::after {
+        background-color: var(--cell-color, transparent);
+        background-blend-mode: multiply;
       }
 
       .map-cell:hover::after,
@@ -513,6 +519,9 @@
         <label class="toggle"
           ><input id="gridToggle" type="checkbox" checked /> show grid</label
         >
+        <label class="toggle"
+          ><input id="colorToggle" type="checkbox" checked /> show terrain color</label
+        >
         <div class="hint">
           Hold Shift while painting to erase with the void terrain, or pick a
           new element group from the palette to change your brush.
@@ -534,6 +543,7 @@
             role="grid"
             aria-label="Map grid"
             data-show-grid="true"
+            data-show-colors="true"
           ></div>
           <section class="sidebar-section">
             <h2>Live JSON</h2>

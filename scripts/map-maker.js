@@ -76,6 +76,7 @@ const elements = {
   heightInput: document.getElementById("heightInput"),
   resizeButton: document.getElementById("resizeButton"),
   gridToggle: document.getElementById("gridToggle"),
+  colorToggle: document.getElementById("colorToggle"),
   cellSizeRange: document.getElementById("cellSizeRange"),
   mapNameDisplay: document.getElementById("mapNameDisplay"),
   mapRegionDisplay: document.getElementById("mapRegionDisplay"),
@@ -353,6 +354,7 @@ function renderGrid() {
     cell.className = "map-cell";
     cell.dataset.index = index;
     cell.dataset.terrain = terrain.id;
+    cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
     cell.style.setProperty(
       "--cell-texture",
       getTerrainTextureCssValue(terrain.id, index)
@@ -389,6 +391,7 @@ function paintCell(index, terrainId) {
   if (cell) {
     const terrain = getTerrainById(terrainId);
     cell.dataset.terrain = terrain.id;
+    cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
     cell.style.setProperty(
       "--cell-texture",
       getTerrainTextureCssValue(terrain.id, index)
@@ -575,6 +578,10 @@ function initControls() {
 
   elements.gridToggle.addEventListener("change", (event) => {
     elements.mapGrid.dataset.showGrid = String(event.target.checked);
+  });
+
+  elements.colorToggle.addEventListener("change", (event) => {
+    elements.mapGrid.dataset.showColors = String(event.target.checked);
   });
 
   elements.importButton.addEventListener("click", () => {
