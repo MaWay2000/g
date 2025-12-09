@@ -3891,7 +3891,7 @@ const formatMarsMoney = (value) => {
   }
 
   const formatter = Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-  return `${formatter.format(value)} Mars money`;
+  return formatter.format(value);
 };
 
 const formatMissionIndicatorLabel = (mission) => {
