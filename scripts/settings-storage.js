@@ -20,12 +20,12 @@ const DEFAULT_SETTINGS = {
   showFpsCounter: false,
   showStars: true,
   starFollowPlayer: true,
-  starSize: 3,
-  starDensity: 20,
-  starOpacity: 0.8,
-  skyExtent: 10,
+  starSize: 8.63,
+  starDensity: 8.61,
+  starOpacity: 3.05,
+  skyExtent: 13.35,
   skyDomeHeight: 0,
-  timeZoneOffsetHours: getDefaultTimeZoneOffsetHours(),
+  timeZoneOffsetHours: 3,
 };
 
 const normalizeSettings = (settings = {}) => {
