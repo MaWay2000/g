@@ -67,6 +67,7 @@ export const initScene = (
     onManifestPlacementRemoved,
     onResourceCollected,
     onResourceSessionCancelled,
+    onResourceUnavailable,
     onDroneReturnComplete,
     settings,
   } = {}
@@ -946,7 +947,9 @@ export const initScene = (
   const registeredLiftDoors = [];
   const environmentHeightAdjusters = [];
   const resourceTargetsByEnvironment = new Map();
+  const terrainTilesByEnvironment = new Map();
   let activeResourceTargets = [];
+  let activeTerrainTiles = [];
   let hasStoredOutsideMap = false;
 
   const getResourceTargetsForFloor = (floorId) => {
@@ -960,6 +963,20 @@ export const initScene = (
     }
 
     return targets;
+  };
+
+  const getTerrainTilesForFloor = (floorId) => {
+    if (!floorId) {
+      return [];
+    }
+
+    const tiles = terrainTilesByEnvironment.get(floorId);
+
+    if (!Array.isArray(tiles)) {
+      return [];
+    }
+
+    return tiles;
   };
 
   const registerEnvironmentHeightAdjuster = (adjuster) => {
@@ -3302,6 +3319,7 @@ export const initScene = (
 
       const adjustable = [{ object: base, offset: -0.04 }];
       const resourceTargets = [];
+      const terrainTiles = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
 
@@ -3394,13 +3412,16 @@ export const initScene = (
             offset: tile.position.y - roomFloorY,
           });
 
+          tile.userData.terrainId = resolvedTerrain.id;
+          tile.userData.terrainLabel =
+            typeof resolvedTerrain.label === "string"
+              ? resolvedTerrain.label
+              : resolvedTerrain.id;
+
+          terrainTiles.push(tile);
+
           if (resolvedTerrain.id !== "void") {
             tile.userData.isResourceTarget = true;
-            tile.userData.terrainId = resolvedTerrain.id;
-            tile.userData.terrainLabel =
-              typeof resolvedTerrain.label === "string"
-                ? resolvedTerrain.label
-                : resolvedTerrain.id;
             resourceTargets.push(tile);
           }
 
@@ -3470,11 +3491,13 @@ export const initScene = (
         },
         adjustableEntries: adjustable,
         resourceTargets,
+        terrainTiles,
       };
     };
 
     const mapAdjustableEntries = [];
     const environmentResourceTargets = [];
+    const environmentTerrainTiles = [];
     let outsideMapBounds = null;
 
     const platformThickness = 0.42;
@@ -3551,6 +3574,11 @@ export const initScene = (
         ...builtOutsideTerrain.resourceTargets.filter((target) =>
           target && target.isObject3D
         )
+      );
+    }
+    if (Array.isArray(builtOutsideTerrain?.terrainTiles)) {
+      environmentTerrainTiles.push(
+        ...builtOutsideTerrain.terrainTiles.filter((tile) => tile && tile.isObject3D)
       );
     }
     if (
@@ -3747,6 +3775,7 @@ export const initScene = (
         teleportOffset,
         bounds: resolvedEnvironmentBounds,
         resourceTargets: environmentResourceTargets,
+        terrainTiles: environmentTerrainTiles,
         starFields: [primaryStarField, distantStarField],
       };
   };
@@ -4580,6 +4609,10 @@ export const initScene = (
           )
         : [];
 
+      const terrainTiles = Array.isArray(environment?.terrainTiles)
+        ? environment.terrainTiles.filter((tile) => tile && tile.isObject3D)
+        : [];
+
       const starFields = Array.isArray(environment?.starFields)
         ? environment.starFields.filter((field) => field?.isObject3D)
         : [];
@@ -4587,6 +4620,7 @@ export const initScene = (
       starFields.forEach(registerStarField);
 
       resourceTargetsByEnvironment.set(id, resourceTargets);
+      terrainTilesByEnvironment.set(id, terrainTiles);
 
       state = {
         group,
@@ -4595,6 +4629,7 @@ export const initScene = (
         registeredColliders,
         bounds: resolvedBounds,
         resourceTargets,
+        terrainTiles,
         starFields,
       };
 
@@ -4627,6 +4662,7 @@ export const initScene = (
       unregisterStarFields(state.starFields ?? []);
 
       resourceTargetsByEnvironment.delete(id);
+      terrainTilesByEnvironment.delete(id);
 
       scene.remove(state.group);
       disposeObject3D(state.group);
@@ -5370,6 +5406,60 @@ export const initScene = (
     return null;
   };
 
+  const findTerrainTile = (object) => {
+    let current = object;
+
+    while (current) {
+      if (current.userData?.terrainId) {
+        return current;
+      }
+
+      current = current.parent;
+    }
+
+    return null;
+  };
+
+  const findTerrainIntersection = () => {
+    if (!controls.isLocked) {
+      return null;
+    }
+
+    if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
+      return null;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(activeTerrainTiles, true);
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const intersection = intersections.find((candidate) =>
+      findTerrainTile(candidate.object)
+    );
+
+    if (
+      !intersection ||
+      !Number.isFinite(intersection.distance) ||
+      intersection.distance > RESOURCE_TOOL_MAX_DISTANCE
+    ) {
+      return null;
+    }
+
+    const targetObject = findTerrainTile(intersection.object);
+
+    if (!targetObject) {
+      return null;
+    }
+
+    const terrainId = targetObject.userData?.terrainId ?? null;
+    const terrainLabel = targetObject.userData?.terrainLabel ?? null;
+
+    return { terrainId, terrainLabel };
+  };
+
   const prepareResourceCollection = ({ requireLockedControls = true } = {}) => {
     if (requireLockedControls && !controls.isLocked) {
       return null;
@@ -5410,6 +5500,18 @@ export const initScene = (
     return { intersection, targetObject };
   };
 
+  const notifyResourceUnavailable = (detail) => {
+    if (typeof onResourceUnavailable !== "function") {
+      return;
+    }
+
+    try {
+      onResourceUnavailable(detail);
+    } catch (error) {
+      console.warn("Unable to notify resource availability", error);
+    }
+  };
+
   const handleResourceToolActionEvent = (event) => {
     const markActionFailed = () => {
       resourceToolState.cooldown = 0;
@@ -5445,6 +5547,12 @@ export const initScene = (
     const preparedSession = prepareResourceCollection();
 
     if (!preparedSession) {
+      const terrainDetail = findTerrainIntersection();
+
+      if (terrainDetail?.terrainId === "void") {
+        notifyResourceUnavailable({ terrain: terrainDetail });
+      }
+
       markActionFailed();
       return;
     }
@@ -6544,10 +6652,12 @@ export const initScene = (
 
     if (!resolvedFloorId) {
       activeResourceTargets = [];
+      activeTerrainTiles = [];
       return;
     }
 
     activeResourceTargets = getResourceTargetsForFloor(resolvedFloorId);
+    activeTerrainTiles = getTerrainTilesForFloor(resolvedFloorId);
   }
 
   const findLiftFloorIndexById = (floorId) => {
@@ -7872,7 +7982,9 @@ export const initScene = (
       sunSprite.material?.map?.dispose?.();
       sunSprite.material?.dispose?.();
       resourceTargetsByEnvironment.clear();
+      terrainTilesByEnvironment.clear();
       activeResourceTargets = [];
+      activeTerrainTiles = [];
       registeredStarFields.clear();
       savePlayerState(true);
       activateDeckEnvironment(null);
