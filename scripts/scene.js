@@ -1306,7 +1306,8 @@ export const initScene = (
     emblemEmissiveColor: 0x052926,
   };
   const BASE_MIRROR_WIDTH = 12 * ROOM_SCALE_FACTOR;
-  const BASE_MIRROR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
+  const BASE_MIRROR_HEIGHT = 12 * ROOM_SCALE_FACTOR;
+  const MIRROR_VERTICAL_OFFSET = 0.7;
 
   const DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE = {
     roughness: 1,
@@ -4580,7 +4581,7 @@ export const initScene = (
   const lastUpdatedDisplay = createLastUpdatedDisplay();
   lastUpdatedDisplay.position.set(
     -roomWidth / 2 + 0.12 * ROOM_SCALE_FACTOR,
-    roomFloorY + roomHeight * 0.82,
+    roomFloorY + roomHeight * 0.6,
     0
   );
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
@@ -5163,7 +5164,7 @@ export const initScene = (
   const mirrorHeight = mirrorDimensions?.height ?? BASE_MIRROR_HEIGHT;
   wallMirror.position.set(
     roomWidth / 2 - 0.16 * ROOM_SCALE_FACTOR,
-    roomFloorY + 0.5 + mirrorHeight / 2,
+    roomFloorY + MIRROR_VERTICAL_OFFSET + mirrorHeight / 2,
     6 * ROOM_SCALE_FACTOR
   );
   wallMirror.rotation.y = -Math.PI / 2;
@@ -5233,7 +5234,8 @@ export const initScene = (
       width: scaledMirrorWidth,
       height: scaledMirrorHeight,
     };
-    wallMirror.position.y = roomFloorY + 0.5 + scaledMirrorHeight / 2;
+    wallMirror.position.y =
+      roomFloorY + MIRROR_VERTICAL_OFFSET + scaledMirrorHeight / 2;
 
     const reflector = wallMirror.userData?.reflector;
     if (reflector) {
