@@ -748,7 +748,7 @@ export const initScene = (
 
   const createSkyDome = () => {
     const geometry = new THREE.SphereGeometry(650, 48, 32);
-    const material = new THREE.ShaderMaterial({
+    const gradientMaterial = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       transparent: true,
       depthWrite: false,
@@ -778,8 +778,45 @@ export const initScene = (
         }
       `,
     });
-    const dome = new THREE.Mesh(geometry, material);
+    const dome = new THREE.Mesh(geometry, gradientMaterial);
     dome.renderOrder = -2;
+
+    const skyTextureSetting = settings?.skyTexture;
+    const enableSkyTexture = skyTextureSetting !== false;
+    const skyTexturePath =
+      typeof skyTextureSetting === "string" && skyTextureSetting.trim().length > 0
+        ? skyTextureSetting
+        : "images/game/sky/day.png";
+
+    if (enableSkyTexture) {
+      const textureLoader = new THREE.TextureLoader();
+      const skyTextureUrl = resolveAssetUrl(skyTexturePath);
+
+      textureLoader.load(
+        skyTextureUrl,
+        (texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.wrapS = THREE.ClampToEdgeWrapping;
+          texture.wrapT = THREE.ClampToEdgeWrapping;
+
+          const material = new THREE.MeshBasicMaterial({
+            side: THREE.BackSide,
+            map: texture,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+          });
+
+          dome.material = material;
+          dome.userData.usingSkyTexture = true;
+        },
+        undefined,
+        () => {
+          dome.userData.usingSkyTexture = false;
+        }
+      );
+    }
+
     return dome;
   };
 
