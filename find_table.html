@@ -64,29 +64,6 @@
         border-top: 1px solid rgba(0, 0, 0, 0.08);
       }
 
-      .terrain-elements {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-        align-items: center;
-      }
-
-      .terrain-elements .separator {
-        color: #555;
-      }
-
-      .terrain-element {
-        display: inline-flex;
-        align-items: baseline;
-        gap: 0.35rem;
-        font-weight: 600;
-      }
-
-      .terrain-element small {
-        font-weight: 500;
-        color: #444;
-      }
-
       .terrain-description {
         max-width: 60ch;
       }
@@ -112,9 +89,6 @@
           border-top-color: rgba(255, 255, 255, 0.12);
         }
 
-        .terrain-element small {
-          color: #d4d4d4;
-        }
       }
     </style>
   </head>
@@ -143,8 +117,17 @@
     </section>
 
     <section class="table-section">
+      <p class="description">
+        All outside terrain types pull from the exact same element pool as
+        <code>samplePeriodicElement()</code>, using a <code>1 / atomicNumber</code>
+        weighting across every periodic element. Terrain HP and descriptions may
+        vary, but the drops are shared everywhere.
+      </p>
       <table aria-label="Outside terrain reference table">
-        <caption>Outside terrain reference</caption>
+        <caption>
+          Outside terrain reference
+          <small>(all terrains use the same weighted element pool)</small>
+        </caption>
         <thead>
           <tr>
             <th scope="col">Terrain</th>
@@ -198,58 +181,20 @@
         return `${terrain.hp}s`;
       }
 
-      function formatTerrainElements(terrain) {
-        const elements = Array.isArray(terrain?.elements)
-          ? terrain.elements
-          : [];
-
-        if (elements.length === 0) {
-          return {
-            label: "No discoverable elements",
-            html: "—",
-          };
-        }
-
-        const elementLabels = elements.map((element) => {
-          const symbol = element.symbol ?? element.name ?? "Unknown";
-          const nameLabel = element.name ?? element.label ?? "Unknown";
-          const label = element.name ? `${symbol} (${element.name})` : nameLabel;
-          return { symbol, label, nameLabel };
-        });
-
-        const fragments = elementLabels.map(({ symbol, label, nameLabel }, index) => {
-          const separator = index === elementLabels.length - 1 ? "" : ",";
-          return `
-            <span class="terrain-element" aria-label="${label}">
-              <span aria-hidden="true">${symbol}</span>
-              <small>${nameLabel}</small>
-            </span>
-            ${separator ? `<span class="separator" aria-hidden="true">${separator}</span>` : ""}
-          `;
-        });
-
-        return {
-          label: elementLabels.map(({ label }) => label).join(", "),
-          html: fragments.join(""),
-        };
-      }
+      const universalElementsNote =
+        "All periodic elements are possible with a 1 / atomicNumber weighting (matches samplePeriodicElement()).";
 
       OUTSIDE_TERRAIN_TYPES.forEach((terrain) => {
         const row = document.createElement("tr");
-        const terrainElements = formatTerrainElements(terrain);
         row.innerHTML = `
           <td>${terrain.label}</td>
-          <td>
-            <span class="terrain-elements" aria-label="${terrainElements.label}">
-              ${terrainElements.html}
-            </span>
-          </td>
+          <td>${universalElementsNote}</td>
           <td>${formatTerrainHp(terrain)}</td>
           <td class="terrain-description">${terrain.description}</td>
         `;
         row.setAttribute(
           "aria-label",
-          `${terrain.label}, elements ${terrainElements.label}, HP ${formatTerrainHp(terrain)}`
+          `${terrain.label}, elements ${universalElementsNote}, HP ${formatTerrainHp(terrain)}`
         );
         terrainTableBody.appendChild(row);
       });
