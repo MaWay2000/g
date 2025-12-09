@@ -2920,6 +2920,27 @@ export const initScene = (
     const deckDepth = roomDepth * 0.85;
     const deckThickness = 0.45;
 
+    const wallHeight = roomHeight * 0.82;
+    const wallThickness = 0.18;
+
+    const bulkheadMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f1f2a),
+      roughness: 0.78,
+      metalness: 0.22,
+      emissive: new THREE.Color(0x0a1b24),
+      emissiveIntensity: 0.32,
+      side: THREE.DoubleSide,
+    });
+
+    const roofMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0b1620),
+      roughness: 0.82,
+      metalness: 0.18,
+      emissive: new THREE.Color(0x07101a),
+      emissiveIntensity: 0.28,
+      side: THREE.DoubleSide,
+    });
+
     const floorBounds = createFloorBounds(deckWidth, deckDepth, {
       paddingX: 0.75,
       paddingZ: 0.75,
@@ -2937,6 +2958,67 @@ export const initScene = (
     );
     deck.position.y = roomFloorY - deckThickness / 2;
     group.add(deck);
+
+    const wallSpanWidth = deckWidth + 0.9;
+    const wallSpanDepth = deckDepth + 0.8;
+
+    const createFramedWallSegments = (openingWidth, direction) => {
+      const adjustedOpening = Math.min(
+        openingWidth,
+        wallSpanWidth - wallThickness * 2.1
+      );
+      const remainingWidth = Math.max(
+        wallSpanWidth - adjustedOpening,
+        wallThickness * 2.5
+      );
+      const segmentWidth = remainingWidth / 2;
+      const wallDepth = wallThickness * 1.4;
+      const zPosition = (deckDepth / 2 + wallDepth / 2) * direction;
+
+      const segments = [
+        new THREE.Mesh(
+          new THREE.BoxGeometry(segmentWidth, wallHeight, wallDepth),
+          bulkheadMaterial
+        ),
+        new THREE.Mesh(
+          new THREE.BoxGeometry(segmentWidth, wallHeight, wallDepth),
+          bulkheadMaterial
+        ),
+      ];
+
+      segments[0].position.set(
+        -(adjustedOpening / 2 + segmentWidth / 2),
+        roomFloorY + wallHeight / 2,
+        zPosition
+      );
+      segments[1].position.set(
+        adjustedOpening / 2 + segmentWidth / 2,
+        roomFloorY + wallHeight / 2,
+        zPosition
+      );
+
+      segments.forEach((segment) => group.add(segment));
+
+      return segments;
+    };
+
+    const sideWallGeometry = new THREE.BoxGeometry(
+      wallThickness,
+      wallHeight,
+      wallSpanDepth
+    );
+
+    const leftWall = new THREE.Mesh(sideWallGeometry, bulkheadMaterial);
+    leftWall.position.set(
+      -wallSpanWidth / 2 - wallThickness / 2,
+      roomFloorY + wallHeight / 2,
+      0
+    );
+    group.add(leftWall);
+
+    const rightWall = leftWall.clone();
+    rightWall.position.x *= -1;
+    group.add(rightWall);
 
     const catwalkWidth = deckWidth * 0.68;
     const catwalkDepth = deckDepth * 0.92;
@@ -3176,6 +3258,27 @@ export const initScene = (
     portalControl.userData.liftFloorId = "operations-exterior";
     group.add(portalControl);
 
+    const liftDoorOpeningWidth =
+      (liftDoor.userData?.width ?? BASE_DOOR_WIDTH) + 0.8;
+    const exteriorDoorOpeningWidth =
+      (exteriorExitDoor.userData?.width ?? BASE_DOOR_WIDTH) + 0.8;
+
+    const frontWallSegments = createFramedWallSegments(
+      liftDoorOpeningWidth,
+      1
+    );
+    const rearWallSegments = createFramedWallSegments(
+      exteriorDoorOpeningWidth,
+      -1
+    );
+
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(wallSpanWidth, wallThickness, wallSpanDepth),
+      roofMaterial
+    );
+    roof.position.set(0, roomFloorY + wallHeight + wallThickness / 2, 0);
+    group.add(roof);
+
     exteriorExitDoor.userData.liftUi = {
       control: portalControl,
       updateState: ({ current } = {}) => {
@@ -3192,6 +3295,17 @@ export const initScene = (
       { object: rightRail, offset: 0.55 },
       { object: frontRail, offset: 0.55 },
       { object: rearRail, offset: 0.55 },
+      { object: leftWall, offset: wallHeight / 2 },
+      { object: rightWall, offset: wallHeight / 2 },
+      ...frontWallSegments.map((segment) => ({
+        object: segment,
+        offset: wallHeight / 2,
+      })),
+      ...rearWallSegments.map((segment) => ({
+        object: segment,
+        offset: wallHeight / 2,
+      })),
+      { object: roof, offset: wallHeight + wallThickness / 2 },
       { object: holoBase, offset: 0.32 },
       { object: holoEmitter, offset: 0.58 },
       { object: holoColumn, offset: 1.25 },
