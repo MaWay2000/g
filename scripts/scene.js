@@ -1362,31 +1362,44 @@ export const initScene = (
   );
 
   const ceilingGroupIndex = 2;
-  // Remove the ceiling faces from the room geometry so the room is open from above.
-  const roomGeometryGroupsWithoutCeiling = roomGeometry.groups.filter(
-    ({ materialIndex }) => materialIndex !== ceilingGroupIndex
-  );
+  const includeRoomCeiling = true;
 
-  roomGeometry.clearGroups();
+  if (!includeRoomCeiling) {
+    // Remove the ceiling faces from the room geometry so the room is open from above.
+    const roomGeometryGroupsWithoutCeiling = roomGeometry.groups.filter(
+      ({ materialIndex }) => materialIndex !== ceilingGroupIndex
+    );
 
-  roomGeometryGroupsWithoutCeiling.forEach(
-    ({ start, count, materialIndex }) => {
-      const adjustedMaterialIndex =
-        materialIndex > ceilingGroupIndex
-          ? materialIndex - 1
-          : materialIndex;
+    roomGeometry.clearGroups();
 
-      roomGeometry.addGroup(start, count, adjustedMaterialIndex);
-    }
-  );
+    roomGeometryGroupsWithoutCeiling.forEach(
+      ({ start, count, materialIndex }) => {
+        const adjustedMaterialIndex =
+          materialIndex > ceilingGroupIndex
+            ? materialIndex - 1
+            : materialIndex;
 
-  const roomMaterials = [
-    createWallMaterial(0x213331),
-    createWallMaterial(0x273c39),
-    floorMaterial,
-    createWallMaterial(0x213331),
-    createWallMaterial(0x273c39),
-  ];
+        roomGeometry.addGroup(start, count, adjustedMaterialIndex);
+      }
+    );
+  }
+
+  const roomMaterials = includeRoomCeiling
+    ? [
+        createWallMaterial(0x213331),
+        createWallMaterial(0x273c39),
+        createWallMaterial(0x1a2826),
+        floorMaterial,
+        createWallMaterial(0x213331),
+        createWallMaterial(0x273c39),
+      ]
+    : [
+        createWallMaterial(0x213331),
+        createWallMaterial(0x273c39),
+        floorMaterial,
+        createWallMaterial(0x213331),
+        createWallMaterial(0x273c39),
+      ];
 
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
   roomMesh.scale.set(1, roomHeight / BASE_ROOM_HEIGHT, 1);
