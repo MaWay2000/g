@@ -1,3 +1,5 @@
+import { PERIODIC_ELEMENTS } from "./data/periodic-elements.js";
+
 const STRUCTURED_CLONE_SUPPORTED = typeof globalThis.structuredClone === "function";
 
 const cloneValue = (value) => {
@@ -9,14 +11,31 @@ const cloneValue = (value) => {
 
 export const OUTSIDE_MAP_LOCAL_STORAGE_KEY = "dustyNova.mapMaker.savedMap";
 
-export const OUTSIDE_TERRAIN_TYPES = [
+const ELEMENT_CATEGORY_TO_TERRAIN_ID = new Map([
+  ["diatomic nonmetal", "nonmetal"],
+  ["polyatomic nonmetal", "nonmetal"],
+  ["metalloid", "metalloid"],
+  ["alkali metal", "alkali"],
+  ["alkaline earth metal", "alkaline-earth"],
+  ["transition metal", "transition-metal"],
+  ["unknown, probably transition metal", "transition-metal"],
+  ["post-transition metal", "post-transition"],
+  ["unknown, probably post-transition metal", "post-transition"],
+  ["lanthanide", "lanthanide"],
+  ["actinide", "actinide"],
+  ["halogen", "halogen"],
+  ["noble gas", "noble-gas"],
+  ["unknown, predicted to be noble gas", "noble-gas"],
+  ["unknown, probably metalloid", "metalloid"],
+]);
+
+const OUTSIDE_TERRAIN_BASE_TYPES = [
   {
     id: "void",
     label: "Void",
     description: "Unusable space. Treated as off-map.",
     color: "transparent",
     hp: 0,
-    element: { symbol: "He", name: "Helium" },
   },
   {
     id: "nonmetal",
@@ -99,6 +118,59 @@ export const OUTSIDE_TERRAIN_TYPES = [
     element: { symbol: "Ne", name: "Neon" },
   },
 ];
+
+const TERRAIN_ELEMENTS = PERIODIC_ELEMENTS.reduce((acc, element) => {
+  if (!element || !Number.isFinite(element.number) || element.number <= 0) {
+    return acc;
+  }
+
+  const category =
+    typeof element.category === "string"
+      ? element.category.trim().toLowerCase()
+      : "";
+  const terrainId = ELEMENT_CATEGORY_TO_TERRAIN_ID.get(category);
+
+  if (!terrainId) {
+    return acc;
+  }
+
+  const terrainElements = acc.get(terrainId) ?? [];
+  terrainElements.push({
+    number: element.number,
+    symbol: element.symbol,
+    name: element.name,
+    category: element.category,
+  });
+  acc.set(terrainId, terrainElements);
+  return acc;
+}, new Map());
+
+const TERRAIN_ELEMENTS_BY_ID = new Map(
+  OUTSIDE_TERRAIN_BASE_TYPES.map((terrain) => {
+    const uniqueElements = TERRAIN_ELEMENTS.get(terrain.id) ?? [];
+    const sortedElements = [...uniqueElements].sort((first, second) =>
+      first.number === second.number
+        ? 0
+        : first.number < second.number
+          ? -1
+          : 1
+    );
+    return [terrain.id, sortedElements];
+  })
+);
+
+export const OUTSIDE_TERRAIN_TYPES = OUTSIDE_TERRAIN_BASE_TYPES.map((terrain) => {
+  const elements = TERRAIN_ELEMENTS_BY_ID.get(terrain.id) ?? [];
+  return {
+    ...terrain,
+    elements,
+    element: terrain.element ?? elements[0] ?? null,
+  };
+});
+
+export const OUTSIDE_TERRAIN_ELEMENTS_BY_ID = new Map(
+  OUTSIDE_TERRAIN_TYPES.map((terrain) => [terrain.id, terrain.elements])
+);
 
 const OUTSIDE_TERRAIN_TEXTURE_BASE = "./images/tiles/floor";
 
