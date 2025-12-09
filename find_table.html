@@ -12,7 +12,7 @@
 
       body {
         margin: 0 auto;
-        max-width: 1000px;
+        max-width: 1100px;
         padding: 2rem 1rem 4rem;
         line-height: 1.6;
       }
@@ -26,6 +26,7 @@
         margin-top: 0;
         font-size: 1rem;
         color: #555;
+        max-width: 72ch;
       }
 
       table {
@@ -33,6 +34,13 @@
         border-collapse: collapse;
         margin-top: 1.5rem;
         font-variant-numeric: tabular-nums;
+      }
+
+      caption {
+        text-align: left;
+        font-weight: 600;
+        padding: 0.25rem 0.4rem 0.35rem;
+        color: #2f2f2f;
       }
 
       thead th {
@@ -50,9 +58,35 @@
         background-color: rgba(0, 0, 0, 0.025);
       }
 
+      .table-section + .table-section {
+        margin-top: 2rem;
+        padding-top: 0.25rem;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .terrain-element {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.35rem;
+        font-weight: 600;
+      }
+
+      .terrain-element small {
+        font-weight: 500;
+        color: #444;
+      }
+
+      .terrain-description {
+        max-width: 60ch;
+      }
+
       @media (prefers-color-scheme: dark) {
         p.description {
           color: #c9c9c9;
+        }
+
+        caption {
+          color: #f3f3f3;
         }
 
         tbody td {
@@ -61,6 +95,14 @@
 
         tbody tr:nth-child(even) td {
           background-color: rgba(255, 255, 255, 0.04);
+        }
+
+        .table-section + .table-section {
+          border-top-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .terrain-element small {
+          color: #d4d4d4;
         }
       }
     </style>
@@ -74,22 +116,43 @@
       The table below shows the resulting per-element probability distribution.
     </p>
 
-    <table aria-label="Element find rate table">
-      <thead>
-        <tr>
-          <th scope="col">#</th>
-          <th scope="col">Symbol</th>
-          <th scope="col">Name</th>
-          <th scope="col">Chance on Success (%)</th>
-        </tr>
-      </thead>
-      <tbody id="elements-table-body"></tbody>
-    </table>
+    <section class="table-section">
+      <table aria-label="Element find rate table">
+        <caption>Element find rates on successful harvest</caption>
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Symbol</th>
+            <th scope="col">Name</th>
+            <th scope="col">Chance on Success (%)</th>
+          </tr>
+        </thead>
+        <tbody id="elements-table-body"></tbody>
+      </table>
+    </section>
+
+    <section class="table-section">
+      <table aria-label="Outside terrain reference table">
+        <caption>Outside terrain reference</caption>
+        <thead>
+          <tr>
+            <th scope="col">Terrain</th>
+            <th scope="col">Associated Element</th>
+            <th scope="col">HP</th>
+            <th scope="col">Description</th>
+          </tr>
+        </thead>
+        <tbody id="terrain-table-body"></tbody>
+      </table>
+    </section>
 
     <script type="module">
       import { PERIODIC_ELEMENTS } from "./scripts/data/periodic-elements.js";
+      import { OUTSIDE_TERRAIN_TYPES } from "./scripts/outside-map.js";
 
-      const tableBody = document.querySelector("#elements-table-body");
+      const elementsTableBody = document.querySelector("#elements-table-body");
+      const terrainTableBody = document.querySelector("#terrain-table-body");
+      const UNKNOWN_HP_LABEL = "Unknown";
 
       const totalWeight = PERIODIC_ELEMENTS.reduce((sum, element) => {
         if (!element || !Number.isFinite(element.number) || element.number <= 0) {
@@ -113,7 +176,55 @@
           <td>${element.name}</td>
           <td>${formatPercent(percent)}</td>
         `;
-        tableBody.appendChild(row);
+        elementsTableBody.appendChild(row);
+      });
+
+      function formatTerrainHp(terrain) {
+        if (!terrain || typeof terrain.hp !== "number" || terrain.hp < 0) {
+          return UNKNOWN_HP_LABEL;
+        }
+
+        return `${terrain.hp}s`;
+      }
+
+      function formatTerrainElement(terrain) {
+        const element = terrain?.element;
+        if (!element) {
+          return null;
+        }
+
+        const { symbol, name } = element;
+        if (symbol && name) {
+          return `${symbol} (${name})`;
+        }
+        if (symbol) {
+          return symbol;
+        }
+        if (name) {
+          return name;
+        }
+        return null;
+      }
+
+      OUTSIDE_TERRAIN_TYPES.forEach((terrain) => {
+        const row = document.createElement("tr");
+        const terrainElement = formatTerrainElement(terrain) ?? "—";
+        row.innerHTML = `
+          <td>${terrain.label}</td>
+          <td>
+            <span class="terrain-element">
+              <span aria-hidden="true">${terrain.element?.symbol ?? ""}</span>
+              <small>${terrainElement}</small>
+            </span>
+          </td>
+          <td>${formatTerrainHp(terrain)}</td>
+          <td class="terrain-description">${terrain.description}</td>
+        `;
+        row.setAttribute(
+          "aria-label",
+          `${terrain.label}, element ${terrainElement}, HP ${formatTerrainHp(terrain)}`
+        );
+        terrainTableBody.appendChild(row);
       });
     </script>
   </body>
