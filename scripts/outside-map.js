@@ -184,7 +184,7 @@ const TERRAIN_BY_ID = new Map(
 );
 
 const OUTSIDE_TERRAIN_TEXTURE_MAP = new Map([
-  ["void", null],
+  ["void", OUTSIDE_TERRAIN_TEXTURE_PATHS[10]],
   ["nonmetal", OUTSIDE_TERRAIN_TEXTURE_PATHS[0]],
   ["metalloid", OUTSIDE_TERRAIN_TEXTURE_PATHS[1]],
   ["alkali", OUTSIDE_TERRAIN_TEXTURE_PATHS[2]],
@@ -195,7 +195,7 @@ const OUTSIDE_TERRAIN_TEXTURE_MAP = new Map([
   ["actinide", OUTSIDE_TERRAIN_TEXTURE_PATHS[7]],
   ["halogen", OUTSIDE_TERRAIN_TEXTURE_PATHS[8]],
   ["noble-gas", OUTSIDE_TERRAIN_TEXTURE_PATHS[9]],
-  // Keep a spare slot for future variants or seasonal swaps.
+  // Void and unknown terrain IDs share a dedicated tile instead of transparency.
   ["fallback", OUTSIDE_TERRAIN_TEXTURE_PATHS[10]],
 ]);
 
