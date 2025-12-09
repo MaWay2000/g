@@ -8156,9 +8156,7 @@ const bootstrapScene = () => {
     },
     onResourceUnavailable({ terrain } = {}) {
       const terrainLabel = terrain?.terrainLabel ?? null;
-      const description = terrainLabel
-        ? `${terrainLabel} contains no recoverable resources.`
-        : "This area contains no recoverable resources.";
+      const description = "Search other area for resources.";
 
       showResourceToast({
         title: "No resources detected",
