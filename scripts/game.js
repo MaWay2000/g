@@ -8154,6 +8154,17 @@ const bootstrapScene = () => {
         description: description || "Resource extracted.",
       });
     },
+    onResourceUnavailable({ terrain } = {}) {
+      const terrainLabel = terrain?.terrainLabel ?? null;
+      const description = terrainLabel
+        ? `${terrainLabel} contains no recoverable resources.`
+        : "This area contains no recoverable resources.";
+
+      showResourceToast({
+        title: "No resources detected",
+        description,
+      });
+    },
     onResourceSessionCancelled({ reason, source } = {}) {
       if (source === "drone-miner") {
         handleDroneSessionCancelled(reason);
