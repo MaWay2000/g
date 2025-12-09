@@ -212,16 +212,17 @@
 
         const elementLabels = elements.map((element) => {
           const symbol = element.symbol ?? element.name ?? "Unknown";
-          const name = element.name ? ` (${element.name})` : "";
-          return { symbol, label: `${symbol}${name}` };
+          const nameLabel = element.name ?? element.label ?? "Unknown";
+          const label = element.name ? `${symbol} (${element.name})` : nameLabel;
+          return { symbol, label, nameLabel };
         });
 
-        const fragments = elementLabels.map(({ symbol, label }, index) => {
+        const fragments = elementLabels.map(({ symbol, label, nameLabel }, index) => {
           const separator = index === elementLabels.length - 1 ? "" : ",";
           return `
             <span class="terrain-element" aria-label="${label}">
               <span aria-hidden="true">${symbol}</span>
-              <small>${label}</small>
+              <small>${nameLabel}</small>
             </span>
             ${separator ? `<span class="separator" aria-hidden="true">${separator}</span>` : ""}
           `;
