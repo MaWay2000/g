@@ -154,6 +154,7 @@ export const initScene = (
 
   const registeredStarFields = new Set();
   let allowStarsForTimeOfDay = true;
+  let starVisibilityForTime = 1;
   const registerStarField = (starField) => {
     if (!starField?.isObject3D) {
       return;
@@ -279,17 +280,47 @@ export const initScene = (
   };
 
   const applyStarVisibility = () => {
-    const visible = Boolean(sceneSettings.showStars) && allowStarsForTimeOfDay;
+    const starsAllowed = Boolean(sceneSettings.showStars) && allowStarsForTimeOfDay;
+    const effectiveVisibility = starsAllowed
+      ? THREE.MathUtils.clamp(starVisibilityForTime, 0, 1)
+      : 0;
 
     registeredStarFields.forEach((starField) => {
-      if (starField) {
-        starField.visible = visible;
+      if (!starField) {
+        return;
       }
+
+      const material = starField.material ?? null;
+      const baseOpacity = starField.userData?.baseOpacity;
+      let sourceOpacity = Number.isFinite(baseOpacity)
+        ? baseOpacity
+        : Number.isFinite(material?.opacity)
+          ? material.opacity
+          : 1;
+
+      if (!Number.isFinite(baseOpacity) && material) {
+        if (!starField.userData) {
+          starField.userData = {};
+        }
+
+        starField.userData.baseOpacity = sourceOpacity;
+      }
+
+      if (material) {
+        material.opacity = sourceOpacity * effectiveVisibility;
+      }
+
+      starField.visible = effectiveVisibility > 0.01;
     });
   };
 
   const setStarsEnabledForTimeOfDay = (enabled = true) => {
     allowStarsForTimeOfDay = Boolean(enabled);
+    applyStarVisibility();
+  };
+
+  const setStarVisibilityForTimeOfDay = (visibility = 1) => {
+    starVisibilityForTime = THREE.MathUtils.clamp(visibility, 0, 1);
     applyStarVisibility();
   };
 
@@ -437,6 +468,7 @@ export const initScene = (
         distribution,
         planeY,
       },
+      baseOpacity: appliedOpacity,
     };
 
     registerStarField(starField);
@@ -479,14 +511,7 @@ export const initScene = (
 
   const textureLoader = new THREE.TextureLoader();
 
-  const DAY_START_HOUR = 6;
-  const NIGHT_START_HOUR = 18;
   const TIME_OF_DAY_REFRESH_SECONDS = 5;
-  const timeOfDayState = {
-    isDaytime: null,
-    daylightFactor: 0,
-    hour: null,
-  };
 
   const createSunSprite = () => {
     const size = 256;
@@ -538,13 +563,186 @@ export const initScene = (
     exponent: { value: 1.45 },
   };
 
-  const skyPalette = {
-    nightTop: new THREE.Color("#0b1024"),
-    nightBottom: new THREE.Color("#0f172a"),
-    dayTop: new THREE.Color("#38bdf8"),
-    dayBottom: new THREE.Color("#cdeafe"),
-    warmTop: new THREE.Color("#f6a956"),
-    warmBottom: new THREE.Color("#f16b43"),
+  const createSkyPaletteEntry = ({ top, bottom, brightness, sunVisibility }) => ({
+    topColor: new THREE.Color(top),
+    bottomColor: new THREE.Color(bottom),
+    brightness,
+    sunVisibility,
+  });
+
+  const hourlySkyPalette = [
+    createSkyPaletteEntry({
+      top: "#0b1024",
+      bottom: "#0f172a",
+      brightness: 0.1,
+      sunVisibility: 0,
+    }),
+    createSkyPaletteEntry({
+      top: "#0c1328",
+      bottom: "#101a30",
+      brightness: 0.1,
+      sunVisibility: 0,
+    }),
+    createSkyPaletteEntry({
+      top: "#0d152c",
+      bottom: "#0f1b30",
+      brightness: 0.11,
+      sunVisibility: 0,
+    }),
+    createSkyPaletteEntry({
+      top: "#0f1a33",
+      bottom: "#111d34",
+      brightness: 0.12,
+      sunVisibility: 0.01,
+    }),
+    createSkyPaletteEntry({
+      top: "#14233f",
+      bottom: "#13243a",
+      brightness: 0.18,
+      sunVisibility: 0.05,
+    }),
+    createSkyPaletteEntry({
+      top: "#1e3554",
+      bottom: "#1a2f47",
+      brightness: 0.28,
+      sunVisibility: 0.12,
+    }),
+    createSkyPaletteEntry({
+      top: "#2d4c6d",
+      bottom: "#2a3f5a",
+      brightness: 0.4,
+      sunVisibility: 0.32,
+    }),
+    createSkyPaletteEntry({
+      top: "#3f6b8d",
+      bottom: "#3c5675",
+      brightness: 0.55,
+      sunVisibility: 0.5,
+    }),
+    createSkyPaletteEntry({
+      top: "#4f87ad",
+      bottom: "#5484a4",
+      brightness: 0.68,
+      sunVisibility: 0.65,
+    }),
+    createSkyPaletteEntry({
+      top: "#5aa4c8",
+      bottom: "#78aeda",
+      brightness: 0.78,
+      sunVisibility: 0.78,
+    }),
+    createSkyPaletteEntry({
+      top: "#60b7d8",
+      bottom: "#93c5e6",
+      brightness: 0.86,
+      sunVisibility: 0.88,
+    }),
+    createSkyPaletteEntry({
+      top: "#63c3e6",
+      bottom: "#a6d5f0",
+      brightness: 0.94,
+      sunVisibility: 0.95,
+    }),
+    createSkyPaletteEntry({
+      top: "#62c4ec",
+      bottom: "#b6def6",
+      brightness: 1,
+      sunVisibility: 1,
+    }),
+    createSkyPaletteEntry({
+      top: "#62bee5",
+      bottom: "#b1d8f1",
+      brightness: 0.98,
+      sunVisibility: 0.97,
+    }),
+    createSkyPaletteEntry({
+      top: "#5eb4db",
+      bottom: "#a7cee8",
+      brightness: 0.93,
+      sunVisibility: 0.9,
+    }),
+    createSkyPaletteEntry({
+      top: "#59a6cd",
+      bottom: "#9cc0dc",
+      brightness: 0.85,
+      sunVisibility: 0.82,
+    }),
+    createSkyPaletteEntry({
+      top: "#5194b8",
+      bottom: "#8daac6",
+      brightness: 0.74,
+      sunVisibility: 0.7,
+    }),
+    createSkyPaletteEntry({
+      top: "#f2b974",
+      bottom: "#f2aa80",
+      brightness: 0.62,
+      sunVisibility: 0.5,
+    }),
+    createSkyPaletteEntry({
+      top: "#e38a58",
+      bottom: "#ed7c67",
+      brightness: 0.5,
+      sunVisibility: 0.32,
+    }),
+    createSkyPaletteEntry({
+      top: "#c86363",
+      bottom: "#a04c5b",
+      brightness: 0.38,
+      sunVisibility: 0.18,
+    }),
+    createSkyPaletteEntry({
+      top: "#5b4469",
+      bottom: "#2a2c46",
+      brightness: 0.26,
+      sunVisibility: 0.08,
+    }),
+    createSkyPaletteEntry({
+      top: "#242a48",
+      bottom: "#131a2f",
+      brightness: 0.18,
+      sunVisibility: 0.03,
+    }),
+    createSkyPaletteEntry({
+      top: "#121a34",
+      bottom: "#0e1527",
+      brightness: 0.13,
+      sunVisibility: 0.01,
+    }),
+    createSkyPaletteEntry({
+      top: "#0c1228",
+      bottom: "#0f172a",
+      brightness: 0.1,
+      sunVisibility: 0,
+    }),
+  ];
+
+  const interpolateSkyPalette = (current, next, alpha) => {
+    const mix = THREE.MathUtils.clamp(alpha, 0, 1);
+
+    return {
+      topColor: current.topColor.clone().lerp(next.topColor, mix),
+      bottomColor: current.bottomColor.clone().lerp(next.bottomColor, mix),
+      brightness: THREE.MathUtils.lerp(current.brightness, next.brightness, mix),
+      sunVisibility: THREE.MathUtils.lerp(
+        current.sunVisibility,
+        next.sunVisibility,
+        mix
+      ),
+    };
+  };
+
+  const defaultSkyState = interpolateSkyPalette(
+    hourlySkyPalette[0],
+    hourlySkyPalette[0],
+    0
+  );
+
+  const timeOfDayState = {
+    hour: null,
+    minute: null,
+    mixToNextHour: 0,
+    skyState: defaultSkyState,
   };
 
   const createSkyDome = () => {
@@ -593,80 +791,76 @@ export const initScene = (
   scene.add(sunSprite);
 
   const applyTimeOfDayVisuals = () => {
-    const daylightFactor = THREE.MathUtils.clamp(
-      Number(timeOfDayState.daylightFactor ?? 0),
-      0,
-      1
-    );
-
-    const warmthInfluence = THREE.MathUtils.clamp(daylightFactor + 0.2, 0, 1);
+    const skyState = timeOfDayState.skyState ?? defaultSkyState;
     const topColor = skyGradientUniforms.topColor.value;
     const bottomColor = skyGradientUniforms.bottomColor.value;
 
-    topColor
-      .copy(skyPalette.nightTop)
-      .lerp(skyPalette.dayTop, daylightFactor)
-      .lerp(skyPalette.warmTop, warmthInfluence * 0.35);
-
-    bottomColor
-      .copy(skyPalette.nightBottom)
-      .lerp(skyPalette.dayBottom, daylightFactor)
-      .lerp(skyPalette.warmBottom, warmthInfluence * 0.75);
-
-    const brightness = 0.08 + daylightFactor * 0.92;
-    skyGradientUniforms.brightness.value = brightness;
-    skyGradientUniforms.opacity.value = THREE.MathUtils.clamp(
-      daylightFactor + 0.1,
+    const brightness = THREE.MathUtils.clamp(
+      Number.isFinite(skyState.brightness)
+        ? skyState.brightness
+        : defaultSkyState.brightness,
       0,
       1
     );
 
+    const sunVisibility = THREE.MathUtils.clamp(
+      Number.isFinite(skyState.sunVisibility)
+        ? skyState.sunVisibility
+        : defaultSkyState.sunVisibility,
+      0,
+      1
+    );
+
+    topColor.copy(skyState.topColor ?? defaultSkyState.topColor);
+    bottomColor.copy(skyState.bottomColor ?? defaultSkyState.bottomColor);
+
+    const gradientBrightness = THREE.MathUtils.lerp(0.05, 1.05, brightness);
+    const gradientOpacity = THREE.MathUtils.clamp(
+      0.25 + brightness * 0.75,
+      0.2,
+      1
+    );
+
+    skyGradientUniforms.brightness.value = gradientBrightness;
+    skyGradientUniforms.opacity.value = gradientOpacity;
+
     if (sunSprite.material) {
-      sunSprite.material.opacity = daylightFactor;
+      sunSprite.material.opacity = sunVisibility;
     }
 
-    skyDome.visible = daylightFactor > 0.01;
-    sunSprite.visible = daylightFactor > 0.02;
-    setStarsEnabledForTimeOfDay(daylightFactor < 0.4);
+    skyDome.visible = gradientOpacity > 0.01;
+    sunSprite.visible = sunVisibility > 0.02;
+
+    const starVisibility = THREE.MathUtils.clamp(1 - sunVisibility * 1.05, 0, 1);
+    setStarVisibilityForTimeOfDay(starVisibility);
 
     skyBackgroundColor
       .copy(bottomColor)
       .lerp(topColor, 0.35)
-      .multiplyScalar(brightness);
+      .multiplyScalar(gradientBrightness);
     scene.background = skyBackgroundColor;
-    renderer.toneMappingExposure = 0.3 + daylightFactor * 0.7;
+    renderer.toneMappingExposure = THREE.MathUtils.lerp(0.25, 1.15, brightness);
   };
 
   let lastTimeOfDayCheck = 0;
 
-  const getAdjustedHour = () => {
+  const getAdjustedTimeParts = () => {
     const now = new Date();
-    const utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
-    const adjusted = utcHour + timeSettings.gmtOffsetHours;
+    const adjustedMilliseconds =
+      now.getTime() + timeSettings.gmtOffsetHours * 60 * 60 * 1000;
+    const adjusted = new Date(adjustedMilliseconds);
+    const hour = adjusted.getUTCHours();
+    const minute = adjusted.getUTCMinutes();
+    const second = adjusted.getUTCSeconds();
+    const fractionalHour = hour + minute / 60 + second / 3600;
 
-    return ((adjusted % 24) + 24) % 24;
-  };
-
-  const calculateDaylightFactor = (hour) => {
-    const wrappedHour = ((hour % 24) + 24) % 24;
-    const sunriseStart = DAY_START_HOUR - 1;
-    const sunriseEnd = DAY_START_HOUR;
-    const sunsetStart = NIGHT_START_HOUR;
-    const sunsetEnd = NIGHT_START_HOUR + 1;
-
-    if (wrappedHour >= sunriseEnd && wrappedHour < sunsetStart) {
-      return 1;
-    }
-
-    if (wrappedHour >= sunriseStart && wrappedHour < sunriseEnd) {
-      return (wrappedHour - sunriseStart) / (sunriseEnd - sunriseStart);
-    }
-
-    if (wrappedHour >= sunsetStart && wrappedHour < sunsetEnd) {
-      return 1 - (wrappedHour - sunsetStart) / (sunsetEnd - sunsetStart);
-    }
-
-    return 0;
+    return {
+      hour,
+      minute,
+      second,
+      hourValue: ((fractionalHour % 24) + 24) % 24,
+      minuteFraction: (minute + second / 60) / 60,
+    };
   };
 
   const updateTimeOfDay = (force = false) => {
@@ -678,18 +872,40 @@ export const initScene = (
 
     lastTimeOfDayCheck = nowSeconds;
 
-    const hour = getAdjustedHour();
-    const daylightFactor = calculateDaylightFactor(hour);
-    const isDaytime = daylightFactor >= 0.5;
+    const timeParts = getAdjustedTimeParts();
+    const currentHourIndex = Math.floor(timeParts.hourValue) % 24;
+    const nextHourIndex = (currentHourIndex + 1) % 24;
+    const mixToNextHour = THREE.MathUtils.clamp(timeParts.minuteFraction, 0, 1);
+
+    const interpolatedSky = interpolateSkyPalette(
+      hourlySkyPalette[currentHourIndex],
+      hourlySkyPalette[nextHourIndex],
+      mixToNextHour
+    );
+
+    const previousSky = timeOfDayState.skyState ?? defaultSkyState;
+    const brightnessChanged =
+      Math.abs(interpolatedSky.brightness - (previousSky.brightness ?? 0)) > 0.001;
+    const sunChanged =
+      Math.abs(interpolatedSky.sunVisibility - (previousSky.sunVisibility ?? 0)) > 0.001;
+    const topColorChanged = !previousSky.topColor?.equals?.(interpolatedSky.topColor);
+    const bottomColorChanged =
+      !previousSky.bottomColor?.equals?.(interpolatedSky.bottomColor);
+    const hourChanged =
+      timeOfDayState.hour !== timeParts.hour || timeOfDayState.minute !== timeParts.minute;
 
     if (
       force ||
-      isDaytime !== timeOfDayState.isDaytime ||
-      Math.abs(daylightFactor - (timeOfDayState.daylightFactor ?? 0)) > 0.01
+      hourChanged ||
+      brightnessChanged ||
+      sunChanged ||
+      topColorChanged ||
+      bottomColorChanged
     ) {
-      timeOfDayState.isDaytime = isDaytime;
-      timeOfDayState.daylightFactor = daylightFactor;
-      timeOfDayState.hour = hour;
+      timeOfDayState.hour = timeParts.hour;
+      timeOfDayState.minute = timeParts.minute;
+      timeOfDayState.mixToNextHour = mixToNextHour;
+      timeOfDayState.skyState = interpolatedSky;
       applyTimeOfDayVisuals();
     }
   };
@@ -701,8 +917,22 @@ export const initScene = (
       return;
     }
 
+    const sunVisibility = THREE.MathUtils.clamp(
+      Number.isFinite(timeOfDayState.skyState?.sunVisibility)
+        ? timeOfDayState.skyState.sunVisibility
+        : defaultSkyState.sunVisibility,
+      0,
+      1
+    );
+    const sunHeight = THREE.MathUtils.lerp(18, 72, sunVisibility);
+    const sunDepth = THREE.MathUtils.lerp(140, 90, sunVisibility);
+
     skyDome.position.copy(playerPosition);
-    sunSprite.position.set(playerPosition.x, playerPosition.y + 48, playerPosition.z - 120);
+    sunSprite.position.set(
+      playerPosition.x,
+      playerPosition.y + sunHeight,
+      playerPosition.z - sunDepth
+    );
   };
 
   updateTimeOfDay(true);
