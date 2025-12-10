@@ -7670,7 +7670,7 @@ const attemptDroneLaunch = () => {
       droneState.notifiedUnavailable = true;
       showDroneResourceToast({
         title: "No mining target",
-        description: "Drone will continue scanning for resources.",
+        description: "Drone will continue scanning.",
       });
     }
 
@@ -8156,7 +8156,7 @@ const bootstrapScene = () => {
     },
     onResourceUnavailable({ terrain } = {}) {
       const terrainLabel = terrain?.terrainLabel ?? null;
-      const description = "Search other area for resources.";
+      const description = "Search other area.";
 
       showResourceToast({
         title: "No resources detected",
