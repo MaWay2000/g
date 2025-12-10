@@ -477,11 +477,71 @@ export const initScene = (
     return starField;
   };
 
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    powerPreference: "high-performance",
-  });
+  const createRenderer = () => {
+    const testCanvas = document.createElement("canvas");
+    const webglContextTypes = ["webgl2", "webgl", "experimental-webgl"];
+    const hasWebglSupport = webglContextTypes.some((contextType) => {
+      const context = testCanvas.getContext(contextType, {
+        powerPreference: "default",
+        failIfMajorPerformanceCaveat: true,
+      });
+
+      if (context) {
+        context.getExtension("WEBGL_lose_context")?.loseContext?.();
+        return true;
+      }
+
+      return false;
+    });
+
+    if (!hasWebglSupport) {
+      throw new Error(
+        "WebGL is not available. Enable hardware acceleration or use a browser with WebGL support."
+      );
+    }
+
+    const rendererOptions = [
+      {
+        canvas,
+        antialias: true,
+        powerPreference: "high-performance",
+      },
+      {
+        canvas,
+        antialias: false,
+        powerPreference: "high-performance",
+      },
+      {
+        canvas,
+        antialias: false,
+        powerPreference: "default",
+        failIfMajorPerformanceCaveat: false,
+      },
+    ];
+
+    let lastError = null;
+
+    for (const options of rendererOptions) {
+      try {
+        return new THREE.WebGLRenderer(options);
+      } catch (error) {
+        lastError = error;
+        console.warn("WebGLRenderer init failed", options, error);
+      }
+    }
+
+    const error = new Error(
+      "Could not create a WebGL context. Try enabling hardware acceleration or updating your graphics drivers."
+    );
+
+    if (lastError) {
+      error.cause = lastError;
+    }
+
+    throw error;
+  };
+
+  const renderer = createRenderer();
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = false;
   const effectivePixelRatioCap = performanceSettings.maxPixelRatio;

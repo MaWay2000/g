@@ -45,6 +45,10 @@ const resourceToolIndicator = document.querySelector(
   "[data-resource-tool-indicator]"
 );
 const crosshair = document.querySelector(".crosshair");
+const renderingErrorBanner = document.querySelector("[data-rendering-error]");
+const renderingErrorDetail = renderingErrorBanner?.querySelector(
+  "[data-rendering-error-detail]"
+);
 const topBar = document.querySelector(".top-bar");
 const settingsMenu = document.querySelector("[data-settings-menu]");
 const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
@@ -210,6 +214,33 @@ const setPointerLockImmersiveModeEnabled = (enabled) => {
 
   pointerLockImmersiveModeEnabled = nextState;
   applyFullscreenClass();
+};
+
+const hideRenderingErrorMessage = () => {
+  if (!renderingErrorBanner) {
+    return;
+  }
+
+  renderingErrorBanner.setAttribute("hidden", "");
+
+  if (renderingErrorDetail) {
+    renderingErrorDetail.textContent = "";
+  }
+};
+
+const showRenderingErrorMessage = (message) => {
+  const defaultMessage =
+    "WebGL is unavailable. Enable hardware acceleration or try another browser.";
+
+  if (renderingErrorBanner) {
+    renderingErrorBanner.removeAttribute("hidden");
+
+    if (renderingErrorDetail) {
+      renderingErrorDetail.textContent = message || defaultMessage;
+    }
+  } else {
+    window.alert(message || defaultMessage);
+  }
 };
 
 if (topBar instanceof HTMLElement) {
@@ -8038,61 +8069,63 @@ const bootstrapScene = () => {
     return;
   }
 
+  hideRenderingErrorMessage();
   sceneController?.dispose?.();
 
-  sceneController = initScene(canvas, {
-    settings: currentSettings,
-    onControlsLocked() {
-      instructions?.setAttribute("hidden", "");
-      setPointerLockImmersiveModeEnabled(true);
-    },
-    onControlsUnlocked() {
-      instructions?.removeAttribute("hidden");
-      resetCrosshairInteractableState();
-      hideTerminalToast();
-      hideResourceToast();
-      setPointerLockImmersiveModeEnabled(false);
-    },
-    onTerminalOptionSelected(option) {
-      playTerminalInteractionSound();
-      openQuickAccessModal(option);
-      showTerminalToast(option);
-    },
-    onTerminalInteractableChange(value) {
-      setCrosshairSourceState("terminal", value);
-    },
-    onLiftControlInteract({ control } = {}) {
-      if (editModeActive) {
-        showTerminalToast({
-          title: "Lift locked",
-          description: "Finish editing placed models before changing decks.",
-        });
-        return false;
-      }
-
-      const destinationId = control?.userData?.liftFloorId ?? null;
-
-      if (destinationId && sceneController?.setActiveLiftFloorById) {
-        const traveled = sceneController.setActiveLiftFloorById(destinationId);
-        if (traveled) {
+  try {
+    sceneController = initScene(canvas, {
+      settings: currentSettings,
+      onControlsLocked() {
+        instructions?.setAttribute("hidden", "");
+        setPointerLockImmersiveModeEnabled(true);
+      },
+      onControlsUnlocked() {
+        instructions?.removeAttribute("hidden");
+        resetCrosshairInteractableState();
+        hideTerminalToast();
+        hideResourceToast();
+        setPointerLockImmersiveModeEnabled(false);
+      },
+      onTerminalOptionSelected(option) {
+        playTerminalInteractionSound();
+        openQuickAccessModal(option);
+        showTerminalToast(option);
+      },
+      onTerminalInteractableChange(value) {
+        setCrosshairSourceState("terminal", value);
+      },
+      onLiftControlInteract({ control } = {}) {
+        if (editModeActive) {
+          showTerminalToast({
+            title: "Lift locked",
+            description: "Finish editing placed models before changing decks.",
+          });
           return false;
         }
-      }
 
-      playTerminalInteractionSound();
-      openLiftModal();
-      return true;
-    },
-    onLiftInteractableChange(value) {
-      setCrosshairSourceState("lift", value);
-    },
-    onLiftTravel(event) {
-      playTerminalInteractionSound();
-      const destination = event?.to ?? null;
-      const floorTitle = destination?.title || destination?.id || "New deck";
-      const detail = destination?.description
-        ? `${floorTitle} – ${destination.description}`
-        : floorTitle;
+        const destinationId = control?.userData?.liftFloorId ?? null;
+
+        if (destinationId && sceneController?.setActiveLiftFloorById) {
+          const traveled = sceneController.setActiveLiftFloorById(destinationId);
+          if (traveled) {
+            return false;
+          }
+        }
+
+        playTerminalInteractionSound();
+        openLiftModal();
+        return true;
+      },
+      onLiftInteractableChange(value) {
+        setCrosshairSourceState("lift", value);
+      },
+      onLiftTravel(event) {
+        playTerminalInteractionSound();
+        const destination = event?.to ?? null;
+        const floorTitle = destination?.title || destination?.id || "New deck";
+        const detail = destination?.description
+          ? `${floorTitle} – ${destination.description}`
+          : floorTitle;
       showTerminalToast({
         title: "Lift arrival",
         description: detail,
@@ -8175,6 +8208,16 @@ const bootstrapScene = () => {
     },
     onDroneReturnComplete: handleDroneReturnComplete,
   });
+
+  } catch (error) {
+    console.error("Failed to initialize 3D scene", error);
+    showRenderingErrorMessage(
+      error?.message ||
+        "We couldn't start the 3D view. Enable WebGL and try again."
+    );
+    sceneController = null;
+    return;
+  }
 
   applyStarVisualUiState();
 
