@@ -480,19 +480,24 @@ export const initScene = (
   const createRenderer = () => {
     const testCanvas = document.createElement("canvas");
     const webglContextTypes = ["webgl2", "webgl", "experimental-webgl"];
-    const hasWebglSupport = webglContextTypes.some((contextType) => {
-      const context = testCanvas.getContext(contextType, {
-        powerPreference: "default",
-        failIfMajorPerformanceCaveat: true,
-      });
+    const contextOptions = [
+      { powerPreference: "high-performance", failIfMajorPerformanceCaveat: false },
+      { powerPreference: "default", failIfMajorPerformanceCaveat: false },
+      { powerPreference: "default", failIfMajorPerformanceCaveat: true },
+    ];
 
-      if (context) {
-        context.getExtension("WEBGL_lose_context")?.loseContext?.();
-        return true;
-      }
+    const hasWebglSupport = webglContextTypes.some((contextType) =>
+      contextOptions.some((options) => {
+        const context = testCanvas.getContext(contextType, options);
 
-      return false;
-    });
+        if (context) {
+          context.getExtension("WEBGL_lose_context")?.loseContext?.();
+          return true;
+        }
+
+        return false;
+      })
+    );
 
     if (!hasWebglSupport) {
       throw new Error(
