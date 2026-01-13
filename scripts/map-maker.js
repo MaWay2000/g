@@ -78,6 +78,7 @@ const elements = {
   resizeButton: document.getElementById("resizeButton"),
   gridToggle: document.getElementById("gridToggle"),
   colorToggle: document.getElementById("colorToggle"),
+  textureToggle: document.getElementById("textureToggle"),
   cellSizeRange: document.getElementById("cellSizeRange"),
   mapNameDisplay: document.getElementById("mapNameDisplay"),
   mapRegionDisplay: document.getElementById("mapRegionDisplay"),
@@ -690,6 +691,13 @@ function initControls() {
   elements.colorToggle.addEventListener("change", (event) => {
     elements.mapGrid.dataset.showColors = String(event.target.checked);
   });
+
+  if (elements.textureToggle) {
+    elements.mapGrid.dataset.showTextures = String(elements.textureToggle.checked);
+    elements.textureToggle.addEventListener("change", (event) => {
+      elements.mapGrid.dataset.showTextures = String(event.target.checked);
+    });
+  }
 
   elements.importButton.addEventListener("click", () => {
     try {
