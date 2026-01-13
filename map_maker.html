@@ -719,7 +719,12 @@
         hidden
       >
         <section class="sidebar-section landscape-panel">
-          <h2>Landshaft Viewer</h2>
+          <div class="landscape-controls">
+            <button id="landscapeWireframeButton" type="button">
+              Wireframe: Off
+            </button>
+            <button id="landscapeResetButton" type="button">Reset camera</button>
+          </div>
           <p class="tab-panel-placeholder">
             The landshaft preview now lives in the main terrain workspace.
           </p>
@@ -823,13 +828,6 @@
       <div class="main-panel" data-map-maker-main="landshaft">
         <div class="workspace">
           <section class="landscape-stage">
-            <h2>Landshaft Viewer</h2>
-            <div class="landscape-controls">
-              <button id="landscapeWireframeButton" type="button">
-                Wireframe: Off
-              </button>
-              <button id="landscapeResetButton" type="button">Reset camera</button>
-            </div>
             <div class="landscape-viewport">
               <canvas
                 id="landscapeViewport"
