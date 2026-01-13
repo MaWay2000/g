@@ -13,12 +13,7 @@ const getWebglSupport = () => {
   return contexts.some((name) => Boolean(canvas.getContext(name)));
 };
 
-const getTerrainHeight = (terrain) => {
-  if (!terrain || terrain.id === "void") {
-    return 0;
-  }
-  return TERRAIN_HEIGHT;
-};
+const getTerrainHeight = () => TERRAIN_HEIGHT;
 
 const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
   const positions = [];
