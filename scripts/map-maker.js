@@ -101,6 +101,7 @@ const elements = {
   landscapeWireframeButton: document.getElementById("landscapeWireframeButton"),
   landscapeResetButton: document.getElementById("landscapeResetButton"),
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
+  landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
 };
 
 let landscapeViewer = null;
@@ -110,6 +111,21 @@ function updateLandscapeViewer() {
     return;
   }
   landscapeViewer.updateMap(state.map);
+}
+
+function syncTextureToggleLabel(isEnabled) {
+  if (elements.landscapeTextureToggle) {
+    elements.landscapeTextureToggle.setAttribute(
+      "aria-pressed",
+      String(isEnabled)
+    );
+    elements.landscapeTextureToggle.textContent = `Terrain textures: ${
+      isEnabled ? "On" : "Off"
+    }`;
+  }
+  if (elements.textureToggle) {
+    elements.textureToggle.checked = isEnabled;
+  }
 }
 
 function getLocalStorage() {
@@ -692,10 +708,23 @@ function initControls() {
     elements.mapGrid.dataset.showColors = String(event.target.checked);
   });
 
+  const defaultTextureState =
+    elements.textureToggle?.checked ??
+    elements.mapGrid.dataset.showTextures !== "false";
+  elements.mapGrid.dataset.showTextures = String(defaultTextureState);
+  syncTextureToggleLabel(defaultTextureState);
   if (elements.textureToggle) {
-    elements.mapGrid.dataset.showTextures = String(elements.textureToggle.checked);
     elements.textureToggle.addEventListener("change", (event) => {
-      elements.mapGrid.dataset.showTextures = String(event.target.checked);
+      const nextValue = event.target.checked;
+      elements.mapGrid.dataset.showTextures = String(nextValue);
+      syncTextureToggleLabel(nextValue);
+    });
+  }
+  if (elements.landscapeTextureToggle) {
+    elements.landscapeTextureToggle.addEventListener("click", () => {
+      const nextValue = elements.mapGrid.dataset.showTextures === "false";
+      elements.mapGrid.dataset.showTextures = String(nextValue);
+      syncTextureToggleLabel(nextValue);
     });
   }
 
