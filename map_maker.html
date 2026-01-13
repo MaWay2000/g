@@ -514,7 +514,7 @@
     <header>
       <h1>Outside Map Maker</h1>
       <div class="hint">Design, resize, and export your exterior exploration zones.</div>
-      <div class="map-maker-tabs" role="tablist" aria-label="Palette tabs">
+      <div class="map-maker-tabs" role="tablist" aria-label="Map maker tabs">
         <button
           class="map-maker-tab is-active"
           type="button"
@@ -550,6 +550,18 @@
           data-map-maker-tab="landshaft"
         >
           Landshaft
+        </button>
+        <button
+          class="map-maker-tab"
+          type="button"
+          role="tab"
+          id="tab-settings"
+          aria-selected="false"
+          aria-controls="settingsPanel"
+          tabindex="-1"
+          data-map-maker-tab="settings"
+        >
+          Settings
         </button>
       </div>
       <div class="header-actions">
@@ -612,48 +624,56 @@
           </p>
         </section>
       </div>
-
-      <section class="sidebar-section">
-        <h2>Map Settings</h2>
-        <div class="control-group">
-          <div class="control">
-            <label for="mapNameInput">Map name</label>
-            <input id="mapNameInput" type="text" placeholder="Outside perimeter" />
-          </div>
-          <div class="control">
-            <label for="regionInput">Region identifier</label>
-            <input id="regionInput" type="text" placeholder="perimeter_north" />
-          </div>
-          <div class="control">
-            <label for="mapNotesInput">Designer notes</label>
-            <textarea id="mapNotesInput" placeholder="Describe key landmarks, hazards, or traversal rules."></textarea>
-          </div>
-          <div class="control">
-            <label>Dimensions</label>
-            <div class="actions-row">
-              <input id="widthInput" type="number" min="1" max="200" step="1" />
-              ×
-              <input id="heightInput" type="number" min="1" max="200" step="1" />
-              <button id="resizeButton" type="button" data-variant="primary">Apply size</button>
+      <div
+        class="tab-panel palette-panel"
+        id="settingsPanel"
+        role="tabpanel"
+        aria-labelledby="tab-settings"
+        data-map-maker-panel="settings"
+        hidden
+      >
+        <section class="sidebar-section">
+          <h2>Map Settings</h2>
+          <div class="control-group">
+            <div class="control">
+              <label for="mapNameInput">Map name</label>
+              <input id="mapNameInput" type="text" placeholder="Outside perimeter" />
             </div>
-            <div class="hint">Current map keeps existing terrain within new bounds.</div>
+            <div class="control">
+              <label for="regionInput">Region identifier</label>
+              <input id="regionInput" type="text" placeholder="perimeter_north" />
+            </div>
+            <div class="control">
+              <label for="mapNotesInput">Designer notes</label>
+              <textarea id="mapNotesInput" placeholder="Describe key landmarks, hazards, or traversal rules."></textarea>
+            </div>
+            <div class="control">
+              <label>Dimensions</label>
+              <div class="actions-row">
+                <input id="widthInput" type="number" min="1" max="200" step="1" />
+                ×
+                <input id="heightInput" type="number" min="1" max="200" step="1" />
+                <button id="resizeButton" type="button" data-variant="primary">Apply size</button>
+              </div>
+              <div class="hint">Current map keeps existing terrain within new bounds.</div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="sidebar-section">
-        <h2>Import JSON</h2>
-        <p>Paste an exported map definition to replace the current layout.</p>
-        <div class="control">
-          <label for="importTextarea">Map JSON</label>
-          <textarea id="importTextarea" placeholder="{ &quot;name&quot;: &quot;outside-yard&quot;, &quot;width&quot;: 24, ... }"></textarea>
-        </div>
-        <div class="actions-row">
-          <button id="importButton" type="button">Load JSON</button>
-          <button id="generateButton" type="button">Generate map</button>
-          <button id="resetButton" type="button" data-variant="danger">Reset map</button>
-        </div>
-      </section>
+        <section class="sidebar-section">
+          <h2>Import JSON</h2>
+          <p>Paste an exported map definition to replace the current layout.</p>
+          <div class="control">
+            <label for="importTextarea">Map JSON</label>
+            <textarea id="importTextarea" placeholder="{ &quot;name&quot;: &quot;outside-yard&quot;, &quot;width&quot;: 24, ... }"></textarea>
+          </div>
+          <div class="actions-row">
+            <button id="importButton" type="button">Load JSON</button>
+            <button id="generateButton" type="button">Generate map</button>
+            <button id="resetButton" type="button" data-variant="danger">Reset map</button>
+          </div>
+        </section>
+      </div>
     </aside>
 
     <main class="main">
