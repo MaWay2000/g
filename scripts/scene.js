@@ -3419,8 +3419,8 @@ export const initScene = (
     };
   };
 
-  const OPERATIONS_EXTERIOR_PLATFORM_WIDTH = roomWidth * 1.45;
-  const OPERATIONS_EXTERIOR_PLATFORM_DEPTH = roomDepth * 1.05;
+  const OPERATIONS_EXTERIOR_PLATFORM_WIDTH = roomWidth * 1.25;
+  const OPERATIONS_EXTERIOR_PLATFORM_DEPTH = roomDepth * 0.9;
   const operationsExteriorLocalBounds = createFloorBounds(
     OPERATIONS_EXTERIOR_PLATFORM_WIDTH,
     OPERATIONS_EXTERIOR_PLATFORM_DEPTH,
@@ -3745,6 +3745,7 @@ export const initScene = (
       ? walkway.geometry.parameters.depth
       : OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.42;
     const walkwayFrontEdge = walkway.position.z + walkwayDepth / 2;
+    platform.position.z = walkwayFrontEdge - OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
 
     let builtOutsideTerrain = null;
     try {
