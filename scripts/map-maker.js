@@ -126,6 +126,9 @@ function syncTextureToggleLabel(isEnabled) {
   if (elements.textureToggle) {
     elements.textureToggle.checked = isEnabled;
   }
+  if (landscapeViewer?.setTextureVisibility) {
+    landscapeViewer.setTextureVisibility(isEnabled);
+  }
 }
 
 function getLocalStorage() {
@@ -512,7 +515,13 @@ function setActivePaletteTab(tabId) {
         wireframeButton: elements.landscapeWireframeButton,
         resetButton: elements.landscapeResetButton,
         terrainTypeToggle: elements.landscapeTypeToggle,
+        terrainTextureToggle: elements.landscapeTextureToggle,
       });
+    }
+    if (landscapeViewer?.setTextureVisibility) {
+      landscapeViewer.setTextureVisibility(
+        elements.mapGrid.dataset.showTextures !== "false"
+      );
     }
     updateLandscapeViewer();
   }
