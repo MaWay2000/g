@@ -389,13 +389,20 @@ export const initMapMaker3d = ({
     camera.updateProjectionMatrix();
   };
 
+  const getCanvasSize = () => {
+    const parent = canvas.parentElement;
+    const width = canvas.clientWidth || parent?.clientWidth || 0;
+    const height = canvas.clientHeight || parent?.clientHeight || 0;
+    return { width, height };
+  };
+
   const resizeRenderer = () => {
-    const { clientWidth, clientHeight } = canvas;
-    if (!clientWidth || !clientHeight) {
+    const { width, height } = getCanvasSize();
+    if (!width || !height) {
       return;
     }
-    renderer.setSize(clientWidth, clientHeight, false);
-    camera.aspect = clientWidth / clientHeight;
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
   };
 
@@ -521,6 +528,7 @@ export const initMapMaker3d = ({
   return {
     updateMap,
     setTextureVisibility: updateTerrainTextureDisplay,
+    resize: resizeRenderer,
     dispose,
   };
 };

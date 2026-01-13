@@ -524,6 +524,9 @@ function setActivePaletteTab(tabId) {
       );
     }
     updateLandscapeViewer();
+    window.requestAnimationFrame(() => {
+      landscapeViewer?.resize?.();
+    });
   }
 }
 
