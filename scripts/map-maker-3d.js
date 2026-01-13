@@ -95,10 +95,10 @@ const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
 export const initMapMaker3d = ({
   canvas,
   errorElement,
-  wireframeButton,
   resetButton,
   terrainTypeToggle,
   terrainTextureToggle,
+  initialTextureVisibility = true,
 } = {}) => {
   if (!canvas) {
     return null;
@@ -251,14 +251,6 @@ export const initMapMaker3d = ({
 
   let showTerrainTypes = getTerrainToggleState();
   syncTerrainToggleLabel(showTerrainTypes);
-  const getTerrainTextureToggleState = () => {
-    if (!terrainTextureToggle) {
-      return true;
-    }
-    const pressed = terrainTextureToggle.getAttribute("aria-pressed");
-    return pressed !== "false";
-  };
-
   const syncTerrainTextureToggleLabel = (isEnabled) => {
     if (!terrainTextureToggle) {
       return;
@@ -269,7 +261,7 @@ export const initMapMaker3d = ({
     }`;
   };
 
-  let showTerrainTextures = getTerrainTextureToggleState();
+  let showTerrainTextures = initialTextureVisibility;
   syncTerrainTextureToggleLabel(showTerrainTextures);
   const moveVector = new THREE.Vector3();
   const forwardVector = new THREE.Vector3();
@@ -476,19 +468,6 @@ export const initMapMaker3d = ({
       void renderTerrainTexture(lastMap);
     }
   };
-
-  const toggleWireframe = () => {
-    material.wireframe = !material.wireframe;
-    if (wireframeButton) {
-      wireframeButton.textContent = material.wireframe
-        ? "Wireframe: On"
-        : "Wireframe: Off";
-    }
-  };
-
-  if (wireframeButton) {
-    wireframeButton.addEventListener("click", toggleWireframe);
-  }
 
   if (resetButton) {
     resetButton.addEventListener("click", () => {
