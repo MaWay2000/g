@@ -168,6 +168,15 @@ export const initMapMaker3d = ({
   controls.minDistance = 4;
   controls.maxDistance = 80;
   controls.maxPolarAngle = Math.PI / 2.1;
+  controls.mouseButtons = {
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.ROTATE,
+  };
+
+  canvas.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  });
 
   const moveKeys = new Set();
   const clock = new THREE.Clock();
