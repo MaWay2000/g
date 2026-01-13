@@ -445,7 +445,15 @@
         background: rgba(248, 113, 113, 0.18);
       }
 
-      .tab-panel[hidden] {
+      .palette-panel {
+        display: none;
+      }
+
+      .palette-panel.is-active {
+        display: block;
+      }
+
+      .palette-panel[hidden] {
         display: none;
       }
 
@@ -513,7 +521,7 @@
           role="tab"
           id="tab-terrain"
           aria-selected="true"
-          aria-controls="tab-panel-terrain"
+          aria-controls="terrainPanel"
           tabindex="0"
           data-map-maker-tab="terrain"
         >
@@ -525,7 +533,7 @@
           role="tab"
           id="tab-objects"
           aria-selected="false"
-          aria-controls="tab-panel-objects"
+          aria-controls="objectsPanel"
           tabindex="-1"
           data-map-maker-tab="objects"
         >
@@ -535,13 +543,13 @@
           class="map-maker-tab"
           type="button"
           role="tab"
-          id="tab-land-shaft"
+          id="tab-landshaft"
           aria-selected="false"
-          aria-controls="tab-panel-land-shaft"
+          aria-controls="landshaftPanel"
           tabindex="-1"
-          data-map-maker-tab="land-shaft"
+          data-map-maker-tab="landshaft"
         >
-          land-shaft
+          Landshaft
         </button>
       </div>
       <div class="header-actions">
@@ -555,7 +563,13 @@
     </header>
 
     <aside class="sidebar">
-      <div class="tab-panel" id="tab-panel-terrain" role="tabpanel" aria-labelledby="tab-terrain">
+      <div
+        class="tab-panel palette-panel is-active"
+        id="terrainPanel"
+        role="tabpanel"
+        aria-labelledby="tab-terrain"
+        data-map-maker-panel="terrain"
+      >
         <section class="sidebar-section">
           <h2>Terrain Palette</h2>
           <p>
@@ -567,10 +581,11 @@
         </section>
       </div>
       <div
-        class="tab-panel"
-        id="tab-panel-objects"
+        class="tab-panel palette-panel"
+        id="objectsPanel"
         role="tabpanel"
         aria-labelledby="tab-objects"
+        data-map-maker-panel="objects"
         hidden
       >
         <section class="sidebar-section">
@@ -582,16 +597,17 @@
         </section>
       </div>
       <div
-        class="tab-panel"
-        id="tab-panel-land-shaft"
+        class="tab-panel palette-panel"
+        id="landshaftPanel"
         role="tabpanel"
-        aria-labelledby="tab-land-shaft"
+        aria-labelledby="tab-landshaft"
+        data-map-maker-panel="landshaft"
         hidden
       >
         <section class="sidebar-section">
-          <h2>land-shaft Palette</h2>
+          <h2>Landshaft Palette</h2>
           <p class="tab-panel-placeholder">
-            land-shaft content is coming next. This placeholder will be swapped
+            Landshaft content is coming next. This placeholder will be swapped
             with specialized elevation tools and presets later.
           </p>
         </section>
