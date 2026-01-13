@@ -94,6 +94,7 @@ const elements = {
   loadFileButton: document.getElementById("loadFileButton"),
   tabButtons: Array.from(document.querySelectorAll("[data-map-maker-tab]")),
   tabPanels: Array.from(document.querySelectorAll("[data-map-maker-panel]")),
+  mainPanels: Array.from(document.querySelectorAll("[data-map-maker-main]")),
   landscapeViewport: document.getElementById("landscapeViewport"),
   landscapeError: document.getElementById("landscapeError"),
   landscapeWireframeButton: document.getElementById("landscapeWireframeButton"),
@@ -477,6 +478,12 @@ function setActivePaletteTab(tabId) {
     const isActive = panel.id === activePanelId;
     panel.classList.toggle("is-active", isActive);
     panel.hidden = !isActive;
+  });
+
+  elements.mainPanels.forEach((panel) => {
+    const isActive =
+      panel.dataset.mapMakerMain === (tabId === "landshaft" ? "landshaft" : "terrain");
+    panel.classList.toggle("is-active", isActive);
   });
 
   if (tabId === "landshaft") {
