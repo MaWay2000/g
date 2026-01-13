@@ -523,15 +523,9 @@
         outline: none;
       }
 
-      .landscape-controls .toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        font-size: 0.8rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: rgba(226, 232, 240, 0.75);
-        padding: 0.35rem 0.2rem;
+      .landscape-controls button[aria-pressed="true"] {
+        border-color: rgba(129, 140, 248, 0.6);
+        background: rgba(129, 140, 248, 0.25);
       }
 
       .landscape-viewport {
@@ -735,10 +729,13 @@
               Wireframe: Off
             </button>
             <button id="landscapeResetButton" type="button">Reset camera</button>
-            <label class="toggle"
-              ><input id="landscapeTypeToggle" type="checkbox" checked /> show
-              terrain types</label
+            <button
+              id="landscapeTypeToggle"
+              type="button"
+              aria-pressed="true"
             >
+              Terrain types: On
+            </button>
           </div>
           <p class="tab-panel-placeholder">
             The landshaft preview now lives in the main terrain workspace.

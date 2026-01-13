@@ -213,7 +213,24 @@ export const initMapMaker3d = ({
   let frameId = null;
   let mapSize = 10;
   let lastMap = null;
-  let showTerrainTypes = terrainTypeToggle?.checked ?? true;
+  const getTerrainToggleState = () => {
+    if (!terrainTypeToggle) {
+      return true;
+    }
+    const pressed = terrainTypeToggle.getAttribute("aria-pressed");
+    return pressed !== "false";
+  };
+
+  const syncTerrainToggleLabel = (isEnabled) => {
+    if (!terrainTypeToggle) {
+      return;
+    }
+    terrainTypeToggle.setAttribute("aria-pressed", String(isEnabled));
+    terrainTypeToggle.textContent = `Terrain types: ${isEnabled ? "On" : "Off"}`;
+  };
+
+  let showTerrainTypes = getTerrainToggleState();
+  syncTerrainToggleLabel(showTerrainTypes);
   const moveVector = new THREE.Vector3();
   const forwardVector = new THREE.Vector3();
   const rightVector = new THREE.Vector3();
@@ -276,7 +293,7 @@ export const initMapMaker3d = ({
   };
   renderLoop();
 
-  const updateMap = (map) => {
+  const applyMapGeometry = (map, { resetCamera = true } = {}) => {
     if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
       return;
     }
@@ -284,14 +301,20 @@ export const initMapMaker3d = ({
     const geometry = buildTerrainGeometry(map, { showTerrainTypes });
     mesh.geometry.dispose();
     mesh.geometry = geometry;
-    setCameraForMap(map.width, map.height);
+    if (resetCamera) {
+      setCameraForMap(map.width, map.height);
+    }
     resizeRenderer();
+  };
+
+  const updateMap = (map) => {
+    applyMapGeometry(map, { resetCamera: true });
   };
 
   const updateTerrainTypeDisplay = (nextValue) => {
     showTerrainTypes = nextValue;
     if (lastMap) {
-      updateMap(lastMap);
+      applyMapGeometry(lastMap, { resetCamera: false });
     }
   };
 
@@ -316,10 +339,12 @@ export const initMapMaker3d = ({
 
   let terrainToggleHandler = null;
   if (terrainTypeToggle) {
-    terrainToggleHandler = (event) => {
-      updateTerrainTypeDisplay(event.target.checked);
+    terrainToggleHandler = () => {
+      const nextValue = !showTerrainTypes;
+      syncTerrainToggleLabel(nextValue);
+      updateTerrainTypeDisplay(nextValue);
     };
-    terrainTypeToggle.addEventListener("change", terrainToggleHandler);
+    terrainTypeToggle.addEventListener("click", terrainToggleHandler);
   }
 
   const dispose = () => {
@@ -335,7 +360,7 @@ export const initMapMaker3d = ({
     mesh.geometry.dispose();
     material.dispose();
     if (terrainTypeToggle && terrainToggleHandler) {
-      terrainTypeToggle.removeEventListener("change", terrainToggleHandler);
+      terrainTypeToggle.removeEventListener("click", terrainToggleHandler);
     }
   };
 
