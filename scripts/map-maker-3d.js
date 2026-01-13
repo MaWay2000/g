@@ -1,6 +1,9 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
-import { getOutsideTerrainById } from "./outside-map.js";
+import {
+  getOutsideTerrainById,
+  getOutsideTerrainTexturePath,
+} from "./outside-map.js";
 
 const HEIGHT_FLOOR = 0.05;
 const HEIGHT_SCALE = 6;
@@ -18,6 +21,7 @@ const getTerrainHeight = () => TERRAIN_HEIGHT;
 const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
   const positions = [];
   const colors = [];
+  const uvs = [];
   const showColors = showTerrainTypes !== false;
 
   const width = map.width;
@@ -60,6 +64,13 @@ const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
         z1
       );
 
+      const u0 = x / width;
+      const u1 = (x + 1) / width;
+      const v0 = y / height;
+      const v1 = (y + 1) / height;
+
+      uvs.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1);
+
       for (let i = 0; i < 6; i += 1) {
         colors.push(color.r, color.g, color.b);
       }
@@ -75,6 +86,7 @@ const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
     "color",
     new THREE.Float32BufferAttribute(colors, 3)
   );
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geometry.computeVertexNormals();
 
   return geometry;
@@ -86,6 +98,7 @@ export const initMapMaker3d = ({
   wireframeButton,
   resetButton,
   terrainTypeToggle,
+  terrainTextureToggle,
 } = {}) => {
   if (!canvas) {
     return null;
@@ -210,6 +223,13 @@ export const initMapMaker3d = ({
   const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
   scene.add(mesh);
 
+  const textureCanvas = document.createElement("canvas");
+  const textureContext = textureCanvas.getContext("2d");
+  const terrainTextureCache = new Map();
+  const terrainTexturePromises = new Map();
+  let textureToken = 0;
+  const TEXTURE_TILE_SIZE = 36;
+
   let frameId = null;
   let mapSize = 10;
   let lastMap = null;
@@ -231,9 +251,140 @@ export const initMapMaker3d = ({
 
   let showTerrainTypes = getTerrainToggleState();
   syncTerrainToggleLabel(showTerrainTypes);
+  const getTerrainTextureToggleState = () => {
+    if (!terrainTextureToggle) {
+      return true;
+    }
+    const pressed = terrainTextureToggle.getAttribute("aria-pressed");
+    return pressed !== "false";
+  };
+
+  const syncTerrainTextureToggleLabel = (isEnabled) => {
+    if (!terrainTextureToggle) {
+      return;
+    }
+    terrainTextureToggle.setAttribute("aria-pressed", String(isEnabled));
+    terrainTextureToggle.textContent = `Terrain textures: ${
+      isEnabled ? "On" : "Off"
+    }`;
+  };
+
+  let showTerrainTextures = getTerrainTextureToggleState();
+  syncTerrainTextureToggleLabel(showTerrainTextures);
   const moveVector = new THREE.Vector3();
   const forwardVector = new THREE.Vector3();
   const rightVector = new THREE.Vector3();
+
+  const loadTerrainTexture = (texturePath) => {
+    if (!texturePath) {
+      return Promise.resolve(null);
+    }
+    if (terrainTextureCache.has(texturePath)) {
+      return Promise.resolve(terrainTextureCache.get(texturePath));
+    }
+    if (terrainTexturePromises.has(texturePath)) {
+      return terrainTexturePromises.get(texturePath);
+    }
+    const promise = new Promise((resolve) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        terrainTextureCache.set(texturePath, image);
+        terrainTexturePromises.delete(texturePath);
+        resolve(image);
+      };
+      image.onerror = () => {
+        terrainTextureCache.set(texturePath, null);
+        terrainTexturePromises.delete(texturePath);
+        resolve(null);
+      };
+      image.src = texturePath;
+    });
+    terrainTexturePromises.set(texturePath, promise);
+    return promise;
+  };
+
+  const renderTerrainTexture = async (map) => {
+    if (!textureContext) {
+      return;
+    }
+    if (!showTerrainTextures) {
+      if (material.map) {
+        material.map = null;
+        material.needsUpdate = true;
+      }
+      return;
+    }
+    if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
+      return;
+    }
+
+    const nextToken = ++textureToken;
+    const { width, height } = map;
+    textureCanvas.width = width * TEXTURE_TILE_SIZE;
+    textureCanvas.height = height * TEXTURE_TILE_SIZE;
+
+    const texturePaths = new Set();
+    map.cells.forEach((terrainId, index) => {
+      const texturePath = getOutsideTerrainTexturePath(terrainId, index);
+      if (texturePath) {
+        texturePaths.add(texturePath);
+      }
+    });
+
+    await Promise.all([...texturePaths].map((path) => loadTerrainTexture(path)));
+    if (nextToken !== textureToken) {
+      return;
+    }
+
+    textureContext.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = y * width + x;
+        const terrainId = map.cells[index];
+        const texturePath = getOutsideTerrainTexturePath(terrainId, index);
+        const image = texturePath
+          ? terrainTextureCache.get(texturePath)
+          : null;
+        const drawX = x * TEXTURE_TILE_SIZE;
+        const drawY = y * TEXTURE_TILE_SIZE;
+        if (image) {
+          textureContext.drawImage(
+            image,
+            drawX,
+            drawY,
+            TEXTURE_TILE_SIZE,
+            TEXTURE_TILE_SIZE
+          );
+        } else {
+          const terrain = getOutsideTerrainById(terrainId);
+          textureContext.fillStyle = terrain?.color ?? NEUTRAL_TERRAIN_COLOR;
+          textureContext.fillRect(
+            drawX,
+            drawY,
+            TEXTURE_TILE_SIZE,
+            TEXTURE_TILE_SIZE
+          );
+        }
+      }
+    }
+
+    if (!material.map) {
+      const canvasTexture = new THREE.CanvasTexture(textureCanvas);
+      canvasTexture.colorSpace = THREE.SRGBColorSpace;
+      canvasTexture.flipY = false;
+      canvasTexture.wrapS = THREE.ClampToEdgeWrapping;
+      canvasTexture.wrapT = THREE.ClampToEdgeWrapping;
+      canvasTexture.minFilter = THREE.LinearFilter;
+      canvasTexture.magFilter = THREE.LinearFilter;
+      material.map = canvasTexture;
+      material.needsUpdate = true;
+    } else {
+      material.map.needsUpdate = true;
+    }
+  };
 
   const setCameraForMap = (width, height) => {
     const size = Math.max(width, height, 8);
@@ -301,6 +452,7 @@ export const initMapMaker3d = ({
     const geometry = buildTerrainGeometry(map, { showTerrainTypes });
     mesh.geometry.dispose();
     mesh.geometry = geometry;
+    void renderTerrainTexture(map);
     if (resetCamera) {
       setCameraForMap(map.width, map.height);
     }
@@ -315,6 +467,13 @@ export const initMapMaker3d = ({
     showTerrainTypes = nextValue;
     if (lastMap) {
       applyMapGeometry(lastMap, { resetCamera: false });
+    }
+  };
+
+  const updateTerrainTextureDisplay = (nextValue) => {
+    showTerrainTextures = nextValue;
+    if (lastMap) {
+      void renderTerrainTexture(lastMap);
     }
   };
 
@@ -347,6 +506,16 @@ export const initMapMaker3d = ({
     terrainTypeToggle.addEventListener("click", terrainToggleHandler);
   }
 
+  let terrainTextureToggleHandler = null;
+  if (terrainTextureToggle) {
+    terrainTextureToggleHandler = () => {
+      const nextValue = !showTerrainTextures;
+      syncTerrainTextureToggleLabel(nextValue);
+      updateTerrainTextureDisplay(nextValue);
+    };
+    terrainTextureToggle.addEventListener("click", terrainTextureToggleHandler);
+  }
+
   const dispose = () => {
     if (frameId) {
       window.cancelAnimationFrame(frameId);
@@ -362,10 +531,17 @@ export const initMapMaker3d = ({
     if (terrainTypeToggle && terrainToggleHandler) {
       terrainTypeToggle.removeEventListener("click", terrainToggleHandler);
     }
+    if (terrainTextureToggle && terrainTextureToggleHandler) {
+      terrainTextureToggle.removeEventListener(
+        "click",
+        terrainTextureToggleHandler
+      );
+    }
   };
 
   return {
     updateMap,
+    setTextureVisibility: updateTerrainTextureDisplay,
     dispose,
   };
 };
