@@ -91,6 +91,7 @@ const elements = {
   restoreLocalButton: document.getElementById("restoreLocalButton"),
   fileInput: document.getElementById("fileInput"),
   loadFileButton: document.getElementById("loadFileButton"),
+  tabButtons: Array.from(document.querySelectorAll("[data-map-maker-tab]")),
 };
 
 function getLocalStorage() {
@@ -441,6 +442,66 @@ function updateJsonPreview() {
   elements.jsonPreview.textContent = json;
 }
 
+function setActivePaletteTab(tabId) {
+  elements.tabButtons.forEach((button) => {
+    const isActive = button.dataset.mapMakerTab === tabId;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
+    const panelId = button.getAttribute("aria-controls");
+    const panel = panelId ? document.getElementById(panelId) : null;
+    if (panel) {
+      panel.hidden = !isActive;
+    }
+  });
+}
+
+function focusAdjacentTab(direction) {
+  const tabs = elements.tabButtons;
+  if (tabs.length === 0) {
+    return;
+  }
+  const currentIndex = tabs.findIndex(
+    (button) => button.getAttribute("aria-selected") === "true"
+  );
+  const normalizedIndex = currentIndex === -1 ? 0 : currentIndex;
+  const nextIndex =
+    (normalizedIndex + direction + tabs.length) % tabs.length;
+  const nextTab = tabs[nextIndex];
+  if (nextTab) {
+    setActivePaletteTab(nextTab.dataset.mapMakerTab);
+    nextTab.focus();
+  }
+}
+
+function initPaletteTabs() {
+  if (!elements.tabButtons.length) {
+    return;
+  }
+
+  elements.tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setActivePaletteTab(button.dataset.mapMakerTab);
+    });
+
+    button.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        focusAdjacentTab(1);
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        focusAdjacentTab(-1);
+      }
+    });
+  });
+
+  const activeTab = elements.tabButtons.find(
+    (button) => button.getAttribute("aria-selected") === "true"
+  );
+  setActivePaletteTab(activeTab?.dataset.mapMakerTab ?? "terrain");
+}
+
 function applyImportedMap(mapDefinition) {
   const normalized = normalizeOutsideMap(mapDefinition);
 
@@ -530,6 +591,7 @@ function initControls() {
   renderGrid();
   updateMetadataDisplays();
   updateJsonPreview();
+  initPaletteTabs();
 
   if (elements.saveLocalButton?.dataset) {
     elements.saveLocalButton.dataset.defaultLabel =
