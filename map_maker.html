@@ -77,6 +77,45 @@
         flex-wrap: wrap;
       }
 
+      .map-maker-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem;
+        border-radius: 0.95rem;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(2, 6, 23, 0.45);
+      }
+
+      .map-maker-tab {
+        border: 1px solid transparent;
+        background: transparent;
+        color: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding: 0.45rem 0.85rem;
+        border-radius: 0.75rem;
+        cursor: pointer;
+        transition: transform 160ms ease, border-color 160ms ease,
+          background 160ms ease;
+      }
+
+      .map-maker-tab:hover,
+      .map-maker-tab:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(148, 163, 184, 0.6);
+        background: rgba(56, 189, 248, 0.2);
+        outline: none;
+      }
+
+      .map-maker-tab.is-active {
+        border-color: rgba(129, 140, 248, 0.8);
+        background: rgba(129, 140, 248, 0.25);
+        box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.2);
+      }
+
       .header-actions button,
       .header-actions a {
         display: inline-flex;
@@ -406,6 +445,20 @@
         background: rgba(248, 113, 113, 0.18);
       }
 
+      .tab-panel[hidden] {
+        display: none;
+      }
+
+      .tab-panel-placeholder {
+        border-radius: 0.9rem;
+        border: 1px dashed rgba(148, 163, 184, 0.35);
+        padding: 1rem;
+        color: rgba(226, 232, 240, 0.75);
+        background: rgba(2, 6, 23, 0.3);
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+
       .hint {
         font-size: 0.75rem;
         color: rgba(226, 232, 240, 0.6);
@@ -437,6 +490,11 @@
           align-items: flex-start;
         }
 
+        .map-maker-tabs {
+          width: 100%;
+          justify-content: flex-start;
+        }
+
         .header-actions {
           width: 100%;
           justify-content: flex-start;
@@ -448,6 +506,44 @@
     <header>
       <h1>Outside Map Maker</h1>
       <div class="hint">Design, resize, and export your exterior exploration zones.</div>
+      <div class="map-maker-tabs" role="tablist" aria-label="Palette tabs">
+        <button
+          class="map-maker-tab is-active"
+          type="button"
+          role="tab"
+          id="tab-terrain"
+          aria-selected="true"
+          aria-controls="tab-panel-terrain"
+          tabindex="0"
+          data-map-maker-tab="terrain"
+        >
+          Terrain
+        </button>
+        <button
+          class="map-maker-tab"
+          type="button"
+          role="tab"
+          id="tab-objects"
+          aria-selected="false"
+          aria-controls="tab-panel-objects"
+          tabindex="-1"
+          data-map-maker-tab="objects"
+        >
+          Objects
+        </button>
+        <button
+          class="map-maker-tab"
+          type="button"
+          role="tab"
+          id="tab-land-shaft"
+          aria-selected="false"
+          aria-controls="tab-panel-land-shaft"
+          tabindex="-1"
+          data-map-maker-tab="land-shaft"
+        >
+          land-shaft
+        </button>
+      </div>
       <div class="header-actions">
         <button id="saveLocalButton" type="button">Save locally</button>
         <button id="restoreLocalButton" type="button">Load local save</button>
@@ -459,15 +555,47 @@
     </header>
 
     <aside class="sidebar">
-      <section class="sidebar-section">
-        <h2>Terrain Palette</h2>
-        <p>
-          Paint with element-group terrains from the periodic table: Alkali and
-          Alkaline earth metals through to Noble gases (plus void for erasing).
-          Click or drag on the map to lay out each group's footprint.
-        </p>
-        <div class="terrain-palette" id="terrainPalette"></div>
-      </section>
+      <div class="tab-panel" id="tab-panel-terrain" role="tabpanel" aria-labelledby="tab-terrain">
+        <section class="sidebar-section">
+          <h2>Terrain Palette</h2>
+          <p>
+            Paint with element-group terrains from the periodic table: Alkali and
+            Alkaline earth metals through to Noble gases (plus void for erasing).
+            Click or drag on the map to lay out each group's footprint.
+          </p>
+          <div class="terrain-palette" id="terrainPalette"></div>
+        </section>
+      </div>
+      <div
+        class="tab-panel"
+        id="tab-panel-objects"
+        role="tabpanel"
+        aria-labelledby="tab-objects"
+        hidden
+      >
+        <section class="sidebar-section">
+          <h2>Objects Palette</h2>
+          <p class="tab-panel-placeholder">
+            Objects content will live here soon. Select this tab to preview and
+            place props, hazards, and landmarks once the library is wired in.
+          </p>
+        </section>
+      </div>
+      <div
+        class="tab-panel"
+        id="tab-panel-land-shaft"
+        role="tabpanel"
+        aria-labelledby="tab-land-shaft"
+        hidden
+      >
+        <section class="sidebar-section">
+          <h2>land-shaft Palette</h2>
+          <p class="tab-panel-placeholder">
+            land-shaft content is coming next. This placeholder will be swapped
+            with specialized elevation tools and presets later.
+          </p>
+        </section>
+      </div>
 
       <section class="sidebar-section">
         <h2>Map Settings</h2>
