@@ -468,6 +468,66 @@
         line-height: 1.5;
       }
 
+      .landscape-panel {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .landscape-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+
+      .landscape-controls button {
+        padding: 0.55rem 0.9rem;
+        border-radius: 0.7rem;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(2, 6, 23, 0.6);
+        color: inherit;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease,
+          background 120ms ease;
+      }
+
+      .landscape-controls button:hover,
+      .landscape-controls button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(129, 140, 248, 0.6);
+        background: rgba(129, 140, 248, 0.25);
+        outline: none;
+      }
+
+      .landscape-viewport {
+        position: relative;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        overflow: hidden;
+        background: radial-gradient(
+          circle at top,
+          rgba(30, 41, 59, 0.8),
+          rgba(2, 6, 23, 0.85)
+        );
+      }
+
+      .landscape-viewport canvas {
+        width: 100%;
+        height: 260px;
+        display: block;
+      }
+
+      .landscape-error {
+        border-radius: 0.75rem;
+        border: 1px solid rgba(248, 113, 113, 0.4);
+        background: rgba(248, 113, 113, 0.12);
+        padding: 0.75rem 0.85rem;
+        color: rgba(248, 113, 113, 0.95);
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+
       .hint {
         font-size: 0.75rem;
         color: rgba(226, 232, 240, 0.6);
@@ -617,12 +677,24 @@
         data-map-maker-panel="landshaft"
         hidden
       >
-        <section class="sidebar-section">
-          <h2>Landshaft Palette</h2>
-          <p class="tab-panel-placeholder">
-            Landshaft content is coming next. This placeholder will be swapped
-            with specialized elevation tools and presets later.
-          </p>
+        <section class="sidebar-section landscape-panel">
+          <h2>Landshaft Viewer</h2>
+          <div class="landscape-controls">
+            <button id="landscapeWireframeButton" type="button">
+              Wireframe: Off
+            </button>
+            <button id="landscapeResetButton" type="button">Reset camera</button>
+          </div>
+          <div class="landscape-viewport">
+            <canvas
+              id="landscapeViewport"
+              aria-label="3D landshaft preview"
+            ></canvas>
+          </div>
+          <div class="landscape-error" id="landscapeError" role="status" hidden>
+            WebGL support is unavailable in this browser. Try a different browser
+            or enable hardware acceleration to preview the terrain.
+          </div>
         </section>
       </div>
       <div
