@@ -98,7 +98,6 @@ const elements = {
   mainPanels: Array.from(document.querySelectorAll("[data-map-maker-main]")),
   landscapeViewport: document.getElementById("landscapeViewport"),
   landscapeError: document.getElementById("landscapeError"),
-  landscapeWireframeButton: document.getElementById("landscapeWireframeButton"),
   landscapeResetButton: document.getElementById("landscapeResetButton"),
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
@@ -512,10 +511,11 @@ function setActivePaletteTab(tabId) {
       landscapeViewer = initMapMaker3d({
         canvas: elements.landscapeViewport,
         errorElement: elements.landscapeError,
-        wireframeButton: elements.landscapeWireframeButton,
         resetButton: elements.landscapeResetButton,
         terrainTypeToggle: elements.landscapeTypeToggle,
         terrainTextureToggle: elements.landscapeTextureToggle,
+        initialTextureVisibility:
+          elements.mapGrid.dataset.showTextures !== "false",
       });
     }
     if (landscapeViewer?.setTextureVisibility) {
