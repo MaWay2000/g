@@ -169,6 +169,48 @@ export const initMapMaker3d = ({
   controls.maxDistance = 80;
   controls.maxPolarAngle = Math.PI / 2.1;
 
+  const moveKeys = new Set();
+  const clock = new THREE.Clock();
+
+  const shouldIgnoreKeyEvent = (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+    const tagName = target.tagName;
+    return (
+      tagName === "INPUT" ||
+      tagName === "TEXTAREA" ||
+      tagName === "SELECT" ||
+      target.isContentEditable
+    );
+  };
+
+  const handleKeyDown = (event) => {
+    if (shouldIgnoreKeyEvent(event)) {
+      return;
+    }
+    if (["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
+      moveKeys.add(event.code);
+      event.preventDefault();
+    }
+  };
+
+  const handleKeyUp = (event) => {
+    if (["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
+      moveKeys.delete(event.code);
+      event.preventDefault();
+    }
+  };
+
+  const handleWindowBlur = () => {
+    moveKeys.clear();
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("keyup", handleKeyUp);
+  window.addEventListener("blur", handleWindowBlur);
+
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     flatShading: true,
@@ -181,6 +223,9 @@ export const initMapMaker3d = ({
 
   let frameId = null;
   let mapSize = 10;
+  const moveVector = new THREE.Vector3();
+  const forwardVector = new THREE.Vector3();
+  const rightVector = new THREE.Vector3();
 
   const setCameraForMap = (width, height) => {
     const size = Math.max(width, height, 8);
@@ -210,6 +255,31 @@ export const initMapMaker3d = ({
 
   const renderLoop = () => {
     frameId = window.requestAnimationFrame(renderLoop);
+    const delta = clock.getDelta();
+    if (moveKeys.size > 0) {
+      camera.getWorldDirection(forwardVector);
+      forwardVector.normalize();
+      rightVector.crossVectors(forwardVector, camera.up).normalize();
+      moveVector.set(0, 0, 0);
+      if (moveKeys.has("KeyW")) {
+        moveVector.add(forwardVector);
+      }
+      if (moveKeys.has("KeyS")) {
+        moveVector.sub(forwardVector);
+      }
+      if (moveKeys.has("KeyA")) {
+        moveVector.sub(rightVector);
+      }
+      if (moveKeys.has("KeyD")) {
+        moveVector.add(rightVector);
+      }
+      if (moveVector.lengthSq() > 0) {
+        const speed = Math.max(mapSize * 0.45, 4);
+        moveVector.normalize().multiplyScalar(speed * delta);
+        camera.position.add(moveVector);
+        controls.target.add(moveVector);
+      }
+    }
     controls.update();
     renderer.render(scene, camera);
   };
@@ -249,6 +319,9 @@ export const initMapMaker3d = ({
     if (frameId) {
       window.cancelAnimationFrame(frameId);
     }
+    window.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("keyup", handleKeyUp);
+    window.removeEventListener("blur", handleWindowBlur);
     resizeObserver.disconnect();
     controls.dispose();
     renderer.dispose();
