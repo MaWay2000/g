@@ -9,6 +9,7 @@ import {
   tryGetOutsideMapStorage,
   saveOutsideMapToStorage,
 } from "./outside-map.js";
+import { initMapMaker3d } from "./map-maker-3d.js";
 
 let cachedLocalStorage;
 const localSaveFeedbackTimers = {
@@ -93,7 +94,20 @@ const elements = {
   loadFileButton: document.getElementById("loadFileButton"),
   tabButtons: Array.from(document.querySelectorAll("[data-map-maker-tab]")),
   tabPanels: Array.from(document.querySelectorAll("[data-map-maker-panel]")),
+  landscapeViewport: document.getElementById("landscapeViewport"),
+  landscapeError: document.getElementById("landscapeError"),
+  landscapeWireframeButton: document.getElementById("landscapeWireframeButton"),
+  landscapeResetButton: document.getElementById("landscapeResetButton"),
 };
+
+let landscapeViewer = null;
+
+function updateLandscapeViewer() {
+  if (!landscapeViewer) {
+    return;
+  }
+  landscapeViewer.updateMap(state.map);
+}
 
 function getLocalStorage() {
   if (cachedLocalStorage !== undefined) {
@@ -376,6 +390,8 @@ function renderGrid() {
     cell.addEventListener("click", (event) => event.preventDefault());
     elements.mapGrid.appendChild(cell);
   }
+
+  updateLandscapeViewer();
 }
 
 function paintCell(index, terrainId) {
@@ -410,6 +426,7 @@ function paintCell(index, terrainId) {
     cell.setAttribute("aria-label", ariaParts.join(", "));
   }
   updateJsonPreview();
+  updateLandscapeViewer();
 }
 
 function handleCellPointerDown(event) {
@@ -461,6 +478,18 @@ function setActivePaletteTab(tabId) {
     panel.classList.toggle("is-active", isActive);
     panel.hidden = !isActive;
   });
+
+  if (tabId === "landshaft") {
+    if (!landscapeViewer) {
+      landscapeViewer = initMapMaker3d({
+        canvas: elements.landscapeViewport,
+        errorElement: elements.landscapeError,
+        wireframeButton: elements.landscapeWireframeButton,
+        resetButton: elements.landscapeResetButton,
+      });
+    }
+    updateLandscapeViewer();
+  }
 }
 
 function focusAdjacentTab(direction) {
