@@ -1,12 +1,11 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
-import {
-  OUTSIDE_TERRAIN_TYPES,
-  getOutsideTerrainById,
-} from "./outside-map.js";
+import { getOutsideTerrainById } from "./outside-map.js";
 
 const HEIGHT_FLOOR = 0.05;
 const HEIGHT_SCALE = 6;
+const TERRAIN_HEIGHT = HEIGHT_FLOOR + HEIGHT_SCALE * 0.5;
+const NEUTRAL_TERRAIN_COLOR = "#475569";
 
 const getWebglSupport = () => {
   const canvas = document.createElement("canvas");
@@ -14,34 +13,17 @@ const getWebglSupport = () => {
   return contexts.some((name) => Boolean(canvas.getContext(name)));
 };
 
-const getTerrainHeightRange = () => {
-  const hpValues = OUTSIDE_TERRAIN_TYPES.map((terrain) => terrain.hp).filter(
-    (hp) => Number.isFinite(hp)
-  );
-  const min = hpValues.length ? Math.min(...hpValues) : 0;
-  const max = hpValues.length ? Math.max(...hpValues) : 1;
-  return { min, max };
-};
-
-const { min: MIN_HP, max: MAX_HP } = getTerrainHeightRange();
-
 const getTerrainHeight = (terrain) => {
   if (!terrain || terrain.id === "void") {
     return 0;
   }
-  if (!Number.isFinite(terrain.hp)) {
-    return HEIGHT_FLOOR;
-  }
-  if (MAX_HP === MIN_HP) {
-    return HEIGHT_FLOOR + HEIGHT_SCALE * 0.5;
-  }
-  const normalized = (terrain.hp - MIN_HP) / (MAX_HP - MIN_HP);
-  return HEIGHT_FLOOR + normalized * HEIGHT_SCALE;
+  return TERRAIN_HEIGHT;
 };
 
-const buildTerrainGeometry = (map) => {
+const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
   const positions = [];
   const colors = [];
+  const showColors = showTerrainTypes !== false;
 
   const width = map.width;
   const height = map.height;
@@ -52,7 +34,9 @@ const buildTerrainGeometry = (map) => {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
       const terrain = getOutsideTerrainById(map.cells[index]);
-      const color = new THREE.Color(terrain?.color ?? "#475569");
+      const color = new THREE.Color(
+        showColors ? terrain?.color ?? NEUTRAL_TERRAIN_COLOR : NEUTRAL_TERRAIN_COLOR
+      );
       const elevation = getTerrainHeight(terrain);
 
       const x0 = x - xOffset;
@@ -106,6 +90,7 @@ export const initMapMaker3d = ({
   errorElement,
   wireframeButton,
   resetButton,
+  terrainTypeToggle,
 } = {}) => {
   if (!canvas) {
     return null;
@@ -232,6 +217,8 @@ export const initMapMaker3d = ({
 
   let frameId = null;
   let mapSize = 10;
+  let lastMap = null;
+  let showTerrainTypes = terrainTypeToggle?.checked ?? true;
   const moveVector = new THREE.Vector3();
   const forwardVector = new THREE.Vector3();
   const rightVector = new THREE.Vector3();
@@ -298,11 +285,19 @@ export const initMapMaker3d = ({
     if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
       return;
     }
-    const geometry = buildTerrainGeometry(map);
+    lastMap = map;
+    const geometry = buildTerrainGeometry(map, { showTerrainTypes });
     mesh.geometry.dispose();
     mesh.geometry = geometry;
     setCameraForMap(map.width, map.height);
     resizeRenderer();
+  };
+
+  const updateTerrainTypeDisplay = (nextValue) => {
+    showTerrainTypes = nextValue;
+    if (lastMap) {
+      updateMap(lastMap);
+    }
   };
 
   const toggleWireframe = () => {
@@ -324,6 +319,14 @@ export const initMapMaker3d = ({
     });
   }
 
+  let terrainToggleHandler = null;
+  if (terrainTypeToggle) {
+    terrainToggleHandler = (event) => {
+      updateTerrainTypeDisplay(event.target.checked);
+    };
+    terrainTypeToggle.addEventListener("change", terrainToggleHandler);
+  }
+
   const dispose = () => {
     if (frameId) {
       window.cancelAnimationFrame(frameId);
@@ -336,6 +339,9 @@ export const initMapMaker3d = ({
     renderer.dispose();
     mesh.geometry.dispose();
     material.dispose();
+    if (terrainTypeToggle && terrainToggleHandler) {
+      terrainTypeToggle.removeEventListener("change", terrainToggleHandler);
+    }
   };
 
   return {

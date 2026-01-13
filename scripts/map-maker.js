@@ -99,6 +99,7 @@ const elements = {
   landscapeError: document.getElementById("landscapeError"),
   landscapeWireframeButton: document.getElementById("landscapeWireframeButton"),
   landscapeResetButton: document.getElementById("landscapeResetButton"),
+  landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
 };
 
 let landscapeViewer = null;
@@ -493,6 +494,7 @@ function setActivePaletteTab(tabId) {
         errorElement: elements.landscapeError,
         wireframeButton: elements.landscapeWireframeButton,
         resetButton: elements.landscapeResetButton,
+        terrainTypeToggle: elements.landscapeTypeToggle,
       });
     }
     updateLandscapeViewer();
