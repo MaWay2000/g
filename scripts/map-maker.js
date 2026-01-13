@@ -92,6 +92,7 @@ const elements = {
   fileInput: document.getElementById("fileInput"),
   loadFileButton: document.getElementById("loadFileButton"),
   tabButtons: Array.from(document.querySelectorAll("[data-map-maker-tab]")),
+  tabPanels: Array.from(document.querySelectorAll("[data-map-maker-panel]")),
 };
 
 function getLocalStorage() {
@@ -443,16 +444,22 @@ function updateJsonPreview() {
 }
 
 function setActivePaletteTab(tabId) {
+  let activePanelId = null;
   elements.tabButtons.forEach((button) => {
     const isActive = button.dataset.mapMakerTab === tabId;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-selected", String(isActive));
     button.tabIndex = isActive ? 0 : -1;
     const panelId = button.getAttribute("aria-controls");
-    const panel = panelId ? document.getElementById(panelId) : null;
-    if (panel) {
-      panel.hidden = !isActive;
+    if (isActive) {
+      activePanelId = panelId;
     }
+  });
+
+  elements.tabPanels.forEach((panel) => {
+    const isActive = panel.id === activePanelId;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
   });
 }
 
