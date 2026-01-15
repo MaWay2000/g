@@ -275,37 +275,6 @@
         display: flex;
       }
 
-      .toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.9rem;
-        padding: 1.25rem 1.75rem;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-        background: rgba(15, 23, 42, 0.6);
-      }
-
-      .toolbar label {
-        font-size: 0.8rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: rgba(226, 232, 240, 0.75);
-      }
-
-      .toolbar input[type="range"] {
-        width: 140px;
-      }
-
-      .toolbar .toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        font-size: 0.8rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: rgba(226, 232, 240, 0.75);
-      }
-
       .workspace {
         position: relative;
         overflow: auto;
@@ -315,27 +284,14 @@
 
       .map-workspace {
         display: flex;
-        flex-wrap: wrap;
-        align-items: flex-start;
-        gap: 1.75rem;
-      }
-
-      .map-stage {
-        position: relative;
-        display: inline-flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        flex: 1 1 520px;
-        min-width: min(520px, 100%);
-        background: rgba(2, 6, 23, 0.6);
-        border-radius: 1.25rem;
-        padding: 1.25rem 1.5rem;
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        box-shadow: 0 24px 48px rgba(2, 6, 23, 0.35);
+        align-items: stretch;
+        justify-content: center;
+        gap: 1.5rem;
+        width: 100%;
       }
 
       .landscape-stage {
-        width: min(100%, 1100px);
+        width: min(100%, 1200px);
         display: flex;
         flex-direction: column;
         gap: 1rem;
@@ -352,80 +308,6 @@
         gap: 1.25rem;
         font-size: 0.85rem;
         color: rgba(226, 232, 240, 0.75);
-      }
-
-      .map-grid {
-        display: grid;
-        grid-template-columns: repeat(var(--width), var(--cell-size));
-        grid-template-rows: repeat(var(--height), var(--cell-size));
-        border: 1px solid rgba(148, 163, 184, 0.4);
-        border-radius: 0.9rem;
-        overflow: hidden;
-        background: rgba(15, 23, 42, 0.65);
-        position: relative;
-        user-select: none;
-      }
-
-      .map-grid[data-show-grid="true"]::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        background-image: linear-gradient(
-            to right,
-            rgba(15, 23, 42, 0.2) 1px,
-            transparent 1px
-          ),
-          linear-gradient(to bottom, rgba(15, 23, 42, 0.2) 1px, transparent 1px);
-        background-size: var(--cell-size) var(--cell-size);
-      }
-
-      .map-cell {
-        width: var(--cell-size);
-        height: var(--cell-size);
-        border: none;
-        margin: 0;
-        padding: 0;
-        background: transparent;
-        position: relative;
-        cursor: pointer;
-      }
-
-      .map-cell::after {
-        content: "";
-        position: absolute;
-        inset: 4px;
-        border-radius: 0.6rem;
-        background-image: none;
-        background-color: transparent;
-        background-size: cover;
-        background-repeat: no-repeat;
-        background-position: center;
-        transition: transform 120ms ease, box-shadow 120ms ease;
-      }
-
-      .map-grid[data-show-textures="true"] .map-cell::after {
-        background-image: var(--cell-texture, none);
-      }
-
-      .map-grid[data-show-colors="true"] .map-cell::after {
-        background-color: var(--cell-color, transparent);
-        background-blend-mode: multiply;
-      }
-
-      .map-cell:hover::after,
-      .map-cell:focus-visible::after {
-        transform: translateZ(0) scale(0.96);
-        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.45);
-      }
-
-      .map-cell[data-terrain="void"]::after {
-        border: 1px dashed rgba(148, 163, 184, 0.35);
-        background: transparent;
-      }
-
-      .map-cell[data-active="true"]::after {
-        box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.6);
       }
 
       .json-output {
@@ -798,30 +680,20 @@
             <button id="resetButton" type="button" data-variant="danger">Reset map</button>
           </div>
         </section>
+
+        <section class="sidebar-section">
+          <h2>Live JSON</h2>
+          <div class="json-output" aria-live="polite">
+            <code id="jsonPreview"></code>
+          </div>
+        </section>
       </div>
     </aside>
 
     <main class="main">
       <div class="main-panel is-active" data-map-maker-main="terrain">
-        <div class="toolbar">
-          <label for="cellSizeRange">Cell size</label>
-          <input id="cellSizeRange" type="range" min="28" max="80" step="4" value="42" />
-          <label class="toggle"
-            ><input id="gridToggle" type="checkbox" checked /> show grid</label
-          >
-          <label class="toggle"
-            ><input id="colorToggle" type="checkbox" checked /> show terrain color</label
-          >
-          <label class="toggle"
-            ><input id="textureToggle" type="checkbox" checked /> show terrain textures</label
-          >
-          <div class="hint">
-            Hold Shift while painting to erase with the void terrain, or pick a
-            new element group from the palette to change your brush.
-          </div>
-        </div>
         <div class="workspace map-workspace">
-          <div class="map-stage">
+          <section class="landscape-stage" aria-label="Landshaft preview">
             <div class="map-info">
               <div><strong>Map:</strong> <span id="mapNameDisplay">Untitled</span></div>
               <div><strong>Region:</strong> <span id="mapRegionDisplay">—</span></div>
@@ -830,23 +702,6 @@
                 <span id="mapSizeDisplay">0 × 0</span>
               </div>
             </div>
-            <div
-              id="mapGrid"
-              class="map-grid"
-              role="grid"
-              aria-label="Map grid"
-              data-show-grid="true"
-              data-show-colors="true"
-              data-show-textures="true"
-            ></div>
-            <section class="sidebar-section">
-              <h2>Live JSON</h2>
-              <div class="json-output" aria-live="polite">
-                <code id="jsonPreview"></code>
-              </div>
-            </section>
-          </div>
-          <section class="landscape-stage" aria-label="Landshaft preview">
             <div class="landscape-viewport">
               <canvas id="landscapeViewport" aria-label="3D landshaft preview"></canvas>
             </div>
