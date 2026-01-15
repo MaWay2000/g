@@ -99,6 +99,8 @@ export const initMapMaker3d = ({
   terrainTypeToggle,
   terrainTextureToggle,
   initialTextureVisibility = true,
+  onPaintCell,
+  onPaintEnd,
 } = {}) => {
   if (!canvas) {
     return null;
@@ -230,6 +232,10 @@ export const initMapMaker3d = ({
 
   const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
   scene.add(mesh);
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let isPointerDown = false;
+  let lastPaintedIndex = null;
 
   const textureCanvas = document.createElement("canvas");
   const textureContext = textureCanvas.getContext("2d");
@@ -241,6 +247,8 @@ export const initMapMaker3d = ({
   let frameId = null;
   let mapSize = 10;
   let lastMap = null;
+  let mapWidth = 0;
+  let mapHeight = 0;
   const getTerrainToggleState = () => {
     if (!terrainTypeToggle) {
       return true;
@@ -460,6 +468,8 @@ export const initMapMaker3d = ({
       return;
     }
     lastMap = map;
+    mapWidth = map.width;
+    mapHeight = map.height;
     const geometry = buildTerrainGeometry(map, { showTerrainTypes });
     mesh.geometry.dispose();
     mesh.geometry = geometry;
@@ -487,6 +497,83 @@ export const initMapMaker3d = ({
       void renderTerrainTexture(lastMap);
     }
   };
+
+  const getCellIndexFromEvent = (event) => {
+    if (!lastMap) {
+      return null;
+    }
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return null;
+    }
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObject(mesh, false);
+    if (!intersects.length) {
+      return null;
+    }
+    const point = intersects[0].point;
+    const xIndex = Math.floor(point.x + mapWidth / 2);
+    const yIndex = Math.floor(point.z + mapHeight / 2);
+    if (
+      xIndex < 0 ||
+      yIndex < 0 ||
+      xIndex >= mapWidth ||
+      yIndex >= mapHeight
+    ) {
+      return null;
+    }
+    return yIndex * mapWidth + xIndex;
+  };
+
+  const paintFromEvent = (event, { isStart = false } = {}) => {
+    if (typeof onPaintCell !== "function") {
+      return;
+    }
+    const index = getCellIndexFromEvent(event);
+    if (index === null || index === lastPaintedIndex) {
+      return;
+    }
+    lastPaintedIndex = index;
+    onPaintCell({ index, isStart, shiftKey: event.shiftKey });
+  };
+
+  const handlePointerDown = (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    isPointerDown = true;
+    lastPaintedIndex = null;
+    canvas.setPointerCapture(event.pointerId);
+    paintFromEvent(event, { isStart: true });
+  };
+
+  const handlePointerMove = (event) => {
+    if (!isPointerDown) {
+      return;
+    }
+    paintFromEvent(event, { isStart: false });
+  };
+
+  const handlePointerUp = (event) => {
+    if (!isPointerDown) {
+      return;
+    }
+    isPointerDown = false;
+    lastPaintedIndex = null;
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    if (typeof onPaintEnd === "function") {
+      onPaintEnd();
+    }
+  };
+
+  canvas.addEventListener("pointerdown", handlePointerDown);
+  canvas.addEventListener("pointermove", handlePointerMove);
+  canvas.addEventListener("pointerup", handlePointerUp);
+  canvas.addEventListener("pointercancel", handlePointerUp);
 
   if (resetButton) {
     resetButton.addEventListener("click", () => {
@@ -526,6 +613,10 @@ export const initMapMaker3d = ({
     renderer.dispose();
     mesh.geometry.dispose();
     material.dispose();
+    canvas.removeEventListener("pointerdown", handlePointerDown);
+    canvas.removeEventListener("pointermove", handlePointerMove);
+    canvas.removeEventListener("pointerup", handlePointerUp);
+    canvas.removeEventListener("pointercancel", handlePointerUp);
     if (terrainTypeToggle && terrainToggleHandler) {
       terrainTypeToggle.removeEventListener("click", terrainToggleHandler);
     }
