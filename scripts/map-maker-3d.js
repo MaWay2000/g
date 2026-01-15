@@ -170,7 +170,7 @@ export const initMapMaker3d = ({
   controls.maxDistance = 80;
   controls.maxPolarAngle = Math.PI / 2.1;
   controls.mouseButtons = {
-    LEFT: THREE.MOUSE.ROTATE,
+    LEFT: null,
     MIDDLE: THREE.MOUSE.DOLLY,
     RIGHT: THREE.MOUSE.ROTATE,
   };

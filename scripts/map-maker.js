@@ -475,6 +475,9 @@ function paintCell(index, terrainId) {
 
 function handleCellPointerDown(event) {
   event.preventDefault();
+  if (event.button !== 0) {
+    return;
+  }
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
   const erase = event.shiftKey;
