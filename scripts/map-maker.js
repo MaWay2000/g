@@ -325,14 +325,30 @@ function updateMapMetadata({ name, region, notes }) {
 }
 
 function updateMetadataDisplays() {
-  elements.mapNameDisplay.textContent = state.map.name || "Untitled";
-  elements.mapRegionDisplay.textContent = state.map.region || "—";
-  elements.mapSizeDisplay.textContent = `${state.map.width} × ${state.map.height}`;
-  elements.mapNameInput.value = state.map.name;
-  elements.regionInput.value = state.map.region;
-  elements.notesInput.value = state.map.notes;
-  elements.widthInput.value = state.map.width;
-  elements.heightInput.value = state.map.height;
+  if (elements.mapNameDisplay) {
+    elements.mapNameDisplay.textContent = state.map.name || "Untitled";
+  }
+  if (elements.mapRegionDisplay) {
+    elements.mapRegionDisplay.textContent = state.map.region || "—";
+  }
+  if (elements.mapSizeDisplay) {
+    elements.mapSizeDisplay.textContent = `${state.map.width} × ${state.map.height}`;
+  }
+  if (elements.mapNameInput) {
+    elements.mapNameInput.value = state.map.name;
+  }
+  if (elements.regionInput) {
+    elements.regionInput.value = state.map.region;
+  }
+  if (elements.notesInput) {
+    elements.notesInput.value = state.map.notes;
+  }
+  if (elements.widthInput) {
+    elements.widthInput.value = state.map.width;
+  }
+  if (elements.heightInput) {
+    elements.heightInput.value = state.map.height;
+  }
 }
 
 function resizeMap(width, height) {
