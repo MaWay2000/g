@@ -9,6 +9,7 @@ const HEIGHT_FLOOR = 0.05;
 const HEIGHT_SCALE = 6;
 const TERRAIN_HEIGHT = HEIGHT_FLOOR + HEIGHT_SCALE * 0.5;
 const NEUTRAL_TERRAIN_COLOR = "#f8fafc";
+const TRANSPARENT_COLOR_KEYWORD = "transparent";
 
 const getWebglSupport = () => {
   const canvas = document.createElement("canvas");
@@ -17,6 +18,23 @@ const getWebglSupport = () => {
 };
 
 const getTerrainHeight = () => TERRAIN_HEIGHT;
+
+const resolveTerrainColor = (terrain, showColors) => {
+  if (!showColors) {
+    return NEUTRAL_TERRAIN_COLOR;
+  }
+
+  const terrainColor = terrain?.color;
+  if (typeof terrainColor !== "string") {
+    return NEUTRAL_TERRAIN_COLOR;
+  }
+
+  if (terrainColor.trim().toLowerCase() === TRANSPARENT_COLOR_KEYWORD) {
+    return NEUTRAL_TERRAIN_COLOR;
+  }
+
+  return terrainColor;
+};
 
 const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
   const positions = [];
@@ -33,9 +51,7 @@ const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
       const terrain = getOutsideTerrainById(map.cells[index]);
-      const color = new THREE.Color(
-        showColors ? terrain?.color ?? NEUTRAL_TERRAIN_COLOR : NEUTRAL_TERRAIN_COLOR
-      );
+      const color = new THREE.Color(resolveTerrainColor(terrain, showColors));
       const elevation = getTerrainHeight(terrain);
 
       const x0 = x - xOffset;
