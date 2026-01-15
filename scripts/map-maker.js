@@ -22,6 +22,7 @@ const state = {
   map: createDefaultOutsideMap(),
   isPointerDown: false,
   pointerTerrain: null,
+  showTextures: true,
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
@@ -110,6 +111,21 @@ function updateLandscapeViewer() {
     return;
   }
   landscapeViewer.updateMap(state.map);
+}
+
+function getTextureVisibility() {
+  if (elements.mapGrid) {
+    return elements.mapGrid.dataset.showTextures !== "false";
+  }
+  return state.showTextures;
+}
+
+function setTextureVisibility(isEnabled) {
+  state.showTextures = isEnabled;
+  if (elements.mapGrid) {
+    elements.mapGrid.dataset.showTextures = String(isEnabled);
+  }
+  syncTextureToggleLabel(isEnabled);
 }
 
 function syncTextureToggleLabel(isEnabled) {
@@ -379,6 +395,11 @@ function renderPalette() {
 }
 
 function renderGrid() {
+  if (!elements.mapGrid) {
+    updateLandscapeViewer();
+    return;
+  }
+
   elements.mapGrid.style.setProperty("--width", state.map.width);
   elements.mapGrid.style.setProperty("--height", state.map.height);
   elements.mapGrid.innerHTML = "";
@@ -424,27 +445,29 @@ function paintCell(index, terrainId) {
   }
 
   state.map.cells[index] = terrainId;
-  const cell = elements.mapGrid.querySelector(
-    `.map-cell[data-index="${index}"]`
-  );
-  if (cell) {
-    const terrain = getTerrainById(terrainId);
-    cell.dataset.terrain = terrain.id;
-    cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
-    cell.style.setProperty(
-      "--cell-texture",
-      getTerrainTextureCssValue(terrain.id, index)
+  if (elements.mapGrid) {
+    const cell = elements.mapGrid.querySelector(
+      `.map-cell[data-index="${index}"]`
     );
-    const ariaParts = [`Cell ${index + 1}`, terrain.label];
-    const hpLabel = formatTerrainHp(terrain);
-    if (hpLabel !== UNKNOWN_HP_LABEL) {
-      ariaParts.push(`HP ${hpLabel}`);
+    if (cell) {
+      const terrain = getTerrainById(terrainId);
+      cell.dataset.terrain = terrain.id;
+      cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
+      cell.style.setProperty(
+        "--cell-texture",
+        getTerrainTextureCssValue(terrain.id, index)
+      );
+      const ariaParts = [`Cell ${index + 1}`, terrain.label];
+      const hpLabel = formatTerrainHp(terrain);
+      if (hpLabel !== UNKNOWN_HP_LABEL) {
+        ariaParts.push(`HP ${hpLabel}`);
+      }
+      const elementLabel = formatTerrainElement(terrain);
+      if (elementLabel) {
+        ariaParts.push(`Element ${elementLabel}`);
+      }
+      cell.setAttribute("aria-label", ariaParts.join(", "));
     }
-    const elementLabel = formatTerrainElement(terrain);
-    if (elementLabel) {
-      ariaParts.push(`Element ${elementLabel}`);
-    }
-    cell.setAttribute("aria-label", ariaParts.join(", "));
   }
   updateJsonPreview();
   updateLandscapeViewer();
@@ -505,7 +528,7 @@ function setActivePaletteTab(tabId) {
     panel.classList.toggle("is-active", isActive);
   });
 
-  if (tabId === "landshaft" || tabId === "terrain") {
+  if (tabId === "landshaft" || tabId === "terrain" || tabId === "objects") {
     if (!landscapeViewer) {
       landscapeViewer = initMapMaker3d({
         canvas: elements.landscapeViewport,
@@ -513,14 +536,11 @@ function setActivePaletteTab(tabId) {
         resetButton: elements.landscapeResetButton,
         terrainTypeToggle: elements.landscapeTypeToggle,
         terrainTextureToggle: elements.landscapeTextureToggle,
-        initialTextureVisibility:
-          elements.mapGrid.dataset.showTextures !== "false",
+        initialTextureVisibility: getTextureVisibility(),
       });
     }
     if (landscapeViewer?.setTextureVisibility) {
-      landscapeViewer.setTextureVisibility(
-        elements.mapGrid.dataset.showTextures !== "false"
-      );
+      landscapeViewer.setTextureVisibility(getTextureVisibility());
     }
     updateLandscapeViewer();
     window.requestAnimationFrame(() => {
@@ -704,38 +724,38 @@ function initControls() {
     }
   });
 
-  elements.cellSizeRange.addEventListener("input", (event) => {
-    document.documentElement.style.setProperty(
-      "--cell-size",
-      `${event.target.value}px`
-    );
-  });
+  if (elements.cellSizeRange) {
+    elements.cellSizeRange.addEventListener("input", (event) => {
+      document.documentElement.style.setProperty(
+        "--cell-size",
+        `${event.target.value}px`
+      );
+    });
+  }
 
-  elements.gridToggle.addEventListener("change", (event) => {
-    elements.mapGrid.dataset.showGrid = String(event.target.checked);
-  });
+  if (elements.gridToggle && elements.mapGrid) {
+    elements.gridToggle.addEventListener("change", (event) => {
+      elements.mapGrid.dataset.showGrid = String(event.target.checked);
+    });
+  }
 
-  elements.colorToggle.addEventListener("change", (event) => {
-    elements.mapGrid.dataset.showColors = String(event.target.checked);
-  });
+  if (elements.colorToggle && elements.mapGrid) {
+    elements.colorToggle.addEventListener("change", (event) => {
+      elements.mapGrid.dataset.showColors = String(event.target.checked);
+    });
+  }
 
-  const defaultTextureState =
-    elements.textureToggle?.checked ??
-    elements.mapGrid.dataset.showTextures !== "false";
-  elements.mapGrid.dataset.showTextures = String(defaultTextureState);
-  syncTextureToggleLabel(defaultTextureState);
+  const defaultTextureState = elements.textureToggle?.checked ?? true;
+  setTextureVisibility(defaultTextureState);
   if (elements.textureToggle) {
     elements.textureToggle.addEventListener("change", (event) => {
-      const nextValue = event.target.checked;
-      elements.mapGrid.dataset.showTextures = String(nextValue);
-      syncTextureToggleLabel(nextValue);
+      setTextureVisibility(event.target.checked);
     });
   }
   if (elements.landscapeTextureToggle) {
     elements.landscapeTextureToggle.addEventListener("click", () => {
-      const nextValue = elements.mapGrid.dataset.showTextures === "false";
-      elements.mapGrid.dataset.showTextures = String(nextValue);
-      syncTextureToggleLabel(nextValue);
+      const nextValue = !getTextureVisibility();
+      setTextureVisibility(nextValue);
     });
   }
 
@@ -794,9 +814,11 @@ function initControls() {
     }
   });
 
-  elements.mapGrid.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-  });
+  if (elements.mapGrid) {
+    elements.mapGrid.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
+  }
 }
 
 initControls();
