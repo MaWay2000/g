@@ -423,7 +423,11 @@ export const initMapMaker3d = ({
     frameId = window.requestAnimationFrame(renderLoop);
     const delta = clock.getDelta();
     if (moveKeys.size > 0) {
-      camera.getWorldDirection(forwardVector);
+      forwardVector.copy(controls.target).sub(camera.position);
+      forwardVector.y = 0;
+      if (forwardVector.lengthSq() === 0) {
+        forwardVector.set(0, 0, -1);
+      }
       forwardVector.normalize();
       rightVector.crossVectors(forwardVector, camera.up).normalize();
       moveVector.set(0, 0, 0);
