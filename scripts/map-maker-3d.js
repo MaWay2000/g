@@ -8,7 +8,7 @@ import {
 const HEIGHT_FLOOR = 0.05;
 const HEIGHT_SCALE = 6;
 const TERRAIN_HEIGHT = HEIGHT_FLOOR + HEIGHT_SCALE * 0.5;
-const NEUTRAL_TERRAIN_COLOR = "#475569";
+const NEUTRAL_TERRAIN_COLOR = "#f8fafc";
 
 const getWebglSupport = () => {
   const canvas = document.createElement("canvas");
