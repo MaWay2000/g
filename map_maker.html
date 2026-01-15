@@ -313,11 +313,20 @@
         flex: 1;
       }
 
+      .map-workspace {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 1.75rem;
+      }
+
       .map-stage {
         position: relative;
         display: inline-flex;
         flex-direction: column;
         gap: 0.75rem;
+        flex: 1 1 520px;
+        min-width: min(520px, 100%);
         background: rgba(2, 6, 23, 0.6);
         border-radius: 1.25rem;
         padding: 1.25rem 1.5rem;
@@ -545,21 +554,13 @@
         min-height: 360px;
       }
 
-      .main-panel[data-map-maker-main="landshaft"] .workspace {
-        display: flex;
-        padding: 1.25rem;
+      .landscape-stage {
+        flex: 1 1 360px;
+        min-width: min(520px, 100%);
       }
 
-      .main-panel[data-map-maker-main="landshaft"] .landscape-stage {
-        width: 100%;
-        max-width: none;
-        flex: 1;
-        min-height: 100%;
-      }
-
-      .main-panel[data-map-maker-main="landshaft"] .landscape-viewport {
-        flex: 1;
-        min-height: clamp(420px, 65vh, 760px);
+      .landscape-viewport {
+        min-height: clamp(360px, 48vh, 520px);
       }
 
       .landscape-viewport canvas {
@@ -821,7 +822,7 @@
             new element group from the palette to change your brush.
           </div>
         </div>
-        <div class="workspace">
+        <div class="workspace map-workspace">
           <div class="map-stage">
             <div class="map-info">
               <div><strong>Map:</strong> <span id="mapNameDisplay">Untitled</span></div>
@@ -847,16 +848,9 @@
               </div>
             </section>
           </div>
-        </div>
-      </div>
-      <div class="main-panel" data-map-maker-main="landshaft">
-        <div class="workspace">
-          <section class="landscape-stage">
+          <section class="landscape-stage" aria-label="Landshaft preview">
             <div class="landscape-viewport">
-              <canvas
-                id="landscapeViewport"
-                aria-label="3D landshaft preview"
-              ></canvas>
+              <canvas id="landscapeViewport" aria-label="3D landshaft preview"></canvas>
             </div>
             <div class="landscape-error" id="landscapeError" role="status" hidden>
               WebGL support is unavailable in this browser. Try a different browser
