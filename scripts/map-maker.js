@@ -501,12 +501,11 @@ function setActivePaletteTab(tabId) {
   });
 
   elements.mainPanels.forEach((panel) => {
-    const isActive =
-      panel.dataset.mapMakerMain === (tabId === "landshaft" ? "landshaft" : "terrain");
+    const isActive = panel.dataset.mapMakerMain === "terrain";
     panel.classList.toggle("is-active", isActive);
   });
 
-  if (tabId === "landshaft") {
+  if (tabId === "landshaft" || tabId === "terrain") {
     if (!landscapeViewer) {
       landscapeViewer = initMapMaker3d({
         canvas: elements.landscapeViewport,
