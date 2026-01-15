@@ -481,7 +481,9 @@ export const initMapMaker3d = ({
   };
 
   const updateMap = (map) => {
-    applyMapGeometry(map, { resetCamera: true });
+    const shouldResetCamera =
+      !lastMap || map.width !== mapWidth || map.height !== mapHeight;
+    applyMapGeometry(map, { resetCamera: shouldResetCamera });
   };
 
   const updateTerrainTypeDisplay = (nextValue) => {
