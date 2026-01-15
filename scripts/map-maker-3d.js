@@ -148,12 +148,20 @@ export const initMapMaker3d = ({
 
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
 
-  const ambientLight = new THREE.AmbientLight("#cbd5f5", 0.65);
+  const ambientLight = new THREE.AmbientLight("#cbd5f5", 0.75);
   scene.add(ambientLight);
 
   const keyLight = new THREE.DirectionalLight("#ffffff", 0.85);
   keyLight.position.set(10, 20, 15);
   scene.add(keyLight);
+
+  const hemiLight = new THREE.HemisphereLight("#e2e8f0", "#334155", 0.6);
+  hemiLight.position.set(0, 20, 0);
+  scene.add(hemiLight);
+
+  const fillLight = new THREE.DirectionalLight("#bfdbfe", 0.35);
+  fillLight.position.set(-12, 10, -6);
+  scene.add(fillLight);
 
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
