@@ -473,6 +473,24 @@ function paintCell(index, terrainId) {
   updateLandscapeViewer();
 }
 
+function beginPointerPaint(erase) {
+  const terrainId = erase ? TERRAIN_TYPES[0].id : state.terrain.id;
+  state.isPointerDown = true;
+  state.pointerTerrain = terrainId;
+}
+
+function applyPointerPaint(index) {
+  if (!state.isPointerDown) {
+    return;
+  }
+  paintCell(index, state.pointerTerrain);
+}
+
+function endPointerPaint() {
+  state.isPointerDown = false;
+  state.pointerTerrain = null;
+}
+
 function handleCellPointerDown(event) {
   event.preventDefault();
   if (event.button !== 0) {
@@ -481,25 +499,15 @@ function handleCellPointerDown(event) {
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
   const erase = event.shiftKey;
-  const terrainId = erase ? TERRAIN_TYPES[0].id : state.terrain.id;
-  state.isPointerDown = true;
-  state.pointerTerrain = terrainId;
-  paintCell(index, terrainId);
-  window.addEventListener("pointerup", handlePointerUp, { once: true });
+  beginPointerPaint(erase);
+  applyPointerPaint(index);
+  window.addEventListener("pointerup", endPointerPaint, { once: true });
 }
 
 function handleCellPointerEnter(event) {
-  if (!state.isPointerDown) {
-    return;
-  }
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
-  paintCell(index, state.pointerTerrain);
-}
-
-function handlePointerUp() {
-  state.isPointerDown = false;
-  state.pointerTerrain = null;
+  applyPointerPaint(index);
 }
 
 function updateJsonPreview() {
@@ -541,6 +549,18 @@ function setActivePaletteTab(tabId) {
         terrainTypeToggle: elements.landscapeTypeToggle,
         terrainTextureToggle: elements.landscapeTextureToggle,
         initialTextureVisibility: getTextureVisibility(),
+        onPaintCell: ({ index, isStart, shiftKey }) => {
+          if (!Number.isFinite(index)) {
+            return;
+          }
+          if (isStart) {
+            beginPointerPaint(Boolean(shiftKey));
+          }
+          applyPointerPaint(index);
+        },
+        onPaintEnd: () => {
+          endPointerPaint();
+        },
       });
     }
     if (landscapeViewer?.setTextureVisibility) {
@@ -815,8 +835,7 @@ function initControls() {
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      state.isPointerDown = false;
-      state.pointerTerrain = null;
+      endPointerPaint();
     }
   });
 
