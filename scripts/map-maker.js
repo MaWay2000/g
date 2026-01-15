@@ -529,6 +529,7 @@ function setActivePaletteTab(tabId) {
   });
 
   if (tabId === "landshaft" || tabId === "terrain" || tabId === "objects") {
+    const needsInit = !landscapeViewer;
     if (!landscapeViewer) {
       landscapeViewer = initMapMaker3d({
         canvas: elements.landscapeViewport,
@@ -542,10 +543,12 @@ function setActivePaletteTab(tabId) {
     if (landscapeViewer?.setTextureVisibility) {
       landscapeViewer.setTextureVisibility(getTextureVisibility());
     }
-    updateLandscapeViewer();
-    window.requestAnimationFrame(() => {
-      landscapeViewer?.resize?.();
-    });
+    if (needsInit) {
+      updateLandscapeViewer();
+      window.requestAnimationFrame(() => {
+        landscapeViewer?.resize?.();
+      });
+    }
   }
 }
 
