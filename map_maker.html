@@ -310,57 +310,6 @@
         color: rgba(226, 232, 240, 0.75);
       }
 
-      .map-grid {
-        --width: 1;
-        --height: 1;
-        display: grid;
-        grid-template-columns: repeat(var(--width), var(--cell-size));
-        grid-auto-rows: var(--cell-size);
-        gap: 2px;
-        padding: 0.75rem;
-        border-radius: 1rem;
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        background: rgba(2, 6, 23, 0.4);
-        overflow: auto;
-        max-width: 100%;
-      }
-
-      .map-cell {
-        width: var(--cell-size);
-        height: var(--cell-size);
-        border-radius: 0.4rem;
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        background-color: var(--cell-color, transparent);
-        background-image: var(--cell-texture, none);
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        cursor: pointer;
-        transition: transform 120ms ease, box-shadow 120ms ease;
-      }
-
-      .map-cell:focus-visible {
-        outline: 2px solid rgba(125, 211, 252, 0.7);
-        outline-offset: 2px;
-      }
-
-      .map-cell:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 8px 16px rgba(2, 6, 23, 0.4);
-      }
-
-      .map-grid[data-show-grid="false"] .map-cell {
-        border-color: transparent;
-      }
-
-      .map-grid[data-show-colors="false"] .map-cell {
-        background-color: transparent;
-      }
-
-      .map-grid[data-show-textures="false"] .map-cell {
-        background-image: none;
-      }
-
       .json-output {
         font-family: "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
         font-size: 0.8rem;
@@ -748,7 +697,6 @@
                 <span id="mapSizeDisplay">0 × 0</span>
               </div>
             </div>
-            <div class="map-grid" id="mapGrid" role="grid" aria-label="Terrain map grid"></div>
             <div class="landscape-viewport">
               <canvas id="landscapeViewport" aria-label="3D landshaft preview"></canvas>
             </div>
