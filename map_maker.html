@@ -222,6 +222,142 @@
         gap: 0.65rem;
       }
 
+      .terrain-menu {
+        display: grid;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(2, 6, 23, 0.5);
+      }
+
+      .terrain-menu-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .terrain-mode-button {
+        padding: 0.45rem 0.8rem;
+        border-radius: 0.6rem;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(30, 41, 59, 0.7);
+        color: inherit;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease,
+          background 120ms ease;
+      }
+
+      .terrain-mode-button:hover,
+      .terrain-mode-button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(148, 163, 184, 0.6);
+        outline: none;
+      }
+
+      .terrain-mode-button.is-active {
+        border-color: rgba(74, 222, 128, 0.8);
+        background: linear-gradient(180deg, #bef264, #4ade80);
+        color: #0f172a;
+      }
+
+      .terrain-info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+      }
+
+      .terrain-info-card {
+        padding: 0.45rem 0.6rem;
+        border-radius: 0.6rem;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(15, 23, 42, 0.6);
+        display: grid;
+        gap: 0.2rem;
+        font-size: 0.75rem;
+      }
+
+      .terrain-info-label {
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: rgba(226, 232, 240, 0.7);
+      }
+
+      .terrain-info-value {
+        font-weight: 600;
+        color: #e2e8f0;
+        word-break: break-word;
+      }
+
+      .terrain-control-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .terrain-rotation {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.8rem;
+      }
+
+      .terrain-icon-button {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.55rem;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: rgba(30, 41, 59, 0.7);
+        color: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease;
+      }
+
+      .terrain-icon-button:hover,
+      .terrain-icon-button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(129, 140, 248, 0.6);
+        outline: none;
+      }
+
+      .terrain-control-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.7);
+      }
+
+      .terrain-tile-display {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+      }
+
+      .terrain-type-select {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+      }
+
+      .terrain-type-select select {
+        padding: 0.35rem 0.5rem;
+        border-radius: 0.55rem;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: rgba(2, 6, 23, 0.65);
+        color: inherit;
+        font-size: 0.8rem;
+      }
+
       .terrain-button {
         display: flex;
         align-items: center;
@@ -576,6 +712,83 @@
         aria-labelledby="tab-terrain"
         data-map-maker-panel="terrain"
       >
+        <section class="sidebar-section">
+          <h2>Terrain Tools</h2>
+          <div class="terrain-menu">
+            <div class="terrain-menu-actions" role="group" aria-label="Terrain tools">
+              <button
+                class="terrain-mode-button is-active"
+                type="button"
+                data-terrain-mode="brush"
+              >
+                Use Brush
+              </button>
+              <button
+                class="terrain-mode-button"
+                type="button"
+                data-terrain-mode="draw"
+              >
+                Draw on map
+              </button>
+              <button
+                class="terrain-mode-button"
+                type="button"
+                data-terrain-toggle="textures"
+                aria-pressed="true"
+              >
+                Show tile
+              </button>
+            </div>
+            <div class="terrain-info-grid">
+              <div class="terrain-info-card">
+                <span class="terrain-info-label">ID</span>
+                <span class="terrain-info-value" id="terrainIdDisplay">—</span>
+              </div>
+              <div class="terrain-info-card">
+                <span class="terrain-info-label">Type</span>
+                <span class="terrain-info-value" id="terrainLabelDisplay">—</span>
+              </div>
+              <div class="terrain-info-card">
+                <span class="terrain-info-label">ID on map</span>
+                <span class="terrain-info-value" id="mapTerrainIdDisplay">—</span>
+              </div>
+              <div class="terrain-info-card">
+                <span class="terrain-info-label">Type on map</span>
+                <span class="terrain-info-value" id="mapTerrainLabelDisplay">—</span>
+              </div>
+            </div>
+            <div class="terrain-control-row">
+              <div class="terrain-rotation">
+                <button
+                  class="terrain-icon-button"
+                  type="button"
+                  data-rotation="left"
+                  aria-label="Rotate left"
+                >
+                  ⟲
+                </button>
+                <button
+                  class="terrain-icon-button"
+                  type="button"
+                  data-rotation="right"
+                  aria-label="Rotate right"
+                >
+                  ⟳
+                </button>
+                <span id="terrainRotationDisplay">0°</span>
+              </div>
+              <div class="terrain-tile-display">
+                <span class="terrain-control-label">Tile:</span>
+                <span id="terrainTileDisplay">0</span>
+              </div>
+              <label class="terrain-type-select">
+                <span class="terrain-control-label">Type:</span>
+                <select id="terrainTypeSelect"></select>
+              </label>
+            </div>
+          </div>
+        </section>
+
         <section class="sidebar-section">
           <h2>Terrain Palette</h2>
           <div class="terrain-palette" id="terrainPalette"></div>

@@ -22,6 +22,8 @@ const state = {
   map: createDefaultOutsideMap(),
   isPointerDown: false,
   pointerTerrain: null,
+  terrainMode: "brush",
+  terrainRotation: 0,
   showTextures: true,
 };
 
@@ -102,6 +104,20 @@ const elements = {
   landscapeResetButton: document.getElementById("landscapeResetButton"),
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
+  terrainIdDisplay: document.getElementById("terrainIdDisplay"),
+  terrainLabelDisplay: document.getElementById("terrainLabelDisplay"),
+  mapTerrainIdDisplay: document.getElementById("mapTerrainIdDisplay"),
+  mapTerrainLabelDisplay: document.getElementById("mapTerrainLabelDisplay"),
+  terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
+  terrainTileDisplay: document.getElementById("terrainTileDisplay"),
+  terrainTypeSelect: document.getElementById("terrainTypeSelect"),
+  terrainModeButtons: Array.from(document.querySelectorAll("[data-terrain-mode]")),
+  terrainTextureButton: document.querySelector(
+    '[data-terrain-toggle="textures"]'
+  ),
+  terrainRotationButtons: Array.from(
+    document.querySelectorAll("[data-rotation]")
+  ),
 };
 
 let landscapeViewer = null;
@@ -125,6 +141,7 @@ function setTextureVisibility(isEnabled) {
   if (elements.mapGrid) {
     elements.mapGrid.dataset.showTextures = String(isEnabled);
   }
+  syncTerrainTextureButton(isEnabled);
   syncTextureToggleLabel(isEnabled);
 }
 
@@ -144,6 +161,86 @@ function syncTextureToggleLabel(isEnabled) {
   if (landscapeViewer?.setTextureVisibility) {
     landscapeViewer.setTextureVisibility(isEnabled);
   }
+}
+
+function syncTerrainTextureButton(isEnabled) {
+  if (!elements.terrainTextureButton) {
+    return;
+  }
+  elements.terrainTextureButton.classList.toggle("is-active", isEnabled);
+  elements.terrainTextureButton.setAttribute("aria-pressed", String(isEnabled));
+}
+
+function updateTerrainMenu(terrain = state.terrain) {
+  if (elements.terrainIdDisplay) {
+    elements.terrainIdDisplay.textContent = terrain?.id ?? "—";
+  }
+  if (elements.terrainLabelDisplay) {
+    elements.terrainLabelDisplay.textContent = terrain?.label ?? "—";
+  }
+  if (elements.terrainTileDisplay) {
+    const terrainIndex = TERRAIN_TYPES.findIndex(
+      (entry) => entry.id === terrain?.id
+    );
+    elements.terrainTileDisplay.textContent =
+      terrainIndex >= 0 ? String(terrainIndex) : "—";
+  }
+  if (elements.terrainTypeSelect && terrain?.id) {
+    elements.terrainTypeSelect.value = terrain.id;
+  }
+}
+
+function updateMapTerrainDisplay(terrainId) {
+  const terrain = terrainId ? getTerrainById(terrainId) : null;
+  if (elements.mapTerrainIdDisplay) {
+    elements.mapTerrainIdDisplay.textContent = terrain?.id ?? "—";
+  }
+  if (elements.mapTerrainLabelDisplay) {
+    elements.mapTerrainLabelDisplay.textContent = terrain?.label ?? "—";
+  }
+}
+
+function syncTerrainModeButtons() {
+  if (!elements.terrainModeButtons.length) {
+    return;
+  }
+  elements.terrainModeButtons.forEach((button) => {
+    const isActive = button.dataset.terrainMode === state.terrainMode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function setTerrainMode(mode) {
+  if (!mode) {
+    return;
+  }
+  state.terrainMode = mode;
+  syncTerrainModeButtons();
+}
+
+function syncTerrainRotationDisplay() {
+  if (elements.terrainRotationDisplay) {
+    elements.terrainRotationDisplay.textContent = `${state.terrainRotation}°`;
+  }
+}
+
+function rotateTerrain(direction) {
+  state.terrainRotation = (state.terrainRotation + direction + 360) % 360;
+  syncTerrainRotationDisplay();
+}
+
+function populateTerrainTypeSelect() {
+  if (!elements.terrainTypeSelect) {
+    return;
+  }
+  elements.terrainTypeSelect.innerHTML = "";
+  TERRAIN_TYPES.forEach((terrain) => {
+    const option = document.createElement("option");
+    option.value = terrain.id;
+    option.textContent = `${terrain.label} (${terrain.id})`;
+    elements.terrainTypeSelect.appendChild(option);
+  });
 }
 
 function getLocalStorage() {
@@ -308,6 +405,7 @@ function restoreMapFromLocalStorage({
 function setTerrain(terrain) {
   state.terrain = terrain;
   renderPalette();
+  updateTerrainMenu();
 }
 
 function updateMapMetadata({ name, region, notes }) {
@@ -413,6 +511,9 @@ function renderPalette() {
 function renderGrid() {
   if (!elements.mapGrid) {
     updateLandscapeViewer();
+    if (state.map.cells.length > 0) {
+      updateMapTerrainDisplay(state.map.cells[0]);
+    }
     return;
   }
 
@@ -450,6 +551,9 @@ function renderGrid() {
   }
 
   updateLandscapeViewer();
+  if (state.map.cells.length > 0) {
+    updateMapTerrainDisplay(state.map.cells[0]);
+  }
 }
 
 function paintCell(index, terrainId) {
@@ -487,6 +591,7 @@ function paintCell(index, terrainId) {
   }
   updateJsonPreview();
   updateLandscapeViewer();
+  updateMapTerrainDisplay(terrainId);
 }
 
 function beginPointerPaint(erase) {
@@ -513,6 +618,7 @@ function handleCellPointerDown(event) {
     return;
   }
   const cell = event.currentTarget;
+  updateMapTerrainDisplay(cell.dataset.terrain);
   const index = Number.parseInt(cell.dataset.index, 10);
   const erase = event.shiftKey;
   beginPointerPaint(erase);
@@ -522,6 +628,7 @@ function handleCellPointerDown(event) {
 
 function handleCellPointerEnter(event) {
   const cell = event.currentTarget;
+  updateMapTerrainDisplay(cell.dataset.terrain);
   const index = Number.parseInt(cell.dataset.index, 10);
   applyPointerPaint(index);
 }
@@ -726,6 +833,10 @@ function initControls() {
   renderGrid();
   updateMetadataDisplays();
   updateJsonPreview();
+  populateTerrainTypeSelect();
+  updateTerrainMenu();
+  syncTerrainModeButtons();
+  syncTerrainRotationDisplay();
   initPaletteTabs();
 
   if (elements.saveLocalButton?.dataset) {
@@ -798,6 +909,39 @@ function initControls() {
     elements.landscapeTextureToggle.addEventListener("click", () => {
       const nextValue = !getTextureVisibility();
       setTextureVisibility(nextValue);
+    });
+  }
+
+  if (elements.terrainTextureButton) {
+    elements.terrainTextureButton.addEventListener("click", () => {
+      const nextValue = !getTextureVisibility();
+      setTextureVisibility(nextValue);
+    });
+  }
+
+  if (elements.terrainTypeSelect) {
+    elements.terrainTypeSelect.addEventListener("change", (event) => {
+      const nextTerrain = getTerrainById(event.target.value);
+      if (nextTerrain) {
+        setTerrain(nextTerrain);
+      }
+    });
+  }
+
+  if (elements.terrainModeButtons.length) {
+    elements.terrainModeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setTerrainMode(button.dataset.terrainMode);
+      });
+    });
+  }
+
+  if (elements.terrainRotationButtons.length) {
+    elements.terrainRotationButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const direction = button.dataset.rotation === "left" ? -90 : 90;
+        rotateTerrain(direction);
+      });
     });
   }
 
