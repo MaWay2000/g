@@ -199,6 +199,31 @@ const OUTSIDE_TERRAIN_TEXTURE_MAP = new Map([
   ["fallback", OUTSIDE_TERRAIN_TEXTURE_PATHS[10]],
 ]);
 
+const ensureTerrainTextureCoverage = () => {
+  const fallbackTexture =
+    OUTSIDE_TERRAIN_TEXTURE_MAP.get("fallback") ??
+    OUTSIDE_TERRAIN_TEXTURE_PATHS.at(-1) ??
+    null;
+  const textureIterator = OUTSIDE_TERRAIN_TEXTURE_PATHS.values();
+
+  OUTSIDE_TERRAIN_TYPES.forEach((terrain) => {
+    if (OUTSIDE_TERRAIN_TEXTURE_MAP.has(terrain.id)) {
+      return;
+    }
+
+    const nextTexture = textureIterator.next().value ?? fallbackTexture;
+    if (nextTexture) {
+      OUTSIDE_TERRAIN_TEXTURE_MAP.set(terrain.id, nextTexture);
+    }
+  });
+
+  if (!OUTSIDE_TERRAIN_TEXTURE_MAP.has("fallback") && fallbackTexture) {
+    OUTSIDE_TERRAIN_TEXTURE_MAP.set("fallback", fallbackTexture);
+  }
+};
+
+ensureTerrainTextureCoverage();
+
 export const getOutsideTerrainTexturePath = (terrainId, variantSeed = 0) => {
   const key = typeof terrainId === "string" ? terrainId : String(terrainId ?? "");
 
