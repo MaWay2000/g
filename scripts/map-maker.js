@@ -27,7 +27,7 @@ const state = {
   terrainRotation: 0,
   terrainBrushSize: 1,
   showTextures: false,
-  showTerrainInfo: true,
+  showTerrainInfo: false,
   mapTerrainId: null,
 };
 
@@ -122,7 +122,7 @@ const elements = {
   terrainBrushSize: document.getElementById("terrainBrushSize"),
   terrainBrushSizeValue: document.getElementById("terrainBrushSizeValue"),
   terrainModeButtons: Array.from(document.querySelectorAll("[data-terrain-mode]")),
-  terrainInfoToggle: document.querySelector('[data-terrain-toggle="textures"]'),
+  terrainInfoToggle: document.querySelector('[data-terrain-toggle="info"]'),
   terrainRotationButtons: Array.from(
     document.querySelectorAll("[data-rotation]")
   ),
@@ -212,8 +212,6 @@ function setTextureVisibility(isEnabled) {
     elements.mapGrid.dataset.showTextures = String(isEnabled);
   }
   syncTextureToggleLabel(isEnabled);
-  syncTerrainInfoToggle();
-  syncTerrainInfoGridVisibility();
 }
 
 function syncTextureToggleLabel(isEnabled) {
@@ -269,19 +267,13 @@ function syncTerrainInfoToggle() {
   if (!elements.terrainInfoToggle) {
     return;
   }
-  const isEnabled = getTextureVisibility();
-  elements.terrainInfoToggle.classList.toggle(
-    "is-active",
-    isEnabled
-  );
-  elements.terrainInfoToggle.setAttribute(
-    "aria-pressed",
-    String(isEnabled)
-  );
+  const isEnabled = state.showTerrainInfo;
+  elements.terrainInfoToggle.classList.toggle("is-active", isEnabled);
+  elements.terrainInfoToggle.setAttribute("aria-pressed", String(isEnabled));
 }
 
 function setTerrainMenu(menu) {
-  if (menu && !["brush", "draw", "textures"].includes(menu)) {
+  if (menu && !["brush", "draw"].includes(menu)) {
     return;
   }
   const nextMenu = state.terrainMenu === menu ? null : menu;
@@ -291,12 +283,12 @@ function setTerrainMenu(menu) {
   } else {
     state.terrainMode = null;
   }
-  setTextureVisibility(nextMenu === "textures");
   syncTerrainMenuButtons();
 }
 
 function setTerrainInfoVisibility(isEnabled) {
   state.showTerrainInfo = isEnabled;
+  syncTerrainInfoToggle();
   syncTerrainInfoGridVisibility();
 }
 
@@ -304,7 +296,7 @@ function syncTerrainInfoGridVisibility() {
   if (!elements.terrainInfoGrid) {
     return;
   }
-  const isVisible = state.showTerrainInfo && getTextureVisibility();
+  const isVisible = state.showTerrainInfo;
   elements.terrainInfoGrid.hidden = !isVisible;
   elements.terrainInfoGrid.setAttribute("aria-hidden", String(!isVisible));
 }
@@ -1041,27 +1033,23 @@ function initControls() {
   }
 
   const defaultTextureState = elements.textureToggle?.checked ?? state.showTextures;
-  if (defaultTextureState) {
-    state.terrainMenu = "textures";
-    state.terrainMode = null;
-  }
   setTextureVisibility(defaultTextureState);
   syncTerrainMenuButtons();
   setTerrainInfoVisibility(state.showTerrainInfo);
   if (elements.textureToggle) {
     elements.textureToggle.addEventListener("change", (event) => {
-      setTerrainMenu(event.target.checked ? "textures" : null);
+      setTextureVisibility(event.target.checked);
     });
   }
   if (elements.landscapeTextureToggle) {
     elements.landscapeTextureToggle.addEventListener("click", () => {
-      setTerrainMenu(getTextureVisibility() ? null : "textures");
+      setTextureVisibility(!getTextureVisibility());
     });
   }
 
   if (elements.terrainInfoToggle) {
     elements.terrainInfoToggle.addEventListener("click", () => {
-      setTerrainMenu(getTextureVisibility() ? null : "textures");
+      setTerrainInfoVisibility(!state.showTerrainInfo);
     });
   }
 
