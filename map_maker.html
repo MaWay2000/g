@@ -88,6 +88,19 @@
         box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
       }
 
+      .map-maker-update {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 0.45rem;
+        border: 1px solid rgba(71, 85, 105, 0.6);
+        background: rgba(15, 23, 42, 0.35);
+        color: rgba(226, 232, 240, 0.75);
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
+      }
+
       .map-maker-tab {
         border: 1px solid rgba(51, 65, 85, 0.9);
         background: #1e293b;
@@ -657,6 +670,7 @@
 
       .map-maker-tabs,
       .map-maker-tab,
+      .map-maker-update,
       .header-actions button,
       .header-actions a,
       .control input[type="number"],
@@ -717,6 +731,10 @@
           justify-content: flex-start;
         }
 
+        .map-maker-update {
+          width: 100%;
+        }
+
         .header-actions {
           width: 100%;
           justify-content: flex-start;
@@ -775,6 +793,9 @@
         >
           Settings
         </button>
+      </div>
+      <div class="map-maker-update" aria-live="polite">
+        Last update: <span id="lastUpdateDisplay">—</span>
       </div>
       <div class="header-actions">
         <button id="saveLocalButton" type="button">Save locally</button>
