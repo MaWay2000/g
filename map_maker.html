@@ -232,8 +232,8 @@
       }
 
       .terrain-menu-actions {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        display: flex;
+        flex-wrap: nowrap;
         gap: 0.5rem;
         width: 100%;
       }
@@ -248,8 +248,9 @@
         font-weight: 600;
         letter-spacing: 0.02em;
         cursor: pointer;
-        width: 100%;
+        width: auto;
         text-align: center;
+        white-space: nowrap;
         transition: transform 120ms ease, border-color 120ms ease,
           background 120ms ease;
       }
