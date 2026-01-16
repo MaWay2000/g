@@ -254,10 +254,31 @@ export const initMapMaker3d = ({
   highlightMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   highlightMesh.renderOrder = 2;
   scene.add(highlightMesh);
+  const selectionMaterial = new THREE.MeshBasicMaterial({
+    color: "#fbbf24",
+    transparent: true,
+    opacity: 0.3,
+    depthTest: false,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const selectionMesh = new THREE.InstancedMesh(
+    highlightGeometry,
+    selectionMaterial,
+    1
+  );
+  selectionMesh.visible = false;
+  selectionMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  selectionMesh.renderOrder = 1;
+  scene.add(selectionMesh);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   let isPointerDown = false;
   let lastPaintedIndex = null;
+  let selectionStart = null;
+  let selectionEnd = null;
 
   const textureCanvas = document.createElement("canvas");
   const textureContext = textureCanvas.getContext("2d");
@@ -509,6 +530,7 @@ export const initMapMaker3d = ({
     const shouldResetCamera =
       !lastMap || map.width !== mapWidth || map.height !== mapHeight;
     applyMapGeometry(map, { resetCamera: shouldResetCamera });
+    updateSelectionPreview();
   };
 
   const updateTerrainTypeDisplay = (nextValue) => {
@@ -525,6 +547,16 @@ export const initMapMaker3d = ({
     }
   };
 
+  const setSelection = ({ startIndex = null, endIndex = null } = {}) => {
+    selectionStart = Number.isFinite(startIndex) ? startIndex : null;
+    selectionEnd = Number.isFinite(endIndex) ? endIndex : null;
+    updateSelectionPreview();
+    const mode = typeof getTerrainMode === "function" ? getTerrainMode() : "draw";
+    if (mode === "draw" && hasSelection()) {
+      highlightMesh.visible = false;
+    }
+  };
+
   const resolveBrushSize = () => {
     const mode = typeof getTerrainMode === "function" ? getTerrainMode() : "draw";
     const requestedSize =
@@ -537,8 +569,16 @@ export const initMapMaker3d = ({
     return mode === "brush" ? normalizedSize : 1;
   };
 
+  const hasSelection = () =>
+    Number.isFinite(selectionStart) && Number.isFinite(selectionEnd);
+
   const updateBrushPreview = (index) => {
     if (!Number.isFinite(index)) {
+      highlightMesh.visible = false;
+      return;
+    }
+    const mode = typeof getTerrainMode === "function" ? getTerrainMode() : "draw";
+    if (mode === "draw" && hasSelection()) {
       highlightMesh.visible = false;
       return;
     }
@@ -588,6 +628,55 @@ export const initMapMaker3d = ({
     }
     highlightMesh.instanceMatrix.needsUpdate = true;
     highlightMesh.visible = true;
+  };
+
+  const updateSelectionPreview = () => {
+    if (!hasSelection()) {
+      selectionMesh.visible = false;
+      return;
+    }
+    if (!Number.isFinite(mapWidth) || !Number.isFinite(mapHeight)) {
+      selectionMesh.visible = false;
+      return;
+    }
+    const startX = selectionStart % mapWidth;
+    const startY = Math.floor(selectionStart / mapWidth);
+    const endX = selectionEnd % mapWidth;
+    const endY = Math.floor(selectionEnd / mapWidth);
+    const minX = Math.min(startX, endX);
+    const maxX = Math.max(startX, endX);
+    const minY = Math.min(startY, endY);
+    const maxY = Math.max(startY, endY);
+    const width = maxX - minX + 1;
+    const height = maxY - minY + 1;
+    const totalInstances = width * height;
+    const currentCapacity = selectionMesh.instanceMatrix.count;
+    if (totalInstances > currentCapacity) {
+      const nextCapacity = Math.max(totalInstances, currentCapacity * 2);
+      const nextMatrix = new THREE.InstancedBufferAttribute(
+        new Float32Array(nextCapacity * 16),
+        16
+      );
+      nextMatrix.setUsage(THREE.DynamicDrawUsage);
+      selectionMesh.instanceMatrix = nextMatrix;
+    }
+    if (selectionMesh.count !== totalInstances) {
+      selectionMesh.count = totalInstances;
+    }
+    let instanceIndex = 0;
+    const tempMatrix = new THREE.Matrix4();
+    const elevation = TERRAIN_HEIGHT + 0.06;
+    for (let row = minY; row <= maxY; row += 1) {
+      for (let col = minX; col <= maxX; col += 1) {
+        const worldX = col - mapWidth / 2 + 0.5;
+        const worldZ = row - mapHeight / 2 + 0.5;
+        tempMatrix.makeTranslation(worldX, elevation, worldZ);
+        selectionMesh.setMatrixAt(instanceIndex, tempMatrix);
+        instanceIndex += 1;
+      }
+    }
+    selectionMesh.instanceMatrix.needsUpdate = true;
+    selectionMesh.visible = true;
   };
 
   const getCellIndexFromEvent = (event) => {
@@ -714,6 +803,7 @@ export const initMapMaker3d = ({
     material.dispose();
     highlightGeometry.dispose();
     highlightMaterial.dispose();
+    selectionMaterial.dispose();
     canvas.removeEventListener("pointerdown", handlePointerDown);
     canvas.removeEventListener("pointermove", handlePointerMove);
     canvas.removeEventListener("pointerup", handlePointerUp);
@@ -733,6 +823,7 @@ export const initMapMaker3d = ({
   return {
     updateMap,
     setTextureVisibility: updateTerrainTextureDisplay,
+    setSelection,
     resize: resizeRenderer,
     dispose,
   };
