@@ -569,6 +569,16 @@ export const initMapMaker3d = ({
     const endY = startY + brushSize - 1;
 
     const totalInstances = brushSize * brushSize;
+    const currentCapacity = highlightMesh.instanceMatrix.count;
+    if (totalInstances > currentCapacity) {
+      const nextCapacity = Math.max(totalInstances, currentCapacity * 2);
+      const nextMatrix = new THREE.InstancedBufferAttribute(
+        new Float32Array(nextCapacity * 16),
+        16
+      );
+      nextMatrix.setUsage(THREE.DynamicDrawUsage);
+      highlightMesh.instanceMatrix = nextMatrix;
+    }
     if (highlightMesh.count !== totalInstances) {
       highlightMesh.count = totalInstances;
     }
