@@ -202,24 +202,7 @@ export const initMapMaker3d = ({
   const moveKeys = new Set();
   const clock = new THREE.Clock();
 
-  const shouldIgnoreKeyEvent = (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return false;
-    }
-    const tagName = target.tagName;
-    return (
-      tagName === "INPUT" ||
-      tagName === "TEXTAREA" ||
-      tagName === "SELECT" ||
-      target.isContentEditable
-    );
-  };
-
   const handleKeyDown = (event) => {
-    if (shouldIgnoreKeyEvent(event)) {
-      return;
-    }
     if (["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
       moveKeys.add(event.code);
       event.preventDefault();
