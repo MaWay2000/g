@@ -239,6 +239,7 @@ export const initMapMaker3d = ({
     color: "#38bdf8",
     transparent: true,
     opacity: 0.35,
+    depthTest: false,
     depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: -1,
