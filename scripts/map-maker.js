@@ -22,10 +22,11 @@ const state = {
   map: createDefaultOutsideMap(),
   isPointerDown: false,
   pointerTerrain: null,
+  terrainMenu: "brush",
   terrainMode: "brush",
   terrainRotation: 0,
   terrainBrushSize: 1,
-  showTextures: true,
+  showTextures: false,
   mapTerrainId: null,
 };
 
@@ -215,7 +216,6 @@ function setTextureVisibility(isEnabled) {
     elements.terrainInfoGrid.hidden = !isEnabled;
     elements.terrainInfoGrid.setAttribute("aria-hidden", String(!isEnabled));
   }
-  syncTerrainTextureButton(isEnabled);
   syncTextureToggleLabel(isEnabled);
 }
 
@@ -235,14 +235,6 @@ function syncTextureToggleLabel(isEnabled) {
   if (landscapeViewer?.setTextureVisibility) {
     landscapeViewer.setTextureVisibility(isEnabled);
   }
-}
-
-function syncTerrainTextureButton(isEnabled) {
-  if (!elements.terrainTextureButton) {
-    return;
-  }
-  elements.terrainTextureButton.classList.toggle("is-active", isEnabled);
-  elements.terrainTextureButton.setAttribute("aria-pressed", String(isEnabled));
 }
 
 function updateTerrainMenu(terrain = state.terrain) {
@@ -267,23 +259,33 @@ function updateMapTerrainDisplay(terrainId) {
   updateTerrainInfoValue("mapTerrainLabel");
 }
 
-function syncTerrainModeButtons() {
-  if (!elements.terrainModeButtons.length) {
-    return;
-  }
+function syncTerrainMenuButtons() {
+  const activeMenu = state.terrainMenu;
   elements.terrainModeButtons.forEach((button) => {
-    const isActive = button.dataset.terrainMode === state.terrainMode;
+    const isActive = button.dataset.terrainMode === activeMenu;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-pressed", String(isActive));
   });
+  if (elements.terrainTextureButton) {
+    const isActive = activeMenu === "textures";
+    elements.terrainTextureButton.classList.toggle("is-active", isActive);
+    elements.terrainTextureButton.setAttribute("aria-pressed", String(isActive));
+  }
 }
 
-function setTerrainMode(mode) {
-  if (!mode) {
+function setTerrainMenu(menu) {
+  if (menu && !["brush", "draw", "textures"].includes(menu)) {
     return;
   }
-  state.terrainMode = mode;
-  syncTerrainModeButtons();
+  const nextMenu = state.terrainMenu === menu ? null : menu;
+  state.terrainMenu = nextMenu;
+  if (nextMenu === "brush" || nextMenu === "draw") {
+    state.terrainMode = nextMenu;
+  } else {
+    state.terrainMode = null;
+  }
+  setTextureVisibility(nextMenu === "textures");
+  syncTerrainMenuButtons();
 }
 
 function syncTerrainRotationDisplay() {
@@ -681,6 +683,9 @@ function paintCell(index, terrainId) {
 }
 
 function beginPointerPaint(erase) {
+  if (!state.terrainMode) {
+    return;
+  }
   const terrainId = erase ? TERRAIN_TYPES[0].id : state.terrain.id;
   state.isPointerDown = true;
   state.pointerTerrain = terrainId;
@@ -950,7 +955,7 @@ function initControls() {
   updateJsonPreview();
   populateTerrainTypeSelect();
   updateTerrainMenu();
-  syncTerrainModeButtons();
+  syncTerrainMenuButtons();
   syncTerrainRotationDisplay();
   syncTerrainBrushSizeDisplay();
   initPaletteTabs();
@@ -1014,24 +1019,27 @@ function initControls() {
     });
   }
 
-  const defaultTextureState = elements.textureToggle?.checked ?? true;
+  const defaultTextureState = elements.textureToggle?.checked ?? state.showTextures;
+  if (defaultTextureState) {
+    state.terrainMenu = "textures";
+    state.terrainMode = null;
+  }
   setTextureVisibility(defaultTextureState);
+  syncTerrainMenuButtons();
   if (elements.textureToggle) {
     elements.textureToggle.addEventListener("change", (event) => {
-      setTextureVisibility(event.target.checked);
+      setTerrainMenu(event.target.checked ? "textures" : null);
     });
   }
   if (elements.landscapeTextureToggle) {
     elements.landscapeTextureToggle.addEventListener("click", () => {
-      const nextValue = !getTextureVisibility();
-      setTextureVisibility(nextValue);
+      setTerrainMenu(getTextureVisibility() ? null : "textures");
     });
   }
 
   if (elements.terrainTextureButton) {
     elements.terrainTextureButton.addEventListener("click", () => {
-      const nextValue = !getTextureVisibility();
-      setTextureVisibility(nextValue);
+      setTerrainMenu("textures");
     });
   }
 
@@ -1055,7 +1063,7 @@ function initControls() {
   if (elements.terrainModeButtons.length) {
     elements.terrainModeButtons.forEach((button) => {
       button.addEventListener("click", () => {
-        setTerrainMode(button.dataset.terrainMode);
+        setTerrainMenu(button.dataset.terrainMode);
       });
     });
   }
