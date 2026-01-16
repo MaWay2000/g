@@ -27,6 +27,10 @@ const state = {
   terrainRotation: 0,
   terrainBrushSize: 1,
   showTextures: false,
+  selectionStart: null,
+  selectionEnd: null,
+  selectionFixed: false,
+  isSelectionPointerDown: false,
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
@@ -112,6 +116,9 @@ const elements = {
   terrainBrushRow: document.getElementById("terrainBrushRow"),
   terrainBrushSize: document.getElementById("terrainBrushSize"),
   terrainBrushSizeValue: document.getElementById("terrainBrushSizeValue"),
+  terrainDrawRow: document.getElementById("terrainDrawRow"),
+  terrainApplyButton: document.getElementById("terrainApplyButton"),
+  terrainCancelButton: document.getElementById("terrainCancelButton"),
   terrainModeButtons: Array.from(document.querySelectorAll("[data-terrain-mode]")),
   terrainRotationButtons: Array.from(
     document.querySelectorAll("[data-rotation]")
@@ -192,6 +199,15 @@ function syncTerrainBrushVisibility() {
   elements.terrainBrushRow.setAttribute("aria-hidden", String(!isVisible));
 }
 
+function syncTerrainDrawVisibility() {
+  if (!elements.terrainDrawRow) {
+    return;
+  }
+  const isVisible = state.terrainMode === "draw";
+  elements.terrainDrawRow.hidden = !isVisible;
+  elements.terrainDrawRow.setAttribute("aria-hidden", String(!isVisible));
+}
+
 function setTerrainMenu(menu) {
   if (menu && !["brush", "draw"].includes(menu)) {
     return;
@@ -205,6 +221,10 @@ function setTerrainMenu(menu) {
   }
   syncTerrainMenuButtons();
   syncTerrainBrushVisibility();
+  syncTerrainDrawVisibility();
+  if (state.terrainMode !== "draw") {
+    clearSelection();
+  }
 }
 
 function syncTerrainRotationDisplay() {
@@ -456,6 +476,36 @@ function updateMetadataDisplays() {
   }
 }
 
+function updateSelectionPreview() {
+  if (landscapeViewer?.setSelection) {
+    landscapeViewer.setSelection({
+      startIndex: state.selectionStart,
+      endIndex: state.selectionEnd,
+    });
+  }
+}
+
+function updateDrawButtonsState() {
+  const hasSelection =
+    Number.isFinite(state.selectionStart) &&
+    Number.isFinite(state.selectionEnd);
+  if (elements.terrainApplyButton) {
+    elements.terrainApplyButton.disabled = !hasSelection;
+  }
+  if (elements.terrainCancelButton) {
+    elements.terrainCancelButton.disabled = !hasSelection;
+  }
+}
+
+function clearSelection() {
+  state.selectionStart = null;
+  state.selectionEnd = null;
+  state.selectionFixed = false;
+  state.isSelectionPointerDown = false;
+  updateSelectionPreview();
+  updateDrawButtonsState();
+}
+
 function resizeMap(width, height) {
   const clampedWidth = clampOutsideMapDimension(width);
   const clampedHeight = clampOutsideMapDimension(height);
@@ -481,6 +531,7 @@ function resizeMap(width, height) {
   state.map.width = clampedWidth;
   state.map.height = clampedHeight;
   state.map.cells = newCells;
+  clearSelection();
   updateMetadataDisplays();
   renderGrid();
   updateJsonPreview();
@@ -598,12 +649,100 @@ function paintCell(index, terrainId) {
 }
 
 function beginPointerPaint(erase) {
-  if (!state.terrainMode) {
+  if (state.terrainMode !== "brush") {
     return;
   }
   const terrainId = erase ? TERRAIN_TYPES[0].id : state.terrain.id;
   state.isPointerDown = true;
   state.pointerTerrain = terrainId;
+}
+
+function updateCellElement(index, terrainId) {
+  if (!elements.mapGrid) {
+    return;
+  }
+  const cell = elements.mapGrid.querySelector(
+    `.map-cell[data-index="${index}"]`
+  );
+  if (!cell) {
+    return;
+  }
+  const terrain = getTerrainById(terrainId);
+  cell.dataset.terrain = terrain.id;
+  cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
+  cell.style.setProperty(
+    "--cell-texture",
+    getTerrainTextureCssValue(terrain.id, index)
+  );
+  const ariaParts = [`Cell ${index + 1}`, terrain.label];
+  const hpLabel = formatTerrainHp(terrain);
+  if (hpLabel !== UNKNOWN_HP_LABEL) {
+    ariaParts.push(`HP ${hpLabel}`);
+  }
+  const elementLabel = formatTerrainElement(terrain);
+  if (elementLabel) {
+    ariaParts.push(`Element ${elementLabel}`);
+  }
+  cell.setAttribute("aria-label", ariaParts.join(", "));
+}
+
+function applyTerrainSelection({ erase = false } = {}) {
+  if (
+    !Number.isFinite(state.selectionStart) ||
+    !Number.isFinite(state.selectionEnd)
+  ) {
+    return;
+  }
+
+  const width = state.map.width;
+  const startX = state.selectionStart % width;
+  const startY = Math.floor(state.selectionStart / width);
+  const endX = state.selectionEnd % width;
+  const endY = Math.floor(state.selectionEnd / width);
+  const minX = Math.min(startX, endX);
+  const maxX = Math.max(startX, endX);
+  const minY = Math.min(startY, endY);
+  const maxY = Math.max(startY, endY);
+
+  const terrainId = erase ? TERRAIN_TYPES[0].id : state.terrain.id;
+  let didUpdate = false;
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const index = y * width + x;
+      if (state.map.cells[index] !== terrainId) {
+        state.map.cells[index] = terrainId;
+        updateCellElement(index, terrainId);
+        didUpdate = true;
+      }
+    }
+  }
+
+  if (didUpdate) {
+    updateJsonPreview();
+    updateLandscapeViewer();
+  }
+  clearSelection();
+}
+
+function updateSelection(index, { isStart = false, isEnd = false } = {}) {
+  if (!Number.isFinite(index)) {
+    return;
+  }
+
+  if (isStart || !Number.isFinite(state.selectionStart)) {
+    state.selectionStart = index;
+    state.selectionEnd = index;
+    state.selectionFixed = false;
+  } else if (!state.selectionFixed) {
+    state.selectionEnd = index;
+  }
+
+  if (isEnd) {
+    state.selectionFixed = true;
+  }
+  updateSelectionPreview();
+  updateDrawButtonsState();
 }
 
 function applyPointerPaint(index) {
@@ -652,6 +791,19 @@ function handleCellPointerDown(event) {
   }
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
+  if (state.terrainMode === "draw") {
+    state.isSelectionPointerDown = true;
+    updateSelection(index, { isStart: true });
+    window.addEventListener(
+      "pointerup",
+      () => {
+        state.isSelectionPointerDown = false;
+        updateSelection(state.selectionEnd ?? index, { isEnd: true });
+      },
+      { once: true }
+    );
+    return;
+  }
   const erase = event.shiftKey;
   beginPointerPaint(erase);
   applyPointerPaint(index);
@@ -661,6 +813,12 @@ function handleCellPointerDown(event) {
 function handleCellPointerEnter(event) {
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
+  if (state.terrainMode === "draw") {
+    if (state.isSelectionPointerDown && !state.selectionFixed) {
+      updateSelection(index);
+    }
+    return;
+  }
   applyPointerPaint(index);
 }
 
@@ -710,12 +868,28 @@ function setActivePaletteTab(tabId) {
             return;
           }
           if (isStart) {
-            beginPointerPaint(Boolean(shiftKey));
+            if (state.terrainMode === "draw") {
+              updateSelection(index, { isStart: true });
+            } else {
+              beginPointerPaint(Boolean(shiftKey));
+            }
           }
-          applyPointerPaint(index);
+          if (state.terrainMode === "draw") {
+            updateSelection(index);
+          } else {
+            applyPointerPaint(index);
+          }
         },
         onPaintEnd: () => {
-          endPointerPaint();
+          if (state.terrainMode === "draw") {
+            if (Number.isFinite(state.selectionStart)) {
+              updateSelection(state.selectionEnd ?? state.selectionStart, {
+                isEnd: true,
+              });
+            }
+          } else {
+            endPointerPaint();
+          }
         },
       });
     }
@@ -781,6 +955,7 @@ function applyImportedMap(mapDefinition) {
   const normalized = normalizeOutsideMap(mapDefinition);
 
   state.map = normalized;
+  clearSelection();
 
   updateMetadataDisplays();
   renderGrid();
@@ -790,6 +965,7 @@ function applyImportedMap(mapDefinition) {
 function resetMap() {
   state.map = createDefaultOutsideMap();
   setTerrain(TERRAIN_TYPES[1]);
+  clearSelection();
   updateMetadataDisplays();
   renderGrid();
   updateJsonPreview();
@@ -806,6 +982,7 @@ function generateRandomMap() {
     return pool[randomIndex].id;
   });
 
+  clearSelection();
   renderGrid();
   updateJsonPreview();
 }
@@ -871,6 +1048,8 @@ function initControls() {
   syncTerrainMenuButtons();
   syncTerrainRotationDisplay();
   syncTerrainBrushSizeDisplay();
+  syncTerrainDrawVisibility();
+  updateDrawButtonsState();
   initPaletteTabs();
 
   if (elements.saveLocalButton?.dataset) {
@@ -936,6 +1115,7 @@ function initControls() {
   setTextureVisibility(defaultTextureState);
   syncTerrainMenuButtons();
   syncTerrainBrushVisibility();
+  syncTerrainDrawVisibility();
   if (elements.textureToggle) {
     elements.textureToggle.addEventListener("change", (event) => {
       setTextureVisibility(event.target.checked);
@@ -976,6 +1156,18 @@ function initControls() {
   if (elements.terrainBrushSize) {
     elements.terrainBrushSize.addEventListener("input", (event) => {
       setTerrainBrushSize(event.target.value);
+    });
+  }
+
+  if (elements.terrainApplyButton) {
+    elements.terrainApplyButton.addEventListener("click", (event) => {
+      applyTerrainSelection({ erase: event.shiftKey });
+    });
+  }
+
+  if (elements.terrainCancelButton) {
+    elements.terrainCancelButton.addEventListener("click", () => {
+      clearSelection();
     });
   }
 
@@ -1029,7 +1221,17 @@ function initControls() {
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (state.terrainMode === "draw") {
+        clearSelection();
+        return;
+      }
       endPointerPaint();
+    }
+    if (event.code === "Space") {
+      if (state.terrainMode === "draw") {
+        event.preventDefault();
+        applyTerrainSelection({ erase: event.shiftKey });
+      }
     }
   });
 

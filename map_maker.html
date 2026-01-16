@@ -352,6 +352,39 @@
         width: 140px;
       }
 
+      .terrain-draw-actions {
+        display: flex;
+        gap: 0.5rem;
+        width: 100%;
+        justify-content: center;
+      }
+
+      .terrain-action-button {
+        padding: 0.45rem 0.9rem;
+        border-radius: 0.55rem;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        background: rgba(30, 41, 59, 0.7);
+        color: inherit;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease,
+          background 120ms ease, opacity 120ms ease;
+      }
+
+      .terrain-action-button:hover,
+      .terrain-action-button:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(148, 163, 184, 0.6);
+        outline: none;
+      }
+
+      .terrain-action-button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
       .terrain-brush-value {
         min-width: 2.5rem;
         padding: 0.2rem 0.45rem;
@@ -797,6 +830,26 @@
                 value="1"
               />
               <span class="terrain-brush-value" id="terrainBrushSizeValue">1</span>
+            </div>
+          </div>
+          <div class="terrain-control-row terrain-draw-row" id="terrainDrawRow" hidden>
+            <div class="terrain-draw-actions">
+              <button
+                class="terrain-action-button"
+                type="button"
+                id="terrainApplyButton"
+                disabled
+              >
+                Apply
+              </button>
+              <button
+                class="terrain-action-button"
+                type="button"
+                id="terrainCancelButton"
+                disabled
+              >
+                Cancel
+              </button>
             </div>
           </div>
           <div class="terrain-control-row">
