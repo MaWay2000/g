@@ -115,6 +115,8 @@ export const initMapMaker3d = ({
   terrainTypeToggle,
   terrainTextureToggle,
   initialTextureVisibility = true,
+  getBrushSize,
+  getTerrainMode,
   onPaintCell,
   onPaintEnd,
 } = {}) => {
@@ -248,6 +250,26 @@ export const initMapMaker3d = ({
 
   const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
   scene.add(mesh);
+  const highlightGeometry = new THREE.PlaneGeometry(1, 1);
+  highlightGeometry.rotateX(-Math.PI / 2);
+  const highlightMaterial = new THREE.MeshBasicMaterial({
+    color: "#38bdf8",
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const highlightMesh = new THREE.InstancedMesh(
+    highlightGeometry,
+    highlightMaterial,
+    1
+  );
+  highlightMesh.visible = false;
+  highlightMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  highlightMesh.renderOrder = 2;
+  scene.add(highlightMesh);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   let isPointerDown = false;
@@ -516,6 +538,61 @@ export const initMapMaker3d = ({
     }
   };
 
+  const resolveBrushSize = () => {
+    const mode = typeof getTerrainMode === "function" ? getTerrainMode() : "draw";
+    const requestedSize =
+      typeof getBrushSize === "function"
+        ? Number.parseInt(getBrushSize(), 10)
+        : 1;
+    const normalizedSize = Number.isFinite(requestedSize)
+      ? Math.max(1, requestedSize)
+      : 1;
+    return mode === "brush" ? normalizedSize : 1;
+  };
+
+  const updateBrushPreview = (index) => {
+    if (!Number.isFinite(index)) {
+      highlightMesh.visible = false;
+      return;
+    }
+    const brushSize = resolveBrushSize();
+    if (!Number.isFinite(mapWidth) || !Number.isFinite(mapHeight)) {
+      highlightMesh.visible = false;
+      return;
+    }
+    const x = index % mapWidth;
+    const y = Math.floor(index / mapWidth);
+    const half = Math.floor(brushSize / 2);
+    const startX = x - half;
+    const startY = y - half;
+    const endX = startX + brushSize - 1;
+    const endY = startY + brushSize - 1;
+
+    const totalInstances = brushSize * brushSize;
+    if (highlightMesh.count !== totalInstances) {
+      highlightMesh.count = totalInstances;
+    }
+
+    let instanceIndex = 0;
+    const tempMatrix = new THREE.Matrix4();
+    const elevation = TERRAIN_HEIGHT + 0.08;
+    for (let row = startY; row <= endY; row += 1) {
+      for (let col = startX; col <= endX; col += 1) {
+        if (col < 0 || col >= mapWidth || row < 0 || row >= mapHeight) {
+          tempMatrix.makeTranslation(0, -999, 0);
+        } else {
+          const worldX = col - mapWidth / 2 + 0.5;
+          const worldZ = row - mapHeight / 2 + 0.5;
+          tempMatrix.makeTranslation(worldX, elevation, worldZ);
+        }
+        highlightMesh.setMatrixAt(instanceIndex, tempMatrix);
+        instanceIndex += 1;
+      }
+    }
+    highlightMesh.instanceMatrix.needsUpdate = true;
+    highlightMesh.visible = true;
+  };
+
   const getCellIndexFromEvent = (event) => {
     if (!lastMap) {
       return null;
@@ -564,14 +641,15 @@ export const initMapMaker3d = ({
     isPointerDown = true;
     lastPaintedIndex = null;
     canvas.setPointerCapture(event.pointerId);
+    updateBrushPreview(getCellIndexFromEvent(event));
     paintFromEvent(event, { isStart: true });
   };
 
   const handlePointerMove = (event) => {
-    if (!isPointerDown) {
-      return;
+    updateBrushPreview(getCellIndexFromEvent(event));
+    if (isPointerDown) {
+      paintFromEvent(event, { isStart: false });
     }
-    paintFromEvent(event, { isStart: false });
   };
 
   const handlePointerUp = (event) => {
@@ -583,15 +661,21 @@ export const initMapMaker3d = ({
     if (canvas.hasPointerCapture(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);
     }
+    updateBrushPreview(getCellIndexFromEvent(event));
     if (typeof onPaintEnd === "function") {
       onPaintEnd();
     }
+  };
+
+  const handlePointerLeave = () => {
+    highlightMesh.visible = false;
   };
 
   canvas.addEventListener("pointerdown", handlePointerDown);
   canvas.addEventListener("pointermove", handlePointerMove);
   canvas.addEventListener("pointerup", handlePointerUp);
   canvas.addEventListener("pointercancel", handlePointerUp);
+  canvas.addEventListener("pointerleave", handlePointerLeave);
 
   if (resetButton) {
     resetButton.addEventListener("click", () => {
@@ -631,10 +715,13 @@ export const initMapMaker3d = ({
     renderer.dispose();
     mesh.geometry.dispose();
     material.dispose();
+    highlightGeometry.dispose();
+    highlightMaterial.dispose();
     canvas.removeEventListener("pointerdown", handlePointerDown);
     canvas.removeEventListener("pointermove", handlePointerMove);
     canvas.removeEventListener("pointerup", handlePointerUp);
     canvas.removeEventListener("pointercancel", handlePointerUp);
+    canvas.removeEventListener("pointerleave", handlePointerLeave);
     if (terrainTypeToggle && terrainToggleHandler) {
       terrainTypeToggle.removeEventListener("click", terrainToggleHandler);
     }

@@ -721,6 +721,8 @@ function setActivePaletteTab(tabId) {
         terrainTypeToggle: elements.landscapeTypeToggle,
         terrainTextureToggle: elements.landscapeTextureToggle,
         initialTextureVisibility: getTextureVisibility(),
+        getBrushSize: () => state.terrainBrushSize,
+        getTerrainMode: () => state.terrainMode,
         onPaintCell: ({ index, isStart, shiftKey }) => {
           if (!Number.isFinite(index)) {
             return;
