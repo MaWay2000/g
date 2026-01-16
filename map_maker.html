@@ -342,6 +342,35 @@
         font-size: 0.8rem;
       }
 
+      .terrain-brush-row {
+        justify-content: flex-start;
+        gap: 0.75rem;
+      }
+
+      .terrain-brush-size {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+      }
+
+      .terrain-brush-size input[type="range"] {
+        accent-color: #38bdf8;
+        width: 140px;
+      }
+
+      .terrain-brush-value {
+        min-width: 2.5rem;
+        padding: 0.2rem 0.45rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(15, 23, 42, 0.7);
+        text-align: center;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #e2e8f0;
+      }
+
       .terrain-type-select {
         display: inline-flex;
         align-items: center;
@@ -785,6 +814,26 @@
                 <span class="terrain-control-label">Type:</span>
                 <select id="terrainTypeSelect"></select>
               </label>
+            </div>
+            <div class="terrain-control-row terrain-brush-row">
+              <label class="terrain-brush-size" for="terrainBrushSize">
+                <span class="terrain-control-label">Brush size</span>
+                <input
+                  id="terrainBrushSize"
+                  type="range"
+                  min="1"
+                  max="25"
+                  step="1"
+                  value="1"
+                />
+              </label>
+              <span
+                class="terrain-brush-value"
+                id="terrainBrushSizeValue"
+                aria-live="polite"
+              >
+                1
+              </span>
             </div>
           </div>
         </section>
