@@ -424,7 +424,7 @@ export const initMapMaker3d = ({
     camera.position.set(size * 0.6, size * 0.9, size * 0.75);
     controls.target.set(0, 0, 0);
     controls.update();
-    camera.near = Math.max(0.1, size * 0.02);
+    camera.near = Math.max(0.05, size * 0.002);
     camera.far = Math.max(maxDistance * 2, size * 10);
     camera.updateProjectionMatrix();
   };
