@@ -418,11 +418,14 @@ export const initMapMaker3d = ({
   const setCameraForMap = (width, height) => {
     const size = Math.max(width, height, 8);
     mapSize = size;
+    const maxDistance = Math.max(size * 6, 40);
+    controls.maxDistance = maxDistance;
+    controls.minDistance = Math.min(controls.minDistance, maxDistance * 0.5);
     camera.position.set(size * 0.6, size * 0.9, size * 0.75);
     controls.target.set(0, 0, 0);
     controls.update();
-    camera.near = 0.1;
-    camera.far = size * 6;
+    camera.near = Math.max(0.1, size * 0.02);
+    camera.far = Math.max(maxDistance * 2, size * 10);
     camera.updateProjectionMatrix();
   };
 
