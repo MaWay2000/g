@@ -119,6 +119,7 @@ const elements = {
   terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
   terrainTileDisplay: document.getElementById("terrainTileDisplay"),
   terrainTypeSelect: document.getElementById("terrainTypeSelect"),
+  terrainBrushRow: document.getElementById("terrainBrushRow"),
   terrainBrushSize: document.getElementById("terrainBrushSize"),
   terrainBrushSizeValue: document.getElementById("terrainBrushSizeValue"),
   terrainModeButtons: Array.from(document.querySelectorAll("[data-terrain-mode]")),
@@ -263,6 +264,15 @@ function syncTerrainMenuButtons() {
   });
 }
 
+function syncTerrainBrushVisibility() {
+  if (!elements.terrainBrushRow) {
+    return;
+  }
+  const isVisible = state.terrainMode === "brush";
+  elements.terrainBrushRow.hidden = !isVisible;
+  elements.terrainBrushRow.setAttribute("aria-hidden", String(!isVisible));
+}
+
 function syncTerrainInfoToggle() {
   if (!elements.terrainInfoToggle) {
     return;
@@ -285,6 +295,7 @@ function setTerrainMenu(menu) {
     state.terrainMode = null;
   }
   syncTerrainMenuButtons();
+  syncTerrainBrushVisibility();
 }
 
 function setTerrainInfoVisibility(isEnabled) {
@@ -1036,6 +1047,7 @@ function initControls() {
   const defaultTextureState = elements.textureToggle?.checked ?? state.showTextures;
   setTextureVisibility(defaultTextureState);
   syncTerrainMenuButtons();
+  syncTerrainBrushVisibility();
   setTerrainInfoVisibility(state.showTerrainInfo);
   if (elements.textureToggle) {
     elements.textureToggle.addEventListener("change", (event) => {
