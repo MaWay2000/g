@@ -131,10 +131,10 @@ const elements = {
 let landscapeViewer = null;
 
 const terrainInfoState = {
-  terrainId: true,
-  terrainLabel: true,
-  mapTerrainId: true,
-  mapTerrainLabel: true,
+  terrainId: false,
+  terrainLabel: false,
+  mapTerrainId: false,
+  mapTerrainLabel: false,
 };
 
 const terrainInfoDisplayMap = {
