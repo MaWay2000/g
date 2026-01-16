@@ -27,7 +27,7 @@ const state = {
   terrainRotation: 0,
   terrainBrushSize: 1,
   showTextures: false,
-  showTerrainInfo: false,
+  showTerrainInfo: true,
   mapTerrainId: null,
 };
 
@@ -270,6 +270,7 @@ function syncTerrainInfoToggle() {
   const isEnabled = state.showTerrainInfo;
   elements.terrainInfoToggle.classList.toggle("is-active", isEnabled);
   elements.terrainInfoToggle.setAttribute("aria-pressed", String(isEnabled));
+  elements.terrainInfoToggle.textContent = isEnabled ? "Hide info" : "Show info";
 }
 
 function setTerrainMenu(menu) {
