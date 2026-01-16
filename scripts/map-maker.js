@@ -173,12 +173,49 @@ function formatLastUpdatedTimestamp(date) {
   }).format(date);
 }
 
-function updateLastUpdatedDisplay(date = new Date()) {
-  state.lastUpdatedAt = date;
+function parseLastUpdatedAt(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function syncLastUpdatedDisplay(dateValue = state.map?.lastUpdatedAt) {
+  const parsed = parseLastUpdatedAt(dateValue);
+  state.lastUpdatedAt = parsed;
   if (!elements.lastUpdatedDisplay) {
     return;
   }
-  elements.lastUpdatedDisplay.textContent = formatLastUpdatedTimestamp(date);
+  elements.lastUpdatedDisplay.textContent =
+    formatLastUpdatedTimestamp(parsed);
+}
+
+function bumpLastUpdated(dateValue = new Date()) {
+  const parsed = parseLastUpdatedAt(dateValue) ?? new Date();
+  if (Number.isNaN(parsed.getTime())) {
+    return;
+  }
+  state.lastUpdatedAt = parsed;
+  if (state.map) {
+    state.map.lastUpdatedAt = parsed.toISOString();
+  }
+  if (!elements.lastUpdatedDisplay) {
+    return;
+  }
+  elements.lastUpdatedDisplay.textContent =
+    formatLastUpdatedTimestamp(parsed);
 }
 
 function updateTerrainInfoValue(key) {
@@ -540,7 +577,7 @@ function updateMapMetadata({ name, region, notes }) {
     state.map.notes = notes;
   }
   updateMetadataDisplays();
-  updateJsonPreview();
+  updateJsonPreview({ bumpLastUpdated: true });
 }
 
 function updateMetadataDisplays() {
@@ -597,7 +634,7 @@ function resizeMap(width, height) {
   state.map.cells = newCells;
   updateMetadataDisplays();
   renderGrid();
-  updateJsonPreview();
+  updateJsonPreview({ bumpLastUpdated: true });
 }
 
 function renderPalette() {
@@ -710,7 +747,7 @@ function paintCell(index, terrainId) {
       cell.setAttribute("aria-label", ariaParts.join(", "));
     }
   }
-  updateJsonPreview();
+  updateJsonPreview({ bumpLastUpdated: true });
   updateLandscapeViewer();
   updateMapTerrainDisplay(terrainId);
 }
@@ -784,8 +821,12 @@ function handleCellPointerEnter(event) {
   applyPointerPaint(index);
 }
 
-function updateJsonPreview() {
-  updateLastUpdatedDisplay();
+function updateJsonPreview({ bumpLastUpdated: shouldBumpLastUpdated = false } = {}) {
+  if (shouldBumpLastUpdated) {
+    bumpLastUpdated();
+  } else {
+    syncLastUpdatedDisplay();
+  }
   const json = JSON.stringify(state.map, null, 2);
   elements.jsonPreview.textContent = json;
 }
@@ -913,7 +954,7 @@ function resetMap() {
   setTerrain(TERRAIN_TYPES[1]);
   updateMetadataDisplays();
   renderGrid();
-  updateJsonPreview();
+  updateJsonPreview({ bumpLastUpdated: true });
 }
 
 function generateRandomMap() {
@@ -928,7 +969,7 @@ function generateRandomMap() {
   });
 
   renderGrid();
-  updateJsonPreview();
+  updateJsonPreview({ bumpLastUpdated: true });
 }
 
 function downloadJson() {
