@@ -27,8 +27,6 @@ const state = {
   terrainRotation: 0,
   terrainBrushSize: 1,
   showTextures: false,
-  showTerrainInfo: true,
-  mapTerrainId: null,
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
@@ -108,14 +106,6 @@ const elements = {
   landscapeResetButton: document.getElementById("landscapeResetButton"),
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
-  terrainIdDisplay: document.getElementById("terrainIdDisplay"),
-  terrainLabelDisplay: document.getElementById("terrainLabelDisplay"),
-  terrainInfoGrid: document.getElementById("terrainInfoGrid"),
-  terrainInfoButtons: Array.from(
-    document.querySelectorAll("[data-terrain-info]")
-  ),
-  mapTerrainIdDisplay: document.getElementById("mapTerrainIdDisplay"),
-  mapTerrainLabelDisplay: document.getElementById("mapTerrainLabelDisplay"),
   terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
   terrainTileDisplay: document.getElementById("terrainTileDisplay"),
   terrainTypeSelect: document.getElementById("terrainTypeSelect"),
@@ -123,75 +113,12 @@ const elements = {
   terrainBrushSize: document.getElementById("terrainBrushSize"),
   terrainBrushSizeValue: document.getElementById("terrainBrushSizeValue"),
   terrainModeButtons: Array.from(document.querySelectorAll("[data-terrain-mode]")),
-  terrainInfoToggle: document.querySelector('[data-terrain-toggle="info"]'),
   terrainRotationButtons: Array.from(
     document.querySelectorAll("[data-rotation]")
   ),
 };
 
 let landscapeViewer = null;
-
-const terrainInfoState = {
-  terrainId: false,
-  terrainLabel: false,
-  mapTerrainId: false,
-  mapTerrainLabel: false,
-};
-
-const terrainInfoDisplayMap = {
-  terrainId: () => state.terrain?.id ?? "—",
-  terrainLabel: () => state.terrain?.label ?? "—",
-  mapTerrainId: () => {
-    const terrain = state.mapTerrainId
-      ? getTerrainById(state.mapTerrainId)
-      : null;
-    return terrain?.id ?? "—";
-  },
-  mapTerrainLabel: () => {
-    const terrain = state.mapTerrainId
-      ? getTerrainById(state.mapTerrainId)
-      : null;
-    return terrain?.label ?? "—";
-  },
-};
-
-const terrainInfoElements = {
-  terrainId: elements.terrainIdDisplay,
-  terrainLabel: elements.terrainLabelDisplay,
-  mapTerrainId: elements.mapTerrainIdDisplay,
-  mapTerrainLabel: elements.mapTerrainLabelDisplay,
-};
-
-function updateTerrainInfoValue(key) {
-  const display = terrainInfoElements[key];
-  if (!display) {
-    return;
-  }
-  if (!terrainInfoState[key]) {
-    display.textContent = "Off";
-    return;
-  }
-  const valueFn = terrainInfoDisplayMap[key];
-  display.textContent = valueFn ? valueFn() : "—";
-}
-
-function refreshTerrainInfoValues() {
-  Object.keys(terrainInfoElements).forEach((key) => {
-    updateTerrainInfoValue(key);
-  });
-}
-
-function toggleTerrainInfo(key, button) {
-  if (!(key in terrainInfoState)) {
-    return;
-  }
-  const nextValue = !terrainInfoState[key];
-  terrainInfoState[key] = nextValue;
-  if (button) {
-    button.setAttribute("aria-pressed", String(nextValue));
-  }
-  updateTerrainInfoValue(key);
-}
 
 function updateLandscapeViewer() {
   if (!landscapeViewer) {
@@ -235,8 +162,6 @@ function syncTextureToggleLabel(isEnabled) {
 
 function updateTerrainMenu(terrain = state.terrain) {
   state.terrain = terrain;
-  updateTerrainInfoValue("terrainId");
-  updateTerrainInfoValue("terrainLabel");
   if (elements.terrainTileDisplay) {
     const terrainIndex = TERRAIN_TYPES.findIndex(
       (entry) => entry.id === terrain?.id
@@ -247,12 +172,6 @@ function updateTerrainMenu(terrain = state.terrain) {
   if (elements.terrainTypeSelect && terrain?.id) {
     elements.terrainTypeSelect.value = terrain.id;
   }
-}
-
-function updateMapTerrainDisplay(terrainId) {
-  state.mapTerrainId = terrainId ?? null;
-  updateTerrainInfoValue("mapTerrainId");
-  updateTerrainInfoValue("mapTerrainLabel");
 }
 
 function syncTerrainMenuButtons() {
@@ -273,16 +192,6 @@ function syncTerrainBrushVisibility() {
   elements.terrainBrushRow.setAttribute("aria-hidden", String(!isVisible));
 }
 
-function syncTerrainInfoToggle() {
-  if (!elements.terrainInfoToggle) {
-    return;
-  }
-  const isEnabled = state.showTerrainInfo;
-  elements.terrainInfoToggle.classList.toggle("is-active", isEnabled);
-  elements.terrainInfoToggle.setAttribute("aria-pressed", String(isEnabled));
-  elements.terrainInfoToggle.textContent = isEnabled ? "Hide info" : "Show info";
-}
-
 function setTerrainMenu(menu) {
   if (menu && !["brush", "draw"].includes(menu)) {
     return;
@@ -296,21 +205,6 @@ function setTerrainMenu(menu) {
   }
   syncTerrainMenuButtons();
   syncTerrainBrushVisibility();
-}
-
-function setTerrainInfoVisibility(isEnabled) {
-  state.showTerrainInfo = isEnabled;
-  syncTerrainInfoToggle();
-  syncTerrainInfoGridVisibility();
-}
-
-function syncTerrainInfoGridVisibility() {
-  if (!elements.terrainInfoGrid) {
-    return;
-  }
-  const isVisible = state.showTerrainInfo;
-  elements.terrainInfoGrid.hidden = !isVisible;
-  elements.terrainInfoGrid.setAttribute("aria-hidden", String(!isVisible));
 }
 
 function syncTerrainRotationDisplay() {
@@ -627,9 +521,6 @@ function renderPalette() {
 function renderGrid() {
   if (!elements.mapGrid) {
     updateLandscapeViewer();
-    if (state.map.cells.length > 0) {
-      updateMapTerrainDisplay(state.map.cells[0]);
-    }
     return;
   }
 
@@ -667,9 +558,6 @@ function renderGrid() {
   }
 
   updateLandscapeViewer();
-  if (state.map.cells.length > 0) {
-    updateMapTerrainDisplay(state.map.cells[0]);
-  }
 }
 
 function paintCell(index, terrainId) {
@@ -707,7 +595,6 @@ function paintCell(index, terrainId) {
   }
   updateJsonPreview();
   updateLandscapeViewer();
-  updateMapTerrainDisplay(terrainId);
 }
 
 function beginPointerPaint(erase) {
@@ -764,7 +651,6 @@ function handleCellPointerDown(event) {
     return;
   }
   const cell = event.currentTarget;
-  updateMapTerrainDisplay(cell.dataset.terrain);
   const index = Number.parseInt(cell.dataset.index, 10);
   const erase = event.shiftKey;
   beginPointerPaint(erase);
@@ -774,7 +660,6 @@ function handleCellPointerDown(event) {
 
 function handleCellPointerEnter(event) {
   const cell = event.currentTarget;
-  updateMapTerrainDisplay(cell.dataset.terrain);
   const index = Number.parseInt(cell.dataset.index, 10);
   applyPointerPaint(index);
 }
@@ -1051,7 +936,6 @@ function initControls() {
   setTextureVisibility(defaultTextureState);
   syncTerrainMenuButtons();
   syncTerrainBrushVisibility();
-  setTerrainInfoVisibility(state.showTerrainInfo);
   if (elements.textureToggle) {
     elements.textureToggle.addEventListener("change", (event) => {
       setTextureVisibility(event.target.checked);
@@ -1060,20 +944,6 @@ function initControls() {
   if (elements.landscapeTextureToggle) {
     elements.landscapeTextureToggle.addEventListener("click", () => {
       setTextureVisibility(!getTextureVisibility());
-    });
-  }
-
-  if (elements.terrainInfoToggle) {
-    elements.terrainInfoToggle.addEventListener("click", () => {
-      setTerrainInfoVisibility(!state.showTerrainInfo);
-    });
-  }
-
-  if (elements.terrainInfoButtons.length) {
-    elements.terrainInfoButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        toggleTerrainInfo(button.dataset.terrainInfo, button);
-      });
     });
   }
 

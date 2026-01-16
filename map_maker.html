@@ -282,57 +282,6 @@
         color: #0b1120;
       }
 
-      .terrain-info-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.55rem;
-      }
-
-      .terrain-info-card {
-        padding: 0.4rem 0.6rem;
-        border-radius: 0.35rem;
-        border: 1px solid rgba(15, 23, 42, 0.8);
-        background: linear-gradient(180deg, #7dff3a, #6ff216);
-        display: grid;
-        place-items: center;
-        gap: 0.15rem;
-        font-size: 0.78rem;
-        text-align: center;
-        cursor: pointer;
-        transition: transform 120ms ease, border-color 120ms ease,
-          background 120ms ease;
-      }
-
-      .terrain-info-card:hover,
-      .terrain-info-card:focus-visible {
-        transform: translateY(-1px);
-        border-color: rgba(15, 23, 42, 0.9);
-        outline: none;
-      }
-
-      .terrain-info-card[aria-pressed="false"] {
-        background: #1f2937;
-        border-color: rgba(148, 163, 184, 0.6);
-      }
-
-      .terrain-info-card[aria-pressed="false"] .terrain-info-label,
-      .terrain-info-card[aria-pressed="false"] .terrain-info-value {
-        color: #e2e8f0;
-      }
-
-      .terrain-info-label {
-        text-transform: none;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-        color: #0b1120;
-      }
-
-      .terrain-info-value {
-        font-weight: 600;
-        color: #0b1120;
-        word-break: break-word;
-      }
-
       .terrain-control-row {
         display: flex;
         flex-wrap: wrap;
@@ -679,7 +628,6 @@
       .control select,
       .terrain-menu,
       .terrain-mode-button,
-      .terrain-info-card,
       .terrain-icon-button,
       .terrain-brush-value,
       .terrain-type-select select,
@@ -830,14 +778,6 @@
             >
               Draw
             </button>
-            <button
-              class="terrain-mode-button"
-              type="button"
-              data-terrain-toggle="info"
-              aria-pressed="false"
-            >
-              Show info
-            </button>
           </div>
           <div class="terrain-control-row">
             <span class="terrain-control-label">Tile</span>
@@ -886,48 +826,6 @@
               />
               <span class="terrain-brush-value" id="terrainBrushSizeValue">1</span>
             </div>
-          </div>
-        </section>
-
-        <section class="sidebar-section">
-          <h2>Terrain Info</h2>
-          <div class="terrain-info-grid" id="terrainInfoGrid">
-            <button
-              class="terrain-info-card"
-              type="button"
-              data-terrain-info="terrainId"
-              aria-pressed="false"
-            >
-              <span class="terrain-info-label">Brush ID</span>
-              <span class="terrain-info-value" id="terrainIdDisplay">Off</span>
-            </button>
-            <button
-              class="terrain-info-card"
-              type="button"
-              data-terrain-info="terrainLabel"
-              aria-pressed="false"
-            >
-              <span class="terrain-info-label">Brush name</span>
-              <span class="terrain-info-value" id="terrainLabelDisplay">Off</span>
-            </button>
-            <button
-              class="terrain-info-card"
-              type="button"
-              data-terrain-info="mapTerrainId"
-              aria-pressed="false"
-            >
-              <span class="terrain-info-label">Map ID</span>
-              <span class="terrain-info-value" id="mapTerrainIdDisplay">Off</span>
-            </button>
-            <button
-              class="terrain-info-card"
-              type="button"
-              data-terrain-info="mapTerrainLabel"
-              aria-pressed="false"
-            >
-              <span class="terrain-info-label">Map name</span>
-              <span class="terrain-info-value" id="mapTerrainLabelDisplay">Off</span>
-            </button>
           </div>
         </section>
 
