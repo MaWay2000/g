@@ -30,9 +30,11 @@ const state = {
   showTerrainInfo: true,
   mapTerrainId: null,
   lastUpdatedAt: null,
+  lastPoolLabel: null,
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
+const DEFAULT_LAST_POOL_LABEL = "Not generated yet";
 
 function formatTerrainHp(terrain) {
   if (!terrain || typeof terrain.hp !== "number" || terrain.hp < 0) {
@@ -110,6 +112,7 @@ const elements = {
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
   lastUpdatedDisplay: document.getElementById("lastUpdateDisplay"),
+  lastPoolDisplay: document.getElementById("lastPoolDisplay"),
   terrainIdDisplay: document.getElementById("terrainIdDisplay"),
   terrainLabelDisplay: document.getElementById("terrainLabelDisplay"),
   terrainInfoGrid: document.getElementById("terrainInfoGrid"),
@@ -179,6 +182,15 @@ function updateLastUpdatedDisplay(date = new Date()) {
     return;
   }
   elements.lastUpdatedDisplay.textContent = formatLastUpdatedTimestamp(date);
+}
+
+function updateLastPoolDisplay(label) {
+  const nextLabel = label ?? DEFAULT_LAST_POOL_LABEL;
+  state.lastPoolLabel = nextLabel;
+  if (!elements.lastPoolDisplay) {
+    return;
+  }
+  elements.lastPoolDisplay.textContent = nextLabel;
 }
 
 function updateTerrainInfoValue(key) {
@@ -902,6 +914,7 @@ function applyImportedMap(mapDefinition) {
   const normalized = normalizeOutsideMap(mapDefinition);
 
   state.map = normalized;
+  updateLastPoolDisplay();
 
   updateMetadataDisplays();
   renderGrid();
@@ -911,6 +924,7 @@ function applyImportedMap(mapDefinition) {
 function resetMap() {
   state.map = createDefaultOutsideMap();
   setTerrain(TERRAIN_TYPES[1]);
+  updateLastPoolDisplay();
   updateMetadataDisplays();
   renderGrid();
   updateJsonPreview();
@@ -921,6 +935,11 @@ function generateRandomMap() {
   if (pool.length === 0) {
     return;
   }
+  const poolLabel =
+    pool === RANDOM_TERRAIN_POOL
+      ? `Random terrain pool (${pool.length})`
+      : `Default terrain pool (${pool.length})`;
+  updateLastPoolDisplay(poolLabel);
 
   state.map.cells = state.map.cells.map(() => {
     const randomIndex = Math.floor(Math.random() * pool.length);
@@ -987,6 +1006,7 @@ function initControls() {
   renderGrid();
   updateMetadataDisplays();
   updateJsonPreview();
+  updateLastPoolDisplay();
   populateTerrainTypeSelect();
   updateTerrainMenu();
   syncTerrainMenuButtons();
