@@ -232,9 +232,10 @@
       }
 
       .terrain-menu-actions {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         gap: 0.5rem;
+        width: 100%;
       }
 
       .terrain-mode-button {
@@ -247,6 +248,8 @@
         font-weight: 600;
         letter-spacing: 0.02em;
         cursor: pointer;
+        width: 100%;
+        text-align: center;
         transition: transform 120ms ease, border-color 120ms ease,
           background 120ms ease;
       }
