@@ -26,6 +26,7 @@ const state = {
   terrainRotation: 0,
   terrainBrushSize: 1,
   showTextures: true,
+  mapTerrainId: null,
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
@@ -108,6 +109,9 @@ const elements = {
   terrainIdDisplay: document.getElementById("terrainIdDisplay"),
   terrainLabelDisplay: document.getElementById("terrainLabelDisplay"),
   terrainInfoGrid: document.getElementById("terrainInfoGrid"),
+  terrainInfoButtons: Array.from(
+    document.querySelectorAll("[data-terrain-info]")
+  ),
   mapTerrainIdDisplay: document.getElementById("mapTerrainIdDisplay"),
   mapTerrainLabelDisplay: document.getElementById("mapTerrainLabelDisplay"),
   terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
@@ -125,6 +129,68 @@ const elements = {
 };
 
 let landscapeViewer = null;
+
+const terrainInfoState = {
+  terrainId: true,
+  terrainLabel: true,
+  mapTerrainId: true,
+  mapTerrainLabel: true,
+};
+
+const terrainInfoDisplayMap = {
+  terrainId: () => state.terrain?.id ?? "—",
+  terrainLabel: () => state.terrain?.label ?? "—",
+  mapTerrainId: () => {
+    const terrain = state.mapTerrainId
+      ? getTerrainById(state.mapTerrainId)
+      : null;
+    return terrain?.id ?? "—";
+  },
+  mapTerrainLabel: () => {
+    const terrain = state.mapTerrainId
+      ? getTerrainById(state.mapTerrainId)
+      : null;
+    return terrain?.label ?? "—";
+  },
+};
+
+const terrainInfoElements = {
+  terrainId: elements.terrainIdDisplay,
+  terrainLabel: elements.terrainLabelDisplay,
+  mapTerrainId: elements.mapTerrainIdDisplay,
+  mapTerrainLabel: elements.mapTerrainLabelDisplay,
+};
+
+function updateTerrainInfoValue(key) {
+  const display = terrainInfoElements[key];
+  if (!display) {
+    return;
+  }
+  if (!terrainInfoState[key]) {
+    display.textContent = "Off";
+    return;
+  }
+  const valueFn = terrainInfoDisplayMap[key];
+  display.textContent = valueFn ? valueFn() : "—";
+}
+
+function refreshTerrainInfoValues() {
+  Object.keys(terrainInfoElements).forEach((key) => {
+    updateTerrainInfoValue(key);
+  });
+}
+
+function toggleTerrainInfo(key, button) {
+  if (!(key in terrainInfoState)) {
+    return;
+  }
+  const nextValue = !terrainInfoState[key];
+  terrainInfoState[key] = nextValue;
+  if (button) {
+    button.setAttribute("aria-pressed", String(nextValue));
+  }
+  updateTerrainInfoValue(key);
+}
 
 function updateLandscapeViewer() {
   if (!landscapeViewer) {
@@ -180,12 +246,9 @@ function syncTerrainTextureButton(isEnabled) {
 }
 
 function updateTerrainMenu(terrain = state.terrain) {
-  if (elements.terrainIdDisplay) {
-    elements.terrainIdDisplay.textContent = terrain?.id ?? "—";
-  }
-  if (elements.terrainLabelDisplay) {
-    elements.terrainLabelDisplay.textContent = terrain?.label ?? "—";
-  }
+  state.terrain = terrain;
+  updateTerrainInfoValue("terrainId");
+  updateTerrainInfoValue("terrainLabel");
   if (elements.terrainTileDisplay) {
     const terrainIndex = TERRAIN_TYPES.findIndex(
       (entry) => entry.id === terrain?.id
@@ -199,13 +262,9 @@ function updateTerrainMenu(terrain = state.terrain) {
 }
 
 function updateMapTerrainDisplay(terrainId) {
-  const terrain = terrainId ? getTerrainById(terrainId) : null;
-  if (elements.mapTerrainIdDisplay) {
-    elements.mapTerrainIdDisplay.textContent = terrain?.id ?? "—";
-  }
-  if (elements.mapTerrainLabelDisplay) {
-    elements.mapTerrainLabelDisplay.textContent = terrain?.label ?? "—";
-  }
+  state.mapTerrainId = terrainId ?? null;
+  updateTerrainInfoValue("mapTerrainId");
+  updateTerrainInfoValue("mapTerrainLabel");
 }
 
 function syncTerrainModeButtons() {
@@ -973,6 +1032,14 @@ function initControls() {
     elements.terrainTextureButton.addEventListener("click", () => {
       const nextValue = !getTextureVisibility();
       setTextureVisibility(nextValue);
+    });
+  }
+
+  if (elements.terrainInfoButtons.length) {
+    elements.terrainInfoButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        toggleTerrainInfo(button.dataset.terrainInfo, button);
+      });
     });
   }
 

@@ -285,6 +285,26 @@
         gap: 0.15rem;
         font-size: 0.78rem;
         text-align: center;
+        cursor: pointer;
+        transition: transform 120ms ease, border-color 120ms ease,
+          background 120ms ease;
+      }
+
+      .terrain-info-card:hover,
+      .terrain-info-card:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(15, 23, 42, 0.9);
+        outline: none;
+      }
+
+      .terrain-info-card[aria-pressed="false"] {
+        background: #1f2937;
+        border-color: rgba(148, 163, 184, 0.6);
+      }
+
+      .terrain-info-card[aria-pressed="false"] .terrain-info-label,
+      .terrain-info-card[aria-pressed="false"] .terrain-info-value {
+        color: #e2e8f0;
       }
 
       .terrain-info-label {
@@ -801,22 +821,42 @@
               </button>
             </div>
             <div class="terrain-info-grid" id="terrainInfoGrid">
-              <div class="terrain-info-card">
+              <button
+                class="terrain-info-card"
+                type="button"
+                data-terrain-info="terrainId"
+                aria-pressed="true"
+              >
                 <span class="terrain-info-label">ID</span>
                 <span class="terrain-info-value" id="terrainIdDisplay">—</span>
-              </div>
-              <div class="terrain-info-card">
+              </button>
+              <button
+                class="terrain-info-card"
+                type="button"
+                data-terrain-info="terrainLabel"
+                aria-pressed="true"
+              >
                 <span class="terrain-info-label">Type</span>
                 <span class="terrain-info-value" id="terrainLabelDisplay">—</span>
-              </div>
-              <div class="terrain-info-card">
+              </button>
+              <button
+                class="terrain-info-card"
+                type="button"
+                data-terrain-info="mapTerrainId"
+                aria-pressed="true"
+              >
                 <span class="terrain-info-label">ID on map</span>
                 <span class="terrain-info-value" id="mapTerrainIdDisplay">—</span>
-              </div>
-              <div class="terrain-info-card">
+              </button>
+              <button
+                class="terrain-info-card"
+                type="button"
+                data-terrain-info="mapTerrainLabel"
+                aria-pressed="true"
+              >
                 <span class="terrain-info-label">Type on map</span>
                 <span class="terrain-info-value" id="mapTerrainLabelDisplay">—</span>
-              </div>
+              </button>
             </div>
             <div class="terrain-control-row">
               <div class="terrain-rotation">
