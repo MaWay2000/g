@@ -245,6 +245,7 @@ const DEFAULT_OUTSIDE_MAP_TEMPLATE = {
   name: "outside-yard",
   region: "perimeter",
   notes: "",
+  lastUpdatedAt: null,
   width: 16,
   height: 12,
   cells: Array.from({ length: 16 * 12 }, () => "nonmetal"),
@@ -278,11 +279,25 @@ export function normalizeOutsideMap(definition) {
   const height = clampOutsideMapDimension(definition.height);
   const totalCells = width * height;
   const sourceCells = Array.isArray(definition.cells) ? definition.cells : [];
+  const lastUpdatedAtValue = definition.lastUpdatedAt;
+  let lastUpdatedAt = null;
+  if (typeof lastUpdatedAtValue === "string" && lastUpdatedAtValue.trim()) {
+    lastUpdatedAt = lastUpdatedAtValue;
+  } else if (
+    typeof lastUpdatedAtValue === "number" &&
+    Number.isFinite(lastUpdatedAtValue)
+  ) {
+    const parsedDate = new Date(lastUpdatedAtValue);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      lastUpdatedAt = parsedDate.toISOString();
+    }
+  }
 
   const normalized = {
     name: typeof definition.name === "string" ? definition.name : "",
     region: typeof definition.region === "string" ? definition.region : "",
     notes: typeof definition.notes === "string" ? definition.notes : "",
+    lastUpdatedAt,
     width,
     height,
     cells: [],
