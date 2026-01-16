@@ -212,6 +212,7 @@ function setTextureVisibility(isEnabled) {
     elements.mapGrid.dataset.showTextures = String(isEnabled);
   }
   syncTextureToggleLabel(isEnabled);
+  syncTerrainInfoGridVisibility();
 }
 
 function syncTextureToggleLabel(isEnabled) {
@@ -294,11 +295,17 @@ function setTerrainMenu(menu) {
 
 function setTerrainInfoVisibility(isEnabled) {
   state.showTerrainInfo = isEnabled;
-  if (elements.terrainInfoGrid) {
-    elements.terrainInfoGrid.hidden = !isEnabled;
-    elements.terrainInfoGrid.setAttribute("aria-hidden", String(!isEnabled));
-  }
+  syncTerrainInfoGridVisibility();
   syncTerrainInfoToggle();
+}
+
+function syncTerrainInfoGridVisibility() {
+  if (!elements.terrainInfoGrid) {
+    return;
+  }
+  const isVisible = state.showTerrainInfo && state.showTextures;
+  elements.terrainInfoGrid.hidden = !isVisible;
+  elements.terrainInfoGrid.setAttribute("aria-hidden", String(!isVisible));
 }
 
 function syncTerrainRotationDisplay() {
