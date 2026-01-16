@@ -783,6 +783,22 @@
               Draw
             </button>
           </div>
+          <div class="terrain-control-row terrain-brush-row" id="terrainBrushRow">
+            <label class="terrain-control-label" for="terrainBrushSize">
+              Brush size
+            </label>
+            <div class="terrain-brush-size">
+              <input
+                id="terrainBrushSize"
+                type="range"
+                min="1"
+                max="6"
+                step="1"
+                value="1"
+              />
+              <span class="terrain-brush-value" id="terrainBrushSizeValue">1</span>
+            </div>
+          </div>
           <div class="terrain-control-row">
             <span class="terrain-control-label">Tile</span>
             <span class="terrain-tile-display" id="terrainTileDisplay">—</span>
@@ -814,22 +830,6 @@
             <label class="terrain-type-select" for="terrainTypeSelect">
               <select id="terrainTypeSelect"></select>
             </label>
-          </div>
-          <div class="terrain-control-row terrain-brush-row" id="terrainBrushRow">
-            <label class="terrain-control-label" for="terrainBrushSize">
-              Brush size
-            </label>
-            <div class="terrain-brush-size">
-              <input
-                id="terrainBrushSize"
-                type="range"
-                min="1"
-                max="6"
-                step="1"
-                value="1"
-              />
-              <span class="terrain-brush-value" id="terrainBrushSizeValue">1</span>
-            </div>
           </div>
         </section>
 
