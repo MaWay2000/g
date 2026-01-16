@@ -107,6 +107,7 @@ const elements = {
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
   terrainIdDisplay: document.getElementById("terrainIdDisplay"),
   terrainLabelDisplay: document.getElementById("terrainLabelDisplay"),
+  terrainInfoGrid: document.getElementById("terrainInfoGrid"),
   mapTerrainIdDisplay: document.getElementById("mapTerrainIdDisplay"),
   mapTerrainLabelDisplay: document.getElementById("mapTerrainLabelDisplay"),
   terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
@@ -143,6 +144,10 @@ function setTextureVisibility(isEnabled) {
   state.showTextures = isEnabled;
   if (elements.mapGrid) {
     elements.mapGrid.dataset.showTextures = String(isEnabled);
+  }
+  if (elements.terrainInfoGrid) {
+    elements.terrainInfoGrid.hidden = !isEnabled;
+    elements.terrainInfoGrid.setAttribute("aria-hidden", String(!isEnabled));
   }
   syncTerrainTextureButton(isEnabled);
   syncTextureToggleLabel(isEnabled);
