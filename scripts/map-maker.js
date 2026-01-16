@@ -231,6 +231,7 @@ function setTextureVisibility(isEnabled) {
   if (elements.mapGrid) {
     elements.mapGrid.dataset.showTextures = String(isEnabled);
   }
+  setTerrainInfoVisibility(isEnabled);
   syncTextureToggleLabel(isEnabled);
 }
 
@@ -1060,7 +1061,7 @@ function initControls() {
   }
   setTextureVisibility(defaultTextureState);
   syncTerrainMenuButtons();
-  setTerrainInfoVisibility(state.showTerrainInfo);
+  setTerrainInfoVisibility(getTextureVisibility());
   if (elements.textureToggle) {
     elements.textureToggle.addEventListener("change", (event) => {
       setTerrainMenu(event.target.checked ? "textures" : null);
@@ -1074,7 +1075,7 @@ function initControls() {
 
   if (elements.terrainInfoToggle) {
     elements.terrainInfoToggle.addEventListener("click", () => {
-      setTerrainInfoVisibility(!state.showTerrainInfo);
+      setTerrainMenu(getTextureVisibility() ? null : "textures");
     });
   }
 
