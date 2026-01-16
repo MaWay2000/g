@@ -187,7 +187,14 @@ function syncTerrainBrushVisibility() {
   if (!elements.terrainBrushRow) {
     return;
   }
-  const isVisible = state.terrainMode === "brush";
+  const brushButton = elements.terrainModeButtons.find(
+    (button) => button.dataset.terrainMode === "brush"
+  );
+  const isVisible = Boolean(
+    brushButton &&
+      (brushButton.getAttribute("aria-pressed") === "true" ||
+        brushButton.classList.contains("is-active"))
+  );
   elements.terrainBrushRow.hidden = !isVisible;
   elements.terrainBrushRow.setAttribute("aria-hidden", String(!isVisible));
 }
