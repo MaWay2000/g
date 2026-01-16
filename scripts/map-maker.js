@@ -29,7 +29,6 @@ const state = {
   showTextures: false,
   showTerrainInfo: true,
   mapTerrainId: null,
-  lastUpdatedAt: null,
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
@@ -109,7 +108,6 @@ const elements = {
   landscapeResetButton: document.getElementById("landscapeResetButton"),
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
-  lastUpdatedDisplay: document.getElementById("lastUpdateDisplay"),
   terrainIdDisplay: document.getElementById("terrainIdDisplay"),
   terrainLabelDisplay: document.getElementById("terrainLabelDisplay"),
   terrainInfoGrid: document.getElementById("terrainInfoGrid"),
@@ -162,24 +160,6 @@ const terrainInfoElements = {
   mapTerrainId: elements.mapTerrainIdDisplay,
   mapTerrainLabel: elements.mapTerrainLabelDisplay,
 };
-
-function formatLastUpdatedTimestamp(date) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-    return "—";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-function updateLastUpdatedDisplay(date = new Date()) {
-  state.lastUpdatedAt = date;
-  if (!elements.lastUpdatedDisplay) {
-    return;
-  }
-  elements.lastUpdatedDisplay.textContent = formatLastUpdatedTimestamp(date);
-}
 
 function updateTerrainInfoValue(key) {
   const display = terrainInfoElements[key];
@@ -785,7 +765,6 @@ function handleCellPointerEnter(event) {
 }
 
 function updateJsonPreview() {
-  updateLastUpdatedDisplay();
   const json = JSON.stringify(state.map, null, 2);
   elements.jsonPreview.textContent = json;
 }
