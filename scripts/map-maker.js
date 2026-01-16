@@ -24,6 +24,7 @@ const state = {
   pointerTerrain: null,
   terrainMode: "brush",
   terrainRotation: 0,
+  terrainBrushSize: 1,
   showTextures: true,
 };
 
@@ -111,6 +112,8 @@ const elements = {
   terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
   terrainTileDisplay: document.getElementById("terrainTileDisplay"),
   terrainTypeSelect: document.getElementById("terrainTypeSelect"),
+  terrainBrushSize: document.getElementById("terrainBrushSize"),
+  terrainBrushSizeValue: document.getElementById("terrainBrushSizeValue"),
   terrainModeButtons: Array.from(document.querySelectorAll("[data-terrain-mode]")),
   terrainTextureButton: document.querySelector(
     '[data-terrain-toggle="textures"]'
@@ -228,6 +231,25 @@ function syncTerrainRotationDisplay() {
 function rotateTerrain(direction) {
   state.terrainRotation = (state.terrainRotation + direction + 360) % 360;
   syncTerrainRotationDisplay();
+}
+
+function syncTerrainBrushSizeDisplay() {
+  const brushSize = Math.max(1, Math.floor(state.terrainBrushSize));
+  if (elements.terrainBrushSize) {
+    elements.terrainBrushSize.value = String(brushSize);
+  }
+  if (elements.terrainBrushSizeValue) {
+    elements.terrainBrushSizeValue.textContent = String(brushSize);
+  }
+}
+
+function setTerrainBrushSize(value) {
+  const nextSize = Number.parseInt(value, 10);
+  if (!Number.isFinite(nextSize)) {
+    return;
+  }
+  state.terrainBrushSize = Math.max(1, nextSize);
+  syncTerrainBrushSizeDisplay();
 }
 
 function populateTerrainTypeSelect() {
@@ -604,7 +626,34 @@ function applyPointerPaint(index) {
   if (!state.isPointerDown) {
     return;
   }
-  paintCell(index, state.pointerTerrain);
+  const brushSize =
+    state.terrainMode === "brush" ? Math.max(1, state.terrainBrushSize) : 1;
+  if (brushSize <= 1) {
+    paintCell(index, state.pointerTerrain);
+    return;
+  }
+
+  const width = state.map.width;
+  const height = state.map.height;
+  const x = index % width;
+  const y = Math.floor(index / width);
+  const half = Math.floor(brushSize / 2);
+  const startX = x - half;
+  const startY = y - half;
+  const endX = startX + brushSize - 1;
+  const endY = startY + brushSize - 1;
+
+  for (let row = startY; row <= endY; row += 1) {
+    if (row < 0 || row >= height) {
+      continue;
+    }
+    for (let col = startX; col <= endX; col += 1) {
+      if (col < 0 || col >= width) {
+        continue;
+      }
+      paintCell(row * width + col, state.pointerTerrain);
+    }
+  }
 }
 
 function endPointerPaint() {
@@ -837,6 +886,7 @@ function initControls() {
   updateTerrainMenu();
   syncTerrainModeButtons();
   syncTerrainRotationDisplay();
+  syncTerrainBrushSizeDisplay();
   initPaletteTabs();
 
   if (elements.saveLocalButton?.dataset) {
@@ -942,6 +992,12 @@ function initControls() {
         const direction = button.dataset.rotation === "left" ? -90 : 90;
         rotateTerrain(direction);
       });
+    });
+  }
+
+  if (elements.terrainBrushSize) {
+    elements.terrainBrushSize.addEventListener("input", (event) => {
+      setTerrainBrushSize(event.target.value);
     });
   }
 
