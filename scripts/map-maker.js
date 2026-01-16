@@ -593,6 +593,9 @@ function resizeMap(width, height) {
 }
 
 function renderPalette() {
+  if (!elements.palette) {
+    return;
+  }
   elements.palette.innerHTML = "";
   for (const terrain of TERRAIN_TYPES) {
     const button = document.createElement("button");
