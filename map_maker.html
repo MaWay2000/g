@@ -812,6 +812,129 @@
         aria-labelledby="tab-terrain"
         data-map-maker-panel="terrain"
       >
+        <section class="sidebar-section terrain-menu">
+          <div class="terrain-menu-actions">
+            <button
+              class="terrain-mode-button"
+              type="button"
+              data-terrain-mode="brush"
+              aria-pressed="false"
+            >
+              Brush
+            </button>
+            <button
+              class="terrain-mode-button"
+              type="button"
+              data-terrain-mode="draw"
+              aria-pressed="false"
+            >
+              Draw
+            </button>
+            <button
+              class="terrain-mode-button"
+              type="button"
+              data-terrain-toggle="info"
+              aria-pressed="false"
+            >
+              Show info
+            </button>
+          </div>
+          <div class="terrain-control-row">
+            <span class="terrain-control-label">Tile</span>
+            <span class="terrain-tile-display" id="terrainTileDisplay">—</span>
+          </div>
+          <div class="terrain-control-row">
+            <span class="terrain-control-label">Rotation</span>
+            <div class="terrain-rotation">
+              <span id="terrainRotationDisplay">0°</span>
+              <button
+                class="terrain-icon-button"
+                type="button"
+                data-rotation="left"
+                aria-label="Rotate left"
+              >
+                ⟲
+              </button>
+              <button
+                class="terrain-icon-button"
+                type="button"
+                data-rotation="right"
+                aria-label="Rotate right"
+              >
+                ⟳
+              </button>
+            </div>
+          </div>
+          <div class="terrain-control-row">
+            <span class="terrain-control-label">Terrain type</span>
+            <label class="terrain-type-select" for="terrainTypeSelect">
+              <select id="terrainTypeSelect"></select>
+            </label>
+          </div>
+          <div class="terrain-control-row terrain-brush-row" id="terrainBrushRow">
+            <label class="terrain-control-label" for="terrainBrushSize">
+              Brush size
+            </label>
+            <div class="terrain-brush-size">
+              <input
+                id="terrainBrushSize"
+                type="range"
+                min="1"
+                max="6"
+                step="1"
+                value="1"
+              />
+              <span class="terrain-brush-value" id="terrainBrushSizeValue">1</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="sidebar-section">
+          <h2>Terrain Info</h2>
+          <div class="terrain-info-grid" id="terrainInfoGrid">
+            <button
+              class="terrain-info-card"
+              type="button"
+              data-terrain-info="terrainId"
+              aria-pressed="false"
+            >
+              <span class="terrain-info-label">Brush ID</span>
+              <span class="terrain-info-value" id="terrainIdDisplay">Off</span>
+            </button>
+            <button
+              class="terrain-info-card"
+              type="button"
+              data-terrain-info="terrainLabel"
+              aria-pressed="false"
+            >
+              <span class="terrain-info-label">Brush name</span>
+              <span class="terrain-info-value" id="terrainLabelDisplay">Off</span>
+            </button>
+            <button
+              class="terrain-info-card"
+              type="button"
+              data-terrain-info="mapTerrainId"
+              aria-pressed="false"
+            >
+              <span class="terrain-info-label">Map ID</span>
+              <span class="terrain-info-value" id="mapTerrainIdDisplay">Off</span>
+            </button>
+            <button
+              class="terrain-info-card"
+              type="button"
+              data-terrain-info="mapTerrainLabel"
+              aria-pressed="false"
+            >
+              <span class="terrain-info-label">Map name</span>
+              <span class="terrain-info-value" id="mapTerrainLabelDisplay">Off</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="sidebar-section">
+          <h2>Terrain Palette</h2>
+          <div class="terrain-palette" id="terrainPalette"></div>
+        </section>
       </div>
       <div
         class="tab-panel palette-panel"
