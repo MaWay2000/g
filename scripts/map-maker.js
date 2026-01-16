@@ -303,7 +303,7 @@ function syncTerrainInfoGridVisibility() {
   if (!elements.terrainInfoGrid) {
     return;
   }
-  const isVisible = state.showTerrainInfo && state.showTextures;
+  const isVisible = state.showTerrainInfo;
   elements.terrainInfoGrid.hidden = !isVisible;
   elements.terrainInfoGrid.setAttribute("aria-hidden", String(!isVisible));
 }
