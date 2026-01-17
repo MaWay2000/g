@@ -239,6 +239,13 @@ export const initMapMaker3d = ({
     TERRAIN_MARKER_SIZE
   );
   terrainMarkerGeometry.rotateX(-Math.PI / 2);
+  const markerColorAttribute = new THREE.Float32BufferAttribute(
+    new Float32Array(terrainMarkerGeometry.attributes.position.count * 3).fill(
+      1
+    ),
+    3
+  );
+  terrainMarkerGeometry.setAttribute("color", markerColorAttribute);
   const terrainMarkerMaterial = new THREE.MeshBasicMaterial({
     vertexColors: true,
     transparent: true,
