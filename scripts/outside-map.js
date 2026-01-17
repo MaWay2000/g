@@ -34,7 +34,7 @@ const OUTSIDE_TERRAIN_BASE_TYPES = [
     id: "void",
     label: "Void",
     description: "Unusable space. Treated as off-map.",
-    color: "transparent",
+    color: "#ffffff",
     hp: 0,
   },
   {
