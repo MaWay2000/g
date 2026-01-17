@@ -1,7 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
 import {
-  OUTSIDE_TERRAIN_TYPES,
   getOutsideTerrainById,
   getOutsideTerrainTexturePath,
 } from "./outside-map.js";
@@ -36,10 +35,6 @@ const resolveTerrainColor = (terrain, showColors) => {
 
   return terrainColor;
 };
-
-const TERRAIN_INDEX_BY_ID = new Map(
-  OUTSIDE_TERRAIN_TYPES.map((terrain, index) => [terrain.id, index])
-);
 
 const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
   const positions = [];
@@ -118,7 +113,6 @@ export const initMapMaker3d = ({
   errorElement,
   resetButton,
   terrainTypeToggle,
-  tileIdToggle,
   terrainTextureToggle,
   initialTextureVisibility = true,
   getBrushSize,
@@ -316,24 +310,6 @@ export const initMapMaker3d = ({
 
   let showTerrainTypes = getTerrainToggleState();
   syncTerrainToggleLabel(showTerrainTypes);
-  const getTileIdToggleState = () => {
-    if (!tileIdToggle) {
-      return false;
-    }
-    const pressed = tileIdToggle.getAttribute("aria-pressed");
-    return pressed === "true";
-  };
-
-  const syncTileIdToggleLabel = (isEnabled) => {
-    if (!tileIdToggle) {
-      return;
-    }
-    tileIdToggle.setAttribute("aria-pressed", String(isEnabled));
-    tileIdToggle.textContent = `Tile IDs: ${isEnabled ? "On" : "Off"}`;
-  };
-
-  let showTileIds = getTileIdToggleState();
-  syncTileIdToggleLabel(showTileIds);
   const syncTerrainTextureToggleLabel = (isEnabled) => {
     if (!terrainTextureToggle) {
       return;
@@ -384,8 +360,7 @@ export const initMapMaker3d = ({
     if (!textureContext) {
       return;
     }
-    const shouldRenderTexture = showTerrainTextures || showTileIds;
-    if (!shouldRenderTexture) {
+    if (!showTerrainTextures) {
       if (material.map) {
         material.map = null;
         material.needsUpdate = true;
@@ -401,81 +376,48 @@ export const initMapMaker3d = ({
     textureCanvas.width = width * TEXTURE_TILE_SIZE;
     textureCanvas.height = height * TEXTURE_TILE_SIZE;
 
-    if (showTerrainTextures) {
-      const texturePaths = new Set();
-      map.cells.forEach((terrainId, index) => {
-        const texturePath = getOutsideTerrainTexturePath(terrainId, index);
-        if (texturePath) {
-          texturePaths.add(texturePath);
-        }
-      });
-
-      await Promise.all([...texturePaths].map((path) => loadTerrainTexture(path)));
-      if (nextToken !== textureToken) {
-        return;
+    const texturePaths = new Set();
+    map.cells.forEach((terrainId, index) => {
+      const texturePath = getOutsideTerrainTexturePath(terrainId, index);
+      if (texturePath) {
+        texturePaths.add(texturePath);
       }
+    });
+
+    await Promise.all([...texturePaths].map((path) => loadTerrainTexture(path)));
+    if (nextToken !== textureToken) {
+      return;
     }
 
     textureContext.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
-
-    if (showTileIds) {
-      textureContext.textAlign = "center";
-      textureContext.textBaseline = "middle";
-      const fontSize = Math.max(10, Math.round(TEXTURE_TILE_SIZE * 0.4));
-      textureContext.font = `700 ${fontSize}px "Inter", "Segoe UI", sans-serif`;
-    }
 
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const index = y * width + x;
         const terrainId = map.cells[index];
+        const texturePath = getOutsideTerrainTexturePath(terrainId, index);
+        const image = texturePath
+          ? terrainTextureCache.get(texturePath)
+          : null;
         const drawX = x * TEXTURE_TILE_SIZE;
         const drawY = y * TEXTURE_TILE_SIZE;
-        const terrain = getOutsideTerrainById(terrainId);
-        if (showTerrainTextures) {
-          const texturePath = getOutsideTerrainTexturePath(terrainId, index);
-          const image = texturePath
-            ? terrainTextureCache.get(texturePath)
-            : null;
-          if (image) {
-            textureContext.drawImage(
-              image,
-              drawX,
-              drawY,
-              TEXTURE_TILE_SIZE,
-              TEXTURE_TILE_SIZE
-            );
-          } else {
-            textureContext.fillStyle =
-              resolveTerrainColor(terrain, showTerrainTypes);
-            textureContext.fillRect(
-              drawX,
-              drawY,
-              TEXTURE_TILE_SIZE,
-              TEXTURE_TILE_SIZE
-            );
-          }
+        if (image) {
+          textureContext.drawImage(
+            image,
+            drawX,
+            drawY,
+            TEXTURE_TILE_SIZE,
+            TEXTURE_TILE_SIZE
+          );
         } else {
-          textureContext.fillStyle = resolveTerrainColor(terrain, showTerrainTypes);
+          const terrain = getOutsideTerrainById(terrainId);
+          textureContext.fillStyle = terrain?.color ?? NEUTRAL_TERRAIN_COLOR;
           textureContext.fillRect(
             drawX,
             drawY,
             TEXTURE_TILE_SIZE,
             TEXTURE_TILE_SIZE
           );
-        }
-
-        if (showTileIds) {
-          const tileIndex = TERRAIN_INDEX_BY_ID.get(terrainId);
-          if (Number.isFinite(tileIndex)) {
-            const labelX = drawX + TEXTURE_TILE_SIZE / 2;
-            const labelY = drawY + TEXTURE_TILE_SIZE / 2;
-            textureContext.lineWidth = 3;
-            textureContext.strokeStyle = "#0f172a";
-            textureContext.fillStyle = "#f8fafc";
-            textureContext.strokeText(String(tileIndex), labelX, labelY);
-            textureContext.fillText(String(tileIndex), labelX, labelY);
-          }
         }
       }
     }
@@ -595,21 +537,11 @@ export const initMapMaker3d = ({
     showTerrainTypes = nextValue;
     if (lastMap) {
       applyMapGeometry(lastMap, { resetCamera: false });
-      if (showTileIds && !showTerrainTextures) {
-        void renderTerrainTexture(lastMap);
-      }
     }
   };
 
   const updateTerrainTextureDisplay = (nextValue) => {
     showTerrainTextures = nextValue;
-    if (lastMap) {
-      void renderTerrainTexture(lastMap);
-    }
-  };
-
-  const updateTileIdDisplay = (nextValue) => {
-    showTileIds = nextValue;
     if (lastMap) {
       void renderTerrainTexture(lastMap);
     }
@@ -857,16 +789,6 @@ export const initMapMaker3d = ({
     terrainTextureToggle.addEventListener("click", terrainTextureToggleHandler);
   }
 
-  let tileIdToggleHandler = null;
-  if (tileIdToggle) {
-    tileIdToggleHandler = () => {
-      const nextValue = !showTileIds;
-      syncTileIdToggleLabel(nextValue);
-      updateTileIdDisplay(nextValue);
-    };
-    tileIdToggle.addEventListener("click", tileIdToggleHandler);
-  }
-
   const dispose = () => {
     if (frameId) {
       window.cancelAnimationFrame(frameId);
@@ -896,15 +818,11 @@ export const initMapMaker3d = ({
         terrainTextureToggleHandler
       );
     }
-    if (tileIdToggle && tileIdToggleHandler) {
-      tileIdToggle.removeEventListener("click", tileIdToggleHandler);
-    }
   };
 
   return {
     updateMap,
     setTextureVisibility: updateTerrainTextureDisplay,
-    setTileIdVisibility: updateTileIdDisplay,
     setSelection,
     resize: resizeRenderer,
     dispose,
