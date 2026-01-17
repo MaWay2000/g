@@ -8,7 +8,10 @@ import {
 const HEIGHT_FLOOR = 0.05;
 const HEIGHT_SCALE = 6;
 const TERRAIN_HEIGHT = HEIGHT_FLOOR + HEIGHT_SCALE * 0.5;
-const TERRAIN_MARKER_SIZE = 0.32;
+const TERRAIN_MARKER_SIZE = 0.22;
+const TERRAIN_MARKER_MARGIN = 0.08;
+const TERRAIN_MARKER_OFFSET =
+  -0.5 + TERRAIN_MARKER_MARGIN + TERRAIN_MARKER_SIZE / 2;
 const NEUTRAL_TERRAIN_COLOR = "#f8fafc";
 const TRANSPARENT_COLOR_KEYWORD = "transparent";
 
@@ -523,7 +526,11 @@ export const initMapMaker3d = ({
       const y = Math.floor(index / map.width);
       const worldX = x - map.width / 2 + 0.5;
       const worldZ = y - map.height / 2 + 0.5;
-      tempMatrix.makeTranslation(worldX, markerElevation, worldZ);
+      tempMatrix.makeTranslation(
+        worldX + TERRAIN_MARKER_OFFSET,
+        markerElevation,
+        worldZ + TERRAIN_MARKER_OFFSET
+      );
       terrainMarkerMesh.setMatrixAt(index, tempMatrix);
       const terrain = getOutsideTerrainById(terrainId);
       const color = new THREE.Color(resolveTerrainColor(terrain, true));
