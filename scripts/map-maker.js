@@ -1,5 +1,6 @@
 import {
   OUTSIDE_TERRAIN_TYPES as TERRAIN_TYPES,
+  OUTSIDE_TERRAIN_TILES,
   OUTSIDE_MAP_LOCAL_STORAGE_KEY as LOCAL_STORAGE_KEY,
   clampOutsideMapDimension,
   getOutsideTerrainById as getTerrainById,
@@ -19,10 +20,14 @@ const localSaveFeedbackTimers = {
 };
 
 const state = {
-  terrain: TERRAIN_TYPES[1],
+  selectedTerrainTypeId: TERRAIN_TYPES[1]?.id ?? TERRAIN_TYPES[0]?.id ?? "void",
+  selectedTerrainTileId: getOutsideTerrainDefaultTileId(
+    TERRAIN_TYPES[1]?.id ?? TERRAIN_TYPES[0]?.id ?? "void"
+  ),
   map: createDefaultOutsideMap(),
   isPointerDown: false,
-  pointerTerrain: null,
+  pointerTerrainTypeId: null,
+  pointerTerrainTileId: null,
   terrainMenu: null,
   terrainMode: null,
   terrainRotation: 0,
@@ -35,6 +40,9 @@ const state = {
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
+const TERRAIN_TILE_BY_ID = new Map(
+  OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, { tile, index }])
+);
 
 function formatTerrainHp(terrain) {
   if (!terrain || typeof terrain.hp !== "number" || terrain.hp < 0) {
@@ -63,12 +71,53 @@ function formatTerrainElement(terrain) {
   return null;
 }
 
-function getTerrainTextureCssValue(terrainId, variantSeed = 0) {
-  const texturePath = getOutsideTerrainTilePath(terrainId, variantSeed);
+function getTerrainTextureCssValue(tileId, variantSeed = 0) {
+  const texturePath = getOutsideTerrainTilePath(tileId, variantSeed);
   if (!texturePath) {
     return "none";
   }
   return `url("${texturePath}")`;
+}
+
+function formatTerrainTileLabel(tileId) {
+  const tileMeta = TERRAIN_TILE_BY_ID.get(tileId);
+  if (!tileMeta) {
+    return "Tile —";
+  }
+  return `Tile ${tileMeta.index + 1}`;
+}
+
+function resolveTerrainTileId(tileId, terrainId) {
+  if (tileId && TERRAIN_TILE_BY_ID.has(tileId)) {
+    return tileId;
+  }
+  return getOutsideTerrainDefaultTileId(terrainId);
+}
+
+function getSelectedTerrain() {
+  return getTerrainById(state.selectedTerrainTypeId);
+}
+
+function getSelectedTerrainTileId() {
+  return resolveTerrainTileId(
+    state.selectedTerrainTileId,
+    state.selectedTerrainTypeId
+  );
+}
+
+function getActiveTerrainSelection({ erase = false } = {}) {
+  const terrainId = erase
+    ? TERRAIN_TYPES[0]?.id ?? "void"
+    : state.selectedTerrainTypeId;
+  const terrain = getTerrainById(terrainId);
+  const tileId = erase
+    ? getOutsideTerrainDefaultTileId(terrain.id)
+    : getSelectedTerrainTileId();
+  return {
+    terrain,
+    terrainId: terrain.id,
+    tileId: resolveTerrainTileId(tileId, terrain.id),
+  };
 }
 
 const VOID_TERRAIN_ID = TERRAIN_TYPES[0]?.id ?? "void";
@@ -128,8 +177,8 @@ const elements = {
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
   terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
-  terrainTileDisplay: document.getElementById("terrainTileDisplay"),
   terrainTypeSelect: document.getElementById("terrainTypeSelect"),
+  terrainTileSelect: document.getElementById("terrainTileSelect"),
   terrainBrushRow: document.getElementById("terrainBrushRow"),
   terrainBrushSize: document.getElementById("terrainBrushSize"),
   terrainBrushSizeValue: document.getElementById("terrainBrushSizeValue"),
@@ -186,15 +235,11 @@ function syncTextureToggleLabel(isEnabled) {
   }
 }
 
-function updateTerrainMenu(terrain = state.terrain) {
-  state.terrain = terrain;
-  if (elements.terrainTileDisplay) {
-    const terrainIndex = TERRAIN_TYPES.findIndex(
-      (entry) => entry.id === terrain?.id
-    );
-    elements.terrainTileDisplay.textContent =
-      terrainIndex >= 0 ? String(terrainIndex) : "—";
-  }
+function updateTerrainMenu() {
+  const terrain = getSelectedTerrain();
+  const tileId = getSelectedTerrainTileId();
+  state.selectedTerrainTypeId = terrain.id;
+  state.selectedTerrainTileId = tileId;
   if (elements.terrainTypeSelect && terrain?.id) {
     elements.terrainTypeSelect.value = terrain.id;
     if (terrain?.color) {
@@ -207,6 +252,9 @@ function updateTerrainMenu(terrain = state.terrain) {
       elements.terrainTypeSelect.style.color = "";
       elements.terrainTypeSelect.style.removeProperty("--terrain-color");
     }
+  }
+  if (elements.terrainTileSelect && tileId) {
+    elements.terrainTileSelect.value = tileId;
   }
 }
 
@@ -300,6 +348,19 @@ function populateTerrainTypeSelect() {
       option.style.color = terrain.color;
     }
     elements.terrainTypeSelect.appendChild(option);
+  });
+}
+
+function populateTerrainTileSelect() {
+  if (!elements.terrainTileSelect) {
+    return;
+  }
+  elements.terrainTileSelect.innerHTML = "";
+  OUTSIDE_TERRAIN_TILES.forEach((tile, index) => {
+    const option = document.createElement("option");
+    option.value = tile.id;
+    option.textContent = `Tile ${index + 1}`;
+    elements.terrainTileSelect.appendChild(option);
   });
 }
 
@@ -463,7 +524,8 @@ function restoreMapFromLocalStorage({
 }
 
 function setTerrain(terrain) {
-  state.terrain = terrain;
+  state.selectedTerrainTypeId = terrain.id;
+  state.selectedTerrainTileId = getOutsideTerrainDefaultTileId(terrain.id);
   renderPalette();
   updateTerrainMenu();
 }
@@ -579,10 +641,12 @@ function renderPalette() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "terrain-button";
-    button.dataset.active = String(state.terrain.id === terrain.id);
-    const textureCss = getTerrainTextureCssValue(
-      getOutsideTerrainDefaultTileId(terrain.id)
-    );
+    button.dataset.active = String(state.selectedTerrainTypeId === terrain.id);
+    const tileId =
+      state.selectedTerrainTypeId === terrain.id
+        ? getSelectedTerrainTileId()
+        : getOutsideTerrainDefaultTileId(terrain.id);
+    const textureCss = getTerrainTextureCssValue(tileId);
     const elementLabel = formatTerrainElement(terrain);
     const hpLabel = formatTerrainHp(terrain);
     const details = [terrain.description];
@@ -592,16 +656,30 @@ function renderPalette() {
     if (elementLabel) {
       details.push(`Element: ${elementLabel}`);
     }
+    const tileLabel = formatTerrainTileLabel(tileId);
     button.innerHTML = `
       <span class="terrain-swatch" style="background:${terrain.color};background-image:${textureCss}"></span>
       <span>
         <strong>${terrain.label}</strong><br />
-        <small>${details.join(" · ")}</small>
+        <small>${details.join(" · ")} · ${tileLabel}</small>
       </span>
     `;
     button.addEventListener("click", () => setTerrain(terrain));
     elements.palette.appendChild(button);
   }
+}
+
+function buildCellAriaLabel(index, terrain, tileId) {
+  const ariaParts = [`Cell ${index + 1}`, terrain.label, formatTerrainTileLabel(tileId)];
+  const hpLabel = formatTerrainHp(terrain);
+  if (hpLabel !== UNKNOWN_HP_LABEL) {
+    ariaParts.push(`HP ${hpLabel}`);
+  }
+  const elementLabel = formatTerrainElement(terrain);
+  if (elementLabel) {
+    ariaParts.push(`Element ${elementLabel}`);
+  }
+  return ariaParts.join(", ");
 }
 
 function renderGrid() {
@@ -629,16 +707,7 @@ function renderGrid() {
       "--cell-texture",
       getTerrainTextureCssValue(tileId, index)
     );
-    const ariaParts = [`Cell ${index + 1}`, terrain.label];
-    const hpLabel = formatTerrainHp(terrain);
-    if (hpLabel !== UNKNOWN_HP_LABEL) {
-      ariaParts.push(`HP ${hpLabel}`);
-    }
-    const elementLabel = formatTerrainElement(terrain);
-    if (elementLabel) {
-      ariaParts.push(`Element ${elementLabel}`);
-    }
-    cell.setAttribute("aria-label", ariaParts.join(", "));
+    cell.setAttribute("aria-label", buildCellAriaLabel(index, terrain, tileId));
     cell.addEventListener("pointerdown", handleCellPointerDown);
     cell.addEventListener("pointerenter", handleCellPointerEnter);
     cell.addEventListener("click", (event) => event.preventDefault());
@@ -648,23 +717,23 @@ function renderGrid() {
   updateLandscapeViewer();
 }
 
-function paintCell(index, terrainId) {
+function paintCell(index, terrainId, tileId) {
   if (index < 0 || index >= state.map.cells.length) {
     return;
   }
   const terrain = getTerrainById(terrainId);
-  const tileId = getOutsideTerrainDefaultTileId(terrain.id);
+  const resolvedTileId = resolveTerrainTileId(tileId, terrain.id);
   const currentCell = state.map.cells[index];
   if (
     currentCell?.terrainId === terrain.id &&
-    currentCell?.tileId === tileId
+    currentCell?.tileId === resolvedTileId
   ) {
     return;
   }
 
   state.map.cells[index] = {
     terrainId: terrain.id,
-    tileId,
+    tileId: resolvedTileId,
   };
   if (elements.mapGrid) {
     const cell = elements.mapGrid.querySelector(
@@ -675,18 +744,12 @@ function paintCell(index, terrainId) {
       cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
       cell.style.setProperty(
         "--cell-texture",
-        getTerrainTextureCssValue(tileId, index)
+        getTerrainTextureCssValue(resolvedTileId, index)
       );
-      const ariaParts = [`Cell ${index + 1}`, terrain.label];
-      const hpLabel = formatTerrainHp(terrain);
-      if (hpLabel !== UNKNOWN_HP_LABEL) {
-        ariaParts.push(`HP ${hpLabel}`);
-      }
-      const elementLabel = formatTerrainElement(terrain);
-      if (elementLabel) {
-        ariaParts.push(`Element ${elementLabel}`);
-      }
-      cell.setAttribute("aria-label", ariaParts.join(", "));
+      cell.setAttribute(
+        "aria-label",
+        buildCellAriaLabel(index, terrain, resolvedTileId)
+      );
     }
   }
   updateJsonPreview();
@@ -697,9 +760,10 @@ function beginPointerPaint(erase) {
   if (state.terrainMode !== "brush") {
     return;
   }
-  const terrainId = erase ? TERRAIN_TYPES[0].id : state.terrain.id;
   state.isPointerDown = true;
-  state.pointerTerrain = terrainId;
+  const selection = getActiveTerrainSelection({ erase });
+  state.pointerTerrainTypeId = selection.terrainId;
+  state.pointerTerrainTileId = selection.tileId;
 }
 
 function updateCellElement(index) {
@@ -722,16 +786,7 @@ function updateCellElement(index) {
     "--cell-texture",
     getTerrainTextureCssValue(tileId, index)
   );
-  const ariaParts = [`Cell ${index + 1}`, terrain.label];
-  const hpLabel = formatTerrainHp(terrain);
-  if (hpLabel !== UNKNOWN_HP_LABEL) {
-    ariaParts.push(`HP ${hpLabel}`);
-  }
-  const elementLabel = formatTerrainElement(terrain);
-  if (elementLabel) {
-    ariaParts.push(`Element ${elementLabel}`);
-  }
-  cell.setAttribute("aria-label", ariaParts.join(", "));
+  cell.setAttribute("aria-label", buildCellAriaLabel(index, terrain, tileId));
 }
 
 function applyTerrainSelection({ erase = false } = {}) {
@@ -752,13 +807,14 @@ function applyTerrainSelection({ erase = false } = {}) {
   const minY = Math.min(startY, endY);
   const maxY = Math.max(startY, endY);
 
-  const terrainId = erase ? TERRAIN_TYPES[0].id : state.terrain.id;
+  const selection = getActiveTerrainSelection({ erase });
+  const terrainId = selection.terrainId;
+  const tileId = selection.tileId;
   let didUpdate = false;
 
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
       const index = y * width + x;
-      const tileId = getOutsideTerrainDefaultTileId(terrainId);
       if (
         state.map.cells[index]?.terrainId !== terrainId ||
         state.map.cells[index]?.tileId !== tileId
@@ -804,7 +860,7 @@ function applyPointerPaint(index) {
   const brushSize =
     state.terrainMode === "brush" ? Math.max(1, state.terrainBrushSize) : 1;
   if (brushSize <= 1) {
-    paintCell(index, state.pointerTerrain);
+    paintCell(index, state.pointerTerrainTypeId, state.pointerTerrainTileId);
     return;
   }
 
@@ -826,14 +882,19 @@ function applyPointerPaint(index) {
       if (col < 0 || col >= width) {
         continue;
       }
-      paintCell(row * width + col, state.pointerTerrain);
+      paintCell(
+        row * width + col,
+        state.pointerTerrainTypeId,
+        state.pointerTerrainTileId
+      );
     }
   }
 }
 
 function endPointerPaint() {
   state.isPointerDown = false;
-  state.pointerTerrain = null;
+  state.pointerTerrainTypeId = null;
+  state.pointerTerrainTileId = null;
 }
 
 function handleCellPointerDown(event) {
@@ -1100,6 +1161,7 @@ function initControls() {
   updateMetadataDisplays();
   updateJsonPreview();
   populateTerrainTypeSelect();
+  populateTerrainTileSelect();
   updateTerrainMenu();
   syncTerrainMenuButtons();
   syncTerrainRotationDisplay();
@@ -1189,6 +1251,17 @@ function initControls() {
       if (nextTerrain) {
         setTerrain(nextTerrain);
       }
+    });
+  }
+
+  if (elements.terrainTileSelect) {
+    elements.terrainTileSelect.addEventListener("change", (event) => {
+      state.selectedTerrainTileId = resolveTerrainTileId(
+        event.target.value,
+        state.selectedTerrainTypeId
+      );
+      renderPalette();
+      updateTerrainMenu();
     });
   }
 
