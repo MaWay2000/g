@@ -265,9 +265,10 @@ function populateTerrainTypeSelect() {
   TERRAIN_TYPES.forEach((terrain) => {
     const option = document.createElement("option");
     option.value = terrain.id;
-    option.textContent = terrain.label;
+    option.textContent = `■ ${terrain.label}`;
     if (terrain?.color) {
       option.style.setProperty("--terrain-color", terrain.color);
+      option.style.color = terrain.color;
     }
     elements.terrainTypeSelect.appendChild(option);
   });
