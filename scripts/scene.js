@@ -37,7 +37,8 @@ import {
   loadOutsideMapFromStorage,
   normalizeOutsideMap,
   getOutsideTerrainById,
-  getOutsideTerrainTexturePath,
+  getOutsideTerrainDefaultTileId,
+  getOutsideTerrainTilePath,
 } from "./outside-map.js";
 import { samplePeriodicElement } from "./data/periodic-elements.js";
 
@@ -3459,7 +3460,10 @@ export const initScene = (
         : [];
 
       while (rawCells.length < totalCells) {
-        rawCells.push("void");
+        rawCells.push({
+          terrainId: "void",
+          tileId: getOutsideTerrainDefaultTileId("void"),
+        });
       }
 
       const desiredWorldWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 1.4;
@@ -3522,12 +3526,8 @@ export const initScene = (
         metalness: 0.18,
       });
 
-      const getTextureForTerrain = (terrainId, variantIndex) => {
-        const texturePath = getOutsideTerrainTexturePath(terrainId, variantIndex);
-
-        if (!texturePath && terrainId !== "void") {
-          return getTextureForTerrain("fallback", variantIndex);
-        }
+      const getTextureForTerrainTile = (tileId, variantIndex) => {
+        const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
 
         if (!texturePath) {
           return null;
@@ -3541,12 +3541,12 @@ export const initScene = (
         return terrainTextures.get(texturePath);
       };
 
-      const getMaterialForTerrain = (terrainId, variantIndex) => {
+      const getMaterialForTerrain = (terrainId, tileId, variantIndex) => {
         if (CONCEAL_OUTSIDE_TERRAIN_TILES) {
           return concealedTerrainMaterial;
         }
 
-        const texturePath = getOutsideTerrainTexturePath(terrainId, variantIndex);
+        const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
         const materialKey = `${terrainId}:${texturePath ?? "none"}`;
 
         if (terrainMaterials.has(materialKey)) {
@@ -3556,7 +3556,7 @@ export const initScene = (
         const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
-        const texture = getTextureForTerrain(terrainId, variantIndex);
+        const texture = getTextureForTerrainTile(tileId, variantIndex);
         const baseColor = texture
           ? 0xffffff
           : terrainId === "void"
@@ -3581,7 +3581,10 @@ export const initScene = (
       for (let row = 0; row < height; row += 1) {
         for (let column = 0; column < width; column += 1) {
           const index = row * width + column;
-          const terrainId = String(rawCells[index] ?? "void");
+          const cellData = rawCells[index] ?? {};
+          const terrainId = cellData?.terrainId ?? "void";
+          const tileId =
+            cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
           const resolvedTerrain = getOutsideTerrainById(terrainId);
           const style = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
             DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
@@ -3589,7 +3592,7 @@ export const initScene = (
 
           const tile = new THREE.Mesh(
             tileGeometry,
-            getMaterialForTerrain(resolvedTerrain.id, index)
+            getMaterialForTerrain(resolvedTerrain.id, tileId, index)
           );
           tile.scale.set(cellSize, tileHeight, cellSize);
           tile.position.set(
@@ -3610,6 +3613,7 @@ export const initScene = (
             typeof resolvedTerrain.label === "string"
               ? resolvedTerrain.label
               : resolvedTerrain.id;
+          tile.userData.tileId = tileId;
 
           terrainTiles.push(tile);
 
