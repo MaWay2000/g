@@ -422,7 +422,18 @@ export const initMapMaker3d = ({
           : null;
         const drawX = x * TEXTURE_TILE_SIZE;
         const drawY = y * TEXTURE_TILE_SIZE;
+        const terrain = getOutsideTerrainById(terrainId);
+        const baseColor = resolveTerrainColor(terrain, true);
+        textureContext.fillStyle = baseColor;
+        textureContext.fillRect(
+          drawX,
+          drawY,
+          TEXTURE_TILE_SIZE,
+          TEXTURE_TILE_SIZE
+        );
         if (image) {
+          textureContext.save();
+          textureContext.globalCompositeOperation = "multiply";
           textureContext.drawImage(
             image,
             drawX,
@@ -430,15 +441,7 @@ export const initMapMaker3d = ({
             TEXTURE_TILE_SIZE,
             TEXTURE_TILE_SIZE
           );
-        } else {
-          const terrain = getOutsideTerrainById(terrainId);
-          textureContext.fillStyle = terrain?.color ?? NEUTRAL_TERRAIN_COLOR;
-          textureContext.fillRect(
-            drawX,
-            drawY,
-            TEXTURE_TILE_SIZE,
-            TEXTURE_TILE_SIZE
-          );
+          textureContext.restore();
         }
       }
     }
