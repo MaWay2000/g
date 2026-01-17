@@ -162,6 +162,7 @@ export const initMapMaker3d = ({
   canvas.hidden = false;
 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color("#0f172a");
