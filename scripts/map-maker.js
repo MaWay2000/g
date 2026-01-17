@@ -131,7 +131,9 @@ function updateLandscapeViewer() {
   if (!landscapeViewer) {
     return;
   }
-  landscapeViewer.updateMap(state.map);
+  const normalized = normalizeOutsideMap(state.map);
+  state.map = normalized;
+  landscapeViewer.updateMap(normalized);
 }
 
 function getTextureVisibility() {

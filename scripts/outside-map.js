@@ -119,6 +119,54 @@ const OUTSIDE_TERRAIN_BASE_TYPES = [
   },
 ];
 
+const OUTSIDE_TERRAIN_IDS = new Set(
+  OUTSIDE_TERRAIN_BASE_TYPES.map((terrain) => terrain.id)
+);
+
+const OUTSIDE_TERRAIN_ID_ALIASES = new Map([
+  ["nonmetals", "nonmetal"],
+  ["non metals", "nonmetal"],
+  ["non-metal", "nonmetal"],
+  ["metalloids", "metalloid"],
+  ["alkaline earth", "alkaline-earth"],
+  ["alkaline earth metal", "alkaline-earth"],
+  ["alkalineearth", "alkaline-earth"],
+  ["transition metal", "transition-metal"],
+  ["transitionmetal", "transition-metal"],
+  ["post transition", "post-transition"],
+  ["post transition metal", "post-transition"],
+  ["post-transition metal", "post-transition"],
+  ["lanthanides", "lanthanide"],
+  ["actinides", "actinide"],
+  ["halogens", "halogen"],
+  ["noble gas", "noble-gas"],
+  ["noble gases", "noble-gas"],
+]);
+
+const normalizeOutsideTerrainId = (terrainId) => {
+  const key =
+    typeof terrainId === "string" ? terrainId.trim().toLowerCase() : "";
+  if (!key) {
+    return null;
+  }
+
+  if (OUTSIDE_TERRAIN_IDS.has(key)) {
+    return key;
+  }
+
+  const alias = OUTSIDE_TERRAIN_ID_ALIASES.get(key);
+  if (alias && OUTSIDE_TERRAIN_IDS.has(alias)) {
+    return alias;
+  }
+
+  const hyphenated = key.replace(/[_\s]+/g, "-");
+  if (OUTSIDE_TERRAIN_IDS.has(hyphenated)) {
+    return hyphenated;
+  }
+
+  return null;
+};
+
 const TERRAIN_ELEMENTS = PERIODIC_ELEMENTS.reduce((acc, element) => {
   if (!element || !Number.isFinite(element.number) || element.number <= 0) {
     return acc;
@@ -262,7 +310,7 @@ export const clampOutsideMapDimension = (value) => {
 };
 
 export const getOutsideTerrainById = (id) => {
-  const key = typeof id === "string" ? id : String(id ?? "");
+  const key = normalizeOutsideTerrainId(id);
   return TERRAIN_BY_ID.get(key) ?? OUTSIDE_TERRAIN_TYPES[0];
 };
 
