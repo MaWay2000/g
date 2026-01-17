@@ -731,6 +731,18 @@
     <header>
       <div class="map-maker-tabs" role="tablist" aria-label="Map maker tabs">
         <button
+          class="map-maker-tab"
+          type="button"
+          role="tab"
+          id="tab-landshaft"
+          aria-selected="false"
+          aria-controls="landshaftPanel"
+          tabindex="-1"
+          data-map-maker-tab="landshaft"
+        >
+          View
+        </button>
+        <button
           class="map-maker-tab is-active"
           type="button"
           role="tab"
@@ -753,18 +765,6 @@
           data-map-maker-tab="objects"
         >
           Objects
-        </button>
-        <button
-          class="map-maker-tab"
-          type="button"
-          role="tab"
-          id="tab-landshaft"
-          aria-selected="false"
-          aria-controls="landshaftPanel"
-          tabindex="-1"
-          data-map-maker-tab="landshaft"
-        >
-          Landshaft
         </button>
         <button
           class="map-maker-tab"
@@ -934,7 +934,7 @@
             </button>
           </div>
           <p class="tab-panel-placeholder">
-            The landshaft preview now lives in the main terrain workspace.
+            The view preview now lives in the main terrain workspace.
           </p>
         </section>
       </div>
@@ -1000,9 +1000,9 @@
     <main class="main">
       <div class="main-panel is-active" data-map-maker-main="terrain">
         <div class="workspace map-workspace">
-          <section class="landscape-stage" aria-label="Landshaft preview">
+          <section class="landscape-stage" aria-label="View preview">
             <div class="landscape-viewport">
-              <canvas id="landscapeViewport" aria-label="3D landshaft preview"></canvas>
+              <canvas id="landscapeViewport" aria-label="3D view preview"></canvas>
             </div>
             <div class="landscape-error" id="landscapeError" role="status" hidden>
               WebGL support is unavailable in this browser. Try a different browser
