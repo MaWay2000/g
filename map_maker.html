@@ -404,6 +404,17 @@
         font-size: 0.8rem;
       }
 
+      .terrain-selection-row {
+        align-items: flex-start;
+        gap: 0.85rem;
+      }
+
+      .terrain-selection-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
       .terrain-type-select select {
         padding: 0.35rem 0.5rem;
         border-radius: 0.55rem;
@@ -866,10 +877,6 @@
             </div>
           </div>
           <div class="terrain-control-row">
-            <span class="terrain-control-label">Tile</span>
-            <span class="terrain-tile-display" id="terrainTileDisplay">—</span>
-          </div>
-          <div class="terrain-control-row">
             <span class="terrain-control-label">Rotation</span>
             <div class="terrain-rotation">
               <span id="terrainRotationDisplay">0°</span>
@@ -891,11 +898,19 @@
               </button>
             </div>
           </div>
-          <div class="terrain-control-row">
-            <span class="terrain-control-label">Terrain type</span>
-            <label class="terrain-type-select" for="terrainTypeSelect">
-              <select id="terrainTypeSelect"></select>
-            </label>
+          <div class="terrain-control-row terrain-selection-row">
+            <div class="terrain-selection-group">
+              <span class="terrain-control-label">Terrain type</span>
+              <label class="terrain-type-select" for="terrainTypeSelect">
+                <select id="terrainTypeSelect"></select>
+              </label>
+            </div>
+            <div class="terrain-selection-group">
+              <span class="terrain-control-label">Terrain tile</span>
+              <label class="terrain-type-select" for="terrainTileSelect">
+                <select id="terrainTileSelect"></select>
+              </label>
+            </div>
           </div>
         </section>
 
