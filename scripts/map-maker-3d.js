@@ -8,6 +8,7 @@ import {
 const HEIGHT_FLOOR = 0.05;
 const HEIGHT_SCALE = 6;
 const TERRAIN_HEIGHT = HEIGHT_FLOOR + HEIGHT_SCALE * 0.5;
+const TERRAIN_MARKER_SIZE = 0.32;
 const NEUTRAL_TERRAIN_COLOR = "#f8fafc";
 const TRANSPARENT_COLOR_KEYWORD = "transparent";
 
@@ -36,23 +37,22 @@ const resolveTerrainColor = (terrain, showColors) => {
   return terrainColor;
 };
 
-const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
+const buildTerrainGeometry = (map) => {
   const positions = [];
   const colors = [];
   const uvs = [];
-  const showColors = showTerrainTypes !== false;
 
   const width = map.width;
   const height = map.height;
   const xOffset = width / 2;
   const zOffset = height / 2;
 
+  const baseColor = new THREE.Color(NEUTRAL_TERRAIN_COLOR);
+
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
-      const terrain = getOutsideTerrainById(map.cells[index]);
-      const color = new THREE.Color(resolveTerrainColor(terrain, showColors));
-      const elevation = getTerrainHeight(terrain);
+      const elevation = getTerrainHeight();
 
       const x0 = x - xOffset;
       const x1 = x + 1 - xOffset;
@@ -88,7 +88,7 @@ const buildTerrainGeometry = (map, { showTerrainTypes } = {}) => {
       uvs.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1);
 
       for (let i = 0; i < 6; i += 1) {
-        colors.push(color.r, color.g, color.b);
+        colors.push(baseColor.r, baseColor.g, baseColor.b);
       }
     }
   }
@@ -233,6 +233,26 @@ export const initMapMaker3d = ({
 
   const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
   scene.add(mesh);
+  const terrainMarkerGeometry = new THREE.PlaneGeometry(
+    TERRAIN_MARKER_SIZE,
+    TERRAIN_MARKER_SIZE
+  );
+  terrainMarkerGeometry.rotateX(-Math.PI / 2);
+  const terrainMarkerMaterial = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+  });
+  const terrainMarkerMesh = new THREE.InstancedMesh(
+    terrainMarkerGeometry,
+    terrainMarkerMaterial,
+    1
+  );
+  terrainMarkerMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  terrainMarkerMesh.visible = false;
+  terrainMarkerMesh.renderOrder = 1;
+  scene.add(terrainMarkerMesh);
   const highlightGeometry = new THREE.PlaneGeometry(1, 1);
   highlightGeometry.rotateX(-Math.PI / 2);
   const highlightMaterial = new THREE.MeshBasicMaterial({
@@ -437,6 +457,61 @@ export const initMapMaker3d = ({
     }
   };
 
+  const updateTerrainMarkers = (map) => {
+    if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
+      terrainMarkerMesh.visible = false;
+      return;
+    }
+    if (!showTerrainTypes) {
+      terrainMarkerMesh.visible = false;
+      return;
+    }
+    const totalInstances = map.width * map.height;
+    const currentCapacity = terrainMarkerMesh.instanceMatrix.count;
+    if (totalInstances > currentCapacity) {
+      const nextCapacity = Math.max(totalInstances, currentCapacity * 2);
+      const nextMatrix = new THREE.InstancedBufferAttribute(
+        new Float32Array(nextCapacity * 16),
+        16
+      );
+      nextMatrix.setUsage(THREE.DynamicDrawUsage);
+      terrainMarkerMesh.instanceMatrix = nextMatrix;
+      terrainMarkerMesh.instanceColor = new THREE.InstancedBufferAttribute(
+        new Float32Array(nextCapacity * 3),
+        3
+      );
+    }
+    if (terrainMarkerMesh.count !== totalInstances) {
+      terrainMarkerMesh.count = totalInstances;
+    }
+    if (!terrainMarkerMesh.instanceColor) {
+      terrainMarkerMesh.instanceColor = new THREE.InstancedBufferAttribute(
+        new Float32Array(currentCapacity * 3),
+        3
+      );
+    }
+
+    const tempMatrix = new THREE.Matrix4();
+    const markerElevation = TERRAIN_HEIGHT + 0.04;
+    map.cells.forEach((terrainId, index) => {
+      const x = index % map.width;
+      const y = Math.floor(index / map.width);
+      const worldX = x - map.width / 2 + 0.5;
+      const worldZ = y - map.height / 2 + 0.5;
+      tempMatrix.makeTranslation(worldX, markerElevation, worldZ);
+      terrainMarkerMesh.setMatrixAt(index, tempMatrix);
+      const terrain = getOutsideTerrainById(terrainId);
+      const color = new THREE.Color(resolveTerrainColor(terrain, true));
+      terrainMarkerMesh.setColorAt(index, color);
+    });
+
+    if (terrainMarkerMesh.instanceColor) {
+      terrainMarkerMesh.instanceColor.needsUpdate = true;
+    }
+    terrainMarkerMesh.instanceMatrix.needsUpdate = true;
+    terrainMarkerMesh.visible = true;
+  };
+
   const setCameraForMap = (width, height) => {
     const size = Math.max(width, height, 8);
     mapSize = size;
@@ -516,9 +591,10 @@ export const initMapMaker3d = ({
     lastMap = map;
     mapWidth = map.width;
     mapHeight = map.height;
-    const geometry = buildTerrainGeometry(map, { showTerrainTypes });
+    const geometry = buildTerrainGeometry(map);
     mesh.geometry.dispose();
     mesh.geometry = geometry;
+    updateTerrainMarkers(map);
     void renderTerrainTexture(map);
     if (resetCamera) {
       setCameraForMap(map.width, map.height);
@@ -536,7 +612,7 @@ export const initMapMaker3d = ({
   const updateTerrainTypeDisplay = (nextValue) => {
     showTerrainTypes = nextValue;
     if (lastMap) {
-      applyMapGeometry(lastMap, { resetCamera: false });
+      updateTerrainMarkers(lastMap);
     }
   };
 
@@ -801,6 +877,8 @@ export const initMapMaker3d = ({
     renderer.dispose();
     mesh.geometry.dispose();
     material.dispose();
+    terrainMarkerGeometry.dispose();
+    terrainMarkerMaterial.dispose();
     highlightGeometry.dispose();
     highlightMaterial.dispose();
     selectionMaterial.dispose();
