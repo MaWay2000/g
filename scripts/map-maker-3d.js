@@ -251,6 +251,14 @@ export const initMapMaker3d = ({
     1
   );
   terrainMarkerMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  terrainMarkerMesh.instanceColor = new THREE.InstancedBufferAttribute(
+    new Float32Array(3),
+    3
+  );
+  terrainMarkerMesh.geometry.setAttribute(
+    "instanceColor",
+    terrainMarkerMesh.instanceColor
+  );
   terrainMarkerMesh.visible = false;
   terrainMarkerMesh.renderOrder = 1;
   scene.add(terrainMarkerMesh);
@@ -482,6 +490,10 @@ export const initMapMaker3d = ({
         new Float32Array(nextCapacity * 3),
         3
       );
+      terrainMarkerMesh.geometry.setAttribute(
+        "instanceColor",
+        terrainMarkerMesh.instanceColor
+      );
     }
     if (terrainMarkerMesh.count !== totalInstances) {
       terrainMarkerMesh.count = totalInstances;
@@ -490,6 +502,10 @@ export const initMapMaker3d = ({
       terrainMarkerMesh.instanceColor = new THREE.InstancedBufferAttribute(
         new Float32Array(currentCapacity * 3),
         3
+      );
+      terrainMarkerMesh.geometry.setAttribute(
+        "instanceColor",
+        terrainMarkerMesh.instanceColor
       );
     }
 
