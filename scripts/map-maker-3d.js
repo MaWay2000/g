@@ -289,6 +289,7 @@ export const initMapMaker3d = ({
     highlightMaterial,
     1
   );
+  highlightMesh.frustumCulled = false;
   highlightMesh.visible = false;
   highlightMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   highlightMesh.renderOrder = 2;
@@ -308,6 +309,7 @@ export const initMapMaker3d = ({
     selectionMaterial,
     1
   );
+  selectionMesh.frustumCulled = false;
   selectionMesh.visible = false;
   selectionMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   selectionMesh.renderOrder = 1;
