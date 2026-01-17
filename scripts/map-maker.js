@@ -265,7 +265,7 @@ function populateTerrainTypeSelect() {
   TERRAIN_TYPES.forEach((terrain) => {
     const option = document.createElement("option");
     option.value = terrain.id;
-    option.textContent = `${terrain.label} (${terrain.id})`;
+    option.textContent = terrain.label;
     elements.terrainTypeSelect.appendChild(option);
   });
 }
