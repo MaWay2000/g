@@ -422,9 +422,7 @@ export const initMapMaker3d = ({
           : null;
         const drawX = x * TEXTURE_TILE_SIZE;
         const drawY = y * TEXTURE_TILE_SIZE;
-        const terrain = getOutsideTerrainById(terrainId);
-        const baseColor = resolveTerrainColor(terrain, true);
-        textureContext.fillStyle = baseColor;
+        textureContext.fillStyle = NEUTRAL_TERRAIN_COLOR;
         textureContext.fillRect(
           drawX,
           drawY,
