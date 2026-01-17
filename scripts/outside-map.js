@@ -289,6 +289,11 @@ const normalizeOutsideTileId = (tileId) => {
   return null;
 };
 
+export const getOutsideTerrainById = (id) => {
+  const key = normalizeOutsideTerrainId(id);
+  return TERRAIN_BY_ID.get(key) ?? OUTSIDE_TERRAIN_TYPES[0];
+};
+
 export const getOutsideTerrainDefaultTileId = (terrainId) => {
   const resolvedTerrain = getOutsideTerrainById(terrainId);
   const defaultTileId =
@@ -348,11 +353,6 @@ export const clampOutsideMapDimension = (value) => {
     MAX_MAP_DIMENSION,
     Math.max(MIN_MAP_DIMENSION, Math.floor(numeric))
   );
-};
-
-export const getOutsideTerrainById = (id) => {
-  const key = normalizeOutsideTerrainId(id);
-  return TERRAIN_BY_ID.get(key) ?? OUTSIDE_TERRAIN_TYPES[0];
 };
 
 export const createDefaultOutsideMap = () =>
