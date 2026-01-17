@@ -7858,7 +7858,7 @@ export const initScene = (
   const animate = () => {
     requestAnimationFrame(animate);
 
-    const delta = clock.getDelta();
+    const delta = Math.min(clock.getDelta(), 0.05);
     const elapsedTime = clock.elapsedTime;
     let shouldResolveCollisions = false;
 
