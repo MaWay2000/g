@@ -3,7 +3,8 @@ import {
   OUTSIDE_MAP_LOCAL_STORAGE_KEY as LOCAL_STORAGE_KEY,
   clampOutsideMapDimension,
   getOutsideTerrainById as getTerrainById,
-  getOutsideTerrainTexturePath,
+  getOutsideTerrainDefaultTileId,
+  getOutsideTerrainTilePath,
   createDefaultOutsideMap,
   normalizeOutsideMap,
   tryGetOutsideMapStorage,
@@ -63,7 +64,7 @@ function formatTerrainElement(terrain) {
 }
 
 function getTerrainTextureCssValue(terrainId, variantSeed = 0) {
-  const texturePath = getOutsideTerrainTexturePath(terrainId, variantSeed);
+  const texturePath = getOutsideTerrainTilePath(terrainId, variantSeed);
   if (!texturePath) {
     return "none";
   }
@@ -74,6 +75,22 @@ const VOID_TERRAIN_ID = TERRAIN_TYPES[0]?.id ?? "void";
 const RANDOM_TERRAIN_POOL = TERRAIN_TYPES.filter(
   (terrain) => terrain.id !== VOID_TERRAIN_ID
 );
+
+const getCellTerrainId = (cell) => {
+  const terrainId = cell?.terrainId;
+  return getTerrainById(terrainId).id;
+};
+
+const getCellTileId = (cell) =>
+  cell?.tileId ?? getOutsideTerrainDefaultTileId(getCellTerrainId(cell));
+
+const createCell = (terrainId) => {
+  const terrain = getTerrainById(terrainId);
+  return {
+    terrainId: terrain.id,
+    tileId: getOutsideTerrainDefaultTileId(terrain.id),
+  };
+};
 
 const elements = {
   palette: document.getElementById("terrainPalette"),
@@ -538,9 +555,9 @@ function resizeMap(width, height) {
       const x = index % clampedWidth;
       const y = Math.floor(index / clampedWidth);
       if (x < state.map.width && y < state.map.height) {
-        return state.map.cells[y * state.map.width + x];
+        return { ...state.map.cells[y * state.map.width + x] };
       }
-      return TERRAIN_TYPES[0].id;
+      return createCell(TERRAIN_TYPES[0].id);
     }
   );
 
@@ -563,7 +580,9 @@ function renderPalette() {
     button.type = "button";
     button.className = "terrain-button";
     button.dataset.active = String(state.terrain.id === terrain.id);
-    const textureCss = getTerrainTextureCssValue(terrain.id);
+    const textureCss = getTerrainTextureCssValue(
+      getOutsideTerrainDefaultTileId(terrain.id)
+    );
     const elementLabel = formatTerrainElement(terrain);
     const hpLabel = formatTerrainHp(terrain);
     const details = [terrain.description];
@@ -596,7 +615,9 @@ function renderGrid() {
   elements.mapGrid.innerHTML = "";
 
   for (let index = 0; index < state.map.cells.length; index += 1) {
-    const terrainId = state.map.cells[index];
+    const cellData = state.map.cells[index];
+    const terrainId = getCellTerrainId(cellData);
+    const tileId = getCellTileId(cellData);
     const terrain = getTerrainById(terrainId);
     const cell = document.createElement("button");
     cell.type = "button";
@@ -606,7 +627,7 @@ function renderGrid() {
     cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
     cell.style.setProperty(
       "--cell-texture",
-      getTerrainTextureCssValue(terrain.id, index)
+      getTerrainTextureCssValue(tileId, index)
     );
     const ariaParts = [`Cell ${index + 1}`, terrain.label];
     const hpLabel = formatTerrainHp(terrain);
@@ -631,22 +652,30 @@ function paintCell(index, terrainId) {
   if (index < 0 || index >= state.map.cells.length) {
     return;
   }
-  if (state.map.cells[index] === terrainId) {
+  const terrain = getTerrainById(terrainId);
+  const tileId = getOutsideTerrainDefaultTileId(terrain.id);
+  const currentCell = state.map.cells[index];
+  if (
+    currentCell?.terrainId === terrain.id &&
+    currentCell?.tileId === tileId
+  ) {
     return;
   }
 
-  state.map.cells[index] = terrainId;
+  state.map.cells[index] = {
+    terrainId: terrain.id,
+    tileId,
+  };
   if (elements.mapGrid) {
     const cell = elements.mapGrid.querySelector(
       `.map-cell[data-index="${index}"]`
     );
     if (cell) {
-      const terrain = getTerrainById(terrainId);
       cell.dataset.terrain = terrain.id;
       cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
       cell.style.setProperty(
         "--cell-texture",
-        getTerrainTextureCssValue(terrain.id, index)
+        getTerrainTextureCssValue(tileId, index)
       );
       const ariaParts = [`Cell ${index + 1}`, terrain.label];
       const hpLabel = formatTerrainHp(terrain);
@@ -673,7 +702,7 @@ function beginPointerPaint(erase) {
   state.pointerTerrain = terrainId;
 }
 
-function updateCellElement(index, terrainId) {
+function updateCellElement(index) {
   if (!elements.mapGrid) {
     return;
   }
@@ -683,12 +712,15 @@ function updateCellElement(index, terrainId) {
   if (!cell) {
     return;
   }
+  const cellData = state.map.cells[index];
+  const terrainId = getCellTerrainId(cellData);
+  const tileId = getCellTileId(cellData);
   const terrain = getTerrainById(terrainId);
   cell.dataset.terrain = terrain.id;
   cell.style.setProperty("--cell-color", terrain.color ?? "transparent");
   cell.style.setProperty(
     "--cell-texture",
-    getTerrainTextureCssValue(terrain.id, index)
+    getTerrainTextureCssValue(tileId, index)
   );
   const ariaParts = [`Cell ${index + 1}`, terrain.label];
   const hpLabel = formatTerrainHp(terrain);
@@ -726,9 +758,13 @@ function applyTerrainSelection({ erase = false } = {}) {
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
       const index = y * width + x;
-      if (state.map.cells[index] !== terrainId) {
-        state.map.cells[index] = terrainId;
-        updateCellElement(index, terrainId);
+      const tileId = getOutsideTerrainDefaultTileId(terrainId);
+      if (
+        state.map.cells[index]?.terrainId !== terrainId ||
+        state.map.cells[index]?.tileId !== tileId
+      ) {
+        state.map.cells[index] = { terrainId, tileId };
+        updateCellElement(index);
         didUpdate = true;
       }
     }
@@ -995,7 +1031,11 @@ function generateRandomMap() {
 
   state.map.cells = state.map.cells.map(() => {
     const randomIndex = Math.floor(Math.random() * pool.length);
-    return pool[randomIndex].id;
+    const terrainId = pool[randomIndex].id;
+    return {
+      terrainId,
+      tileId: getOutsideTerrainDefaultTileId(terrainId),
+    };
   });
 
   clearSelection();

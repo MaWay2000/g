@@ -222,68 +222,106 @@ export const OUTSIDE_TERRAIN_ELEMENTS_BY_ID = new Map(
 
 const OUTSIDE_TERRAIN_TEXTURE_BASE = "./images/tiles/floor";
 
-export const OUTSIDE_TERRAIN_TEXTURE_PATHS = Array.from(
-  { length: 11 },
-  (_, index) => `${OUTSIDE_TERRAIN_TEXTURE_BASE}/${index + 1}.png`
+export const OUTSIDE_TERRAIN_TILES = Array.from({ length: 11 }, (_, index) => ({
+  id: `floor-${index + 1}`,
+  texturePaths: [`${OUTSIDE_TERRAIN_TEXTURE_BASE}/${index + 1}.png`],
+}));
+
+const OUTSIDE_TERRAIN_TILE_BY_ID = new Map(
+  OUTSIDE_TERRAIN_TILES.map((tile) => [tile.id, tile])
 );
 
 const TERRAIN_BY_ID = new Map(
   OUTSIDE_TERRAIN_TYPES.map((terrain) => [terrain.id, terrain])
 );
 
-const OUTSIDE_TERRAIN_TEXTURE_MAP = new Map([
-  ["void", OUTSIDE_TERRAIN_TEXTURE_PATHS[10]],
-  ["nonmetal", OUTSIDE_TERRAIN_TEXTURE_PATHS[0]],
-  ["metalloid", OUTSIDE_TERRAIN_TEXTURE_PATHS[1]],
-  ["alkali", OUTSIDE_TERRAIN_TEXTURE_PATHS[2]],
-  ["alkaline-earth", OUTSIDE_TERRAIN_TEXTURE_PATHS[3]],
-  ["transition-metal", OUTSIDE_TERRAIN_TEXTURE_PATHS[4]],
-  ["post-transition", OUTSIDE_TERRAIN_TEXTURE_PATHS[5]],
-  ["lanthanide", OUTSIDE_TERRAIN_TEXTURE_PATHS[6]],
-  ["actinide", OUTSIDE_TERRAIN_TEXTURE_PATHS[7]],
-  ["halogen", OUTSIDE_TERRAIN_TEXTURE_PATHS[8]],
-  ["noble-gas", OUTSIDE_TERRAIN_TEXTURE_PATHS[9]],
+const OUTSIDE_TERRAIN_DEFAULT_TILE_MAP = new Map([
+  ["void", OUTSIDE_TERRAIN_TILES[10]?.id],
+  ["nonmetal", OUTSIDE_TERRAIN_TILES[0]?.id],
+  ["metalloid", OUTSIDE_TERRAIN_TILES[1]?.id],
+  ["alkali", OUTSIDE_TERRAIN_TILES[2]?.id],
+  ["alkaline-earth", OUTSIDE_TERRAIN_TILES[3]?.id],
+  ["transition-metal", OUTSIDE_TERRAIN_TILES[4]?.id],
+  ["post-transition", OUTSIDE_TERRAIN_TILES[5]?.id],
+  ["lanthanide", OUTSIDE_TERRAIN_TILES[6]?.id],
+  ["actinide", OUTSIDE_TERRAIN_TILES[7]?.id],
+  ["halogen", OUTSIDE_TERRAIN_TILES[8]?.id],
+  ["noble-gas", OUTSIDE_TERRAIN_TILES[9]?.id],
   // Void and unknown terrain IDs share a dedicated tile instead of transparency.
-  ["fallback", OUTSIDE_TERRAIN_TEXTURE_PATHS[10]],
+  ["fallback", OUTSIDE_TERRAIN_TILES[10]?.id],
 ]);
 
-const ensureTerrainTextureCoverage = () => {
-  const fallbackTexture =
-    OUTSIDE_TERRAIN_TEXTURE_MAP.get("fallback") ??
-    OUTSIDE_TERRAIN_TEXTURE_PATHS.at(-1) ??
+const ensureTerrainTileCoverage = () => {
+  const fallbackTileId =
+    OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.get("fallback") ??
+    OUTSIDE_TERRAIN_TILES.at(-1)?.id ??
     null;
-  const textureIterator = OUTSIDE_TERRAIN_TEXTURE_PATHS.values();
+  const tileIterator = OUTSIDE_TERRAIN_TILES.values();
 
   OUTSIDE_TERRAIN_TYPES.forEach((terrain) => {
-    if (OUTSIDE_TERRAIN_TEXTURE_MAP.has(terrain.id)) {
+    if (OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.has(terrain.id)) {
       return;
     }
 
-    const nextTexture = textureIterator.next().value ?? fallbackTexture;
-    if (nextTexture) {
-      OUTSIDE_TERRAIN_TEXTURE_MAP.set(terrain.id, nextTexture);
+    const nextTileId = tileIterator.next().value?.id ?? fallbackTileId;
+    if (nextTileId) {
+      OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.set(terrain.id, nextTileId);
     }
   });
 
-  if (!OUTSIDE_TERRAIN_TEXTURE_MAP.has("fallback") && fallbackTexture) {
-    OUTSIDE_TERRAIN_TEXTURE_MAP.set("fallback", fallbackTexture);
+  if (!OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.has("fallback") && fallbackTileId) {
+    OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.set("fallback", fallbackTileId);
   }
 };
 
-ensureTerrainTextureCoverage();
+ensureTerrainTileCoverage();
 
-export const getOutsideTerrainTexturePath = (terrainId, variantSeed = 0) => {
-  const key = typeof terrainId === "string" ? terrainId : String(terrainId ?? "");
-
-  if (OUTSIDE_TERRAIN_TEXTURE_MAP.has(key)) {
-    const entry = OUTSIDE_TERRAIN_TEXTURE_MAP.get(key);
-    if (Array.isArray(entry) && entry.length > 0) {
-      return entry[variantSeed % entry.length];
-    }
-    return entry;
+const normalizeOutsideTileId = (tileId) => {
+  const key = typeof tileId === "string" ? tileId.trim().toLowerCase() : "";
+  if (!key) {
+    return null;
   }
 
-  return OUTSIDE_TERRAIN_TEXTURE_MAP.get("fallback") ?? null;
+  if (OUTSIDE_TERRAIN_TILE_BY_ID.has(key)) {
+    return key;
+  }
+
+  return null;
+};
+
+export const getOutsideTerrainDefaultTileId = (terrainId) => {
+  const resolvedTerrain = getOutsideTerrainById(terrainId);
+  const defaultTileId =
+    OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.get(resolvedTerrain.id) ??
+    OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.get("fallback") ??
+    OUTSIDE_TERRAIN_TILES.at(-1)?.id ??
+    null;
+  return defaultTileId;
+};
+
+export const getOutsideTerrainTilePath = (tileId, variantSeed = 0) => {
+  const normalizedTileId = normalizeOutsideTileId(tileId);
+  const tile = normalizedTileId ? OUTSIDE_TERRAIN_TILE_BY_ID.get(normalizedTileId) : null;
+  const texturePaths = tile?.texturePaths ?? [];
+
+  if (texturePaths.length > 0) {
+    return texturePaths[variantSeed % texturePaths.length];
+  }
+
+  const fallbackTileId =
+    OUTSIDE_TERRAIN_DEFAULT_TILE_MAP.get("fallback") ??
+    OUTSIDE_TERRAIN_TILES.at(-1)?.id ??
+    null;
+  if (fallbackTileId && fallbackTileId !== normalizedTileId) {
+    return getOutsideTerrainTilePath(fallbackTileId, variantSeed);
+  }
+
+  return null;
+};
+
+export const getOutsideTerrainTexturePath = (terrainId, variantSeed = 0) => {
+  const tileId = getOutsideTerrainDefaultTileId(terrainId);
+  return getOutsideTerrainTilePath(tileId, variantSeed);
 };
 
 const MIN_MAP_DIMENSION = 1;
@@ -295,7 +333,10 @@ const DEFAULT_OUTSIDE_MAP_TEMPLATE = {
   notes: "",
   width: 16,
   height: 12,
-  cells: Array.from({ length: 16 * 12 }, () => "nonmetal"),
+  cells: Array.from({ length: 16 * 12 }, () => ({
+    terrainId: "nonmetal",
+    tileId: getOutsideTerrainDefaultTileId("nonmetal"),
+  })),
 };
 
 export const clampOutsideMapDimension = (value) => {
@@ -326,6 +367,12 @@ export function normalizeOutsideMap(definition) {
   const height = clampOutsideMapDimension(definition.height);
   const totalCells = width * height;
   const sourceCells = Array.isArray(definition.cells) ? definition.cells : [];
+  const sourceTerrainIds = Array.isArray(definition.terrainIds)
+    ? definition.terrainIds
+    : null;
+  const sourceTileIds = Array.isArray(definition.tileIds)
+    ? definition.tileIds
+    : null;
 
   const normalized = {
     name: typeof definition.name === "string" ? definition.name : "",
@@ -337,9 +384,31 @@ export function normalizeOutsideMap(definition) {
   };
 
   for (let index = 0; index < totalCells; index += 1) {
-    const terrainId = index < sourceCells.length ? sourceCells[index] : null;
+    const entry =
+      sourceCells.length > 0
+        ? sourceCells[index]
+        : sourceTerrainIds || sourceTileIds
+          ? {
+              terrainId: sourceTerrainIds?.[index] ?? null,
+              tileId: sourceTileIds?.[index] ?? null,
+            }
+          : null;
+    const terrainId =
+      entry && typeof entry === "object" && "terrainId" in entry
+        ? entry.terrainId
+        : entry;
+    const tileId =
+      entry && typeof entry === "object" && "tileId" in entry
+        ? entry.tileId
+        : null;
     const terrain = getOutsideTerrainById(terrainId);
-    normalized.cells.push(terrain.id);
+    const resolvedTileId =
+      normalizeOutsideTileId(tileId) ??
+      getOutsideTerrainDefaultTileId(terrain.id);
+    normalized.cells.push({
+      terrainId: terrain.id,
+      tileId: resolvedTileId,
+    });
   }
 
   return normalized;

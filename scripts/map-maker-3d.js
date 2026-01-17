@@ -2,7 +2,8 @@ import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
 import {
   getOutsideTerrainById,
-  getOutsideTerrainTexturePath,
+  getOutsideTerrainDefaultTileId,
+  getOutsideTerrainTilePath,
 } from "./outside-map.js";
 
 const HEIGHT_FLOOR = 0.05;
@@ -418,8 +419,10 @@ export const initMapMaker3d = ({
     textureCanvas.height = height * TEXTURE_TILE_SIZE;
 
     const texturePaths = new Set();
-    map.cells.forEach((terrainId, index) => {
-      const texturePath = getOutsideTerrainTexturePath(terrainId, index);
+    map.cells.forEach((cell, index) => {
+      const terrainId = cell?.terrainId;
+      const tileId = cell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+      const texturePath = getOutsideTerrainTilePath(tileId, index);
       if (texturePath) {
         texturePaths.add(texturePath);
       }
@@ -435,8 +438,11 @@ export const initMapMaker3d = ({
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const index = y * width + x;
-        const terrainId = map.cells[index];
-        const texturePath = getOutsideTerrainTexturePath(terrainId, index);
+        const cellData = map.cells[index];
+        const terrainId = cellData?.terrainId;
+        const tileId =
+          cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+        const texturePath = getOutsideTerrainTilePath(tileId, index);
         const image = texturePath
           ? terrainTextureCache.get(texturePath)
           : null;
@@ -523,7 +529,8 @@ export const initMapMaker3d = ({
 
     const tempMatrix = new THREE.Matrix4();
     const markerElevation = TERRAIN_HEIGHT + 0.04;
-    map.cells.forEach((terrainId, index) => {
+    map.cells.forEach((cellData, index) => {
+      const terrainId = cellData?.terrainId;
       const x = index % map.width;
       const y = Math.floor(index / map.width);
       const worldX = x - map.width / 2 + 0.5;
