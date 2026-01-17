@@ -178,6 +178,16 @@ function updateTerrainMenu(terrain = state.terrain) {
   }
   if (elements.terrainTypeSelect && terrain?.id) {
     elements.terrainTypeSelect.value = terrain.id;
+    if (terrain?.color) {
+      elements.terrainTypeSelect.style.color = terrain.color;
+      elements.terrainTypeSelect.style.setProperty(
+        "--terrain-color",
+        terrain.color
+      );
+    } else {
+      elements.terrainTypeSelect.style.color = "";
+      elements.terrainTypeSelect.style.removeProperty("--terrain-color");
+    }
   }
 }
 
