@@ -26,7 +26,7 @@ const state = {
   terrainMode: null,
   terrainRotation: 0,
   terrainBrushSize: 1,
-  showTextures: false,
+  showTextures: true,
   selectionStart: null,
   selectionEnd: null,
   selectionFixed: false,
