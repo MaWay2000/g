@@ -7618,6 +7618,54 @@ export const initScene = (
 
   let movementEnabled = true;
 
+  const terrainGroundRaycaster = new THREE.Raycaster();
+  const terrainGroundRayDirection = new THREE.Vector3(0, -1, 0);
+  const terrainGroundRayOrigin = new THREE.Vector3();
+
+  const getTerrainGroundHeight = (position) => {
+    if (
+      !position ||
+      !Array.isArray(activeTerrainTiles) ||
+      activeTerrainTiles.length === 0
+    ) {
+      return null;
+    }
+
+    const rayHeight =
+      roomHeight + OUTSIDE_HEIGHT_SCALE + playerHeight + 10;
+    terrainGroundRayOrigin.set(position.x, roomFloorY + rayHeight, position.z);
+    terrainGroundRaycaster.set(terrainGroundRayOrigin, terrainGroundRayDirection);
+    terrainGroundRaycaster.far = rayHeight * 2;
+
+    const intersections = terrainGroundRaycaster.intersectObjects(
+      activeTerrainTiles,
+      true
+    );
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const intersection =
+      intersections.find((candidate) => findTerrainTile(candidate.object)) ??
+      intersections[0];
+
+    if (!intersection?.point) {
+      return null;
+    }
+
+    return intersection.point.y;
+  };
+
+  const getPlayerGroundHeight = (position) => {
+    const terrainHeight = getTerrainGroundHeight(position);
+    if (!Number.isFinite(terrainHeight)) {
+      return roomFloorY;
+    }
+
+    return Math.max(roomFloorY, terrainHeight);
+  };
+
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
   const setMovementEnabled = (enabled) => {
@@ -7632,7 +7680,7 @@ export const initScene = (
       velocity.set(0, 0, 0);
       verticalVelocity = 0;
       jumpRequested = false;
-      const groundY = roomFloorY;
+      const groundY = getPlayerGroundHeight(playerObject.position);
       if (playerObject.position.y <= groundY) {
         playerObject.position.y = groundY;
         isGrounded = true;
@@ -7785,7 +7833,7 @@ export const initScene = (
       player.z = THREE.MathUtils.clamp(player.z, zBounds.min, zBounds.max);
     }
 
-    const minY = roomFloorY;
+    const minY = getPlayerGroundHeight(player);
     const maxHeadY = roomFloorY + roomHeight - CEILING_CLEARANCE;
     const maxY = Math.max(minY, maxHeadY - playerHeight);
 
