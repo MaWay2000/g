@@ -763,8 +763,14 @@
         gap: 0.75rem;
       }
 
-      .settings-menu__panel--stars[hidden] {
+      .settings-menu__panel--stars[hidden],
+      .settings-menu__panel--speed[hidden] {
         display: none;
+      }
+
+      .settings-menu__panel--speed {
+        min-width: 320px;
+        gap: 0.75rem;
       }
 
       .settings-menu__section {
@@ -797,6 +803,29 @@
 
       .settings-menu__submenu--disabled {
         opacity: 0.6;
+      }
+
+      .settings-menu__speed-summary {
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.6rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.65);
+        background: rgba(15, 23, 42, 0.5);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+      }
+
+      .settings-menu__speed-label {
+        font-weight: 600;
+        color: rgba(226, 232, 240, 0.9);
+      }
+
+      .settings-menu__speed-value {
+        font-weight: 700;
+        color: rgba(94, 234, 212, 0.9);
       }
 
       .settings-slider {
@@ -3608,6 +3637,27 @@
                       </button>
                     </div>
                   </div>
+                  <div class="settings-menu__section" role="group" aria-label="Speed">
+                    <p class="settings-menu__heading">Speed</p>
+                    <div class="settings-menu__row">
+                      <div class="settings-menu__speed-summary">
+                        <span class="settings-menu__speed-label">Player speed</span>
+                        <span class="settings-menu__speed-value" data-speed-summary-value>
+                          1x
+                        </span>
+                      </div>
+                      <button
+                        class="settings-menu__submenu-toggle"
+                        type="button"
+                        data-speed-settings-toggle
+                        aria-controls="speedSettingsPanel"
+                        aria-expanded="false"
+                        aria-label="Speed settings"
+                      >
+                        Adjust
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div
                   class="settings-menu__panel settings-menu__panel--stars"
@@ -3801,6 +3851,51 @@
                         inputmode="decimal"
                         aria-label="Sky dome height"
                         data-sky-height-input
+                      />
+                    </div>
+                  </label>
+                </div>
+                <div
+                  class="settings-menu__panel settings-menu__panel--speed"
+                  id="speedSettingsPanel"
+                  role="menu"
+                  aria-label="Speed settings"
+                  data-speed-settings-submenu
+                  hidden
+                >
+                  <p class="settings-menu__heading">Speed</p>
+                  <label class="settings-slider" for="playerSpeedRange">
+                    <div class="settings-slider__header">
+                      <span class="settings-slider__title">Player speed</span>
+                      <span class="settings-slider__value" data-player-speed-value>
+                        1x
+                      </span>
+                    </div>
+                    <p class="settings-slider__hint">
+                      Increase how fast your player moves.
+                    </p>
+                    <div class="settings-slider__controls">
+                      <input
+                        id="playerSpeedRange"
+                        class="settings-slider__range"
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="0.1"
+                        value="1"
+                        aria-label="Player speed multiplier"
+                        data-player-speed-range
+                      />
+                      <input
+                        class="settings-slider__number-input"
+                        type="number"
+                        min="1"
+                        max="10"
+                        step="0.1"
+                        value="1"
+                        inputmode="decimal"
+                        aria-label="Player speed multiplier"
+                        data-player-speed-input
                       />
                     </div>
                   </label>

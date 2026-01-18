@@ -57,11 +57,14 @@ const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
 const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
+const playerSpeedRange = document.querySelector("[data-player-speed-range]");
+const playerSpeedInput = document.querySelector("[data-player-speed-input]");
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
 const timeOffsetRange = document.querySelector("[data-time-offset-range]");
 const skyExtentRange = document.querySelector("[data-sky-extent-range]");
+const playerSpeedValue = document.querySelector("[data-player-speed-value]");
 const starSizeInput = document.querySelector("[data-star-size-input]");
 const starDensityInput = document.querySelector("[data-star-density-input]");
 const starOpacityInput = document.querySelector("[data-star-opacity-input]");
@@ -75,9 +78,14 @@ const starOpacityValue = document.querySelector("[data-star-opacity-value]");
 const timeOffsetValue = document.querySelector("[data-time-offset-value]");
 const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const skyHeightValue = document.querySelector("[data-sky-height-value]");
+const speedSummaryValue = document.querySelector("[data-speed-summary-value]");
 const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu]");
+const speedSettingsSubmenu = document.querySelector("[data-speed-settings-submenu]");
 const starSettingsToggleButton = settingsMenu?.querySelector(
   "[data-star-settings-toggle]"
+);
+const speedSettingsToggleButton = settingsMenu?.querySelector(
+  "[data-speed-settings-toggle]"
 );
 const starSettingsToggleLabel = starSettingsToggleButton?.querySelector(
   "[data-star-settings-label]"
@@ -95,6 +103,7 @@ const starSettingsInputs = [
   skyExtentInput,
   skyHeightInput,
 ];
+const speedSettingInputs = [playerSpeedRange, playerSpeedInput];
 const timeSettingInputs = [timeOffsetRange, timeOffsetInput];
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
@@ -274,6 +283,11 @@ const setSettingsMenuOpen = (isOpen) => {
   settingsPanelsContainer.hidden = !nextState;
   settingsPanel.hidden = !nextState;
   settingsTrigger.setAttribute("aria-expanded", String(nextState));
+
+  if (!nextState) {
+    setStarSettingsExpanded(false);
+    setSpeedSettingsExpanded(false);
+  }
 };
 
 const setStarSettingsExpanded = (isExpanded) => {
@@ -299,8 +313,22 @@ const setStarSettingsExpanded = (isExpanded) => {
   }
 };
 
+const setSpeedSettingsExpanded = (isExpanded) => {
+  const nextState = Boolean(isExpanded);
+
+  if (speedSettingsSubmenu instanceof HTMLElement) {
+    speedSettingsSubmenu.hidden = !nextState;
+    speedSettingsSubmenu.dataset.expanded = nextState ? "true" : "false";
+  }
+
+  if (speedSettingsToggleButton instanceof HTMLButtonElement) {
+    speedSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
+  }
+};
+
 setSettingsMenuOpen(false);
 setStarSettingsExpanded(false);
+setSpeedSettingsExpanded(false);
 
 if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLElement) {
   settingsTrigger.addEventListener("click", () => {
@@ -343,7 +371,25 @@ if (starSettingsToggleButton instanceof HTMLButtonElement) {
     const isExpanded =
       starSettingsSubmenu instanceof HTMLElement && starSettingsSubmenu.hidden !== true;
 
+    if (!isExpanded) {
+      setSpeedSettingsExpanded(false);
+    }
+
     setStarSettingsExpanded(!isExpanded);
+  });
+}
+
+if (speedSettingsToggleButton instanceof HTMLButtonElement) {
+  speedSettingsToggleButton.addEventListener("click", () => {
+    const isExpanded =
+      speedSettingsSubmenu instanceof HTMLElement &&
+      speedSettingsSubmenu.hidden !== true;
+
+    if (!isExpanded) {
+      setStarSettingsExpanded(false);
+    }
+
+    setSpeedSettingsExpanded(!isExpanded);
   });
 }
 
@@ -431,6 +477,16 @@ const formatGmtOffset = (value) => {
   return `${clamped >= 0 ? "+" : ""}${displayValue}h`;
 };
 
+const formatSpeedMultiplier = (value) => {
+  const numericValue = Number.isFinite(value) ? value : 1;
+  const clamped = Math.max(1, Math.min(10, numericValue));
+  const displayValue = Number.isInteger(clamped)
+    ? clamped.toFixed(0)
+    : clamped.toFixed(1);
+
+  return `${displayValue}x`;
+};
+
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
   const starDensity = Number(currentSettings?.starDensity ?? 1);
@@ -483,6 +539,21 @@ const applyTimeSettingsUiState = () => {
 };
 
 applyTimeSettingsUiState();
+
+const applySpeedSettingsUiState = () => {
+  const speedMultiplier = Number(currentSettings?.playerSpeedMultiplier ?? 1);
+
+  setRangeInputValue(playerSpeedRange, speedMultiplier);
+  setNumberInputValue(playerSpeedInput, speedMultiplier);
+  setValueLabel(playerSpeedValue, formatSpeedMultiplier(speedMultiplier));
+  setValueLabel(speedSummaryValue, formatSpeedMultiplier(speedMultiplier));
+
+  sceneController?.setSpeedSettings?.({
+    playerSpeedMultiplier: speedMultiplier,
+  });
+};
+
+applySpeedSettingsUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -8325,6 +8396,11 @@ bindTimeSettingInput(
   "timeZoneOffsetHours",
   timeSettingInputs,
   applyTimeSettingsUiState
+);
+bindTimeSettingInput(
+  "playerSpeedMultiplier",
+  speedSettingInputs,
+  applySpeedSettingsUiState
 );
 
 const scheduleBootstrapScene = () => {
