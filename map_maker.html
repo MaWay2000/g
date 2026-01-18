@@ -235,6 +235,56 @@
         gap: 0.45rem;
       }
 
+      .objects-palette {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .object-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.55rem 0.7rem;
+        border-radius: 0.65rem;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        background: rgba(2, 6, 23, 0.6);
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease,
+          background 140ms ease;
+      }
+
+      .object-card:hover,
+      .object-card:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(56, 189, 248, 0.6);
+        background: rgba(15, 23, 42, 0.75);
+        outline: none;
+      }
+
+      .object-card[data-active="true"] {
+        border-color: #1f2937;
+        background: linear-gradient(180deg, #7dff3a, #6ff216);
+        color: #0b1120;
+        box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.4);
+      }
+
+      .object-card-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .object-card-path {
+        font-size: 0.72rem;
+        color: rgba(226, 232, 240, 0.7);
+        word-break: break-all;
+      }
+
+      .object-card[data-active="true"] .object-card-path {
+        color: rgba(15, 23, 42, 0.8);
+      }
+
       .terrain-menu {
         display: grid;
         gap: 0.75rem;
@@ -1028,10 +1078,8 @@
       >
         <section class="sidebar-section">
           <h2>Objects Palette</h2>
-          <p class="tab-panel-placeholder">
-            Objects content will live here soon. Select this tab to preview and
-            place props, hazards, and landmarks once the library is wired in.
-          </p>
+          <p class="hint" id="objectsPaletteStatus">Loading model library…</p>
+          <div class="objects-palette" id="objectsPalette"></div>
         </section>
       </div>
       <div
