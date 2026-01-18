@@ -75,17 +75,17 @@ const buildTerrainGeometry = (map) => {
         z0,
         x1,
         elevation,
-        z0,
+        z1,
         x1,
         elevation,
-        z1,
+        z0,
         x0,
         elevation,
         z0,
-        x1,
+        x0,
         elevation,
         z1,
-        x0,
+        x1,
         elevation,
         z1
       );
@@ -95,7 +95,7 @@ const buildTerrainGeometry = (map) => {
       const v0 = y / height;
       const v1 = (y + 1) / height;
 
-      uvs.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1);
+      uvs.push(u0, v0, u1, v1, u1, v0, u0, v0, u0, v1, u1, v1);
 
       for (let i = 0; i < 6; i += 1) {
         colors.push(baseColor.r, baseColor.g, baseColor.b);
