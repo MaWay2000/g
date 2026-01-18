@@ -698,12 +698,22 @@ function renderPalette() {
       details.push(`Element: ${elementLabel}`);
     }
     const tileLabel = formatTerrainTileLabel(tileId);
+    const tooltipParts = [
+      terrain.label,
+      terrain.description,
+      hpLabel !== UNKNOWN_HP_LABEL ? `HP: ${hpLabel}` : null,
+      elementLabel ? `Element: ${elementLabel}` : null,
+      tileLabel,
+    ].filter(Boolean);
+    button.style.setProperty("--terrain-texture", textureCss);
+    button.title = tooltipParts.join("\n");
+    button.setAttribute(
+      "aria-label",
+      `${terrain.label}. ${details.join(" ")} ${tileLabel}.`
+    );
     button.innerHTML = `
-      <span class="terrain-swatch" style="background:${terrain.color};background-image:${textureCss}"></span>
-      <span>
-        <strong>${terrain.label}</strong><br />
-        <small>${details.join(" · ")} · ${tileLabel}</small>
-      </span>
+      <span class="terrain-tile-chip" style="background:${terrain.color};"></span>
+      <span class="terrain-tile-number">${getTerrainTileNumber(tileId)}</span>
     `;
     button.addEventListener("click", () => setTerrain(terrain));
     elements.palette.appendChild(button);
