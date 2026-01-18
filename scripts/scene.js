@@ -7035,6 +7035,7 @@ export const initScene = (
   const GRAVITY = -9.81;
   const JUMP_VELOCITY = 4.5;
   const CEILING_CLEARANCE = 0.5;
+  const MAX_STEP_HEIGHT = 1;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
     if (!liftInteractionsEnabled) {
@@ -7860,6 +7861,30 @@ export const initScene = (
     }
   }
 
+  const clampStepHeight = (previousPosition) => {
+    if (!previousPosition) {
+      return;
+    }
+
+    const previousGround = getPlayerGroundHeight(previousPosition);
+    const currentGround = getPlayerGroundHeight(playerObject.position);
+
+    if (!Number.isFinite(previousGround) || !Number.isFinite(currentGround)) {
+      return;
+    }
+
+    if (currentGround - previousGround <= MAX_STEP_HEIGHT) {
+      return;
+    }
+
+    playerObject.position.x = previousPosition.x;
+    playerObject.position.z = previousPosition.z;
+    playerObject.position.y = Math.max(playerObject.position.y, previousPosition.y);
+    velocity.x = 0;
+    velocity.z = 0;
+    clampWithinActiveFloor();
+  };
+
   clampWithinActiveFloor();
 
   const updateResourceTool = (delta, elapsedTime) => {
@@ -8003,6 +8028,7 @@ export const initScene = (
     clampWithinActiveFloor();
 
     if (shouldResolveCollisions) {
+      clampStepHeight(previousPlayerPosition);
       resolvePlayerCollisions(previousPlayerPosition);
     }
 
