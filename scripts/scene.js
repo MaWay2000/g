@@ -7879,7 +7879,7 @@ export const initScene = (
 
     playerObject.position.x = previousPosition.x;
     playerObject.position.z = previousPosition.z;
-    playerObject.position.y = Math.max(playerObject.position.y, previousPosition.y);
+    playerObject.position.y = previousPosition.y;
     velocity.x = 0;
     velocity.z = 0;
     clampWithinActiveFloor();
