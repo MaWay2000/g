@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
   showFpsCounter: false,
   showStars: true,
   playerSpeedMultiplier: 1,
+  playerJumpMultiplier: 1,
   starFollowPlayer: true,
   starSize: 8.63,
   starDensity: 8.61,
@@ -47,12 +48,23 @@ const normalizeSettings = (settings = {}) => {
     return Math.max(1, Math.min(10, numericValue));
   };
 
+  const normalizeJumpMultiplier = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return DEFAULT_SETTINGS.playerJumpMultiplier;
+    }
+
+    return Math.max(1, Math.min(10, numericValue));
+  };
+
   return {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
     showFpsCounter: Boolean(settings.showFpsCounter),
     showStars: settings.showStars !== false,
     playerSpeedMultiplier: normalizeSpeedMultiplier(settings.playerSpeedMultiplier),
+    playerJumpMultiplier: normalizeJumpMultiplier(settings.playerJumpMultiplier),
     starFollowPlayer: settings.starFollowPlayer !== false,
     starSize: normalizeValue(settings.starSize, DEFAULT_SETTINGS.starSize),
     starDensity: normalizeValue(settings.starDensity, DEFAULT_SETTINGS.starDensity),
