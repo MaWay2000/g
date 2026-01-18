@@ -7033,9 +7033,9 @@ export const initScene = (
   let isGrounded = true;
   let jumpRequested = false;
   const GRAVITY = -9.81;
-  const JUMP_VELOCITY = 4.5;
+  const JUMP_VELOCITY = 6.3;
   const CEILING_CLEARANCE = 0.5;
-  const MAX_STEP_HEIGHT = 1;
+  const MAX_STEP_HEIGHT = 2;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
     if (!liftInteractionsEnabled) {
