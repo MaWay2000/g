@@ -1,6 +1,7 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
 import {
+  OUTSIDE_TERRAIN_TILES,
   getOutsideTerrainById,
   getOutsideTerrainDefaultTileId,
   getOutsideTerrainTilePath,
@@ -15,6 +16,9 @@ const TERRAIN_MARKER_OFFSET =
   -0.5 + TERRAIN_MARKER_MARGIN + TERRAIN_MARKER_SIZE / 2;
 const NEUTRAL_TERRAIN_COLOR = "#f8fafc";
 const TRANSPARENT_COLOR_KEYWORD = "transparent";
+const TERRAIN_TILE_NUMBERS = new Map(
+  OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, String(index + 1)])
+);
 
 const getWebglSupport = () => {
   const canvas = document.createElement("canvas");
@@ -23,6 +27,8 @@ const getWebglSupport = () => {
 };
 
 const getTerrainHeight = () => TERRAIN_HEIGHT;
+const getTerrainTileNumber = (tileId) =>
+  TERRAIN_TILE_NUMBERS.get(tileId) ?? "—";
 
 const resolveTerrainColor = (terrain, showColors) => {
   if (!showColors) {
@@ -119,6 +125,7 @@ export const initMapMaker3d = ({
   terrainTypeToggle,
   terrainTextureToggle,
   initialTextureVisibility = true,
+  initialTileNumberVisibility = true,
   getBrushSize,
   getTerrainMode,
   onPaintCell,
@@ -364,6 +371,7 @@ export const initMapMaker3d = ({
 
   let showTerrainTextures = initialTextureVisibility;
   syncTerrainTextureToggleLabel(showTerrainTextures);
+  let showTileNumbers = initialTileNumberVisibility;
   const moveVector = new THREE.Vector3();
   const forwardVector = new THREE.Vector3();
   const rightVector = new THREE.Vector3();
@@ -402,7 +410,9 @@ export const initMapMaker3d = ({
     if (!textureContext) {
       return;
     }
-    if (!showTerrainTextures) {
+    const shouldShowTextures = showTerrainTextures;
+    const shouldShowTileNumbers = showTileNumbers;
+    if (!shouldShowTextures && !shouldShowTileNumbers) {
       if (material.map) {
         material.map = null;
         material.needsUpdate = true;
@@ -419,14 +429,16 @@ export const initMapMaker3d = ({
     textureCanvas.height = height * TEXTURE_TILE_SIZE;
 
     const texturePaths = new Set();
-    map.cells.forEach((cell, index) => {
-      const terrainId = cell?.terrainId;
-      const tileId = cell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
-      const texturePath = getOutsideTerrainTilePath(tileId, index);
-      if (texturePath) {
-        texturePaths.add(texturePath);
-      }
-    });
+    if (shouldShowTextures) {
+      map.cells.forEach((cell, index) => {
+        const terrainId = cell?.terrainId;
+        const tileId = cell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+        const texturePath = getOutsideTerrainTilePath(tileId, index);
+        if (texturePath) {
+          texturePaths.add(texturePath);
+        }
+      });
+    }
 
     await Promise.all([...texturePaths].map((path) => loadTerrainTexture(path)));
     if (nextToken !== textureToken) {
@@ -435,6 +447,9 @@ export const initMapMaker3d = ({
 
     textureContext.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
 
+    const labelFontSize = Math.round(TEXTURE_TILE_SIZE * 0.4);
+    const labelPadding = Math.round(TEXTURE_TILE_SIZE * 0.08);
+    const labelFont = `700 ${labelFontSize}px "Segoe UI", "Inter", system-ui, sans-serif`;
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const index = y * width + x;
@@ -443,9 +458,10 @@ export const initMapMaker3d = ({
         const tileId =
           cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
         const texturePath = getOutsideTerrainTilePath(tileId, index);
-        const image = texturePath
-          ? terrainTextureCache.get(texturePath)
-          : null;
+        const image =
+          shouldShowTextures && texturePath
+            ? terrainTextureCache.get(texturePath)
+            : null;
         const drawX = x * TEXTURE_TILE_SIZE;
         const drawY = y * TEXTURE_TILE_SIZE;
         textureContext.fillStyle = NEUTRAL_TERRAIN_COLOR;
@@ -465,6 +481,29 @@ export const initMapMaker3d = ({
             TEXTURE_TILE_SIZE,
             TEXTURE_TILE_SIZE
           );
+          textureContext.restore();
+        }
+        if (shouldShowTileNumbers) {
+          const label = getTerrainTileNumber(tileId);
+          textureContext.save();
+          textureContext.font = labelFont;
+          textureContext.textBaseline = "bottom";
+          textureContext.textAlign = "left";
+          const textWidth = textureContext.measureText(label).width;
+          const textX =
+            drawX + TEXTURE_TILE_SIZE - labelPadding - textWidth;
+          const textY = drawY + TEXTURE_TILE_SIZE - labelPadding;
+          textureContext.fillStyle = "rgba(2, 6, 23, 0.45)";
+          textureContext.fillRect(
+            textX - labelPadding,
+            textY - labelFontSize - labelPadding * 0.6,
+            textWidth + labelPadding * 2,
+            labelFontSize + labelPadding * 1.4
+          );
+          textureContext.fillStyle = "#f8fafc";
+          textureContext.shadowColor = "rgba(2, 6, 23, 0.7)";
+          textureContext.shadowBlur = 4;
+          textureContext.fillText(label, textX, textY);
           textureContext.restore();
         }
       }
@@ -659,6 +698,13 @@ export const initMapMaker3d = ({
 
   const updateTerrainTextureDisplay = (nextValue) => {
     showTerrainTextures = nextValue;
+    if (lastMap) {
+      void renderTerrainTexture(lastMap);
+    }
+  };
+
+  const updateTileNumberDisplay = (nextValue) => {
+    showTileNumbers = nextValue;
     if (lastMap) {
       void renderTerrainTexture(lastMap);
     }
@@ -942,6 +988,7 @@ export const initMapMaker3d = ({
   return {
     updateMap,
     setTextureVisibility: updateTerrainTextureDisplay,
+    setTileNumberVisibility: updateTileNumberDisplay,
     setSelection,
     resize: resizeRenderer,
     dispose,

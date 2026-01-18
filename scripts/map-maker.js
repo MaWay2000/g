@@ -271,6 +271,9 @@ function setTileNumberVisibility(isEnabled) {
     elements.mapGrid.dataset.showTileNumbers = String(isEnabled);
   }
   syncTileNumberToggleLabel(isEnabled);
+  if (landscapeViewer?.setTileNumberVisibility) {
+    landscapeViewer.setTileNumberVisibility(isEnabled);
+  }
 }
 
 function updateTerrainMenu() {
@@ -1015,6 +1018,7 @@ function setActivePaletteTab(tabId) {
         terrainTypeToggle: elements.landscapeTypeToggle,
         terrainTextureToggle: elements.landscapeTextureToggle,
         initialTextureVisibility: getTextureVisibility(),
+        initialTileNumberVisibility: getTileNumberVisibility(),
         getBrushSize: () => state.terrainBrushSize,
         getTerrainMode: () => state.terrainMode,
         onPaintCell: ({ index, isStart, shiftKey }) => {
@@ -1049,6 +1053,9 @@ function setActivePaletteTab(tabId) {
     }
     if (landscapeViewer?.setTextureVisibility) {
       landscapeViewer.setTextureVisibility(getTextureVisibility());
+    }
+    if (landscapeViewer?.setTileNumberVisibility) {
+      landscapeViewer.setTileNumberVisibility(getTileNumberVisibility());
     }
     if (needsInit) {
       updateLandscapeViewer();
