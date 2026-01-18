@@ -3566,8 +3566,6 @@ export const initScene = (
       const terrainTiles = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
-      const connectorMaterials = new Map();
-      const CONNECTOR_WIDTH_FACTOR = 0.35;
 
       const concealedTerrainMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
@@ -3627,98 +3625,6 @@ export const initScene = (
         return material;
       };
 
-      const getConnectorMaterial = (terrainId, tileId, variantIndex) => {
-        const materialKey = `${terrainId}:${tileId ?? "none"}:connector`;
-        if (connectorMaterials.has(materialKey)) {
-          return connectorMaterials.get(materialKey);
-        }
-
-        const baseMaterial = getMaterialForTerrain(terrainId, tileId, variantIndex);
-        const connectorMaterial = baseMaterial.clone();
-        connectorMaterial.polygonOffset = true;
-        connectorMaterial.polygonOffsetFactor = -1;
-        connectorMaterial.polygonOffsetUnits = -1;
-        connectorMaterial.side = THREE.DoubleSide;
-        connectorMaterials.set(materialKey, connectorMaterial);
-        return connectorMaterial;
-      };
-
-      const getCellInfo = (index) => {
-        const cellData = rawCells[index] ?? {};
-        const terrainId = cellData?.terrainId ?? "void";
-        const tileId =
-          cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
-        const resolvedTerrain = getOutsideTerrainById(terrainId);
-        return {
-          terrainId: resolvedTerrain.id,
-          tileId,
-        };
-      };
-
-      const getTileTopY = (index) =>
-        roomFloorY +
-        OUTSIDE_TERRAIN_CLEARANCE +
-        getOutsideTerrainElevation(normalizedMap.heights?.[index]);
-
-      const buildConnectorMesh = ({
-        centerX,
-        centerZ,
-        span,
-        fromHeight,
-        toHeight,
-        axis,
-        material,
-      }) => {
-        const halfSpan = span / 2;
-        const halfCell = cellSize / 2;
-        const centerY = (fromHeight + toHeight) / 2;
-        const y0 = fromHeight - centerY;
-        const y1 = toHeight - centerY;
-        const positions =
-          axis === "x"
-            ? [
-                -halfSpan,
-                y0,
-                -halfCell,
-                -halfSpan,
-                y0,
-                halfCell,
-                halfSpan,
-                y1,
-                halfCell,
-                halfSpan,
-                y1,
-                -halfCell,
-              ]
-            : [
-                -halfCell,
-                y0,
-                -halfSpan,
-                -halfCell,
-                y0,
-                halfSpan,
-                halfCell,
-                y1,
-                halfSpan,
-                halfCell,
-                y1,
-                -halfSpan,
-              ];
-        const uvs = [0, 0, 0, 1, 1, 1, 1, 0];
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute(
-          "position",
-          new THREE.Float32BufferAttribute(positions, 3)
-        );
-        geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-        geometry.computeVertexNormals();
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(centerX, centerY, centerZ);
-        mesh.castShadow = false;
-        mesh.receiveShadow = false;
-        return mesh;
-      };
-
       for (let row = 0; row < height; row += 1) {
         for (let column = 0; column < width; column += 1) {
           const index = row * width + column;
@@ -3773,57 +3679,6 @@ export const initScene = (
           if (resolvedTerrain.id !== "void") {
             tile.userData.isResourceTarget = true;
             resourceTargets.push(tile);
-          }
-
-          const connectorSpan = cellSize * CONNECTOR_WIDTH_FACTOR;
-          const topY = getTileTopY(index);
-
-          if (column < width - 1) {
-            const eastIndex = index + 1;
-            const eastTopY = getTileTopY(eastIndex);
-            if (Math.abs(topY - eastTopY) > 0.001) {
-              const higherIndex = topY >= eastTopY ? index : eastIndex;
-              const { terrainId: connectorTerrainId, tileId: connectorTileId } =
-                getCellInfo(higherIndex);
-              const connector = buildConnectorMesh({
-                centerX: mapLeftEdge + column * cellSize + cellSize,
-                centerZ: mapNearEdge + row * cellSize + cellSize / 2,
-                span: connectorSpan,
-                fromHeight: topY,
-                toHeight: eastTopY,
-                axis: "x",
-                material: getConnectorMaterial(
-                  connectorTerrainId,
-                  connectorTileId,
-                  higherIndex
-                ),
-              });
-              mapGroup.add(connector);
-            }
-          }
-
-          if (row < height - 1) {
-            const southIndex = index + width;
-            const southTopY = getTileTopY(southIndex);
-            if (Math.abs(topY - southTopY) > 0.001) {
-              const higherIndex = topY >= southTopY ? index : southIndex;
-              const { terrainId: connectorTerrainId, tileId: connectorTileId } =
-                getCellInfo(higherIndex);
-              const connector = buildConnectorMesh({
-                centerX: mapLeftEdge + column * cellSize + cellSize / 2,
-                centerZ: mapNearEdge + row * cellSize + cellSize,
-                span: connectorSpan,
-                fromHeight: topY,
-                toHeight: southTopY,
-                axis: "z",
-                material: getConnectorMaterial(
-                  connectorTerrainId,
-                  connectorTileId,
-                  higherIndex
-                ),
-              });
-              mapGroup.add(connector);
-            }
           }
 
           if (resolvedTerrain.id === "point") {
