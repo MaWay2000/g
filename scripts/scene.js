@@ -85,6 +85,16 @@ export const initScene = (
     showStars: settings?.showStars !== false,
   };
 
+  const normalizeSpeedMultiplier = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 1;
+    }
+
+    return Math.max(1, Math.min(10, numericValue));
+  };
+
   const parseStarSetting = (value, fallback) => {
     const numericValue = Number(value);
 
@@ -118,6 +128,12 @@ export const initScene = (
 
   const timeSettings = {
     gmtOffsetHours: normalizeTimeOffset(settings?.timeZoneOffsetHours),
+  };
+
+  const speedSettings = {
+    playerSpeedMultiplier: normalizeSpeedMultiplier(
+      settings?.playerSpeedMultiplier
+    ),
   };
 
   const starSpriteTexture = (() => {
@@ -8018,13 +8034,15 @@ export const initScene = (
       const appliedAcceleration = movementState.running
         ? BASE_MOVEMENT_ACCELERATION * RUN_SPEED_MULTIPLIER
         : BASE_MOVEMENT_ACCELERATION;
+      const speedMultiplier = speedSettings.playerSpeedMultiplier;
+      const adjustedAcceleration = appliedAcceleration * speedMultiplier;
 
       if (movementState.forward || movementState.backward) {
-        velocity.z -= direction.z * appliedAcceleration * delta;
+        velocity.z -= direction.z * adjustedAcceleration * delta;
       }
 
       if (movementState.left || movementState.right) {
-        velocity.x -= direction.x * appliedAcceleration * delta;
+        velocity.x -= direction.x * adjustedAcceleration * delta;
       }
 
       if (controls.isLocked) {
@@ -8208,6 +8226,18 @@ export const initScene = (
       timeSettings.gmtOffsetHours = nextOffset;
       updateTimeOfDay(true);
       return timeSettings.gmtOffsetHours;
+    },
+    setSpeedSettings: (nextSettings = {}) => {
+      const nextMultiplier = normalizeSpeedMultiplier(
+        nextSettings.playerSpeedMultiplier
+      );
+
+      if (nextMultiplier === speedSettings.playerSpeedMultiplier) {
+        return speedSettings.playerSpeedMultiplier;
+      }
+
+      speedSettings.playerSpeedMultiplier = nextMultiplier;
+      return speedSettings.playerSpeedMultiplier;
     },
     setStarsEnabled: (enabled) => {
       const nextState = Boolean(enabled);
