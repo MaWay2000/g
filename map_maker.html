@@ -352,6 +352,29 @@
         width: 140px;
       }
 
+      .height-value-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+      }
+
+      .height-value-control input[type="number"] {
+        width: 4.25rem;
+      }
+
+      .height-value-control input[type="range"] {
+        accent-color: #38bdf8;
+        flex: 1;
+        min-width: 140px;
+      }
+
+      .height-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
       .terrain-draw-actions {
         display: flex;
         gap: 0.5rem;
@@ -719,7 +742,26 @@
         pointer-events: none;
       }
 
+      .map-cell[data-height]::before {
+        content: attr(data-height);
+        position: absolute;
+        top: 0.25rem;
+        left: 0.3rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #f8fafc;
+        text-shadow: 0 1px 3px rgba(2, 6, 23, 0.7);
+        background: rgba(2, 6, 23, 0.45);
+        padding: 0.05rem 0.3rem;
+        border-radius: 0.35rem;
+        pointer-events: none;
+      }
+
       #mapGrid[data-show-tile-numbers="false"] .map-cell::after {
+        display: none;
+      }
+
+      #mapGrid[data-show-heights="false"] .map-cell::before {
         display: none;
       }
 
@@ -822,6 +864,18 @@
           data-map-maker-tab="terrain"
         >
           Terrain
+        </button>
+        <button
+          class="map-maker-tab"
+          type="button"
+          role="tab"
+          id="tab-height"
+          aria-selected="false"
+          aria-controls="heightPanel"
+          tabindex="-1"
+          data-map-maker-tab="height"
+        >
+          Height
         </button>
         <button
           class="map-maker-tab"
@@ -978,6 +1032,119 @@
             Objects content will live here soon. Select this tab to preview and
             place props, hazards, and landmarks once the library is wired in.
           </p>
+        </section>
+      </div>
+      <div
+        class="tab-panel palette-panel"
+        id="heightPanel"
+        role="tabpanel"
+        aria-labelledby="tab-height"
+        data-map-maker-panel="height"
+        hidden
+      >
+        <section class="sidebar-section terrain-menu">
+          <div class="terrain-menu-actions">
+            <button
+              class="terrain-mode-button"
+              type="button"
+              data-height-mode="brush"
+              aria-pressed="false"
+            >
+              Use Brush
+            </button>
+            <button
+              class="terrain-mode-button"
+              type="button"
+              data-height-mode="draw"
+              aria-pressed="false"
+            >
+              Draw on map
+            </button>
+            <button
+              class="terrain-mode-button"
+              type="button"
+              id="showHeightButton"
+              aria-pressed="false"
+            >
+              Show Heights
+            </button>
+          </div>
+          <div class="terrain-control-row" id="heightBrushRow" hidden>
+            <label class="terrain-control-label" for="heightBrushSize">
+              Brush size
+            </label>
+            <div class="terrain-brush-size">
+              <input
+                id="heightBrushSize"
+                type="range"
+                min="1"
+                max="150"
+                step="1"
+                value="1"
+              />
+              <span class="terrain-brush-value" id="heightBrushSizeValue">1</span>
+            </div>
+          </div>
+          <div class="terrain-control-row">
+            <label class="terrain-control-label" for="heightValueInput">
+              Height
+            </label>
+            <div class="height-value-control">
+              <input
+                id="heightValueInput"
+                type="number"
+                min="0"
+                max="255"
+                step="1"
+                value="0"
+              />
+              <input
+                id="heightValueSlider"
+                type="range"
+                min="0"
+                max="255"
+                step="1"
+                value="0"
+              />
+            </div>
+          </div>
+          <div class="height-presets" id="heightPresets">
+            <button type="button" class="terrain-action-button" data-height-preset="0">
+              0
+            </button>
+            <button type="button" class="terrain-action-button" data-height-preset="64">
+              64
+            </button>
+            <button type="button" class="terrain-action-button" data-height-preset="128">
+              128
+            </button>
+            <button type="button" class="terrain-action-button" data-height-preset="192">
+              192
+            </button>
+            <button type="button" class="terrain-action-button" data-height-preset="255">
+              255
+            </button>
+          </div>
+          <div class="terrain-control-row terrain-draw-row" id="heightDrawRow" hidden>
+            <div class="terrain-draw-actions">
+              <button
+                class="terrain-action-button"
+                type="button"
+                id="heightApplyButton"
+                disabled
+              >
+                Apply
+              </button>
+              <button
+                class="terrain-action-button"
+                type="button"
+                id="heightCancelButton"
+                disabled
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </section>
       </div>
       <div

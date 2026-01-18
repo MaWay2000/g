@@ -25,13 +25,19 @@ const state = {
     TERRAIN_TYPES[1]?.id ?? TERRAIN_TYPES[0]?.id ?? "void"
   ),
   map: createDefaultOutsideMap(),
+  activeTab: "terrain",
   isPointerDown: false,
+  isHeightPointerDown: false,
   pointerTerrainTypeId: null,
   pointerTerrainTileId: null,
   terrainMenu: null,
   terrainMode: null,
   terrainRotation: 0,
   terrainBrushSize: 1,
+  heightMode: null,
+  heightBrushSize: 1,
+  heightValue: 0,
+  showHeights: false,
   showTextures: true,
   showTileNumbers: true,
   selectionStart: null,
@@ -41,6 +47,8 @@ const state = {
 };
 
 const UNKNOWN_HP_LABEL = "Unknown";
+const HEIGHT_MIN = 0;
+const HEIGHT_MAX = 255;
 const TERRAIN_TILE_BY_ID = new Map(
   OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, { tile, index }])
 );
@@ -94,6 +102,14 @@ function getTerrainTileNumber(tileId) {
     return "—";
   }
   return String(tileMeta.index + 1);
+}
+
+function clampHeightValue(value) {
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) {
+    return HEIGHT_MIN;
+  }
+  return Math.min(HEIGHT_MAX, Math.max(HEIGHT_MIN, numeric));
 }
 
 function resolveTerrainTileId(tileId, terrainId) {
@@ -150,6 +166,11 @@ const createCell = (terrainId) => {
   };
 };
 
+const getCellHeightValue = (index) =>
+  Number.isFinite(state.map.heights?.[index])
+    ? state.map.heights[index]
+    : HEIGHT_MIN;
+
 const elements = {
   palette: document.getElementById("terrainPalette"),
   mapGrid: document.getElementById("mapGrid"),
@@ -201,6 +222,17 @@ const elements = {
   terrainRotationButtons: Array.from(
     document.querySelectorAll("[data-rotation]")
   ),
+  heightModeButtons: Array.from(document.querySelectorAll("[data-height-mode]")),
+  heightBrushRow: document.getElementById("heightBrushRow"),
+  heightBrushSize: document.getElementById("heightBrushSize"),
+  heightBrushSizeValue: document.getElementById("heightBrushSizeValue"),
+  heightValueInput: document.getElementById("heightValueInput"),
+  heightValueSlider: document.getElementById("heightValueSlider"),
+  heightPresetButtons: Array.from(document.querySelectorAll("[data-height-preset]")),
+  heightDrawRow: document.getElementById("heightDrawRow"),
+  heightApplyButton: document.getElementById("heightApplyButton"),
+  heightCancelButton: document.getElementById("heightCancelButton"),
+  showHeightButton: document.getElementById("showHeightButton"),
 };
 
 let landscapeViewer = null;
@@ -375,6 +407,95 @@ function setTerrainBrushSize(value) {
   }
   state.terrainBrushSize = Math.max(1, nextSize);
   syncTerrainBrushSizeDisplay();
+}
+
+function syncHeightModeButtons() {
+  elements.heightModeButtons.forEach((button) => {
+    const isActive = button.dataset.heightMode === state.heightMode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function syncHeightBrushVisibility() {
+  if (!elements.heightBrushRow) {
+    return;
+  }
+  const isVisible = state.heightMode === "brush";
+  elements.heightBrushRow.hidden = !isVisible;
+  elements.heightBrushRow.setAttribute("aria-hidden", String(!isVisible));
+}
+
+function syncHeightDrawVisibility() {
+  if (!elements.heightDrawRow) {
+    return;
+  }
+  const isVisible = state.heightMode === "draw";
+  elements.heightDrawRow.hidden = !isVisible;
+  elements.heightDrawRow.setAttribute("aria-hidden", String(!isVisible));
+}
+
+function setHeightMode(mode) {
+  if (mode && !["brush", "draw"].includes(mode)) {
+    return;
+  }
+  const nextMode = state.heightMode === mode ? null : mode;
+  state.heightMode = nextMode;
+  syncHeightModeButtons();
+  syncHeightBrushVisibility();
+  syncHeightDrawVisibility();
+  if (state.heightMode !== "draw") {
+    clearSelection();
+  }
+  updateDrawButtonsState();
+}
+
+function syncHeightBrushSizeDisplay() {
+  const brushSize = Math.max(1, Math.floor(state.heightBrushSize));
+  if (elements.heightBrushSize) {
+    elements.heightBrushSize.value = String(brushSize);
+  }
+  if (elements.heightBrushSizeValue) {
+    elements.heightBrushSizeValue.textContent = String(brushSize);
+  }
+}
+
+function setHeightBrushSize(value) {
+  const nextSize = Number.parseInt(value, 10);
+  if (!Number.isFinite(nextSize)) {
+    return;
+  }
+  state.heightBrushSize = Math.max(1, nextSize);
+  syncHeightBrushSizeDisplay();
+}
+
+function syncHeightValueDisplay() {
+  const clamped = clampHeightValue(state.heightValue);
+  if (elements.heightValueInput) {
+    elements.heightValueInput.value = String(clamped);
+  }
+  if (elements.heightValueSlider) {
+    elements.heightValueSlider.value = String(clamped);
+  }
+}
+
+function setHeightValue(value) {
+  state.heightValue = clampHeightValue(value);
+  syncHeightValueDisplay();
+}
+
+function setHeightVisibility(isEnabled) {
+  state.showHeights = isEnabled;
+  if (elements.mapGrid) {
+    elements.mapGrid.dataset.showHeights = String(isEnabled);
+  }
+  if (elements.showHeightButton) {
+    elements.showHeightButton.classList.toggle("is-active", isEnabled);
+    elements.showHeightButton.setAttribute("aria-pressed", String(isEnabled));
+  }
+  if (landscapeViewer?.setHeightVisibility) {
+    landscapeViewer.setHeightVisibility(isEnabled);
+  }
 }
 
 function populateTerrainTypeSelect() {
@@ -627,11 +748,19 @@ function updateDrawButtonsState() {
   const hasSelection =
     Number.isFinite(state.selectionStart) &&
     Number.isFinite(state.selectionEnd);
+  const terrainDrawActive = state.activeTab === "terrain" && state.terrainMode === "draw";
+  const heightDrawActive = state.activeTab === "height" && state.heightMode === "draw";
   if (elements.terrainApplyButton) {
-    elements.terrainApplyButton.disabled = !hasSelection;
+    elements.terrainApplyButton.disabled = !hasSelection || !terrainDrawActive;
   }
   if (elements.terrainCancelButton) {
-    elements.terrainCancelButton.disabled = !hasSelection;
+    elements.terrainCancelButton.disabled = !hasSelection || !terrainDrawActive;
+  }
+  if (elements.heightApplyButton) {
+    elements.heightApplyButton.disabled = !hasSelection || !heightDrawActive;
+  }
+  if (elements.heightCancelButton) {
+    elements.heightCancelButton.disabled = !hasSelection || !heightDrawActive;
   }
 }
 
@@ -665,10 +794,23 @@ function resizeMap(width, height) {
       return createCell(TERRAIN_TYPES[0].id);
     }
   );
+  const newHeights = Array.from(
+    { length: clampedWidth * clampedHeight },
+    (_, index) => {
+      const x = index % clampedWidth;
+      const y = Math.floor(index / clampedWidth);
+      if (x < state.map.width && y < state.map.height) {
+        const sourceIndex = y * state.map.width + x;
+        return clampHeightValue(state.map.heights?.[sourceIndex] ?? HEIGHT_MIN);
+      }
+      return HEIGHT_MIN;
+    }
+  );
 
   state.map.width = clampedWidth;
   state.map.height = clampedHeight;
   state.map.cells = newCells;
+  state.map.heights = newHeights;
   clearSelection();
   updateMetadataDisplays();
   renderGrid();
@@ -732,6 +874,8 @@ function buildCellAriaLabel(index, terrain, tileId) {
   if (elementLabel) {
     ariaParts.push(`Element ${elementLabel}`);
   }
+  const heightValue = getCellHeightValue(index);
+  ariaParts.push(`Height ${heightValue}`);
   return ariaParts.join(", ");
 }
 
@@ -743,6 +887,7 @@ function renderGrid() {
 
   elements.mapGrid.style.setProperty("--width", state.map.width);
   elements.mapGrid.style.setProperty("--height", state.map.height);
+  elements.mapGrid.dataset.showHeights = String(state.showHeights);
   elements.mapGrid.innerHTML = "";
 
   for (let index = 0; index < state.map.cells.length; index += 1) {
@@ -761,6 +906,7 @@ function renderGrid() {
       getTerrainTextureCssValue(tileId, index)
     );
     cell.dataset.tileNumber = getTerrainTileNumber(tileId);
+    cell.dataset.height = String(getCellHeightValue(index));
     cell.setAttribute("aria-label", buildCellAriaLabel(index, terrain, tileId));
     cell.addEventListener("pointerdown", handleCellPointerDown);
     cell.addEventListener("pointerenter", handleCellPointerEnter);
@@ -801,6 +947,7 @@ function paintCell(index, terrainId, tileId) {
         getTerrainTextureCssValue(resolvedTileId, index)
       );
       cell.dataset.tileNumber = getTerrainTileNumber(resolvedTileId);
+      cell.dataset.height = String(getCellHeightValue(index));
       cell.setAttribute(
         "aria-label",
         buildCellAriaLabel(index, terrain, resolvedTileId)
@@ -842,7 +989,43 @@ function updateCellElement(index) {
     getTerrainTextureCssValue(tileId, index)
   );
   cell.dataset.tileNumber = getTerrainTileNumber(tileId);
+  cell.dataset.height = String(getCellHeightValue(index));
   cell.setAttribute("aria-label", buildCellAriaLabel(index, terrain, tileId));
+}
+
+function updateHeightCell(index, heightValue) {
+  if (index < 0 || index >= state.map.cells.length) {
+    return false;
+  }
+  if (!Array.isArray(state.map.heights)) {
+    state.map.heights = Array.from(
+      { length: state.map.cells.length },
+      () => HEIGHT_MIN
+    );
+  }
+  const clamped = clampHeightValue(heightValue);
+  const currentValue = getCellHeightValue(index);
+  if (currentValue === clamped) {
+    return false;
+  }
+  state.map.heights[index] = clamped;
+  if (elements.mapGrid) {
+    const cell = elements.mapGrid.querySelector(
+      `.map-cell[data-index="${index}"]`
+    );
+    if (cell) {
+      cell.dataset.height = String(clamped);
+      const cellData = state.map.cells[index];
+      const terrainId = getCellTerrainId(cellData);
+      const tileId = getCellTileId(cellData);
+      const terrain = getTerrainById(terrainId);
+      cell.setAttribute(
+        "aria-label",
+        buildCellAriaLabel(index, terrain, tileId)
+      );
+    }
+  }
+  return true;
 }
 
 function applyTerrainSelection({ erase = false } = {}) {
@@ -877,6 +1060,42 @@ function applyTerrainSelection({ erase = false } = {}) {
       ) {
         state.map.cells[index] = { terrainId, tileId };
         updateCellElement(index);
+        didUpdate = true;
+      }
+    }
+  }
+
+  if (didUpdate) {
+    updateJsonPreview();
+    updateLandscapeViewer();
+  }
+  clearSelection();
+}
+
+function applyHeightSelection() {
+  if (
+    !Number.isFinite(state.selectionStart) ||
+    !Number.isFinite(state.selectionEnd)
+  ) {
+    return;
+  }
+
+  const width = state.map.width;
+  const startX = state.selectionStart % width;
+  const startY = Math.floor(state.selectionStart / width);
+  const endX = state.selectionEnd % width;
+  const endY = Math.floor(state.selectionEnd / width);
+  const minX = Math.min(startX, endX);
+  const maxX = Math.max(startX, endX);
+  const minY = Math.min(startY, endY);
+  const maxY = Math.max(startY, endY);
+  const nextHeight = clampHeightValue(state.heightValue);
+  let didUpdate = false;
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const index = y * width + x;
+      if (updateHeightCell(index, nextHeight)) {
         didUpdate = true;
       }
     }
@@ -947,6 +1166,60 @@ function applyPointerPaint(index) {
   }
 }
 
+function beginHeightPaint() {
+  state.isHeightPointerDown = true;
+}
+
+function applyHeightPointerPaint(index) {
+  if (!state.isHeightPointerDown) {
+    return;
+  }
+  const brushSize =
+    state.heightMode === "brush" ? Math.max(1, state.heightBrushSize) : 1;
+  const nextHeight = clampHeightValue(state.heightValue);
+  if (brushSize <= 1) {
+    if (updateHeightCell(index, nextHeight)) {
+      updateJsonPreview();
+      updateLandscapeViewer();
+    }
+    return;
+  }
+
+  const width = state.map.width;
+  const height = state.map.height;
+  const x = index % width;
+  const y = Math.floor(index / width);
+  const half = Math.floor(brushSize / 2);
+  const startX = x - half;
+  const startY = y - half;
+  const endX = startX + brushSize - 1;
+  const endY = startY + brushSize - 1;
+  let didUpdate = false;
+
+  for (let row = startY; row <= endY; row += 1) {
+    if (row < 0 || row >= height) {
+      continue;
+    }
+    for (let col = startX; col <= endX; col += 1) {
+      if (col < 0 || col >= width) {
+        continue;
+      }
+      if (updateHeightCell(row * width + col, nextHeight)) {
+        didUpdate = true;
+      }
+    }
+  }
+
+  if (didUpdate) {
+    updateJsonPreview();
+    updateLandscapeViewer();
+  }
+}
+
+function endHeightPaint() {
+  state.isHeightPointerDown = false;
+}
+
 function endPointerPaint() {
   state.isPointerDown = false;
   state.pointerTerrainTypeId = null;
@@ -960,6 +1233,26 @@ function handleCellPointerDown(event) {
   }
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
+  const isHeightTab = state.activeTab === "height";
+  if (isHeightTab && state.heightMode === "draw") {
+    state.isSelectionPointerDown = true;
+    updateSelection(index, { isStart: true });
+    window.addEventListener(
+      "pointerup",
+      () => {
+        state.isSelectionPointerDown = false;
+        updateSelection(state.selectionEnd ?? index, { isEnd: true });
+      },
+      { once: true }
+    );
+    return;
+  }
+  if (isHeightTab) {
+    beginHeightPaint();
+    applyHeightPointerPaint(index);
+    window.addEventListener("pointerup", endHeightPaint, { once: true });
+    return;
+  }
   if (state.terrainMode === "draw") {
     state.isSelectionPointerDown = true;
     updateSelection(index, { isStart: true });
@@ -982,6 +1275,17 @@ function handleCellPointerDown(event) {
 function handleCellPointerEnter(event) {
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
+  const isHeightTab = state.activeTab === "height";
+  if (isHeightTab && state.heightMode === "draw") {
+    if (state.isSelectionPointerDown && !state.selectionFixed) {
+      updateSelection(index);
+    }
+    return;
+  }
+  if (isHeightTab) {
+    applyHeightPointerPaint(index);
+    return;
+  }
   if (state.terrainMode === "draw") {
     if (state.isSelectionPointerDown && !state.selectionFixed) {
       updateSelection(index);
@@ -997,6 +1301,11 @@ function updateJsonPreview() {
 }
 
 function setActivePaletteTab(tabId) {
+  const previousTab = state.activeTab;
+  state.activeTab = tabId;
+  if (previousTab && previousTab !== tabId) {
+    clearSelection();
+  }
   let activePanelId = null;
   elements.tabButtons.forEach((button) => {
     const isActive = button.dataset.mapMakerTab === tabId;
@@ -1020,7 +1329,7 @@ function setActivePaletteTab(tabId) {
     panel.classList.toggle("is-active", isActive);
   });
 
-  if (tabId === "landshaft" || tabId === "terrain" || tabId === "objects") {
+  if (tabId === "landshaft" || tabId === "terrain" || tabId === "objects" || tabId === "height") {
     const needsInit = !landscapeViewer;
     if (!landscapeViewer) {
       landscapeViewer = initMapMaker3d({
@@ -1031,27 +1340,47 @@ function setActivePaletteTab(tabId) {
         terrainTextureToggle: elements.landscapeTextureToggle,
         initialTextureVisibility: getTextureVisibility(),
         initialTileNumberVisibility: getTileNumberVisibility(),
-        getBrushSize: () => state.terrainBrushSize,
-        getTerrainMode: () => state.terrainMode,
+        initialHeightVisibility: state.showHeights,
+        getBrushSize: () =>
+          state.activeTab === "height" ? state.heightBrushSize : state.terrainBrushSize,
+        getTerrainMode: () =>
+          state.activeTab === "height" ? state.heightMode : state.terrainMode,
         onPaintCell: ({ index, isStart, shiftKey }) => {
           if (!Number.isFinite(index)) {
             return;
           }
+          const isHeightTab = state.activeTab === "height";
           if (isStart) {
-            if (state.terrainMode === "draw") {
+            if (isHeightTab && state.heightMode === "draw") {
+              updateSelection(index, { isStart: true });
+            } else if (isHeightTab) {
+              beginHeightPaint();
+            } else if (state.terrainMode === "draw") {
               updateSelection(index, { isStart: true });
             } else {
               beginPointerPaint(Boolean(shiftKey));
             }
           }
-          if (state.terrainMode === "draw") {
+          if (isHeightTab && state.heightMode === "draw") {
+            updateSelection(index);
+          } else if (isHeightTab) {
+            applyHeightPointerPaint(index);
+          } else if (state.terrainMode === "draw") {
             updateSelection(index);
           } else {
             applyPointerPaint(index);
           }
         },
         onPaintEnd: () => {
-          if (state.terrainMode === "draw") {
+          if (state.activeTab === "height" && state.heightMode === "draw") {
+            if (Number.isFinite(state.selectionStart)) {
+              updateSelection(state.selectionEnd ?? state.selectionStart, {
+                isEnd: true,
+              });
+            }
+          } else if (state.activeTab === "height") {
+            endHeightPaint();
+          } else if (state.terrainMode === "draw") {
             if (Number.isFinite(state.selectionStart)) {
               updateSelection(state.selectionEnd ?? state.selectionStart, {
                 isEnd: true,
@@ -1068,6 +1397,9 @@ function setActivePaletteTab(tabId) {
     }
     if (landscapeViewer?.setTileNumberVisibility) {
       landscapeViewer.setTileNumberVisibility(getTileNumberVisibility());
+    }
+    if (landscapeViewer?.setHeightVisibility) {
+      landscapeViewer.setHeightVisibility(state.showHeights);
     }
     if (needsInit) {
       updateLandscapeViewer();
@@ -1227,6 +1559,11 @@ function initControls() {
   syncTerrainRotationDisplay();
   syncTerrainBrushSizeDisplay();
   syncTerrainDrawVisibility();
+  syncHeightModeButtons();
+  syncHeightBrushSizeDisplay();
+  syncHeightDrawVisibility();
+  syncHeightValueDisplay();
+  setHeightVisibility(state.showHeights);
   updateDrawButtonsState();
   initPaletteTabs();
 
@@ -1368,6 +1705,58 @@ function initControls() {
     });
   }
 
+  if (elements.heightModeButtons.length) {
+    elements.heightModeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setHeightMode(button.dataset.heightMode);
+      });
+    });
+  }
+
+  if (elements.heightBrushSize) {
+    elements.heightBrushSize.addEventListener("input", (event) => {
+      setHeightBrushSize(event.target.value);
+    });
+  }
+
+  if (elements.heightValueInput) {
+    elements.heightValueInput.addEventListener("input", (event) => {
+      setHeightValue(event.target.value);
+    });
+  }
+
+  if (elements.heightValueSlider) {
+    elements.heightValueSlider.addEventListener("input", (event) => {
+      setHeightValue(event.target.value);
+    });
+  }
+
+  if (elements.heightPresetButtons.length) {
+    elements.heightPresetButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setHeightValue(button.dataset.heightPreset);
+      });
+    });
+  }
+
+  if (elements.heightApplyButton) {
+    elements.heightApplyButton.addEventListener("click", () => {
+      applyHeightSelection();
+    });
+  }
+
+  if (elements.heightCancelButton) {
+    elements.heightCancelButton.addEventListener("click", () => {
+      clearSelection();
+    });
+  }
+
+  if (elements.showHeightButton) {
+    elements.showHeightButton.addEventListener("click", () => {
+      setHeightVisibility(!state.showHeights);
+    });
+  }
+
   elements.importButton.addEventListener("click", () => {
     try {
       const map = JSON.parse(elements.importTextarea.value);
@@ -1418,6 +1807,14 @@ function initControls() {
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (state.activeTab === "height" && state.heightMode === "draw") {
+        clearSelection();
+        return;
+      }
+      if (state.activeTab === "height") {
+        endHeightPaint();
+        return;
+      }
       if (state.terrainMode === "draw") {
         clearSelection();
         return;
@@ -1425,6 +1822,11 @@ function initControls() {
       endPointerPaint();
     }
     if (event.code === "Space") {
+      if (state.activeTab === "height" && state.heightMode === "draw") {
+        event.preventDefault();
+        applyHeightSelection();
+        return;
+      }
       if (state.terrainMode === "draw") {
         event.preventDefault();
         applyTerrainSelection({ erase: event.shiftKey });

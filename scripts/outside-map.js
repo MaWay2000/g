@@ -342,6 +342,38 @@ const DEFAULT_OUTSIDE_MAP_TEMPLATE = {
     terrainId: "nonmetal",
     tileId: getOutsideTerrainDefaultTileId("nonmetal"),
   })),
+  heights: Array.from({ length: 16 * 12 }, () => 0),
+};
+
+const MIN_OUTSIDE_HEIGHT = 0;
+const MAX_OUTSIDE_HEIGHT = 255;
+
+const clampOutsideHeight = (value) => {
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) {
+    return MIN_OUTSIDE_HEIGHT;
+  }
+  return Math.min(
+    MAX_OUTSIDE_HEIGHT,
+    Math.max(MIN_OUTSIDE_HEIGHT, Math.floor(numeric))
+  );
+};
+
+const normalizeOutsideHeights = (heights, width, height) => {
+  const total = width * height;
+  if (!Array.isArray(heights)) {
+    return Array.from({ length: total }, () => MIN_OUTSIDE_HEIGHT);
+  }
+
+  const isGrid = Array.isArray(heights[0]);
+  const normalized = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const value = isGrid ? heights?.[y]?.[x] : heights?.[y * width + x];
+      normalized.push(clampOutsideHeight(value));
+    }
+  }
+  return normalized;
 };
 
 export const clampOutsideMapDimension = (value) => {
@@ -373,6 +405,9 @@ export function normalizeOutsideMap(definition) {
   const sourceTileIds = Array.isArray(definition.tileIds)
     ? definition.tileIds
     : null;
+  const sourceHeights = Array.isArray(definition.heights)
+    ? definition.heights
+    : null;
 
   const normalized = {
     name: typeof definition.name === "string" ? definition.name : "",
@@ -381,6 +416,7 @@ export function normalizeOutsideMap(definition) {
     width,
     height,
     cells: [],
+    heights: normalizeOutsideHeights(sourceHeights, width, height),
   };
 
   for (let index = 0; index < totalCells; index += 1) {

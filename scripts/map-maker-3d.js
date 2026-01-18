@@ -124,6 +124,7 @@ export const initMapMaker3d = ({
   resetButton,
   terrainTypeToggle,
   terrainTextureToggle,
+  initialHeightVisibility = false,
   initialTextureVisibility = true,
   initialTileNumberVisibility = true,
   getBrushSize,
@@ -372,6 +373,7 @@ export const initMapMaker3d = ({
   let showTerrainTextures = initialTextureVisibility;
   syncTerrainTextureToggleLabel(showTerrainTextures);
   let showTileNumbers = initialTileNumberVisibility;
+  let showHeights = initialHeightVisibility;
   const moveVector = new THREE.Vector3();
   const forwardVector = new THREE.Vector3();
   const rightVector = new THREE.Vector3();
@@ -412,7 +414,8 @@ export const initMapMaker3d = ({
     }
     const shouldShowTextures = showTerrainTextures;
     const shouldShowTileNumbers = showTileNumbers;
-    if (!shouldShowTextures && !shouldShowTileNumbers) {
+    const shouldShowHeights = showHeights;
+    if (!shouldShowTextures && !shouldShowTileNumbers && !shouldShowHeights) {
       if (material.map) {
         material.map = null;
         material.needsUpdate = true;
@@ -448,8 +451,10 @@ export const initMapMaker3d = ({
     textureContext.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
 
     const labelFontSize = Math.round(TEXTURE_TILE_SIZE * 0.4);
+    const heightFontSize = Math.round(TEXTURE_TILE_SIZE * 0.32);
     const labelPadding = Math.round(TEXTURE_TILE_SIZE * 0.08);
     const labelFont = `700 ${labelFontSize}px "Segoe UI", "Inter", system-ui, sans-serif`;
+    const heightFont = `700 ${heightFontSize}px "Segoe UI", "Inter", system-ui, sans-serif`;
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const index = y * width + x;
@@ -481,6 +486,29 @@ export const initMapMaker3d = ({
             TEXTURE_TILE_SIZE,
             TEXTURE_TILE_SIZE
           );
+          textureContext.restore();
+        }
+        if (shouldShowHeights) {
+          const heightValue = map.heights?.[index] ?? 0;
+          const heightLabel = String(heightValue);
+          textureContext.save();
+          textureContext.font = heightFont;
+          textureContext.textBaseline = "top";
+          textureContext.textAlign = "left";
+          const textWidth = textureContext.measureText(heightLabel).width;
+          const textX = drawX + labelPadding;
+          const textY = drawY + labelPadding;
+          textureContext.fillStyle = "rgba(2, 6, 23, 0.45)";
+          textureContext.fillRect(
+            textX - labelPadding * 0.6,
+            textY - labelPadding * 0.4,
+            textWidth + labelPadding * 1.2,
+            heightFontSize + labelPadding
+          );
+          textureContext.fillStyle = "#f8fafc";
+          textureContext.shadowColor = "rgba(2, 6, 23, 0.7)";
+          textureContext.shadowBlur = 4;
+          textureContext.fillText(heightLabel, textX, textY);
           textureContext.restore();
         }
         if (shouldShowTileNumbers) {
@@ -705,6 +733,13 @@ export const initMapMaker3d = ({
 
   const updateTileNumberDisplay = (nextValue) => {
     showTileNumbers = nextValue;
+    if (lastMap) {
+      void renderTerrainTexture(lastMap);
+    }
+  };
+
+  const updateHeightDisplay = (nextValue) => {
+    showHeights = nextValue;
     if (lastMap) {
       void renderTerrainTexture(lastMap);
     }
@@ -989,6 +1024,7 @@ export const initMapMaker3d = ({
     updateMap,
     setTextureVisibility: updateTerrainTextureDisplay,
     setTileNumberVisibility: updateTileNumberDisplay,
+    setHeightVisibility: updateHeightDisplay,
     setSelection,
     resize: resizeRenderer,
     dispose,
