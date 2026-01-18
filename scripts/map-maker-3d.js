@@ -1,5 +1,6 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
 import { OrbitControls } from "https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.161.0/examples/jsm/loaders/GLTFLoader.js";
 import {
   OUTSIDE_TERRAIN_TILES,
   getOutsideTerrainById,
@@ -223,6 +224,9 @@ export const initMapMaker3d = ({
   initialTileNumberVisibility = true,
   getBrushSize,
   getTerrainMode,
+  getActiveTab,
+  getSelectedObject,
+  onPlaceObject,
   onPaintCell,
   onPaintEnd,
 } = {}) => {
@@ -289,6 +293,13 @@ export const initMapMaker3d = ({
   const fillLight = new THREE.DirectionalLight("#bfdbfe", 0.35);
   fillLight.position.set(-12, 10, -6);
   scene.add(fillLight);
+
+  const objectGroup = new THREE.Group();
+  scene.add(objectGroup);
+
+  const gltfLoader = new GLTFLoader();
+  const modelCache = new Map();
+  const modelPromiseCache = new Map();
 
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
@@ -436,6 +447,8 @@ export const initMapMaker3d = ({
   let lastMap = null;
   let mapWidth = 0;
   let mapHeight = 0;
+  let objectPlacementToken = 0;
+  let objectPlacements = [];
   const getTerrainToggleState = () => {
     if (!terrainTypeToggle) {
       return true;
@@ -499,6 +512,62 @@ export const initMapMaker3d = ({
       image.src = texturePath;
     });
     terrainTexturePromises.set(texturePath, promise);
+    return promise;
+  };
+
+  const resolveModelPath = (path) => {
+    if (typeof path !== "string") {
+      return null;
+    }
+    if (/^https?:\/\//i.test(path)) {
+      return path;
+    }
+    if (path.startsWith("models/")) {
+      return path;
+    }
+    return `models/${path}`;
+  };
+
+  const cloneModel = (source) => {
+    const clone = source.clone(true);
+    clone.traverse((child) => {
+      if (child.isMesh && child.material) {
+        child.material = child.material.clone();
+      }
+    });
+    return clone;
+  };
+
+  const loadModel = (path) => {
+    const resolvedPath = resolveModelPath(path);
+    if (!resolvedPath) {
+      return Promise.resolve(null);
+    }
+    if (modelCache.has(resolvedPath)) {
+      return Promise.resolve(modelCache.get(resolvedPath));
+    }
+    if (modelPromiseCache.has(resolvedPath)) {
+      return modelPromiseCache.get(resolvedPath);
+    }
+    const promise = new Promise((resolve) => {
+      gltfLoader.load(
+        resolvedPath,
+        (gltf) => {
+          const sceneAsset = gltf?.scene ?? null;
+          modelCache.set(resolvedPath, sceneAsset);
+          modelPromiseCache.delete(resolvedPath);
+          resolve(sceneAsset);
+        },
+        undefined,
+        (error) => {
+          console.error("Failed to load model", resolvedPath, error);
+          modelCache.set(resolvedPath, null);
+          modelPromiseCache.delete(resolvedPath);
+          resolve(null);
+        }
+      );
+    });
+    modelPromiseCache.set(resolvedPath, promise);
     return promise;
   };
 
@@ -715,6 +784,55 @@ export const initMapMaker3d = ({
     terrainMarkerMesh.visible = true;
   };
 
+  const buildObjectPlacement = (index, path) => {
+    if (!lastMap || !Number.isFinite(mapWidth) || !Number.isFinite(mapHeight)) {
+      return null;
+    }
+    if (!Number.isFinite(index)) {
+      return null;
+    }
+    const x = index % mapWidth;
+    const y = Math.floor(index / mapWidth);
+    const worldX = x - mapWidth / 2 + 0.5;
+    const worldZ = y - mapHeight / 2 + 0.5;
+    const heightValue = lastMap.heights?.[index];
+    const worldY = getTerrainHeight(heightValue);
+    return {
+      path,
+      position: { x: worldX, y: worldY, z: worldZ },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+    };
+  };
+
+  const applyObjectTransform = (object, placement) => {
+    const position = placement?.position ?? { x: 0, y: 0, z: 0 };
+    const rotation = placement?.rotation ?? { x: 0, y: 0, z: 0 };
+    const scale = placement?.scale ?? { x: 1, y: 1, z: 1 };
+    object.position.set(position.x, position.y, position.z);
+    object.rotation.set(rotation.x, rotation.y, rotation.z);
+    object.scale.set(scale.x, scale.y, scale.z);
+  };
+
+  const updateObjectPlacements = (placements) => {
+    objectPlacementToken += 1;
+    const token = objectPlacementToken;
+    objectPlacements = Array.isArray(placements) ? placements : [];
+    objectGroup.clear();
+    if (!objectPlacements.length) {
+      return;
+    }
+    objectPlacements.forEach(async (placement) => {
+      const model = await loadModel(placement.path);
+      if (token !== objectPlacementToken || !model) {
+        return;
+      }
+      const instance = cloneModel(model);
+      applyObjectTransform(instance, placement);
+      objectGroup.add(instance);
+    });
+  };
+
   const setCameraForMap = (width, height) => {
     const size = Math.max(width, height, 8);
     mapSize = size;
@@ -809,6 +927,7 @@ export const initMapMaker3d = ({
     const shouldResetCamera =
       !lastMap || map.width !== mapWidth || map.height !== mapHeight;
     applyMapGeometry(map, { resetCamera: shouldResetCamera });
+    updateObjectPlacements(map.objects);
     updateSelectionPreview();
   };
 
@@ -867,6 +986,12 @@ export const initMapMaker3d = ({
 
   const updateBrushPreview = (index) => {
     if (!Number.isFinite(index)) {
+      highlightMesh.visible = false;
+      return;
+    }
+    const activeTab =
+      typeof getActiveTab === "function" ? getActiveTab() : null;
+    if (activeTab === "objects") {
       highlightMesh.visible = false;
       return;
     }
@@ -1001,8 +1126,46 @@ export const initMapMaker3d = ({
     return yIndex * mapWidth + xIndex;
   };
 
+  const resolveSelectedObjectPath = () => {
+    if (typeof getSelectedObject !== "function") {
+      return null;
+    }
+    const entry = getSelectedObject();
+    if (entry && typeof entry === "object") {
+      return entry.path;
+    }
+    if (typeof entry === "string") {
+      return entry;
+    }
+    return null;
+  };
+
+  const placeObjectFromEvent = (event) => {
+    if (typeof onPlaceObject !== "function") {
+      return;
+    }
+    const path = resolveSelectedObjectPath();
+    if (!path) {
+      return;
+    }
+    const index = getCellIndexFromEvent(event);
+    if (index === null) {
+      return;
+    }
+    const placement = buildObjectPlacement(index, path);
+    if (!placement) {
+      return;
+    }
+    onPlaceObject(placement);
+  };
+
   const paintFromEvent = (event, { isStart = false } = {}) => {
     if (typeof onPaintCell !== "function") {
+      return;
+    }
+    const activeTab =
+      typeof getActiveTab === "function" ? getActiveTab() : null;
+    if (activeTab === "objects") {
       return;
     }
     const index = getCellIndexFromEvent(event);
@@ -1015,6 +1178,12 @@ export const initMapMaker3d = ({
 
   const handlePointerDown = (event) => {
     if (event.button !== 0) {
+      return;
+    }
+    const activeTab =
+      typeof getActiveTab === "function" ? getActiveTab() : null;
+    if (activeTab === "objects") {
+      placeObjectFromEvent(event);
       return;
     }
     isPointerDown = true;
@@ -1099,6 +1268,7 @@ export const initMapMaker3d = ({
     highlightGeometry.dispose();
     highlightMaterial.dispose();
     selectionMaterial.dispose();
+    objectGroup.clear();
     canvas.removeEventListener("pointerdown", handlePointerDown);
     canvas.removeEventListener("pointermove", handlePointerMove);
     canvas.removeEventListener("pointerup", handlePointerUp);
@@ -1120,6 +1290,7 @@ export const initMapMaker3d = ({
     setTextureVisibility: updateTerrainTextureDisplay,
     setTileNumberVisibility: updateTileNumberDisplay,
     setHeightVisibility: updateHeightDisplay,
+    setObjectPlacements: updateObjectPlacements,
     setSelection,
     resize: resizeRenderer,
     dispose,

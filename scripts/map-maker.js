@@ -24,7 +24,9 @@ const state = {
   selectedTerrainTileId: getOutsideTerrainDefaultTileId(
     TERRAIN_TYPES[1]?.id ?? TERRAIN_TYPES[0]?.id ?? "void"
   ),
-  map: createDefaultOutsideMap(),
+  map: { ...createDefaultOutsideMap(), objects: [] },
+  objectManifest: [],
+  selectedObject: null,
   activeTab: "terrain",
   isPointerDown: false,
   isHeightPointerDown: false,
@@ -49,6 +51,7 @@ const state = {
 const UNKNOWN_HP_LABEL = "Unknown";
 const HEIGHT_MIN = 0;
 const HEIGHT_MAX = 255;
+const OBJECT_MANIFEST_URL = "models/manifest.json";
 const TERRAIN_TILE_BY_ID = new Map(
   OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, { tile, index }])
 );
@@ -171,8 +174,16 @@ const getCellHeightValue = (index) =>
     ? state.map.heights[index]
     : HEIGHT_MIN;
 
+const DEFAULT_OBJECT_TRANSFORM = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  scale: { x: 1, y: 1, z: 1 },
+};
+
 const elements = {
   palette: document.getElementById("terrainPalette"),
+  objectsPalette: document.getElementById("objectsPalette"),
+  objectsPaletteStatus: document.getElementById("objectsPaletteStatus"),
   mapGrid: document.getElementById("mapGrid"),
   jsonPreview: document.getElementById("jsonPreview"),
   mapNameInput: document.getElementById("mapNameInput"),
@@ -237,11 +248,61 @@ const elements = {
 
 let landscapeViewer = null;
 
+function normalizeObjectVector(source, fallback) {
+  const fallbackValue = fallback ?? { x: 0, y: 0, z: 0 };
+  if (!source || typeof source !== "object") {
+    return { ...fallbackValue };
+  }
+  return {
+    x: Number.isFinite(source.x) ? source.x : fallbackValue.x,
+    y: Number.isFinite(source.y) ? source.y : fallbackValue.y,
+    z: Number.isFinite(source.z) ? source.z : fallbackValue.z,
+  };
+}
+
+function normalizeObjectPlacements(placements) {
+  if (!Array.isArray(placements)) {
+    return [];
+  }
+  return placements
+    .map((placement) => {
+      if (!placement || typeof placement !== "object") {
+        return null;
+      }
+      const path = typeof placement.path === "string" ? placement.path : "";
+      if (!path) {
+        return null;
+      }
+      return {
+        path,
+        position: normalizeObjectVector(
+          placement.position,
+          DEFAULT_OBJECT_TRANSFORM.position
+        ),
+        rotation: normalizeObjectVector(
+          placement.rotation,
+          DEFAULT_OBJECT_TRANSFORM.rotation
+        ),
+        scale: normalizeObjectVector(
+          placement.scale,
+          DEFAULT_OBJECT_TRANSFORM.scale
+        ),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeMapDefinition(definition) {
+  const normalized = normalizeOutsideMap(definition);
+  normalized.objects = normalizeObjectPlacements(definition?.objects);
+  return normalized;
+}
+
 function updateLandscapeViewer() {
   if (!landscapeViewer) {
     return;
   }
-  const normalized = normalizeOutsideMap(state.map);
+  const normalized = normalizeMapDefinition(state.map);
   state.map = normalized;
   landscapeViewer.updateMap(normalized);
 }
@@ -1345,6 +1406,19 @@ function setActivePaletteTab(tabId) {
           state.activeTab === "height" ? state.heightBrushSize : state.terrainBrushSize,
         getTerrainMode: () =>
           state.activeTab === "height" ? state.heightMode : state.terrainMode,
+        getActiveTab: () => state.activeTab,
+        getSelectedObject: () => state.selectedObject,
+        onPlaceObject: (placement) => {
+          if (!placement) {
+            return;
+          }
+          const existing = Array.isArray(state.map.objects)
+            ? state.map.objects
+            : [];
+          state.map.objects = [...existing, placement];
+          updateJsonPreview();
+          landscapeViewer?.setObjectPlacements?.(state.map.objects);
+        },
         onPaintCell: ({ index, isStart, shiftKey }) => {
           if (!Number.isFinite(index)) {
             return;
@@ -1401,6 +1475,7 @@ function setActivePaletteTab(tabId) {
     if (landscapeViewer?.setHeightVisibility) {
       landscapeViewer.setHeightVisibility(state.showHeights);
     }
+    landscapeViewer?.setObjectPlacements?.(state.map.objects);
     if (needsInit) {
       updateLandscapeViewer();
       window.requestAnimationFrame(() => {
@@ -1457,7 +1532,7 @@ function initPaletteTabs() {
 }
 
 function applyImportedMap(mapDefinition) {
-  const normalized = normalizeOutsideMap(mapDefinition);
+  const normalized = normalizeMapDefinition(mapDefinition);
 
   state.map = normalized;
   clearSelection();
@@ -1465,15 +1540,17 @@ function applyImportedMap(mapDefinition) {
   updateMetadataDisplays();
   renderGrid();
   updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
 }
 
 function resetMap() {
-  state.map = createDefaultOutsideMap();
+  state.map = { ...createDefaultOutsideMap(), objects: [] };
   setTerrain(TERRAIN_TYPES[1]);
   clearSelection();
   updateMetadataDisplays();
   renderGrid();
   updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
 }
 
 function generateRandomMap() {
@@ -1494,6 +1571,99 @@ function generateRandomMap() {
   clearSelection();
   renderGrid();
   updateJsonPreview();
+}
+
+function setObjectsPaletteStatus(message, { isError = false } = {}) {
+  if (!elements.objectsPaletteStatus) {
+    return;
+  }
+  elements.objectsPaletteStatus.textContent = message;
+  elements.objectsPaletteStatus.style.color = isError
+    ? "rgba(248, 113, 113, 0.9)"
+    : "";
+}
+
+function setSelectedObject(entry) {
+  state.selectedObject = entry;
+  renderObjectsPalette();
+}
+
+function renderObjectsPalette() {
+  if (!elements.objectsPalette) {
+    return;
+  }
+  elements.objectsPalette.innerHTML = "";
+  const entries = Array.isArray(state.objectManifest) ? state.objectManifest : [];
+  if (!entries.length) {
+    setObjectsPaletteStatus("No models listed in the manifest yet.", {
+      isError: true,
+    });
+    return;
+  }
+
+  setObjectsPaletteStatus("Select a model to place on the terrain.");
+  const fragment = document.createDocumentFragment();
+  entries.forEach((entry) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "object-card";
+    button.dataset.active = String(state.selectedObject?.path === entry.path);
+    button.dataset.modelPath = entry.path;
+
+    const label = document.createElement("span");
+    label.className = "object-card-label";
+    label.textContent = entry.label || entry.path;
+
+    const path = document.createElement("span");
+    path.className = "object-card-path";
+    path.textContent = entry.path;
+
+    button.append(label, path);
+    button.addEventListener("click", () => {
+      setSelectedObject(entry);
+    });
+    fragment.appendChild(button);
+  });
+  elements.objectsPalette.appendChild(fragment);
+}
+
+async function loadObjectManifest() {
+  setObjectsPaletteStatus("Loading model library…");
+  try {
+    const response = await fetch(OBJECT_MANIFEST_URL, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Manifest request failed: ${response.status}`);
+    }
+    const data = await response.json();
+    const entries = Array.isArray(data)
+      ? data
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") {
+              return null;
+            }
+            const path = typeof entry.path === "string" ? entry.path : "";
+            if (!path) {
+              return null;
+            }
+            return {
+              path,
+              label: typeof entry.label === "string" ? entry.label : path,
+            };
+          })
+          .filter(Boolean)
+      : [];
+    state.objectManifest = entries;
+    if (!state.selectedObject && entries.length) {
+      state.selectedObject = entries[0];
+    }
+    renderObjectsPalette();
+  } catch (error) {
+    console.error("Failed to load model manifest", error);
+    setObjectsPaletteStatus(
+      "Unable to load the model manifest. Check the models/manifest.json file.",
+      { isError: true }
+    );
+  }
 }
 
 function downloadJson() {
@@ -1566,6 +1736,7 @@ function initControls() {
   setHeightVisibility(state.showHeights);
   updateDrawButtonsState();
   initPaletteTabs();
+  loadObjectManifest();
 
   if (elements.saveLocalButton?.dataset) {
     elements.saveLocalButton.dataset.defaultLabel =
