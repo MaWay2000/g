@@ -1393,7 +1393,10 @@ export const initScene = (
   const OUTSIDE_HEIGHT_MIN = 0;
   const OUTSIDE_HEIGHT_MAX = 255;
   const OUTSIDE_HEIGHT_FLOOR = 0.05;
-  const OUTSIDE_HEIGHT_SCALE = ROOM_SCALE_FACTOR * 6;
+  const OUTSIDE_HEIGHT_UNITS_PER_PLAYER = 3;
+  const OUTSIDE_HEIGHT_SCALE =
+    ((DEFAULT_PLAYER_HEIGHT - OUTSIDE_HEIGHT_FLOOR) * OUTSIDE_HEIGHT_MAX) /
+    OUTSIDE_HEIGHT_UNITS_PER_PLAYER;
 
   const clampOutsideHeight = (value) => {
     const numeric = Number.parseInt(value, 10);
@@ -1409,6 +1412,10 @@ export const initScene = (
   const getOutsideTerrainElevation = (value = OUTSIDE_HEIGHT_MIN) =>
     OUTSIDE_HEIGHT_FLOOR +
     (OUTSIDE_HEIGHT_SCALE * clampOutsideHeight(value)) / OUTSIDE_HEIGHT_MAX;
+
+  const OUTSIDE_HEIGHT_ELEVATION_MAX = getOutsideTerrainElevation(
+    OUTSIDE_HEIGHT_MAX
+  );
 
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
     ["default", DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE],
@@ -7632,7 +7639,7 @@ export const initScene = (
     }
 
     const rayHeight =
-      roomHeight + OUTSIDE_HEIGHT_SCALE + playerHeight + 10;
+      roomHeight + OUTSIDE_HEIGHT_ELEVATION_MAX + playerHeight + 10;
     terrainGroundRayOrigin.set(position.x, roomFloorY + rayHeight, position.z);
     terrainGroundRaycaster.set(terrainGroundRayOrigin, terrainGroundRayDirection);
     terrainGroundRaycaster.far = rayHeight * 2;
