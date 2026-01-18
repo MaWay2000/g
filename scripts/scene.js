@@ -3833,16 +3833,42 @@ export const initScene = (
       outsideMapBounds = builtOutsideTerrain.bounds;
     }
 
-    const baseSkyRadius =
-      Math.max(OPERATIONS_EXTERIOR_PLATFORM_WIDTH, OPERATIONS_EXTERIOR_PLATFORM_DEPTH) * 2.2;
-    const skyRadius = baseSkyRadius;
+    const defaultHalfWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH / 2;
+    const defaultHalfDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
+    const skyMapMinX = Number.isFinite(outsideMapBounds?.minX)
+      ? outsideMapBounds.minX
+      : -defaultHalfWidth;
+    const skyMapMaxX = Number.isFinite(outsideMapBounds?.maxX)
+      ? outsideMapBounds.maxX
+      : defaultHalfWidth;
+    const skyMapMinZ = Number.isFinite(outsideMapBounds?.minZ)
+      ? outsideMapBounds.minZ
+      : -defaultHalfDepth;
+    const skyMapMaxZ = Number.isFinite(outsideMapBounds?.maxZ)
+      ? outsideMapBounds.maxZ
+      : defaultHalfDepth;
+    const skyCenterX =
+      Number.isFinite(outsideMapBounds?.minX) && Number.isFinite(outsideMapBounds?.maxX)
+        ? (outsideMapBounds.minX + outsideMapBounds.maxX) / 2
+        : 0;
     const skyCenterZ =
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : 0;
+    const cornerDistances = [
+      Math.hypot(skyMapMinX - skyCenterX, skyMapMinZ - skyCenterZ),
+      Math.hypot(skyMapMinX - skyCenterX, skyMapMaxZ - skyCenterZ),
+      Math.hypot(skyMapMaxX - skyCenterX, skyMapMinZ - skyCenterZ),
+      Math.hypot(skyMapMaxX - skyCenterX, skyMapMaxZ - skyCenterZ),
+    ];
+    const baseSkyRadius = Math.max(
+      ...cornerDistances,
+      Math.max(defaultHalfWidth, defaultHalfDepth)
+    ) * 1.35;
+    const skyRadius = baseSkyRadius;
     const starPlaneY = getStarPlaneHeight();
     const starYOffset = starPlaneY - roomFloorY;
-    const skyCenter = new THREE.Vector3(0, starPlaneY, skyCenterZ);
+    const skyCenter = new THREE.Vector3(skyCenterX, starPlaneY, skyCenterZ);
 
     const primaryStarField = createStarField({
       radius: skyRadius,
