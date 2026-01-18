@@ -8347,6 +8347,7 @@ const bootstrapScene = () => {
   }
 
   applyStarVisualUiState();
+  applyJumpSettingsUiState();
 
   updateDroneStatusUi();
   relaunchDroneAfterRestoreIfNeeded();
