@@ -678,6 +678,25 @@
         line-height: 1.5;
       }
 
+      .map-cell {
+        position: relative;
+      }
+
+      .map-cell[data-tile-number]::after {
+        content: attr(data-tile-number);
+        position: absolute;
+        bottom: 0.25rem;
+        right: 0.3rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #f8fafc;
+        text-shadow: 0 1px 3px rgba(2, 6, 23, 0.7);
+        background: rgba(2, 6, 23, 0.45);
+        padding: 0.05rem 0.3rem;
+        border-radius: 0.35rem;
+        pointer-events: none;
+      }
+
       .map-maker-tabs,
       .map-maker-tab,
       .map-maker-update,
