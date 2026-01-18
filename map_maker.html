@@ -697,6 +697,10 @@
         pointer-events: none;
       }
 
+      #mapGrid[data-show-tile-numbers="false"] .map-cell::after {
+        display: none;
+      }
+
       .map-maker-tabs,
       .map-maker-tab,
       .map-maker-update,
@@ -978,6 +982,13 @@
               aria-pressed="true"
             >
               Terrain textures: On
+            </button>
+            <button
+              id="landscapeTileNumberToggle"
+              type="button"
+              aria-pressed="true"
+            >
+              Tile numbers: On
             </button>
           </div>
           <p class="tab-panel-placeholder">

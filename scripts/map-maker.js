@@ -184,6 +184,9 @@ const elements = {
   landscapeResetButton: document.getElementById("landscapeResetButton"),
   landscapeTypeToggle: document.getElementById("landscapeTypeToggle"),
   landscapeTextureToggle: document.getElementById("landscapeTextureToggle"),
+  landscapeTileNumberToggle: document.getElementById(
+    "landscapeTileNumberToggle"
+  ),
   terrainRotationDisplay: document.getElementById("terrainRotationDisplay"),
   terrainTypeSelect: document.getElementById("terrainTypeSelect"),
   terrainTileSelect: document.getElementById("terrainTileSelect"),
@@ -241,6 +244,33 @@ function syncTextureToggleLabel(isEnabled) {
   if (landscapeViewer?.setTextureVisibility) {
     landscapeViewer.setTextureVisibility(isEnabled);
   }
+}
+
+function getTileNumberVisibility() {
+  if (elements.mapGrid) {
+    return elements.mapGrid.dataset.showTileNumbers !== "false";
+  }
+  return true;
+}
+
+function syncTileNumberToggleLabel(isEnabled) {
+  if (!elements.landscapeTileNumberToggle) {
+    return;
+  }
+  elements.landscapeTileNumberToggle.setAttribute(
+    "aria-pressed",
+    String(isEnabled)
+  );
+  elements.landscapeTileNumberToggle.textContent = `Tile numbers: ${
+    isEnabled ? "On" : "Off"
+  }`;
+}
+
+function setTileNumberVisibility(isEnabled) {
+  if (elements.mapGrid) {
+    elements.mapGrid.dataset.showTileNumbers = String(isEnabled);
+  }
+  syncTileNumberToggleLabel(isEnabled);
 }
 
 function updateTerrainMenu() {
@@ -1242,6 +1272,9 @@ function initControls() {
 
   const defaultTextureState = elements.textureToggle?.checked ?? state.showTextures;
   setTextureVisibility(defaultTextureState);
+  const defaultTileNumberState =
+    elements.landscapeTileNumberToggle?.getAttribute("aria-pressed") !== "false";
+  setTileNumberVisibility(defaultTileNumberState);
   syncTerrainMenuButtons();
   syncTerrainBrushVisibility();
   syncTerrainDrawVisibility();
@@ -1253,6 +1286,11 @@ function initControls() {
   if (elements.landscapeTextureToggle) {
     elements.landscapeTextureToggle.addEventListener("click", () => {
       setTextureVisibility(!getTextureVisibility());
+    });
+  }
+  if (elements.landscapeTileNumberToggle) {
+    elements.landscapeTileNumberToggle.addEventListener("click", () => {
+      setTileNumberVisibility(!getTileNumberVisibility());
     });
   }
 
