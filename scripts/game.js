@@ -707,7 +707,7 @@ const quickSlotDefinitions = [
   },
   {
     id: "geo-scanner",
-    label: "Geo Scanner",
+    label: "Geo Visor",
     description: "Reveals hidden mineral signatures nearby.",
     icon: "📡",
   },
