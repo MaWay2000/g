@@ -33,6 +33,7 @@ const state = {
   terrainRotation: 0,
   terrainBrushSize: 1,
   showTextures: true,
+  showTileNumbers: true,
   selectionStart: null,
   selectionEnd: null,
   selectionFixed: false,
@@ -250,7 +251,7 @@ function getTileNumberVisibility() {
   if (elements.mapGrid) {
     return elements.mapGrid.dataset.showTileNumbers !== "false";
   }
-  return true;
+  return state.showTileNumbers;
 }
 
 function syncTileNumberToggleLabel(isEnabled) {
@@ -267,6 +268,7 @@ function syncTileNumberToggleLabel(isEnabled) {
 }
 
 function setTileNumberVisibility(isEnabled) {
+  state.showTileNumbers = isEnabled;
   if (elements.mapGrid) {
     elements.mapGrid.dataset.showTileNumbers = String(isEnabled);
   }
