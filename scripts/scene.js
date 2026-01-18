@@ -7855,8 +7855,7 @@ export const initScene = (
 
     if (player.y < minY) {
       const climbDistance = minY - player.y;
-      const canSmoothClimb =
-        climbDistance <= MAX_STEP_HEIGHT && Number.isFinite(delta) && delta > 0;
+      const canSmoothClimb = Number.isFinite(delta) && delta > 0;
 
       if (canSmoothClimb) {
         const climbStep = Math.min(climbDistance, STEP_CLIMB_SPEED * delta);
