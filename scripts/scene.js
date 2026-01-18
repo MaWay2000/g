@@ -73,6 +73,8 @@ export const initScene = (
     settings,
   } = {}
 ) => {
+  const MAX_STEP_HEIGHT = 2;
+  const STEP_CLIMB_SPEED = 6;
   const performanceSettings = {
     maxPixelRatio: Number.isFinite(settings?.maxPixelRatio)
       ? Math.max(0.5, settings.maxPixelRatio)
@@ -3543,6 +3545,7 @@ export const initScene = (
       mapGroup.add(base);
 
       const adjustable = [{ object: base, offset: -0.04 }];
+      const colliderDescriptors = [];
       const resourceTargets = [];
       const terrainTiles = [];
       const terrainMaterials = new Map();
@@ -3649,8 +3652,13 @@ export const initScene = (
               ? resolvedTerrain.label
               : resolvedTerrain.id;
           tile.userData.tileId = tileId;
+          tile.userData.terrainHeight = totalTileHeight;
 
           terrainTiles.push(tile);
+
+          if (totalTileHeight > MAX_STEP_HEIGHT + 0.1) {
+            colliderDescriptors.push({ object: tile });
+          }
 
           if (resolvedTerrain.id !== "void") {
             tile.userData.isResourceTarget = true;
@@ -3722,12 +3730,14 @@ export const initScene = (
           maxZ: Math.max(mapNearEdge, mapFarEdge),
         },
         adjustableEntries: adjustable,
+        colliderDescriptors,
         resourceTargets,
         terrainTiles,
       };
     };
 
     const mapAdjustableEntries = [];
+    const mapColliderDescriptors = [];
     const environmentResourceTargets = [];
     const environmentTerrainTiles = [];
     let outsideMapBounds = null;
@@ -3800,6 +3810,9 @@ export const initScene = (
     }
     if (Array.isArray(builtOutsideTerrain?.adjustableEntries)) {
       mapAdjustableEntries.push(...builtOutsideTerrain.adjustableEntries);
+    }
+    if (Array.isArray(builtOutsideTerrain?.colliderDescriptors)) {
+      mapColliderDescriptors.push(...builtOutsideTerrain.colliderDescriptors);
     }
     if (Array.isArray(builtOutsideTerrain?.resourceTargets)) {
       environmentResourceTargets.push(
@@ -3999,17 +4012,18 @@ export const initScene = (
 
     const teleportOffset = operationsExteriorTeleportOffset.clone();
 
-      return {
-        group,
-        liftDoor: returnDoor,
-        liftDoors: [returnDoor],
-        updateForRoomHeight,
-        teleportOffset,
-        bounds: resolvedEnvironmentBounds,
-        resourceTargets: environmentResourceTargets,
-        terrainTiles: environmentTerrainTiles,
-        starFields: [primaryStarField, distantStarField],
-      };
+    return {
+      group,
+      liftDoor: returnDoor,
+      liftDoors: [returnDoor],
+      updateForRoomHeight,
+      teleportOffset,
+      bounds: resolvedEnvironmentBounds,
+      colliderDescriptors: mapColliderDescriptors,
+      resourceTargets: environmentResourceTargets,
+      terrainTiles: environmentTerrainTiles,
+      starFields: [primaryStarField, distantStarField],
+    };
   };
 
   const createEngineeringBayEnvironment = () => {
@@ -7038,8 +7052,6 @@ export const initScene = (
   const JUMP_VELOCITY = 6.3;
   const CEILING_CLEARANCE = 0.5;
   const SOFT_CEILING_RANGE = 0.4;
-  const MAX_STEP_HEIGHT = 2;
-  const STEP_CLIMB_SPEED = 6;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
     if (!liftInteractionsEnabled) {
