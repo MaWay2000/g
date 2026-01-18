@@ -606,9 +606,10 @@ export const initMapMaker3d = ({
     }
 
     const tempMatrix = new THREE.Matrix4();
-    const markerElevation = TERRAIN_HEIGHT + 0.04;
     map.cells.forEach((cellData, index) => {
       const terrainId = cellData?.terrainId;
+      const markerElevation =
+        getTerrainHeight(map.heights?.[index]) + 0.04;
       const x = index % map.width;
       const y = Math.floor(index / map.width);
       const worldX = x - map.width / 2 + 0.5;
