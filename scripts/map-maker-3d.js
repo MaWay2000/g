@@ -70,46 +70,129 @@ const buildTerrainGeometry = (map) => {
 
   const baseColor = new THREE.Color(NEUTRAL_TERRAIN_COLOR);
 
+  const addQuad = (quadPositions, quadUvs) => {
+    positions.push(...quadPositions[0], ...quadPositions[1], ...quadPositions[2]);
+    positions.push(...quadPositions[0], ...quadPositions[2], ...quadPositions[3]);
+    uvs.push(...quadUvs[0], ...quadUvs[1], ...quadUvs[2]);
+    uvs.push(...quadUvs[0], ...quadUvs[2], ...quadUvs[3]);
+    for (let i = 0; i < 6; i += 1) {
+      colors.push(baseColor.r, baseColor.g, baseColor.b);
+    }
+  };
+
+  const getCellHeight = (index) => getTerrainHeight(map.heights?.[index]);
+  const isHeightDrop = (fromHeight, toHeight) => fromHeight - toHeight > 0.001;
+
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
-      const elevation = getTerrainHeight(map.heights?.[index]);
+      const elevation = getCellHeight(index);
 
       const x0 = x - xOffset;
       const x1 = x + 1 - xOffset;
       const z0 = y - zOffset;
       const z1 = y + 1 - zOffset;
 
-      positions.push(
-        x0,
-        elevation,
-        z0,
-        x1,
-        elevation,
-        z1,
-        x1,
-        elevation,
-        z0,
-        x0,
-        elevation,
-        z0,
-        x0,
-        elevation,
-        z1,
-        x1,
-        elevation,
-        z1
-      );
-
       const u0 = x / width;
       const u1 = (x + 1) / width;
       const v0 = y / height;
       const v1 = (y + 1) / height;
 
-      uvs.push(u0, v0, u1, v1, u1, v0, u0, v0, u0, v1, u1, v1);
+      addQuad(
+        [
+          [x0, elevation, z0],
+          [x1, elevation, z1],
+          [x1, elevation, z0],
+          [x0, elevation, z1],
+        ],
+        [
+          [u0, v0],
+          [u1, v1],
+          [u1, v0],
+          [u0, v1],
+        ]
+      );
 
-      for (let i = 0; i < 6; i += 1) {
-        colors.push(baseColor.r, baseColor.g, baseColor.b);
+      const westIndex = x > 0 ? index - 1 : null;
+      const eastIndex = x < width - 1 ? index + 1 : null;
+      const northIndex = y > 0 ? index - width : null;
+      const southIndex = y < height - 1 ? index + width : null;
+
+      const westHeight =
+        westIndex !== null ? getCellHeight(westIndex) : HEIGHT_FLOOR;
+      const eastHeight =
+        eastIndex !== null ? getCellHeight(eastIndex) : HEIGHT_FLOOR;
+      const northHeight =
+        northIndex !== null ? getCellHeight(northIndex) : HEIGHT_FLOOR;
+      const southHeight =
+        southIndex !== null ? getCellHeight(southIndex) : HEIGHT_FLOOR;
+
+      if (isHeightDrop(elevation, westHeight)) {
+        addQuad(
+          [
+            [x0, elevation, z0],
+            [x0, westHeight, z0],
+            [x0, westHeight, z1],
+            [x0, elevation, z1],
+          ],
+          [
+            [u0, v0],
+            [u0, v1],
+            [u1, v1],
+            [u1, v0],
+          ]
+        );
+      }
+
+      if (isHeightDrop(elevation, eastHeight)) {
+        addQuad(
+          [
+            [x1, elevation, z1],
+            [x1, eastHeight, z1],
+            [x1, eastHeight, z0],
+            [x1, elevation, z0],
+          ],
+          [
+            [u0, v0],
+            [u0, v1],
+            [u1, v1],
+            [u1, v0],
+          ]
+        );
+      }
+
+      if (isHeightDrop(elevation, northHeight)) {
+        addQuad(
+          [
+            [x1, elevation, z0],
+            [x1, northHeight, z0],
+            [x0, northHeight, z0],
+            [x0, elevation, z0],
+          ],
+          [
+            [u0, v0],
+            [u0, v1],
+            [u1, v1],
+            [u1, v0],
+          ]
+        );
+      }
+
+      if (isHeightDrop(elevation, southHeight)) {
+        addQuad(
+          [
+            [x0, elevation, z1],
+            [x0, southHeight, z1],
+            [x1, southHeight, z1],
+            [x1, elevation, z1],
+          ],
+          [
+            [u0, v0],
+            [u0, v1],
+            [u1, v1],
+            [u1, v0],
+          ]
+        );
       }
     }
   }
