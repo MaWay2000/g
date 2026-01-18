@@ -21,6 +21,9 @@ const TRANSPARENT_COLOR_KEYWORD = "transparent";
 const TERRAIN_TILE_NUMBERS = new Map(
   OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, String(index + 1)])
 );
+const DOOR_MARKER_PATH = "door-marker";
+const DOOR_MARKER_COLOR = "#f97316";
+const DOOR_MARKER_FRAME_COLOR = "#0f172a";
 
 const getWebglSupport = () => {
   const canvas = document.createElement("canvas");
@@ -538,7 +541,66 @@ export const initMapMaker3d = ({
     return clone;
   };
 
+  const createDoorMarkerModel = () => {
+    const group = new THREE.Group();
+    group.name = "Door Marker";
+
+    const frameMaterial = new THREE.MeshStandardMaterial({
+      color: DOOR_MARKER_FRAME_COLOR,
+      roughness: 0.5,
+      metalness: 0.3,
+    });
+    const panelMaterial = new THREE.MeshStandardMaterial({
+      color: DOOR_MARKER_COLOR,
+      emissive: DOOR_MARKER_COLOR,
+      emissiveIntensity: 0.25,
+      roughness: 0.4,
+      metalness: 0.2,
+    });
+
+    const doorWidth = 0.9;
+    const doorHeight = 1.6;
+    const doorDepth = 0.08;
+    const frameThickness = 0.08;
+
+    const frameGeometry = new THREE.BoxGeometry(
+      doorWidth + frameThickness * 2,
+      doorHeight + frameThickness * 2,
+      doorDepth + frameThickness
+    );
+    const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+    frame.position.y = doorHeight / 2;
+
+    const panelGeometry = new THREE.BoxGeometry(
+      doorWidth,
+      doorHeight,
+      doorDepth
+    );
+    const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+    panel.position.y = doorHeight / 2;
+    panel.position.z = frameThickness * 0.1;
+
+    const thresholdGeometry = new THREE.BoxGeometry(
+      doorWidth + frameThickness * 2.4,
+      frameThickness * 0.4,
+      doorDepth + frameThickness * 0.6
+    );
+    const threshold = new THREE.Mesh(thresholdGeometry, frameMaterial);
+    threshold.position.y = frameThickness * 0.2;
+
+    group.add(frame, panel, threshold);
+    return group;
+  };
+
   const loadModel = (path) => {
+    if (path === DOOR_MARKER_PATH) {
+      if (modelCache.has(path)) {
+        return Promise.resolve(modelCache.get(path));
+      }
+      const doorMarker = createDoorMarkerModel();
+      modelCache.set(path, doorMarker);
+      return Promise.resolve(doorMarker);
+    }
     const resolvedPath = resolveModelPath(path);
     if (!resolvedPath) {
       return Promise.resolve(null);
