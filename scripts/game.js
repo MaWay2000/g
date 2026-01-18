@@ -695,9 +695,9 @@ const quickSlotDefinitions = [
   },
   {
     id: "photon-cutter",
-    label: "Photon Cutter",
-    description: "Equipped for custom map harvesting.",
-    icon: "🔦",
+    label: "GeoScan Visor",
+    description: "Visor tuned for precision terrain analysis.",
+    icon: "🥽",
   },
   {
     id: "arc-welder",
