@@ -101,14 +101,14 @@ const buildTerrainGeometry = (map) => {
       addQuad(
         [
           [x0, elevation, z0],
-          [x1, elevation, z1],
           [x1, elevation, z0],
+          [x1, elevation, z1],
           [x0, elevation, z1],
         ],
         [
           [u0, v0],
-          [u1, v1],
           [u1, v0],
+          [u1, v1],
           [u0, v1],
         ]
       );
