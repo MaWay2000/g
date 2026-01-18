@@ -7834,7 +7834,8 @@ export const initScene = (
     }
 
     const minY = getPlayerGroundHeight(player);
-    const maxHeadY = roomFloorY + roomHeight - CEILING_CLEARANCE;
+    const ceilingBaseY = Math.max(roomFloorY, minY);
+    const maxHeadY = ceilingBaseY + roomHeight - CEILING_CLEARANCE;
     const maxY = Math.max(minY, maxHeadY - playerHeight);
 
     if (player.y < minY) {
