@@ -7035,6 +7035,7 @@ export const initScene = (
   const GRAVITY = -9.81;
   const JUMP_VELOCITY = 6.3;
   const CEILING_CLEARANCE = 0.5;
+  const SOFT_CEILING_RANGE = 0.4;
   const MAX_STEP_HEIGHT = 2;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
@@ -7674,6 +7675,13 @@ export const initScene = (
     return Math.max(roomFloorY, terrainHeight);
   };
 
+  const getPlayerCeilingHeight = (position) => {
+    const minY = getPlayerGroundHeight(position);
+    const ceilingBaseY = Math.max(roomFloorY, minY);
+    const maxHeadY = ceilingBaseY + roomHeight - CEILING_CLEARANCE;
+    return Math.max(minY, maxHeadY - playerHeight);
+  };
+
   const direction = new THREE.Vector3();
   const clock = new THREE.Clock();
   const setMovementEnabled = (enabled) => {
@@ -7842,9 +7850,7 @@ export const initScene = (
     }
 
     const minY = getPlayerGroundHeight(player);
-    const ceilingBaseY = Math.max(roomFloorY, minY);
-    const maxHeadY = ceilingBaseY + roomHeight - CEILING_CLEARANCE;
-    const maxY = Math.max(minY, maxHeadY - playerHeight);
+    const maxY = getPlayerCeilingHeight(player);
 
     if (player.y < minY) {
       player.y = minY;
@@ -8023,6 +8029,16 @@ export const initScene = (
     isGrounded = false;
 
     verticalVelocity += GRAVITY * delta;
+    const maxY = getPlayerCeilingHeight(playerObject.position);
+    if (verticalVelocity > 0 && Number.isFinite(maxY)) {
+      const distanceToCeiling = maxY - playerObject.position.y;
+      if (distanceToCeiling <= 0) {
+        verticalVelocity = 0;
+      } else if (distanceToCeiling < SOFT_CEILING_RANGE) {
+        const scale = distanceToCeiling / SOFT_CEILING_RANGE;
+        verticalVelocity *= THREE.MathUtils.clamp(scale, 0, 1);
+      }
+    }
     playerObject.position.y += verticalVelocity * delta;
 
     clampWithinActiveFloor();
