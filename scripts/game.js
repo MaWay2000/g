@@ -59,12 +59,15 @@ const starsToggle = document.querySelector("[data-stars-toggle]");
 const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
 const playerSpeedRange = document.querySelector("[data-player-speed-range]");
 const playerSpeedInput = document.querySelector("[data-player-speed-input]");
+const playerJumpRange = document.querySelector("[data-player-jump-range]");
+const playerJumpInput = document.querySelector("[data-player-jump-input]");
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
 const timeOffsetRange = document.querySelector("[data-time-offset-range]");
 const skyExtentRange = document.querySelector("[data-sky-extent-range]");
 const playerSpeedValue = document.querySelector("[data-player-speed-value]");
+const playerJumpValue = document.querySelector("[data-player-jump-value]");
 const starSizeInput = document.querySelector("[data-star-size-input]");
 const starDensityInput = document.querySelector("[data-star-density-input]");
 const starOpacityInput = document.querySelector("[data-star-opacity-input]");
@@ -79,13 +82,18 @@ const timeOffsetValue = document.querySelector("[data-time-offset-value]");
 const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const skyHeightValue = document.querySelector("[data-sky-height-value]");
 const speedSummaryValue = document.querySelector("[data-speed-summary-value]");
+const jumpSummaryValue = document.querySelector("[data-jump-summary-value]");
 const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu]");
 const speedSettingsSubmenu = document.querySelector("[data-speed-settings-submenu]");
+const jumpSettingsSubmenu = document.querySelector("[data-jump-settings-submenu]");
 const starSettingsToggleButton = settingsMenu?.querySelector(
   "[data-star-settings-toggle]"
 );
 const speedSettingsToggleButton = settingsMenu?.querySelector(
   "[data-speed-settings-toggle]"
+);
+const jumpSettingsToggleButton = settingsMenu?.querySelector(
+  "[data-jump-settings-toggle]"
 );
 const starSettingsToggleLabel = starSettingsToggleButton?.querySelector(
   "[data-star-settings-label]"
@@ -104,6 +112,7 @@ const starSettingsInputs = [
   skyHeightInput,
 ];
 const speedSettingInputs = [playerSpeedRange, playerSpeedInput];
+const jumpSettingInputs = [playerJumpRange, playerJumpInput];
 const timeSettingInputs = [timeOffsetRange, timeOffsetInput];
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
@@ -287,6 +296,7 @@ const setSettingsMenuOpen = (isOpen) => {
   if (!nextState) {
     setStarSettingsExpanded(false);
     setSpeedSettingsExpanded(false);
+    setJumpSettingsExpanded(false);
   }
 };
 
@@ -326,9 +336,23 @@ const setSpeedSettingsExpanded = (isExpanded) => {
   }
 };
 
+const setJumpSettingsExpanded = (isExpanded) => {
+  const nextState = Boolean(isExpanded);
+
+  if (jumpSettingsSubmenu instanceof HTMLElement) {
+    jumpSettingsSubmenu.hidden = !nextState;
+    jumpSettingsSubmenu.dataset.expanded = nextState ? "true" : "false";
+  }
+
+  if (jumpSettingsToggleButton instanceof HTMLButtonElement) {
+    jumpSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
+  }
+};
+
 setSettingsMenuOpen(false);
 setStarSettingsExpanded(false);
 setSpeedSettingsExpanded(false);
+setJumpSettingsExpanded(false);
 
 if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLElement) {
   settingsTrigger.addEventListener("click", () => {
@@ -373,6 +397,7 @@ if (starSettingsToggleButton instanceof HTMLButtonElement) {
 
     if (!isExpanded) {
       setSpeedSettingsExpanded(false);
+      setJumpSettingsExpanded(false);
     }
 
     setStarSettingsExpanded(!isExpanded);
@@ -387,9 +412,25 @@ if (speedSettingsToggleButton instanceof HTMLButtonElement) {
 
     if (!isExpanded) {
       setStarSettingsExpanded(false);
+      setJumpSettingsExpanded(false);
     }
 
     setSpeedSettingsExpanded(!isExpanded);
+  });
+}
+
+if (jumpSettingsToggleButton instanceof HTMLButtonElement) {
+  jumpSettingsToggleButton.addEventListener("click", () => {
+    const isExpanded =
+      jumpSettingsSubmenu instanceof HTMLElement &&
+      jumpSettingsSubmenu.hidden !== true;
+
+    if (!isExpanded) {
+      setStarSettingsExpanded(false);
+      setSpeedSettingsExpanded(false);
+    }
+
+    setJumpSettingsExpanded(!isExpanded);
   });
 }
 
@@ -554,6 +595,21 @@ const applySpeedSettingsUiState = () => {
 };
 
 applySpeedSettingsUiState();
+
+const applyJumpSettingsUiState = () => {
+  const jumpMultiplier = Number(currentSettings?.playerJumpMultiplier ?? 1);
+
+  setRangeInputValue(playerJumpRange, jumpMultiplier);
+  setNumberInputValue(playerJumpInput, jumpMultiplier);
+  setValueLabel(playerJumpValue, formatSpeedMultiplier(jumpMultiplier));
+  setValueLabel(jumpSummaryValue, formatSpeedMultiplier(jumpMultiplier));
+
+  sceneController?.setJumpSettings?.({
+    playerJumpMultiplier: jumpMultiplier,
+  });
+};
+
+applyJumpSettingsUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -8401,6 +8457,11 @@ bindTimeSettingInput(
   "playerSpeedMultiplier",
   speedSettingInputs,
   applySpeedSettingsUiState
+);
+bindTimeSettingInput(
+  "playerJumpMultiplier",
+  jumpSettingInputs,
+  applyJumpSettingsUiState
 );
 
 const scheduleBootstrapScene = () => {

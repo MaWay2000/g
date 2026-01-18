@@ -73,7 +73,8 @@ export const initScene = (
     settings,
   } = {}
 ) => {
-  const MAX_STEP_HEIGHT = 2;
+  const BASE_MAX_STEP_HEIGHT = 2;
+  const BASE_JUMP_VELOCITY = 6.3;
   const STEP_CLIMB_SPEED = 6;
   const performanceSettings = {
     maxPixelRatio: Number.isFinite(settings?.maxPixelRatio)
@@ -86,6 +87,16 @@ export const initScene = (
   };
 
   const normalizeSpeedMultiplier = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 1;
+    }
+
+    return Math.max(1, Math.min(10, numericValue));
+  };
+
+  const normalizeJumpMultiplier = (value) => {
     const numericValue = Number(value);
 
     if (!Number.isFinite(numericValue)) {
@@ -135,6 +146,15 @@ export const initScene = (
       settings?.playerSpeedMultiplier
     ),
   };
+  const jumpSettings = {
+    playerJumpMultiplier: normalizeJumpMultiplier(
+      settings?.playerJumpMultiplier
+    ),
+  };
+  const getMaxStepHeight = () =>
+    BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
+  const getJumpVelocity = () =>
+    BASE_JUMP_VELOCITY * jumpSettings.playerJumpMultiplier;
 
   const starSpriteTexture = (() => {
     const canvas = document.createElement("canvas");
@@ -3672,7 +3692,7 @@ export const initScene = (
 
           terrainTiles.push(tile);
 
-          if (totalTileHeight > MAX_STEP_HEIGHT + 0.1) {
+          if (totalTileHeight > getMaxStepHeight() + 0.1) {
             colliderDescriptors.push({ object: tile });
           }
 
@@ -7065,7 +7085,6 @@ export const initScene = (
   let isGrounded = true;
   let jumpRequested = false;
   const GRAVITY = -9.81;
-  const JUMP_VELOCITY = 6.3;
   const CEILING_CLEARANCE = 0.5;
   const SOFT_CEILING_RANGE = 0.4;
 
@@ -7220,6 +7239,14 @@ export const initScene = (
     const playerHeadY = playerFeetY + playerHeight;
 
     colliderDescriptors.forEach((descriptor) => {
+      const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
+      if (
+        Number.isFinite(terrainHeight) &&
+        terrainHeight <= getMaxStepHeight() + 0.1
+      ) {
+        return;
+      }
+
       const box = descriptor.box;
 
       if (!box || box.isEmpty()) {
@@ -7923,7 +7950,7 @@ export const initScene = (
       return;
     }
 
-    if (currentGround - previousGround <= MAX_STEP_HEIGHT) {
+    if (currentGround - previousGround <= getMaxStepHeight()) {
       return;
     }
 
@@ -8067,7 +8094,7 @@ export const initScene = (
       jumpRequested &&
       isGrounded
     ) {
-      verticalVelocity = JUMP_VELOCITY;
+      verticalVelocity = getJumpVelocity();
       isGrounded = false;
     }
 
@@ -8238,6 +8265,18 @@ export const initScene = (
 
       speedSettings.playerSpeedMultiplier = nextMultiplier;
       return speedSettings.playerSpeedMultiplier;
+    },
+    setJumpSettings: (nextSettings = {}) => {
+      const nextMultiplier = normalizeJumpMultiplier(
+        nextSettings.playerJumpMultiplier
+      );
+
+      if (nextMultiplier === jumpSettings.playerJumpMultiplier) {
+        return jumpSettings.playerJumpMultiplier;
+      }
+
+      jumpSettings.playerJumpMultiplier = nextMultiplier;
+      return jumpSettings.playerJumpMultiplier;
     },
     setStarsEnabled: (enabled) => {
       const nextState = Boolean(enabled);
