@@ -3822,7 +3822,24 @@ export const initScene = (
 
     const baseSkyRadius =
       Math.max(OPERATIONS_EXTERIOR_PLATFORM_WIDTH, OPERATIONS_EXTERIOR_PLATFORM_DEPTH) * 2.2;
-    const skyRadius = baseSkyRadius;
+    const terrainBoundsAvailable =
+      Number.isFinite(outsideMapBounds?.minX) &&
+      Number.isFinite(outsideMapBounds?.maxX) &&
+      Number.isFinite(outsideMapBounds?.minZ) &&
+      Number.isFinite(outsideMapBounds?.maxZ);
+    const terrainWidth = terrainBoundsAvailable
+      ? Math.max(0, outsideMapBounds.maxX - outsideMapBounds.minX)
+      : 0;
+    const terrainDepth = terrainBoundsAvailable
+      ? Math.max(0, outsideMapBounds.maxZ - outsideMapBounds.minZ)
+      : 0;
+    const terrainMargin =
+      Math.max(OPERATIONS_EXTERIOR_PLATFORM_WIDTH, OPERATIONS_EXTERIOR_PLATFORM_DEPTH) * 0.6;
+    const terrainRadius = terrainBoundsAvailable
+      ? Math.hypot(terrainWidth * 0.5, terrainDepth * 0.5) + terrainMargin
+      : baseSkyRadius;
+    const maxSkyRadius = camera.far * 0.9;
+    const skyRadius = Math.min(Math.max(baseSkyRadius, terrainRadius), maxSkyRadius);
     const skyCenterZ =
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
