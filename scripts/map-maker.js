@@ -87,6 +87,14 @@ function formatTerrainTileLabel(tileId) {
   return `Tile ${tileMeta.index + 1}`;
 }
 
+function getTerrainTileNumber(tileId) {
+  const tileMeta = TERRAIN_TILE_BY_ID.get(tileId);
+  if (!tileMeta) {
+    return "—";
+  }
+  return String(tileMeta.index + 1);
+}
+
 function resolveTerrainTileId(tileId, terrainId) {
   if (tileId && TERRAIN_TILE_BY_ID.has(tileId)) {
     return tileId;
@@ -707,6 +715,7 @@ function renderGrid() {
       "--cell-texture",
       getTerrainTextureCssValue(tileId, index)
     );
+    cell.dataset.tileNumber = getTerrainTileNumber(tileId);
     cell.setAttribute("aria-label", buildCellAriaLabel(index, terrain, tileId));
     cell.addEventListener("pointerdown", handleCellPointerDown);
     cell.addEventListener("pointerenter", handleCellPointerEnter);
@@ -746,6 +755,7 @@ function paintCell(index, terrainId, tileId) {
         "--cell-texture",
         getTerrainTextureCssValue(resolvedTileId, index)
       );
+      cell.dataset.tileNumber = getTerrainTileNumber(resolvedTileId);
       cell.setAttribute(
         "aria-label",
         buildCellAriaLabel(index, terrain, resolvedTileId)
@@ -786,6 +796,7 @@ function updateCellElement(index) {
     "--cell-texture",
     getTerrainTextureCssValue(tileId, index)
   );
+  cell.dataset.tileNumber = getTerrainTileNumber(tileId);
   cell.setAttribute("aria-label", buildCellAriaLabel(index, terrain, tileId));
 }
 
