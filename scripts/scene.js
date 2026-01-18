@@ -1,5 +1,4 @@
 import * as THREE from "https://unpkg.com/three@0.161.0/build/three.module.js";
-import { RoundedBoxGeometry } from "https://unpkg.com/three@0.161.0/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { Reflector } from "https://unpkg.com/three@0.161.0/examples/jsm/objects/Reflector.js";
 import { PointerLockControls } from "./pointer-lock-controls.js";
 import {
@@ -3542,19 +3541,15 @@ export const initScene = (
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
 
-      const tileCornerRadius = 0.12;
-      const tileGeometry = new RoundedBoxGeometry(1, 1, 1, 4, tileCornerRadius);
+      const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
 
-      const baseCornerRadius = Math.min(cellSize * 0.18, 0.8);
       const base = new THREE.Mesh(
-        new RoundedBoxGeometry(
+        new THREE.BoxGeometry(
           mapWorldWidth + cellSize * 0.6,
           0.08,
-          mapWorldDepth + cellSize * 0.6,
-          6,
-          Math.min(baseCornerRadius, 0.04)
+          mapWorldDepth + cellSize * 0.6
         ),
         new THREE.MeshStandardMaterial({
           color: new THREE.Color(0x0b1220),
