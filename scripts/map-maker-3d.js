@@ -37,6 +37,7 @@ const clampHeight = (value) => {
 
 const getTerrainHeight = (value = HEIGHT_MIN) =>
   HEIGHT_FLOOR + (HEIGHT_SCALE * clampHeight(value)) / HEIGHT_MAX;
+const TERRAIN_HEIGHT = getTerrainHeight();
 const getTerrainTileNumber = (tileId) =>
   TERRAIN_TILE_NUMBERS.get(tileId) ?? "—";
 
