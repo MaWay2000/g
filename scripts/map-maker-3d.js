@@ -9,7 +9,8 @@ import {
 
 const HEIGHT_FLOOR = 0.05;
 const HEIGHT_SCALE = 6;
-const TERRAIN_HEIGHT = HEIGHT_FLOOR + HEIGHT_SCALE * 0.5;
+const HEIGHT_MIN = 0;
+const HEIGHT_MAX = 255;
 const TERRAIN_MARKER_SIZE = 0.22;
 const TERRAIN_MARKER_MARGIN = 0.08;
 const TERRAIN_MARKER_OFFSET =
@@ -26,7 +27,16 @@ const getWebglSupport = () => {
   return contexts.some((name) => Boolean(canvas.getContext(name)));
 };
 
-const getTerrainHeight = () => TERRAIN_HEIGHT;
+const clampHeight = (value) => {
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) {
+    return HEIGHT_MIN;
+  }
+  return Math.min(HEIGHT_MAX, Math.max(HEIGHT_MIN, numeric));
+};
+
+const getTerrainHeight = (value = HEIGHT_MIN) =>
+  HEIGHT_FLOOR + (HEIGHT_SCALE * clampHeight(value)) / HEIGHT_MAX;
 const getTerrainTileNumber = (tileId) =>
   TERRAIN_TILE_NUMBERS.get(tileId) ?? "—";
 
@@ -62,7 +72,7 @@ const buildTerrainGeometry = (map) => {
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
-      const elevation = getTerrainHeight();
+      const elevation = getTerrainHeight(map.heights?.[index]);
 
       const x0 = x - xOffset;
       const x1 = x + 1 - xOffset;
