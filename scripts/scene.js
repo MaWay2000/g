@@ -7037,6 +7037,7 @@ export const initScene = (
   const CEILING_CLEARANCE = 0.5;
   const SOFT_CEILING_RANGE = 0.4;
   const MAX_STEP_HEIGHT = 2;
+  const STEP_CLIMB_SPEED = 6;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
     if (!liftInteractionsEnabled) {
@@ -7799,7 +7800,7 @@ export const initScene = (
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("keyup", onKeyUp);
 
-  function clampWithinActiveFloor() {
+  function clampWithinActiveFloor(delta = 0) {
     const player = controls.getObject().position;
     const activeFloor = getLiftFloorByIndex(liftState.currentIndex);
     const activeFloorId =
@@ -7853,12 +7854,26 @@ export const initScene = (
     const maxY = getPlayerCeilingHeight(player);
 
     if (player.y < minY) {
-      player.y = minY;
+      const climbDistance = minY - player.y;
+      const canSmoothClimb =
+        climbDistance <= MAX_STEP_HEIGHT && Number.isFinite(delta) && delta > 0;
+
+      if (canSmoothClimb) {
+        const climbStep = Math.min(climbDistance, STEP_CLIMB_SPEED * delta);
+        player.y += climbStep;
+      } else {
+        player.y = minY;
+      }
+
       if (verticalVelocity < 0) {
         verticalVelocity = 0;
       }
-      isGrounded = true;
-      playerGroundedHeight = minY;
+
+      if (player.y >= minY - 1e-4) {
+        player.y = minY;
+        isGrounded = true;
+        playerGroundedHeight = minY;
+      }
     } else if (player.y > maxY) {
       player.y = maxY;
       if (verticalVelocity > 0) {
@@ -8041,7 +8056,7 @@ export const initScene = (
     }
     playerObject.position.y += verticalVelocity * delta;
 
-    clampWithinActiveFloor();
+    clampWithinActiveFloor(delta);
 
     if (shouldResolveCollisions) {
       clampStepHeight(previousPlayerPosition);
