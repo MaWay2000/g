@@ -444,6 +444,7 @@ export const initScene = (
       sizeAttenuation: true,
       transparent: true,
       opacity: appliedOpacity,
+      depthTest: true,
       depthWrite: false,
       alphaTest: 0.01,
       map: starSpriteTexture,
@@ -457,6 +458,7 @@ export const initScene = (
       starField.position.copy(baseCenter);
     }
     starField.frustumCulled = false;
+    starField.renderOrder = -1;
 
     starField.userData = {
       ...(starField.userData ?? {}),
