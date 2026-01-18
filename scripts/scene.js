@@ -409,7 +409,7 @@ export const initScene = (
         const phi = Math.random() * Math.PI * 2;
         const cosTheta = Math.random();
         const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
-        const distanceMultiplier = Math.min(1, 0.2 + Math.random() * 0.9);
+        const distanceMultiplier = 0.9 + Math.random() * 0.1;
         const distance = effectiveRadius * distanceMultiplier;
 
         starPositions[index] = distance * sinTheta * Math.cos(phi);
