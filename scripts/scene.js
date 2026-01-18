@@ -1376,10 +1376,10 @@ export const initScene = (
   const MIRROR_VERTICAL_OFFSET = 0.7;
 
   const DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE = {
-    roughness: 1,
-    metalness: 1,
-    emissive: 1,
-    emissiveIntensity: 1,
+    roughness: 0.92,
+    metalness: 0.2,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
     opacity: 1,
     height: 0.001,
   };
