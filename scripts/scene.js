@@ -103,7 +103,7 @@ export const initScene = (
       return 1;
     }
 
-    return Math.max(1, Math.min(10, numericValue));
+    return Math.max(1, numericValue);
   };
 
   const normalizeJumpApexSmoothing = (value) => {
@@ -8130,14 +8130,20 @@ export const initScene = (
     isGrounded = false;
 
     verticalVelocity += GRAVITY * delta;
+    const apexVelocityThreshold = Math.max(
+      jumpSettings.jumpApexVelocity,
+      getJumpVelocity() * 0.4
+    );
     if (
       verticalVelocity > 0 &&
-      verticalVelocity < jumpSettings.jumpApexVelocity
+      verticalVelocity < apexVelocityThreshold
     ) {
-      const apexBlend =
-        1 - verticalVelocity / jumpSettings.jumpApexVelocity;
+      const apexBlend = 1 - verticalVelocity / apexVelocityThreshold;
+      const smoothingStrength =
+        jumpSettings.jumpApexSmoothing * (1 + apexBlend * 2);
       verticalVelocity -=
-        verticalVelocity * jumpSettings.jumpApexSmoothing * apexBlend * delta;
+        verticalVelocity * smoothingStrength * apexBlend * delta;
+      verticalVelocity += GRAVITY * apexBlend * 0.45 * delta;
     }
     const maxY = getPlayerCeilingHeight(playerObject.position);
     if (verticalVelocity > 0 && Number.isFinite(maxY)) {
