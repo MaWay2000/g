@@ -7764,7 +7764,7 @@ export const initScene = (
     const minY = getPlayerGroundHeight(position);
     const ceilingScale = Math.max(1, jumpSettings.playerJumpMultiplier);
     const maxHeadY =
-      roomFloorY + roomHeight * ceilingScale - CEILING_CLEARANCE;
+      minY + roomHeight * ceilingScale - CEILING_CLEARANCE;
     return Math.max(minY, maxHeadY - playerHeight);
   };
 
