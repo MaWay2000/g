@@ -7087,6 +7087,8 @@ export const initScene = (
   const GRAVITY = -9.81;
   const CEILING_CLEARANCE = 0.5;
   const SOFT_CEILING_RANGE = 0.4;
+  const JUMP_APEX_SMOOTHING = 6;
+  const JUMP_APEX_VELOCITY = 1.4;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
     if (!liftInteractionsEnabled) {
@@ -8104,6 +8106,11 @@ export const initScene = (
     isGrounded = false;
 
     verticalVelocity += GRAVITY * delta;
+    if (verticalVelocity > 0 && verticalVelocity < JUMP_APEX_VELOCITY) {
+      const apexBlend = 1 - verticalVelocity / JUMP_APEX_VELOCITY;
+      verticalVelocity -=
+        verticalVelocity * JUMP_APEX_SMOOTHING * apexBlend * delta;
+    }
     const maxY = getPlayerCeilingHeight(playerObject.position);
     if (verticalVelocity > 0 && Number.isFinite(maxY)) {
       const distanceToCeiling = maxY - playerObject.position.y;
