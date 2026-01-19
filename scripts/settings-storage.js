@@ -21,6 +21,8 @@ const DEFAULT_SETTINGS = {
   showStars: true,
   playerSpeedMultiplier: 1,
   playerJumpMultiplier: 1,
+  jumpApexSmoothing: 6,
+  jumpApexVelocity: 1.4,
   starFollowPlayer: true,
   starSize: 8.63,
   starDensity: 8.61,
@@ -58,6 +60,26 @@ const normalizeSettings = (settings = {}) => {
     return Math.max(1, Math.min(10, numericValue));
   };
 
+  const normalizeJumpApexSmoothing = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return DEFAULT_SETTINGS.jumpApexSmoothing;
+    }
+
+    return Math.max(0, Math.min(12, numericValue));
+  };
+
+  const normalizeJumpApexVelocity = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return DEFAULT_SETTINGS.jumpApexVelocity;
+    }
+
+    return Math.max(0.1, Math.min(5, numericValue));
+  };
+
   return {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
@@ -65,6 +87,8 @@ const normalizeSettings = (settings = {}) => {
     showStars: settings.showStars !== false,
     playerSpeedMultiplier: normalizeSpeedMultiplier(settings.playerSpeedMultiplier),
     playerJumpMultiplier: normalizeJumpMultiplier(settings.playerJumpMultiplier),
+    jumpApexSmoothing: normalizeJumpApexSmoothing(settings.jumpApexSmoothing),
+    jumpApexVelocity: normalizeJumpApexVelocity(settings.jumpApexVelocity),
     starFollowPlayer: settings.starFollowPlayer !== false,
     starSize: normalizeValue(settings.starSize, DEFAULT_SETTINGS.starSize),
     starDensity: normalizeValue(settings.starDensity, DEFAULT_SETTINGS.starDensity),

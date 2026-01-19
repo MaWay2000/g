@@ -61,6 +61,18 @@ const playerSpeedRange = document.querySelector("[data-player-speed-range]");
 const playerSpeedInput = document.querySelector("[data-player-speed-input]");
 const playerJumpRange = document.querySelector("[data-player-jump-range]");
 const playerJumpInput = document.querySelector("[data-player-jump-input]");
+const jumpApexSmoothingRange = document.querySelector(
+  "[data-jump-apex-smoothing-range]"
+);
+const jumpApexSmoothingInput = document.querySelector(
+  "[data-jump-apex-smoothing-input]"
+);
+const jumpApexVelocityRange = document.querySelector(
+  "[data-jump-apex-velocity-range]"
+);
+const jumpApexVelocityInput = document.querySelector(
+  "[data-jump-apex-velocity-input]"
+);
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
@@ -68,6 +80,12 @@ const timeOffsetRange = document.querySelector("[data-time-offset-range]");
 const skyExtentRange = document.querySelector("[data-sky-extent-range]");
 const playerSpeedValue = document.querySelector("[data-player-speed-value]");
 const playerJumpValue = document.querySelector("[data-player-jump-value]");
+const jumpApexSmoothingValue = document.querySelector(
+  "[data-jump-apex-smoothing-value]"
+);
+const jumpApexVelocityValue = document.querySelector(
+  "[data-jump-apex-velocity-value]"
+);
 const starSizeInput = document.querySelector("[data-star-size-input]");
 const starDensityInput = document.querySelector("[data-star-density-input]");
 const starOpacityInput = document.querySelector("[data-star-opacity-input]");
@@ -113,6 +131,11 @@ const starSettingsInputs = [
 ];
 const speedSettingInputs = [playerSpeedRange, playerSpeedInput];
 const jumpSettingInputs = [playerJumpRange, playerJumpInput];
+const jumpApexSmoothingInputs = [
+  jumpApexSmoothingRange,
+  jumpApexSmoothingInput,
+];
+const jumpApexVelocityInputs = [jumpApexVelocityRange, jumpApexVelocityInput];
 const timeSettingInputs = [timeOffsetRange, timeOffsetInput];
 const fpsMeterElement = document.querySelector("[data-fps-meter]");
 const missionIndicator = document.querySelector("[data-mission-indicator]");
@@ -528,6 +551,12 @@ const formatSpeedMultiplier = (value) => {
   return `${displayValue}x`;
 };
 
+const formatJumpApexValue = (value) => {
+  const numericValue = Number.isFinite(value) ? value : 0;
+  const displayValue = numericValue.toFixed(2);
+  return displayValue.replace(/\.?0+$/, "");
+};
+
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
   const starDensity = Number(currentSettings?.starDensity ?? 1);
@@ -598,14 +627,24 @@ applySpeedSettingsUiState();
 
 const applyJumpSettingsUiState = () => {
   const jumpMultiplier = Number(currentSettings?.playerJumpMultiplier ?? 1);
+  const jumpApexSmoothing = Number(currentSettings?.jumpApexSmoothing ?? 6);
+  const jumpApexVelocity = Number(currentSettings?.jumpApexVelocity ?? 1.4);
 
   setRangeInputValue(playerJumpRange, jumpMultiplier);
   setNumberInputValue(playerJumpInput, jumpMultiplier);
+  setRangeInputValue(jumpApexSmoothingRange, jumpApexSmoothing);
+  setNumberInputValue(jumpApexSmoothingInput, jumpApexSmoothing);
+  setRangeInputValue(jumpApexVelocityRange, jumpApexVelocity);
+  setNumberInputValue(jumpApexVelocityInput, jumpApexVelocity);
   setValueLabel(playerJumpValue, formatSpeedMultiplier(jumpMultiplier));
   setValueLabel(jumpSummaryValue, formatSpeedMultiplier(jumpMultiplier));
+  setValueLabel(jumpApexSmoothingValue, formatJumpApexValue(jumpApexSmoothing));
+  setValueLabel(jumpApexVelocityValue, formatJumpApexValue(jumpApexVelocity));
 
   sceneController?.setJumpSettings?.({
     playerJumpMultiplier: jumpMultiplier,
+    jumpApexSmoothing,
+    jumpApexVelocity,
   });
 };
 
@@ -8462,6 +8501,16 @@ bindTimeSettingInput(
 bindTimeSettingInput(
   "playerJumpMultiplier",
   jumpSettingInputs,
+  applyJumpSettingsUiState
+);
+bindTimeSettingInput(
+  "jumpApexSmoothing",
+  jumpApexSmoothingInputs,
+  applyJumpSettingsUiState
+);
+bindTimeSettingInput(
+  "jumpApexVelocity",
+  jumpApexVelocityInputs,
   applyJumpSettingsUiState
 );
 
