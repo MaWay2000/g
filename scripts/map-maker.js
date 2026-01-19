@@ -683,6 +683,7 @@ function saveMapToLocalStorage() {
     return false;
   }
 
+  updateLastUpdatedDisplay();
   setTemporaryButtonLabel(elements.saveLocalButton, "Saved", "save");
   updateLocalSaveButtonsState();
   return true;
