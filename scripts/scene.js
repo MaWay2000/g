@@ -76,6 +76,7 @@ export const initScene = (
   const BASE_MAX_STEP_HEIGHT = 2;
   const BASE_JUMP_VELOCITY = 6.3;
   const STEP_CLIMB_SPEED = 6;
+  const STEP_HEIGHT_TOLERANCE = 0.05;
   const performanceSettings = {
     maxPixelRatio: Number.isFinite(settings?.maxPixelRatio)
       ? Math.max(0.5, settings.maxPixelRatio)
@@ -7979,6 +7980,10 @@ export const initScene = (
     }
 
     if (currentGround - previousGround <= getMaxStepHeight()) {
+      return;
+    }
+
+    if (playerObject.position.y >= currentGround - STEP_HEIGHT_TOLERANCE) {
       return;
     }
 
