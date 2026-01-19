@@ -8079,6 +8079,10 @@ export const initScene = (
     const elapsedTime = clock.elapsedTime;
     let shouldResolveCollisions = false;
 
+    if (controls.isLocked) {
+      previousPlayerPosition.copy(playerObject.position);
+    }
+
     if (movementEnabled) {
       velocity.x -= velocity.x * 8 * delta;
       velocity.z -= velocity.z * 8 * delta;
@@ -8106,10 +8110,8 @@ export const initScene = (
       }
 
       if (controls.isLocked) {
-        previousPlayerPosition.copy(playerObject.position);
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
-        shouldResolveCollisions = true;
       }
 
       currentPlayerHorizontalSpeed = Math.sqrt(
@@ -8163,6 +8165,14 @@ export const initScene = (
     playerObject.position.y += verticalVelocity * delta;
 
     clampWithinActiveFloor(delta);
+
+    if (
+      movementEnabled &&
+      controls.isLocked &&
+      previousPlayerPosition.distanceToSquared(playerObject.position) > 1e-8
+    ) {
+      shouldResolveCollisions = true;
+    }
 
     if (shouldResolveCollisions) {
       clampStepHeight(previousPlayerPosition);
