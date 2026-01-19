@@ -551,6 +551,15 @@ const formatSpeedMultiplier = (value) => {
   return `${displayValue}x`;
 };
 
+const formatJumpMultiplier = (value) => {
+  const numericValue = Number.isFinite(value) ? value : 1;
+  const displayValue = Number.isInteger(numericValue)
+    ? numericValue.toFixed(0)
+    : numericValue.toFixed(1);
+
+  return `${displayValue}x`;
+};
+
 const formatJumpApexValue = (value) => {
   const numericValue = Number.isFinite(value) ? value : 0;
   const displayValue = numericValue.toFixed(2);
@@ -636,8 +645,8 @@ const applyJumpSettingsUiState = () => {
   setNumberInputValue(jumpApexSmoothingInput, jumpApexSmoothing);
   setRangeInputValue(jumpApexVelocityRange, jumpApexVelocity);
   setNumberInputValue(jumpApexVelocityInput, jumpApexVelocity);
-  setValueLabel(playerJumpValue, formatSpeedMultiplier(jumpMultiplier));
-  setValueLabel(jumpSummaryValue, formatSpeedMultiplier(jumpMultiplier));
+  setValueLabel(playerJumpValue, formatJumpMultiplier(jumpMultiplier));
+  setValueLabel(jumpSummaryValue, formatJumpMultiplier(jumpMultiplier));
   setValueLabel(jumpApexSmoothingValue, formatJumpApexValue(jumpApexSmoothing));
   setValueLabel(jumpApexVelocityValue, formatJumpApexValue(jumpApexVelocity));
 

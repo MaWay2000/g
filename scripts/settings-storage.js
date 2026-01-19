@@ -57,7 +57,7 @@ const normalizeSettings = (settings = {}) => {
       return DEFAULT_SETTINGS.playerJumpMultiplier;
     }
 
-    return Math.max(1, Math.min(10, numericValue));
+    return Math.max(1, numericValue);
   };
 
   const normalizeJumpApexSmoothing = (value) => {
