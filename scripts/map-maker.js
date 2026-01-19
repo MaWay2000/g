@@ -39,6 +39,7 @@ const state = {
   heightMode: null,
   heightBrushSize: 1,
   heightValue: 0,
+  doorMode: null,
   showHeights: false,
   showTextures: true,
   showTileNumbers: true,
@@ -52,6 +53,8 @@ const UNKNOWN_HP_LABEL = "Unknown";
 const HEIGHT_MIN = 0;
 const HEIGHT_MAX = 255;
 const OBJECT_MANIFEST_URL = "models/manifest.json";
+const DOOR_MARKER_PATH = "door-marker";
+const DOOR_POSITION_EPSILON = 0.01;
 const TERRAIN_TILE_BY_ID = new Map(
   OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, { tile, index }])
 );
@@ -244,6 +247,7 @@ const elements = {
   heightApplyButton: document.getElementById("heightApplyButton"),
   heightCancelButton: document.getElementById("heightCancelButton"),
   showHeightButton: document.getElementById("showHeightButton"),
+  doorModeButtons: Array.from(document.querySelectorAll("[data-door-mode]")),
 };
 
 let landscapeViewer = null;
@@ -394,6 +398,55 @@ function updateTerrainMenu() {
   }
 }
 
+function getCellWorldPosition(index) {
+  if (!Number.isFinite(index)) {
+    return null;
+  }
+  const width = state.map.width;
+  const height = state.map.height;
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+  const x = index % width;
+  const y = Math.floor(index / width);
+  return {
+    x: x - width / 2 + 0.5,
+    z: y - height / 2 + 0.5,
+  };
+}
+
+function removeDoorMarkersAtPosition(placements, position) {
+  if (!position) {
+    return placements;
+  }
+  return placements.filter((placement) => {
+    if (placement?.path !== DOOR_MARKER_PATH) {
+      return true;
+    }
+    const doorPosition = placement?.position ?? {};
+    const xDelta = Math.abs((doorPosition.x ?? 0) - position.x);
+    const zDelta = Math.abs((doorPosition.z ?? 0) - position.z);
+    return xDelta > DOOR_POSITION_EPSILON || zDelta > DOOR_POSITION_EPSILON;
+  });
+}
+
+function removeDoorMarkersAtIndex(index) {
+  const position = getCellWorldPosition(index);
+  if (!position) {
+    return;
+  }
+  const existing = Array.isArray(state.map.objects)
+    ? state.map.objects
+    : [];
+  const nextObjects = removeDoorMarkersAtPosition(existing, position);
+  if (nextObjects.length === existing.length) {
+    return;
+  }
+  state.map.objects = nextObjects;
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+}
+
 function syncTerrainMenuButtons() {
   const activeMenu = state.terrainMenu;
   elements.terrainModeButtons.forEach((button) => {
@@ -509,6 +562,23 @@ function setHeightMode(mode) {
     clearSelection();
   }
   updateDrawButtonsState();
+}
+
+function syncDoorModeButtons() {
+  elements.doorModeButtons.forEach((button) => {
+    const isActive = button.dataset.doorMode === state.doorMode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function setDoorMode(mode) {
+  if (mode && !["place", "remove"].includes(mode)) {
+    return;
+  }
+  const nextMode = state.doorMode === mode ? null : mode;
+  state.doorMode = nextMode;
+  syncDoorModeButtons();
 }
 
 function syncHeightBrushSizeDisplay() {
@@ -1408,6 +1478,7 @@ function setActivePaletteTab(tabId) {
           state.activeTab === "height" ? state.heightMode : state.terrainMode,
         getActiveTab: () => state.activeTab,
         getSelectedObject: () => state.selectedObject,
+        getDoorMode: () => state.doorMode,
         onPlaceObject: (placement) => {
           if (!placement) {
             return;
@@ -1415,9 +1486,21 @@ function setActivePaletteTab(tabId) {
           const existing = Array.isArray(state.map.objects)
             ? state.map.objects
             : [];
-          state.map.objects = [...existing, placement];
+          const baseObjects =
+            placement.path === DOOR_MARKER_PATH
+              ? removeDoorMarkersAtPosition(
+                  existing,
+                  placement.position ?? null
+                )
+              : existing;
+          state.map.objects = [...baseObjects, placement];
           updateJsonPreview();
           landscapeViewer?.setObjectPlacements?.(state.map.objects);
+        },
+        onRemoveObject: ({ index, path } = {}) => {
+          if (path === DOOR_MARKER_PATH) {
+            removeDoorMarkersAtIndex(index);
+          }
         },
         onPaintCell: ({ index, isStart, shiftKey }) => {
           if (!Number.isFinite(index)) {
@@ -1732,6 +1815,7 @@ function initControls() {
   syncHeightModeButtons();
   syncHeightBrushSizeDisplay();
   syncHeightDrawVisibility();
+  syncDoorModeButtons();
   syncHeightValueDisplay();
   setHeightVisibility(state.showHeights);
   updateDrawButtonsState();
@@ -1880,6 +1964,14 @@ function initControls() {
     elements.heightModeButtons.forEach((button) => {
       button.addEventListener("click", () => {
         setHeightMode(button.dataset.heightMode);
+      });
+    });
+  }
+
+  if (elements.doorModeButtons.length) {
+    elements.doorModeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setDoorMode(button.dataset.doorMode);
       });
     });
   }

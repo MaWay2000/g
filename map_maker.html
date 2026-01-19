@@ -1108,6 +1108,28 @@
         hidden
       >
         <section class="sidebar-section">
+          <h2>Doors</h2>
+          <p class="hint">Toggle a door tool, then click on the map to place or remove door markers.</p>
+          <div class="terrain-menu-actions">
+            <button
+              class="terrain-mode-button"
+              type="button"
+              data-door-mode="place"
+              aria-pressed="false"
+            >
+              Place doors
+            </button>
+            <button
+              class="terrain-mode-button"
+              type="button"
+              data-door-mode="remove"
+              aria-pressed="false"
+            >
+              Remove doors
+            </button>
+          </div>
+        </section>
+        <section class="sidebar-section">
           <h2>Objects Palette</h2>
           <p class="hint" id="objectsPaletteStatus">Loading model library…</p>
           <div class="objects-palette" id="objectsPalette"></div>

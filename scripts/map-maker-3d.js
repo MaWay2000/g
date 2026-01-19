@@ -229,7 +229,9 @@ export const initMapMaker3d = ({
   getTerrainMode,
   getActiveTab,
   getSelectedObject,
+  getDoorMode,
   onPlaceObject,
+  onRemoveObject,
   onPaintCell,
   onPaintEnd,
 } = {}) => {
@@ -1202,6 +1204,13 @@ export const initMapMaker3d = ({
     return null;
   };
 
+  const resolveDoorMode = () => {
+    if (typeof getDoorMode !== "function") {
+      return null;
+    }
+    return getDoorMode();
+  };
+
   const placeObjectFromEvent = (event) => {
     if (typeof onPlaceObject !== "function") {
       return;
@@ -1219,6 +1228,32 @@ export const initMapMaker3d = ({
       return;
     }
     onPlaceObject(placement);
+  };
+
+  const placeDoorFromEvent = (event) => {
+    if (typeof onPlaceObject !== "function") {
+      return;
+    }
+    const index = getCellIndexFromEvent(event);
+    if (index === null) {
+      return;
+    }
+    const placement = buildObjectPlacement(index, DOOR_MARKER_PATH);
+    if (!placement) {
+      return;
+    }
+    onPlaceObject(placement);
+  };
+
+  const removeDoorFromEvent = (event) => {
+    if (typeof onRemoveObject !== "function") {
+      return;
+    }
+    const index = getCellIndexFromEvent(event);
+    if (index === null) {
+      return;
+    }
+    onRemoveObject({ index, path: DOOR_MARKER_PATH });
   };
 
   const paintFromEvent = (event, { isStart = false } = {}) => {
@@ -1245,6 +1280,15 @@ export const initMapMaker3d = ({
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
     if (activeTab === "objects") {
+      const doorMode = resolveDoorMode();
+      if (doorMode === "remove") {
+        removeDoorFromEvent(event);
+        return;
+      }
+      if (doorMode === "place") {
+        placeDoorFromEvent(event);
+        return;
+      }
       placeObjectFromEvent(event);
       return;
     }
