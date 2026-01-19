@@ -106,6 +106,26 @@ export const initScene = (
     return Math.max(1, Math.min(10, numericValue));
   };
 
+  const normalizeJumpApexSmoothing = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 6;
+    }
+
+    return Math.max(0, Math.min(12, numericValue));
+  };
+
+  const normalizeJumpApexVelocity = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 1.4;
+    }
+
+    return Math.max(0.1, Math.min(5, numericValue));
+  };
+
   const parseStarSetting = (value, fallback) => {
     const numericValue = Number(value);
 
@@ -149,6 +169,12 @@ export const initScene = (
   const jumpSettings = {
     playerJumpMultiplier: normalizeJumpMultiplier(
       settings?.playerJumpMultiplier
+    ),
+    jumpApexSmoothing: normalizeJumpApexSmoothing(
+      settings?.jumpApexSmoothing
+    ),
+    jumpApexVelocity: normalizeJumpApexVelocity(
+      settings?.jumpApexVelocity
     ),
   };
   const getMaxStepHeight = () =>
@@ -7087,8 +7113,6 @@ export const initScene = (
   const GRAVITY = -9.81;
   const CEILING_CLEARANCE = 0.5;
   const SOFT_CEILING_RANGE = 0.4;
-  const JUMP_APEX_SMOOTHING = 6;
-  const JUMP_APEX_VELOCITY = 1.4;
 
   travelToLiftFloor = (targetIndex, options = {}) => {
     if (!liftInteractionsEnabled) {
@@ -8106,10 +8130,14 @@ export const initScene = (
     isGrounded = false;
 
     verticalVelocity += GRAVITY * delta;
-    if (verticalVelocity > 0 && verticalVelocity < JUMP_APEX_VELOCITY) {
-      const apexBlend = 1 - verticalVelocity / JUMP_APEX_VELOCITY;
+    if (
+      verticalVelocity > 0 &&
+      verticalVelocity < jumpSettings.jumpApexVelocity
+    ) {
+      const apexBlend =
+        1 - verticalVelocity / jumpSettings.jumpApexVelocity;
       verticalVelocity -=
-        verticalVelocity * JUMP_APEX_SMOOTHING * apexBlend * delta;
+        verticalVelocity * jumpSettings.jumpApexSmoothing * apexBlend * delta;
     }
     const maxY = getPlayerCeilingHeight(playerObject.position);
     if (verticalVelocity > 0 && Number.isFinite(maxY)) {
@@ -8279,12 +8307,24 @@ export const initScene = (
       const nextMultiplier = normalizeJumpMultiplier(
         nextSettings.playerJumpMultiplier
       );
+      const nextApexSmoothing = normalizeJumpApexSmoothing(
+        nextSettings.jumpApexSmoothing
+      );
+      const nextApexVelocity = normalizeJumpApexVelocity(
+        nextSettings.jumpApexVelocity
+      );
 
-      if (nextMultiplier === jumpSettings.playerJumpMultiplier) {
+      if (
+        nextMultiplier === jumpSettings.playerJumpMultiplier &&
+        nextApexSmoothing === jumpSettings.jumpApexSmoothing &&
+        nextApexVelocity === jumpSettings.jumpApexVelocity
+      ) {
         return jumpSettings.playerJumpMultiplier;
       }
 
       jumpSettings.playerJumpMultiplier = nextMultiplier;
+      jumpSettings.jumpApexSmoothing = nextApexSmoothing;
+      jumpSettings.jumpApexVelocity = nextApexVelocity;
       return jumpSettings.playerJumpMultiplier;
     },
     setStarsEnabled: (enabled) => {
