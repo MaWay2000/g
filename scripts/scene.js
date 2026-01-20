@@ -127,6 +127,16 @@ export const initScene = (
     return Math.max(0.1, Math.min(5, numericValue));
   };
 
+  const normalizeViewDistance = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 1;
+    }
+
+    return Math.max(0.5, Math.min(3, numericValue));
+  };
+
   const parseStarSetting = (value, fallback) => {
     const numericValue = Number(value);
 
@@ -178,10 +188,29 @@ export const initScene = (
       settings?.jumpApexVelocity
     ),
   };
+  const BASE_VIEW_DISTANCE = 200;
+  const viewSettings = {
+    distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
+  };
   const getMaxStepHeight = () =>
     BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
   const getJumpVelocity = () =>
     BASE_JUMP_VELOCITY * jumpSettings.playerJumpMultiplier;
+
+  const applyViewDistance = (nextSettings = {}) => {
+    const nextDistance = normalizeViewDistance(
+      nextSettings.viewDistance ?? nextSettings.distanceMultiplier
+    );
+
+    if (nextDistance === viewSettings.distanceMultiplier) {
+      return viewSettings.distanceMultiplier;
+    }
+
+    viewSettings.distanceMultiplier = nextDistance;
+    camera.far = BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier;
+    camera.updateProjectionMatrix();
+    return viewSettings.distanceMultiplier;
+  };
 
   const starSpriteTexture = (() => {
     const canvas = document.createElement("canvas");
@@ -637,7 +666,7 @@ export const initScene = (
     // Use a tighter near clip plane so nearby objects (like the terminal
     // monitor) don't disappear when the player gets close to interact.
     0.05,
-    200
+    BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier
   );
   const MIN_PLAYER_HEIGHT = 0.1;
   const ROOM_SCALE_FACTOR = 0.25;
@@ -8349,6 +8378,7 @@ export const initScene = (
       jumpSettings.jumpApexVelocity = nextApexVelocity;
       return jumpSettings.playerJumpMultiplier;
     },
+    setViewSettings: (nextSettings = {}) => applyViewDistance(nextSettings),
     setStarsEnabled: (enabled) => {
       const nextState = Boolean(enabled);
 

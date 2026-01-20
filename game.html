@@ -765,7 +765,8 @@
 
       .settings-menu__panel--stars[hidden],
       .settings-menu__panel--speed[hidden],
-      .settings-menu__panel--jump[hidden] {
+      .settings-menu__panel--jump[hidden],
+      .settings-menu__panel--view[hidden] {
         display: none;
       }
 
@@ -3690,6 +3691,32 @@
                       </button>
                     </div>
                   </div>
+                  <div class="settings-menu__section" role="group" aria-label="View settings">
+                    <div class="settings-menu__row">
+                      <div class="settings-menu__speed-summary">
+                        <span class="settings-menu__speed-label">View distance</span>
+                        <span class="settings-menu__speed-value" data-view-summary-value>
+                          1x
+                        </span>
+                      </div>
+                      <button
+                        class="settings-menu__submenu-toggle"
+                        type="button"
+                        data-view-settings-toggle
+                        aria-controls="viewSettingsPanel"
+                        aria-expanded="false"
+                        aria-label="View settings"
+                      >
+                        <img
+                          src="images/game/settings.png"
+                          alt=""
+                          aria-hidden="true"
+                          class="settings-menu__submenu-toggle-icon"
+                        />
+                        <span class="visually-hidden">Settings</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div
                   class="settings-menu__panel settings-menu__panel--stars"
@@ -4042,6 +4069,51 @@
                         inputmode="decimal"
                         aria-label="Jump apex velocity"
                         data-jump-apex-velocity-input
+                      />
+                    </div>
+                  </label>
+                </div>
+                <div
+                  class="settings-menu__panel settings-menu__panel--view"
+                  id="viewSettingsPanel"
+                  role="menu"
+                  aria-label="View settings"
+                  data-view-settings-submenu
+                  hidden
+                >
+                  <p class="settings-menu__heading">View</p>
+                  <label class="settings-slider" for="viewDistanceRange">
+                    <div class="settings-slider__header">
+                      <span class="settings-slider__title">Distance view</span>
+                      <span class="settings-slider__value" data-view-distance-value>
+                        1x
+                      </span>
+                    </div>
+                    <p class="settings-slider__hint">
+                      Control how far the camera can see into the scene.
+                    </p>
+                    <div class="settings-slider__controls">
+                      <input
+                        id="viewDistanceRange"
+                        class="settings-slider__range"
+                        type="range"
+                        min="0.5"
+                        max="3"
+                        step="0.01"
+                        value="1"
+                        aria-label="View distance multiplier"
+                        data-view-distance-range
+                      />
+                      <input
+                        class="settings-slider__number-input"
+                        type="number"
+                        min="0.5"
+                        max="3"
+                        step="0.01"
+                        value="1"
+                        inputmode="decimal"
+                        aria-label="View distance multiplier"
+                        data-view-distance-input
                       />
                     </div>
                   </label>
