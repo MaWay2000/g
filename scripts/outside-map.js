@@ -376,6 +376,55 @@ const normalizeOutsideHeights = (heights, width, height) => {
   return normalized;
 };
 
+const DEFAULT_OUTSIDE_OBJECT_TRANSFORM = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  scale: { x: 1, y: 1, z: 1 },
+};
+
+const normalizeOutsideObjectVector = (source, fallbackValue) => {
+  if (!source || typeof source !== "object") {
+    return { ...fallbackValue };
+  }
+  return {
+    x: Number.isFinite(source.x) ? source.x : fallbackValue.x,
+    y: Number.isFinite(source.y) ? source.y : fallbackValue.y,
+    z: Number.isFinite(source.z) ? source.z : fallbackValue.z,
+  };
+};
+
+const normalizeOutsideObjectPlacements = (placements) => {
+  if (!Array.isArray(placements)) {
+    return [];
+  }
+  return placements
+    .map((placement) => {
+      if (!placement || typeof placement !== "object") {
+        return null;
+      }
+      const path = typeof placement.path === "string" ? placement.path : "";
+      if (!path) {
+        return null;
+      }
+      return {
+        path,
+        position: normalizeOutsideObjectVector(
+          placement.position,
+          DEFAULT_OUTSIDE_OBJECT_TRANSFORM.position
+        ),
+        rotation: normalizeOutsideObjectVector(
+          placement.rotation,
+          DEFAULT_OUTSIDE_OBJECT_TRANSFORM.rotation
+        ),
+        scale: normalizeOutsideObjectVector(
+          placement.scale,
+          DEFAULT_OUTSIDE_OBJECT_TRANSFORM.scale
+        ),
+      };
+    })
+    .filter(Boolean);
+};
+
 export const clampOutsideMapDimension = (value) => {
   const numeric = Number.parseInt(value, 10);
   if (!Number.isFinite(numeric)) {
@@ -417,6 +466,7 @@ export function normalizeOutsideMap(definition) {
     height,
     cells: [],
     heights: normalizeOutsideHeights(sourceHeights, width, height),
+    objects: normalizeOutsideObjectPlacements(definition.objects),
   };
 
   for (let index = 0; index < totalCells; index += 1) {
