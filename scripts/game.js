@@ -73,6 +73,8 @@ const jumpApexVelocityRange = document.querySelector(
 const jumpApexVelocityInput = document.querySelector(
   "[data-jump-apex-velocity-input]"
 );
+const viewDistanceRange = document.querySelector("[data-view-distance-range]");
+const viewDistanceInput = document.querySelector("[data-view-distance-input]");
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
@@ -86,6 +88,7 @@ const jumpApexSmoothingValue = document.querySelector(
 const jumpApexVelocityValue = document.querySelector(
   "[data-jump-apex-velocity-value]"
 );
+const viewDistanceValue = document.querySelector("[data-view-distance-value]");
 const starSizeInput = document.querySelector("[data-star-size-input]");
 const starDensityInput = document.querySelector("[data-star-density-input]");
 const starOpacityInput = document.querySelector("[data-star-opacity-input]");
@@ -101,9 +104,11 @@ const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const skyHeightValue = document.querySelector("[data-sky-height-value]");
 const speedSummaryValue = document.querySelector("[data-speed-summary-value]");
 const jumpSummaryValue = document.querySelector("[data-jump-summary-value]");
+const viewSummaryValue = document.querySelector("[data-view-summary-value]");
 const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu]");
 const speedSettingsSubmenu = document.querySelector("[data-speed-settings-submenu]");
 const jumpSettingsSubmenu = document.querySelector("[data-jump-settings-submenu]");
+const viewSettingsSubmenu = document.querySelector("[data-view-settings-submenu]");
 const starSettingsToggleButton = settingsMenu?.querySelector(
   "[data-star-settings-toggle]"
 );
@@ -112,6 +117,9 @@ const speedSettingsToggleButton = settingsMenu?.querySelector(
 );
 const jumpSettingsToggleButton = settingsMenu?.querySelector(
   "[data-jump-settings-toggle]"
+);
+const viewSettingsToggleButton = settingsMenu?.querySelector(
+  "[data-view-settings-toggle]"
 );
 const starSettingsToggleLabel = starSettingsToggleButton?.querySelector(
   "[data-star-settings-label]"
@@ -131,6 +139,7 @@ const starSettingsInputs = [
 ];
 const speedSettingInputs = [playerSpeedRange, playerSpeedInput];
 const jumpSettingInputs = [playerJumpRange, playerJumpInput];
+const viewSettingInputs = [viewDistanceRange, viewDistanceInput];
 const jumpApexSmoothingInputs = [
   jumpApexSmoothingRange,
   jumpApexSmoothingInput,
@@ -320,6 +329,7 @@ const setSettingsMenuOpen = (isOpen) => {
     setStarSettingsExpanded(false);
     setSpeedSettingsExpanded(false);
     setJumpSettingsExpanded(false);
+    setViewSettingsExpanded(false);
   }
 };
 
@@ -372,10 +382,24 @@ const setJumpSettingsExpanded = (isExpanded) => {
   }
 };
 
+const setViewSettingsExpanded = (isExpanded) => {
+  const nextState = Boolean(isExpanded);
+
+  if (viewSettingsSubmenu instanceof HTMLElement) {
+    viewSettingsSubmenu.hidden = !nextState;
+    viewSettingsSubmenu.dataset.expanded = nextState ? "true" : "false";
+  }
+
+  if (viewSettingsToggleButton instanceof HTMLButtonElement) {
+    viewSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
+  }
+};
+
 setSettingsMenuOpen(false);
 setStarSettingsExpanded(false);
 setSpeedSettingsExpanded(false);
 setJumpSettingsExpanded(false);
+setViewSettingsExpanded(false);
 
 if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLElement) {
   settingsTrigger.addEventListener("click", () => {
@@ -421,6 +445,7 @@ if (starSettingsToggleButton instanceof HTMLButtonElement) {
     if (!isExpanded) {
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
+      setViewSettingsExpanded(false);
     }
 
     setStarSettingsExpanded(!isExpanded);
@@ -436,6 +461,7 @@ if (speedSettingsToggleButton instanceof HTMLButtonElement) {
     if (!isExpanded) {
       setStarSettingsExpanded(false);
       setJumpSettingsExpanded(false);
+      setViewSettingsExpanded(false);
     }
 
     setSpeedSettingsExpanded(!isExpanded);
@@ -451,9 +477,26 @@ if (jumpSettingsToggleButton instanceof HTMLButtonElement) {
     if (!isExpanded) {
       setStarSettingsExpanded(false);
       setSpeedSettingsExpanded(false);
+      setViewSettingsExpanded(false);
     }
 
     setJumpSettingsExpanded(!isExpanded);
+  });
+}
+
+if (viewSettingsToggleButton instanceof HTMLButtonElement) {
+  viewSettingsToggleButton.addEventListener("click", () => {
+    const isExpanded =
+      viewSettingsSubmenu instanceof HTMLElement &&
+      viewSettingsSubmenu.hidden !== true;
+
+    if (!isExpanded) {
+      setStarSettingsExpanded(false);
+      setSpeedSettingsExpanded(false);
+      setJumpSettingsExpanded(false);
+    }
+
+    setViewSettingsExpanded(!isExpanded);
   });
 }
 
@@ -566,6 +609,12 @@ const formatJumpApexValue = (value) => {
   return displayValue.replace(/\.?0+$/, "");
 };
 
+const formatViewDistance = (value) => {
+  const numericValue = Number.isFinite(value) ? value : 0;
+  const displayValue = numericValue.toFixed(2);
+  return `${displayValue.replace(/\.?0+$/, "")}x`;
+};
+
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
   const starDensity = Number(currentSettings?.starDensity ?? 1);
@@ -658,6 +707,21 @@ const applyJumpSettingsUiState = () => {
 };
 
 applyJumpSettingsUiState();
+
+const applyViewSettingsUiState = () => {
+  const viewDistance = Number(currentSettings?.viewDistance ?? 1);
+
+  setRangeInputValue(viewDistanceRange, viewDistance);
+  setNumberInputValue(viewDistanceInput, viewDistance);
+  setValueLabel(viewDistanceValue, formatViewDistance(viewDistance));
+  setValueLabel(viewSummaryValue, formatViewDistance(viewDistance));
+
+  sceneController?.setViewSettings?.({
+    viewDistance,
+  });
+};
+
+applyViewSettingsUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -8396,6 +8460,7 @@ const bootstrapScene = () => {
 
   applyStarVisualUiState();
   applyJumpSettingsUiState();
+  applyViewSettingsUiState();
 
   updateDroneStatusUi();
   relaunchDroneAfterRestoreIfNeeded();
@@ -8521,6 +8586,11 @@ bindTimeSettingInput(
   "jumpApexVelocity",
   jumpApexVelocityInputs,
   applyJumpSettingsUiState
+);
+bindTimeSettingInput(
+  "viewDistance",
+  viewSettingInputs,
+  applyViewSettingsUiState
 );
 
 const scheduleBootstrapScene = () => {
