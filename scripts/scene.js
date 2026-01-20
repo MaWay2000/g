@@ -5685,6 +5685,12 @@ export const initScene = (
     depthWrite: false,
   });
   trackResourceToolMaterial(resourceToolGlowMaterial);
+  const resourceToolGlow = registerResourceToolMesh(
+    new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), resourceToolGlowMaterial)
+  );
+  if (resourceToolGlow) {
+    resourceToolGlow.position.set(0.3, -0.03, -0.24);
+  }
   const resourceToolLight = new THREE.PointLight(0x38bdf8, 0, 2.6, 2);
   resourceToolLight.position.set(0.28, -0.02, -0.24);
   const RESOURCE_TOOL_MAX_DISTANCE = 7;
