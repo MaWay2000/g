@@ -1007,10 +1007,8 @@ export const initScene = (
       sunSprite.material.opacity = sunVisibility;
     }
 
-    const shouldShowSunSprite =
-      sunVisibility > 0.02 && viewSettings.distanceMultiplier <= 10;
     skyDome.visible = gradientOpacity > 0.01;
-    sunSprite.visible = shouldShowSunSprite;
+    sunSprite.visible = false;
 
     const starVisibility = THREE.MathUtils.clamp(1 - sunVisibility * 1.05, 0, 1);
     setStarVisibilityForTimeOfDay(starVisibility);
