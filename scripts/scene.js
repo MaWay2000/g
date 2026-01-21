@@ -192,10 +192,24 @@ export const initScene = (
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
+  const BASE_SUN_SCALE = 18;
+  const MIN_SUN_SCALE = 6;
+  let sunSprite = null;
   const getMaxStepHeight = () =>
     BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
   const getJumpVelocity = () =>
     BASE_JUMP_VELOCITY * jumpSettings.playerJumpMultiplier;
+  const updateSunSpriteScale = () => {
+    if (!sunSprite) {
+      return;
+    }
+
+    const scaledSize = Math.max(
+      MIN_SUN_SCALE,
+      BASE_SUN_SCALE / viewSettings.distanceMultiplier
+    );
+    sunSprite.scale.set(scaledSize, scaledSize, 1);
+  };
 
   const applyViewDistance = (nextSettings = {}) => {
     const nextDistance = normalizeViewDistance(
@@ -209,6 +223,7 @@ export const initScene = (
     viewSettings.distanceMultiplier = nextDistance;
     camera.far = BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier;
     camera.updateProjectionMatrix();
+    updateSunSpriteScale();
     return viewSettings.distanceMultiplier;
   };
 
@@ -712,7 +727,7 @@ export const initScene = (
     });
 
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(18, 18, 1);
+    sprite.scale.set(BASE_SUN_SCALE, BASE_SUN_SCALE, 1);
     sprite.renderOrder = -1;
 
     return sprite;
@@ -949,9 +964,10 @@ export const initScene = (
   skyDome.visible = false;
   scene.add(skyDome);
 
-  const sunSprite = createSunSprite();
+  sunSprite = createSunSprite();
   sunSprite.visible = false;
   scene.add(sunSprite);
+  updateSunSpriteScale();
 
   const applyTimeOfDayVisuals = () => {
     const skyState = timeOfDayState.skyState ?? defaultSkyState;
