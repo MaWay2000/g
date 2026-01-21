@@ -923,8 +923,9 @@ export const initScene = (
     skyState: defaultSkyState,
   };
 
+  const BASE_SKY_DOME_RADIUS = 650;
   const createSkyDome = () => {
-    const geometry = new THREE.SphereGeometry(650, 48, 32);
+    const geometry = new THREE.SphereGeometry(BASE_SKY_DOME_RADIUS, 48, 32);
     const material = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       transparent: true,
@@ -1106,7 +1107,14 @@ export const initScene = (
     const sunHeight = THREE.MathUtils.lerp(18, 72, sunVisibility);
     const sunDepth = THREE.MathUtils.lerp(140, 90, sunVisibility);
 
+    const targetRadius = Math.max(
+      BASE_SKY_DOME_RADIUS,
+      BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier * 1.2
+    );
+    const domeScale = targetRadius / BASE_SKY_DOME_RADIUS;
+
     skyDome.position.copy(playerPosition);
+    skyDome.scale.setScalar(domeScale);
     sunSprite.position.set(
       playerPosition.x,
       playerPosition.y + sunHeight,
