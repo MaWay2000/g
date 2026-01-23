@@ -350,7 +350,7 @@ function rowHtml(m, idx) {
   state.currentGid = oldGid;
 
   return `
-    <tr data-id="${encodeURIComponent(id)}">
+    <tr data-id="${encodeURIComponent(id)}" role="link" tabindex="0" aria-label="Open game details for ${escapeHtml(mp)}">
       <td><a href="#" class="hexlink" title="Research timeline" data-hex="${encodeURIComponent(id)}" aria-label="Research timeline"></a></td>
       <td><a class="maplink" href="${escapeHtml(href)}">${escapeHtml(mp)}</a></td>
       <td><code>${escapeHtml(when || "")}</code></td>
@@ -382,6 +382,16 @@ function wireClickDelegation(root) {
       return;
     }
 
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    e.preventDefault();
+    const id = decodeURIComponent(tr.getAttribute('data-id'));
+    openById(id, { updateUrl: true, push: true });
+  };
+
+  root.onkeydown = (e) => {
+    if (e.target.closest("a, button, input, select, textarea")) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
     e.preventDefault();
