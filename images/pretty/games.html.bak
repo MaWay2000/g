@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Warzone 2100 Autohoster — Games</title>
+  <link rel="stylesheet" href="./css/style.css" />
+
+<style>
+  /* Remove the Research column entirely (JS may still generate the cell; we hide it safely). */
+  table[aria-label="Games"] thead th:nth-child(5),
+  table[aria-label="Games"] tbody td:nth-child(5){
+    display: none !important;
+  }
+</style>
+
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Warzone 2100 Autohoster</div>
+  <nav class="nav">
+    <a class="navlink" href="./">Home</a>
+    <a class="navlink active" href="./games.html">Games</a>
+    <a class="navlink" href="./lobby.html">Lobby</a>
+    <a class="navlink" href="./top.html">Leaderboard</a>
+    <a class="navlink" href="./about.html">About</a>
+    <a class="navlink" href="./rules.html">Rules</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section class="pagehead">
+    <h1>Games</h1>
+    <p class="muted">Green hex: research timeline · Click map name: match details · Share the URL to link a match.</p>
+
+    <div class="tools">
+      <input id="q" class="input" type="search" placeholder="Search map or player…" autocomplete="off" />
+      <select id="days" class="select" title="Time range">
+        <option value="all" selected>All</option>
+        <option value="1">24h</option>
+        <option value="7">7d</option>
+        <option value="30">30d</option>
+      </select>
+      <select id="limit" class="select" title="Rows">
+        <option value="25">25</option>
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+        <option value="250">250</option>
+      </select>
+      <select id="sort" class="select" title="Sort">
+        <option value="when" selected>When</option>
+        <option value="duration">Duration</option>
+        <option value="map">Map</option>
+        <option value="result">Result</option>
+      </select>
+      <button id="dir" class="btn subtle" type="button" title="Toggle sort direction">↓</button>
+      <label class="muted" style="display:flex;align-items:center;gap:8px">
+        <input id="hideMM" type="checkbox" /> Hide matchmaking
+      </label>
+      <button id="refresh" class="btn">Refresh</button>
+      <span id="status" class="status">Idle</span>
+    </div>
+  </section>
+
+  <section class="layout">
+    <section class="card">
+      <table class="table" aria-label="Games">
+        <thead>
+          <tr>
+            <th>Game</th>
+            <th>Map</th>
+            <th>When (UTC)</th>
+            <th>Duration</th>
+            <th>Research</th>
+            <th>Result</th>
+            <th>Replay</th>
+          </tr>
+        </thead>
+        <tbody id="gamesBody"></tbody>
+      </table>
+      <div class="footer" id="countLine"></div>
+    </section>
+
+    <aside class="side" id="detailCard" hidden>
+      <div class="detailhead">
+        <h2 id="detailTitle">Game</h2>
+        <div class="muted" id="detailMeta"></div>
+        <div id="detailPills"></div>
+      </div>
+
+      <div class="section"><div id="detailReplay"></div>
+      </div>
+
+      <div class="section">
+        <h3>Players</h3>
+        <table class="table small" aria-label="Players">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Team</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody id="playersBody"></tbody>
+        </table>
+      </div>
+
+      <div class="section" id="researchSection" hidden>
+        <!-- Research panel removed -->
+        <div id="researchSummary"></div>
+        <div id="researchBody"></div>
+      </div>
+
+      <div class="section">
+        <div class="detailActions">
+          <button class="btn subtle" id="copyLink" type="button">Copy link</button>
+          <button class="btn subtle" id="closeDetail" type="button">Close</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<script src="./js/main.js" type="module"></script>
+</body>
+</html>

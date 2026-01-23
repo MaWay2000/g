@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Top 10 Recent Games — Warzone 2100 Autohoster</title>
+  <link rel="stylesheet" href="/pretty/css/style.css">
+  <link rel="stylesheet" href="/pretty/css/top10-games.css">
+</head>
+<body>
+  <header class="topbar">
+  <div class="brand">Warzone 2100 Autohoster</div>
+  <nav class="nav">
+    <a class="navlink" data-nav="home" href="./">Home</a>
+    <a class="navlink" data-nav="games" href="./games.html">Games</a>
+    <a class="navlink" data-nav="players" href="./players.html">Players</a>
+    <a class="navlink" data-nav="lobby" href="./lobby.html">Lobby</a>
+    <a class="navlink" data-nav="leaderboard" href="./top.html">Leaderboard</a>
+  </nav>
+</header>
+
+  <main class="container">
+    <div class="top10-wrap">
+      <h1 class="top10-title">Top 10 Recent Games</h1>
+      <div class="top10-sub">PublicKey + Base32 fingerprint (tap buttons to copy)</div>
+
+      <div id="top10Status" class="top10-status">Loading…</div>
+
+      <div class="top10-tablewrap">
+        <table class="top10-table">
+          <thead>
+            <tr>
+              <th style="width:180px;">Map</th>
+              <th style="width:190px;">When (UTC)</th>
+              <th style="width:110px;">Duration</th>
+              <th>Players</th>
+              <th style="width:120px;">Details</th>
+            </tr>
+          </thead>
+          <tbody id="top10Body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script src="/pretty/js/top10-games.js"></script>
+  <script src="./js/nav-active.js"></script>
+
+<!-- Matomo -->
+<script>
+  var _paq = window._paq = window._paq || [];
+  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+  _paq.push(['trackPageView']);
+  _paq.push(['enableLinkTracking']);
+  (function() {
+    var u="/matomo/";
+    _paq.push(['setTrackerUrl', u+'matomo.php']);
+    _paq.push(['setSiteId', '1']);
+    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+  })();
+</script>
+<!-- End Matomo Code -->
+
+</body>
+</html>
