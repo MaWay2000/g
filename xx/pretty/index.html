@@ -48,19 +48,20 @@
       <div class="card cardpad">
         <div class="dashhead">
           <h2 class="dashtitle">Live lobby</h2>
-          <div id="homeStatus" class="status">—</div>
+          <div id="homeStatus" class="status" aria-live="polite">—</div>
         </div>
         <div id="liveKpis" class="kpiGrid"></div>
-        <div id="lobbyMeta" class="muted small" style="margin-top:10px"></div>
+        <div id="lobbyMeta" class="muted small" style="margin-top:10px" aria-live="polite"></div>
       </div>
 
       <div class="card">
         <div class="cardpad">
           <div class="dashhead">
             <h2 class="dashtitle">Recent matches</h2>
-            <div id="matchesMeta" class="muted small"></div>
+            <div id="matchesMeta" class="muted small" aria-live="polite"></div>
           </div>
           <table class="table small">
+            <caption>Recent match results</caption>
             <thead>
               <tr>
                 <th>Map</th>

@@ -4,6 +4,7 @@ const LOBBY_URL = new URL("../lobby.json", window.location.href).pathname;
 const MATCHES_URL = `${jsonBasePath()}matchstats.json`;
 
 const $ = (id) => document.getElementById(id);
+const busyContainer = document.querySelector(".dashgrid");
 
 const els = {
   status: $("homeStatus"),
@@ -77,6 +78,11 @@ function kpi(label, value){
 
 function setStatus(text){
   if (els.status) els.status.textContent = text;
+}
+
+function setBusy(isBusy){
+  if (!busyContainer) return;
+  busyContainer.setAttribute("aria-busy", isBusy ? "true" : "false");
 }
 
 function renderLobby(lobby){
@@ -182,42 +188,47 @@ function renderRecent(matches){
 
 async function run(){
   setStatus("Loading lobby + matchstats…");
+  setBusy(true);
 
-  const lobbyPromise = fetchJson(`${LOBBY_URL}?ts=${Date.now()}`, 12000).catch((e) => ({ __error: e }));
-  const matchesPromise = fetchJson(`${MATCHES_URL}?ts=${Date.now()}`, 15000).catch((e) => ({ __error: e }));
+  try{
+    const lobbyPromise = fetchJson(`${LOBBY_URL}?ts=${Date.now()}`, 12000).catch((e) => ({ __error: e }));
+    const matchesPromise = fetchJson(`${MATCHES_URL}?ts=${Date.now()}`, 15000).catch((e) => ({ __error: e }));
 
-  const [lobby, matchesPayload] = await Promise.all([lobbyPromise, matchesPromise]);
+    const [lobby, matchesPayload] = await Promise.all([lobbyPromise, matchesPromise]);
 
-  // Lobby
-  if (lobby && lobby.__error){
-    renderLobby(null);
-    if (els.lobbyMeta) els.lobbyMeta.textContent = `Failed to load ${LOBBY_URL} — ${lobby.__error?.message || lobby.__error}`;
-  }else{
-    renderLobby(lobby);
-  }
-
-  // Matches
-  if (matchesPayload && matchesPayload.__error){
-    if (els.matchesMeta) els.matchesMeta.textContent = `Failed to load ${MATCHES_URL}`;
-    if (els.recentBody){
-      clear(els.recentBody);
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 5;
-      td.className = "muted";
-      td.style.padding = "14px";
-      td.textContent = `Could not load matchstats: ${matchesPayload.__error?.message || matchesPayload.__error}`;
-      tr.appendChild(td);
-      els.recentBody.appendChild(tr);
+    // Lobby
+    if (lobby && lobby.__error){
+      renderLobby(null);
+      if (els.lobbyMeta) els.lobbyMeta.textContent = `Failed to load ${LOBBY_URL} — ${lobby.__error?.message || lobby.__error}`;
+    }else{
+      renderLobby(lobby);
     }
-  }else{
-    const matches = normalizeMatches(matchesPayload);
-    renderRecent(matches);
-  }
 
-  const lobbyOk = !(lobby && lobby.__error);
-  const matchesOk = !(matchesPayload && matchesPayload.__error);
-  setStatus(lobbyOk && matchesOk ? "OK" : "Loaded with warnings");
+    // Matches
+    if (matchesPayload && matchesPayload.__error){
+      if (els.matchesMeta) els.matchesMeta.textContent = `Failed to load ${MATCHES_URL}`;
+      if (els.recentBody){
+        clear(els.recentBody);
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 5;
+        td.className = "muted";
+        td.style.padding = "14px";
+        td.textContent = `Could not load matchstats: ${matchesPayload.__error?.message || matchesPayload.__error}`;
+        tr.appendChild(td);
+        els.recentBody.appendChild(tr);
+      }
+    }else{
+      const matches = normalizeMatches(matchesPayload);
+      renderRecent(matches);
+    }
+
+    const lobbyOk = !(lobby && lobby.__error);
+    const matchesOk = !(matchesPayload && matchesPayload.__error);
+    setStatus(lobbyOk && matchesOk ? "OK" : "Loaded with warnings");
+  }finally{
+    setBusy(false);
+  }
 }
 
 run();
