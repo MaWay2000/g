@@ -53,10 +53,10 @@
         <input id="q" placeholder="Search name/map/player…" autocomplete="off" />
         <button id="refresh">Refresh</button>
         <button id="autoref" title="Toggle auto refresh">Auto: ON</button>
-        <a class="btn" href="/api/games" target="_blank" rel="noopener">View JSON</a>
+        <a class="btn" id="viewJson" href="/api/games" target="_blank" rel="noopener">View JSON</a>
       </div>
       <div class="meta">
-        <div>Source: <span class="pill">/api/games</span></div>
+        <div>Source: <span class="pill" id="sourcePill">/api/games</span></div>
         <div id="status" class="muted">Idle</div>
         <div id="count" class="muted"></div>
         <div id="updated" class="muted"></div>
@@ -88,6 +88,13 @@
   const countEl = el("count");
   const updatedEl = el("updated");
   const qEl = el("q");
+  const viewJsonEl = el("viewJson");
+  const sourcePillEl = el("sourcePill");
+
+  const params = new URLSearchParams(window.location.search);
+  const dataBase = window.LITE_DATA_BASE || params.get("base") || "/api";
+  const base = dataBase.replace(/\/$/, "");
+  const gamesUrl = base.endsWith("/api") ? `${base}/games` : `${base}/matchstats.json`;
 
   let all = [];
   let timer = null;
@@ -168,7 +175,7 @@
   async function load(force=false){
     statusEl.textContent = "Loading…";
     try{
-      const url = force ? "/api/games?force=1" : "/api/games";
+      const url = force && gamesUrl.includes("/api/") ? `${gamesUrl}?force=1` : gamesUrl;
       const r = await fetch(url, { cache: "no-store" });
       const j = await r.json();
       all = Array.isArray(j.games) ? j.games : [];
@@ -177,7 +184,7 @@
       render();
     }catch(e){
       statusEl.textContent = "Error: " + (e?.message || e);
-      rowsEl.innerHTML = `<tr><td colspan="5" class="muted">Failed to load /api/games.</td></tr>`;
+      rowsEl.innerHTML = `<tr><td colspan="5" class="muted">Failed to load ${esc(gamesUrl)}.</td></tr>`;
     }
   }
 
@@ -210,6 +217,9 @@
     if (timer) clearInterval(timer);
     timer = null;
   }
+
+  viewJsonEl.href = gamesUrl;
+  sourcePillEl.textContent = gamesUrl;
 
   load(false);
   startAuto();
