@@ -1,5 +1,6 @@
 // /pretty/js/elo-leaderboard.js
 // Simple Elo leaderboard computed client-side from /jsons/matchstats.json
+import { jsonBasePath } from "./api.js";
 // - Uses publicKey as the primary player id (fallback: lowercase player name)
 // - Team Elo: each team gets an average rating; all players on the team get the same delta
 // - Multi-team games: pairwise scoring, losers-vs-losers treated as draws
@@ -472,10 +473,11 @@
   }
 
   async function load(){
-    setStatus("Loading /jsons/matchstats.json …");
+    const base = jsonBasePath();
+    setStatus(`Loading ${base}matchstats.json …`);
     try{
       const ts = Date.now();
-      const r = await fetch(`/jsons/matchstats.json?ts=${ts}`, { cache: "no-store" });
+      const r = await fetch(`${base}matchstats.json?ts=${ts}`, { cache: "no-store" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const raw = await r.json();
       const games = asGamesArray(raw);
