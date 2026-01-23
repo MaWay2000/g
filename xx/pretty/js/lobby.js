@@ -8,6 +8,14 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function jsonBasePath(){
+    const pathname = window.location?.pathname || "/";
+    if (pathname.endsWith("/")) return `${pathname}jsons/`;
+    const lastSlash = pathname.lastIndexOf("/");
+    const base = lastSlash >= 0 ? pathname.slice(0, lastSlash + 1) : "/";
+    return `${base}jsons/`;
+  }
+
   function setStatus(msg){
     const el = $("meta");
     if (el) el.textContent = msg;
@@ -60,7 +68,7 @@
 
   async function load(){
     const ts = Date.now();
-    const res = await fetch(`/jsons/remote_lobby.json?ts=${ts}`, { cache: "no-store" });
+    const res = await fetch(`${jsonBasePath()}remote_lobby.json?ts=${ts}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`remote_lobby.json fetch failed: ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error("remote_lobby.json is not an array");

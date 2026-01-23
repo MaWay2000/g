@@ -1,5 +1,13 @@
 const $ = (q) => document.querySelector(q);
 
+function jsonBasePath(){
+  const pathname = window.location?.pathname || "/";
+  if (pathname.endsWith("/")) return `${pathname}jsons/`;
+  const lastSlash = pathname.lastIndexOf("/");
+  const base = lastSlash >= 0 ? pathname.slice(0, lastSlash + 1) : "/";
+  return `${base}jsons/`;
+}
+
 function qp(name){
   const u = new URL(location.href);
   return u.searchParams.get(name) || "";
@@ -116,7 +124,7 @@ async function load(){
   const gid = qp("gid");
   $("#metaPill").textContent = gid ? `Game: ${gid}` : "Game: (missing ?gid=…)";
 
-  const r = await fetch("/jsons/matchstats.json", {cache:"no-store"});
+  const r = await fetch(`${jsonBasePath()}matchstats.json`, {cache:"no-store"});
   const d = await r.json();
   const games = (d && typeof d === "object" && Array.isArray(d.games)) ? d.games : (Array.isArray(d) ? d : []);
   if (!games.length){

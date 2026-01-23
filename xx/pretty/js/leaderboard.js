@@ -6,6 +6,14 @@
 
   const $ = (id) => document.getElementById(id);
 
+  function jsonBasePath(){
+    const pathname = window.location?.pathname || "/";
+    if (pathname.endsWith("/")) return `${pathname}jsons/`;
+    const lastSlash = pathname.lastIndexOf("/");
+    const base = lastSlash >= 0 ? pathname.slice(0, lastSlash + 1) : "/";
+    return `${base}jsons/`;
+  }
+
     function setText(id, val){
     const el = $(id);
     if (el) el.textContent = val;
@@ -576,7 +584,7 @@ function safeNum(x){
   async function load(){
     $("meta").textContent = "Loading…";
     const ts = Date.now();
-    const res = await fetch(`/jsons/matchstats.json?ts=${ts}`, { cache:"no-store" });
+    const res = await fetch(`${jsonBasePath()}matchstats.json?ts=${ts}`, { cache:"no-store" });
     if (!res.ok) throw new Error(`matchstats fetch failed: ${res.status}`);
     const data = await res.json();
 

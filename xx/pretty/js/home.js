@@ -1,7 +1,7 @@
-import { fetchJson, safeArray, durString, replayUrlFromMatch } from "./api.js";
+import { fetchJson, jsonBasePath, safeArray, durString, replayUrlFromMatch } from "./api.js";
 
 const LOBBY_URL = "/lobby.json";
-const MATCHES_URL = "/jsons/matchstats.json";
+const MATCHES_URL = `${jsonBasePath()}matchstats.json`;
 
 const $ = (id) => document.getElementById(id);
 

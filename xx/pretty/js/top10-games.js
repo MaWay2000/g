@@ -4,6 +4,14 @@
 
   const enc = new TextEncoder();
 
+  function jsonBasePath(){
+    const pathname = window.location?.pathname || "/";
+    if (pathname.endsWith("/")) return `${pathname}jsons/`;
+    const lastSlash = pathname.lastIndexOf("/");
+    const base = lastSlash >= 0 ? pathname.slice(0, lastSlash + 1) : "/";
+    return `${base}jsons/`;
+  }
+
   function toBase32(bytes){
     const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
     let bits = 0, value = 0, output = "";
@@ -77,7 +85,7 @@
 
   async function run(){
     statusEl.textContent = "Loading matchstats…";
-    const res = await fetch(`/jsons/matchstats.json?ts=${Date.now()}`, { cache: 'no-store' });
+    const res = await fetch(`${jsonBasePath()}matchstats.json?ts=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     const games = getGames(payload);
@@ -170,6 +178,6 @@
 
   run().catch(err => {
     console.error(err);
-    statusEl.textContent = "Error loading data. Check that /jsons/matchstats.json exists.";
+    statusEl.textContent = "Error loading data. Check that matchstats.json exists.";
   });
 })();

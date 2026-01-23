@@ -1,8 +1,8 @@
-import { fetchJson, safeArray } from "./api.js";
+import { fetchJson, jsonBasePath, safeArray } from "./api.js";
 import { buildGamesRows } from "./render-list.js";
 import { showDetail } from "./render-detail.js";
 
-const MATCHES_URL = "/jsons/matchstats.json";
+const MATCHES_URL = `${jsonBasePath()}matchstats.json`;
 
 let allMatches = [];
 
