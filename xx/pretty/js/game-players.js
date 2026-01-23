@@ -82,6 +82,11 @@ function renderTable(tableSel, players, labCounts, filterStr){
     const pos = asNum(pick(p, ["position","pos","index"])) ?? "";
     const team = asNum(pick(p, ["team","t"])) ?? "";
 
+    const ratingRaw = pick(p, ["ratingTransfer","rating_transfer","ratingDelta","rating_delta","eloDelta","elo_change","elo","rating","score"]);
+    const ratingStr = (ratingRaw === null || ratingRaw === undefined || ratingRaw === "")
+      ? ""
+      : (typeof ratingRaw === "number" ? fmtMaybe(ratingRaw) : String(ratingRaw));
+
     const kills = fmtMaybe(pick(p, ["kills","k"]));
     const dLost = fmtMaybe(pick(p, ["droidsLost","droidLost","droids_lost","lostDroids","lost"]));
     const dBuilt = fmtMaybe(pick(p, ["droidsBuilt","droidBuilt","droids_built","builtDroids","built"]));
@@ -107,7 +112,7 @@ function renderTable(tableSel, players, labCounts, filterStr){
       </td>
       <td class="center mono">${escapeHtml(String(pos))}</td>
       <td class="center mono">${escapeHtml(String(team))}</td>
-      <td class="center mono">TODO</td>
+      <td class="center mono">${escapeHtml(ratingStr || "—")}</td>
       <td class="right mono">${escapeHtml(kills)}</td>
       <td class="right mono">${escapeHtml(dLost)}</td>
       <td class="right mono">${escapeHtml(dBuilt)}</td>
