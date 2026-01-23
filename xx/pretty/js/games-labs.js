@@ -340,7 +340,7 @@ function rowHtml(m, idx) {
 
   const replayUrl = replayUrlFromMatch(m);
   const replayCell = replayUrl
-    ? `<a href="${escapeHtml(replayUrl)}" download>Download</a>`
+    ? `<a href="${escapeHtml(replayUrl)}" download>Download replay</a>`
     : `<span class="muted small">—</span>`;
 
   // Map link: point to this page, preserving current filters, but swapping gid
