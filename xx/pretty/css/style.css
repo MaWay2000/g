@@ -36,9 +36,16 @@ a:hover{text-decoration:underline}
   padding:14px 24px;
 }
 .brand{
+  display:flex;
+  align-items:center;
   font-weight:700;
   font-size:20px;
   line-height:1.2;
+}
+.brand__image{
+  display:block;
+  height:32px;
+  width:auto;
 }
 .nav{
   display:flex;
