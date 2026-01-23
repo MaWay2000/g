@@ -1,6 +1,6 @@
 import { fetchJson, jsonBasePath, safeArray, durString, replayUrlFromMatch } from "./api.js";
 
-const LOBBY_URL = "/lobby.json";
+const LOBBY_URL = new URL("../lobby.json", window.location.href).pathname;
 const MATCHES_URL = `${jsonBasePath()}matchstats.json`;
 
 const $ = (id) => document.getElementById(id);
