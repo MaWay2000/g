@@ -256,16 +256,6 @@ code{font-family:var(--mono);font-size:.95em;background:#f3f4f6;padding:2px 6px;
   border-radius: 8px !important;
 }
 
-/* Optional: display "Click" instead of the real link text */
-#gamesBody td:last-child a{
-  font-size: 0 !important;          /* hides existing text (Download) */
-}
-#gamesBody td:last-child a::after{
-  content: "Click";
-  font-size: 13px;
-  font-weight: 600;
-}
-
 /* Detail panel: make the "RO_1v1Full | time | duration" line smaller */
 #detailMeta{
   font-size: 12px !important;
@@ -374,4 +364,3 @@ code{font-family:var(--mono);font-size:.95em;background:#f3f4f6;padding:2px 6px;
 
 /* Detail action buttons (Games) */
 .detailActions{display:flex;gap:10px;flex-wrap:wrap}
-
