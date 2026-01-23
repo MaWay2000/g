@@ -1,0 +1,61 @@
+{
+  "match_id": "20260117_112723",
+  "loop": "1v1",
+  "autohost": "RB_RQNTW_1v1.json",
+  "picked_policy_file": "/root/.local/share/warzone2100/wzloop/ai_runtime/matches/1v1/20260117_112723/picked_policy.json",
+  "matchstats_file": "/root/.local/share/warzone2100/wzloop/ai_runtime/matches/1v1/20260117_112723/matchstats_snapshot.json",
+  "log_tail_file": "/root/.local/share/warzone2100/wzloop/ai_runtime/matches/1v1/20260117_112723/wzloop_log_tail.txt",
+  "latest_game": {
+    "name": null,
+    "started_utc": "2026-01-17T11:27:32.853000Z",
+    "ended_utc": "2026-01-17T11:31:49.886000Z",
+    "winners": [],
+    "losers": [
+      "rbabbit"
+    ],
+    "players": [
+      {
+        "name": "rbabbit",
+        "publicKey": "oyWNtTV7Y1ChYieUDyFZQXM+1cnaBHaJbPItXDWJsb0=",
+        "colour": 7,
+        "position": 0,
+        "index": 0,
+        "team": 0,
+        "usertype": "loser",
+        "kills": 9,
+        "droidsBuilt": 106,
+        "droidsLost": 26,
+        "structuresBuilt": 0,
+        "structuresLost": 0,
+        "structureKills": 0,
+        "power": 0,
+        "oilRigs": 0,
+        "researchComplete": 49,
+        "labResearchPerformance": 5306,
+        "labResearchPotential": 12590,
+        "score": 40278
+      },
+      {
+        "name": "",
+        "publicKey": "",
+        "colour": 0,
+        "position": 1,
+        "index": 1,
+        "team": 1,
+        "usertype": "winner",
+        "kills": 26,
+        "droidsBuilt": 110,
+        "droidsLost": 9,
+        "structuresBuilt": 0,
+        "structuresLost": 0,
+        "structureKills": 0,
+        "power": 5466,
+        "oilRigs": 40,
+        "researchComplete": 55,
+        "labResearchPerformance": 12221,
+        "labResearchPotential": 12595,
+        "score": 8782
+      }
+    ]
+  }
+}
