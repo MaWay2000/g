@@ -269,7 +269,8 @@
     setStatus('loading…');
 
     try{
-      const url = `/lobby.json?ts=${Date.now()}`;
+      const lobbyUrl = new URL("../lobby.json", window.location.href).pathname;
+      const url = `${lobbyUrl}?ts=${Date.now()}`;
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
