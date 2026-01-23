@@ -2,6 +2,9 @@ const $ = (q) => document.querySelector(q);
 
 function jsonBasePath(){
   const pathname = window.location?.pathname || "/";
+  if (pathname.includes("/pretty/")) {
+    return new URL("../jsons/", window.location.href).pathname;
+  }
   if (pathname.endsWith("/")) return `${pathname}jsons/`;
   const lastSlash = pathname.lastIndexOf("/");
   const base = lastSlash >= 0 ? pathname.slice(0, lastSlash + 1) : "/";
