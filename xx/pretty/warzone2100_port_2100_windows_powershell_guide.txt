@@ -1,0 +1,38 @@
+Warzone 2100 (Windows) — Open Port 2100 (TCP + UDP) via PowerShell
+===============================================================
+
+What this does
+--------------
+Creates Windows Defender Firewall rules to allow inbound traffic on port 2100
+for both TCP and UDP (commonly used for hosting/joining games).
+
+Run PowerShell as Administrator
+-------------------------------
+1) Click Start
+2) Type: PowerShell
+3) Right-click “Windows PowerShell” (or “Windows Terminal”)
+4) Choose “Run as administrator”
+
+Inbound rules (recommended)
+---------------------------
+Copy/paste these commands:
+
+New-NetFirewallRule -DisplayName "Warzone 2100 - TCP 2100" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 2100 -Profile Any
+New-NetFirewallRule -DisplayName "Warzone 2100 - UDP 2100" -Direction Inbound -Action Allow -Protocol UDP -LocalPort 2100 -Profile Any
+
+Optional: Outbound rules (usually not necessary)
+------------------------------------------------
+Only use these if you specifically want outbound rules as well:
+
+New-NetFirewallRule -DisplayName "Warzone 2100 - TCP 2100 (Outbound)" -Direction Outbound -Action Allow -Protocol TCP -LocalPort 2100 -Profile Any
+New-NetFirewallRule -DisplayName "Warzone 2100 - UDP 2100 (Outbound)" -Direction Outbound -Action Allow -Protocol UDP -LocalPort 2100 -Profile Any
+
+Verify the rules
+----------------
+Get-NetFirewallRule -DisplayName "Warzone 2100*" | Get-NetFirewallPortFilter
+
+Note about routers / port-forwarding
+------------------------------------
+Windows Firewall rules only open the port on your PC.
+If you need the port reachable from the internet, you may also need to set up
+port-forwarding on your router (NAT) to your PC’s local IP address.

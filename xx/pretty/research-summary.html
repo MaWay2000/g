@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Research Summary</title>
+  <link rel="stylesheet" href="./css/research-summary.css" />
+</head>
+<body>
+  <header class="topbar">
+  <div class="brand">Warzone 2100 Autohoster</div>
+  <nav class="nav">
+    <a class="navlink" data-nav="home" href="./">Home</a>
+    <a class="navlink" data-nav="games" href="./games.html">Games</a>
+    <a class="navlink" data-nav="players" href="./players.html">Players</a>
+    <a class="navlink" data-nav="lobby" href="./lobby.html">Lobby</a>
+    <a class="navlink" data-nav="leaderboard" href="./top.html">Leaderboard</a>
+  </nav>
+</header>
+
+  <main class="wrap">
+    <section class="card">
+      <div class="cardTitle">Players</div>
+      <div id="playerChips" class="chips"></div>
+      <div class="hint">Tip: click a player chip to focus (click again to clear).</div>
+    </section>
+
+    <section class="grid2">
+      <section class="card">
+        <div class="cardTitle">Key moments</div>
+        <div id="moments" class="moments"></div>
+      </section>
+
+      <section class="card">
+        <div class="cardTitle">Quick compare</div>
+        <div id="compare" class="compare"></div>
+      </section>
+    </section>
+
+    <section class="card">
+      <div class="cardTitle">What was researched</div>
+      <div id="lists" class="lists"></div>
+    </section>
+
+    <footer class="footer">
+      <div class="muted">
+        Clean view for humans. Timeline view can stay for deep-dive nerd mode.
+      </div>
+    </footer>
+  </main>
+
+  <script src="./js/research-summary.js"></script>
+  <script src="./js/nav-active.js"></script>
+
+<!-- Matomo -->
+<script>
+  var _paq = window._paq = window._paq || [];
+  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+  _paq.push(['trackPageView']);
+  _paq.push(['enableLinkTracking']);
+  (function() {
+    var u="/matomo/";
+    _paq.push(['setTrackerUrl', u+'matomo.php']);
+    _paq.push(['setSiteId', '1']);
+    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+  })();
+</script>
+<!-- End Matomo Code -->
+
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WZ Live Lobby (Lite)</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0f14; color:#e8eef6; }
+    header { position:sticky; top:0; z-index:10; background:rgba(11,15,20,.9); backdrop-filter: blur(8px); border-bottom:1px solid rgba(255,255,255,.08); }
+    .wrap { max-width:1100px; margin:0 auto; padding:14px 14px; }
+    h1 { font-size:18px; margin:0 0 8px 0; letter-spacing:.2px; }
+    .bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    input { flex:1 1 260px; min-width:220px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:#0f1620; color:#e8eef6; }
+    button, a.btn { padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:#121c28; color:#e8eef6; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:8px; }
+    button:hover, a.btn:hover { background:#162235; }
+    .meta { opacity:.75; font-size:12px; margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; }
+    main { padding: 10px 0 22px; }
+    table { width:100%; border-collapse: collapse; overflow:hidden; border-radius:14px; border:1px solid rgba(255,255,255,.08); }
+    thead th { text-align:left; font-size:12px; opacity:.8; padding:10px 12px; background:#0f1620; border-bottom:1px solid rgba(255,255,255,.08); }
+    tbody td { padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); vertical-align:top; }
+    tbody tr:hover { background: rgba(255,255,255,.03); }
+    .pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.12); opacity:.9; }
+    .muted { opacity:.7; }
+    .right { text-align:right; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; opacity:.9; }
+    .rowbtns { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    @media (max-width: 800px){
+      thead { display:none; }
+      table, tbody, tr, td { display:block; width:100%; }
+      tbody td { border-bottom: none; }
+      tbody tr { border-bottom:1px solid rgba(255,255,255,.08); padding:10px 0; }
+      tbody td[data-k]::before { content: attr(data-k); display:block; font-size:12px; opacity:.7; margin-bottom:6px; }
+      .right { text-align:left; }
+      .rowbtns { justify-content:flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>WZ Live Lobby (Lite)</h1>
+      <div class="bar">
+        <input id="q" placeholder="Search name/map/host…" autocomplete="off" />
+        <button id="refresh">Refresh</button>
+        <button id="autoref" title="Toggle auto refresh">Auto: ON</button>
+        <a class="btn" href="/api/live" target="_blank" rel="noopener">View JSON</a>
+      </div>
+      <div class="meta">
+        <div>Source: <span class="pill">/api/live</span></div>
+        <div id="status" class="muted">Idle</div>
+        <div id="count" class="muted"></div>
+        <div id="updated" class="muted"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%">Lobby</th>
+          <th style="width:18%">Map</th>
+          <th style="width:16%">Players</th>
+          <th style="width:18%">Host</th>
+          <th class="right" style="width:18%">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="5" class="muted">Loading…</td></tr>
+      </tbody>
+    </table>
+  </main>
+
+<script>
+  const el = (id) => document.getElementById(id);
+  const rowsEl = el("rows");
+  const statusEl = el("status");
+  const countEl = el("count");
+  const updatedEl = el("updated");
+  const qEl = el("q");
+
+  let all = [];
+  let timer = null;
+  let autoOn = true;
+
+  function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function matchesQuery(g, q){
+    if (!q) return true;
+    q = q.toLowerCase();
+    const blob = [g.name, g.map, g.host, g.port].join(" ").toLowerCase();
+    return blob.includes(q);
+  }
+
+  function render(){
+    const q = qEl.value.trim();
+    const view = all.filter(g => matchesQuery(g, q));
+
+    countEl.textContent = `${view.length} shown` + (q ? ` (filtered from ${all.length})` : ` (${all.length} total)`);
+
+    if (!view.length){
+      rowsEl.innerHTML = `<tr><td colspan="5" class="muted">No live games right now.</td></tr>`;
+      return;
+    }
+
+    rowsEl.innerHTML = view.slice(0, 200).map(g => {
+      const hostport = (g.host && g.port) ? `${g.host}:${g.port}` : (g.join || "");
+      const players = (g.playersNow!=null && g.maxPlayers!=null) ? `${g.playersNow}/${g.maxPlayers}` : (g.playersNow ?? "—");
+      return `
+        <tr>
+          <td data-k="Lobby">
+            <div><strong>${esc(g.name || "Game")}</strong></div>
+            <div class="muted mono">${esc(hostport)}</div>
+          </td>
+          <td data-k="Map"><span class="pill">${esc(g.map || "—")}</span></td>
+          <td data-k="Players">${esc(players)}</td>
+          <td data-k="Host" class="mono">${esc(g.host || "—")}${g.port?":"+esc(g.port):""}</td>
+          <td data-k="Actions" class="right">
+            <div class="rowbtns">
+              <button class="btn" data-copy="${esc(hostport)}">Copy join</button>
+              <a class="btn" href="/pretty/lobby.html" target="_blank" rel="noopener">Full lobby</a>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  async function load(force=false){
+    statusEl.textContent = "Loading…";
+    try{
+      const url = force ? "/api/live?ts=" + Date.now() : "/api/live";
+      const r = await fetch(url, { cache: "no-store" });
+      const j = await r.json();
+      all = Array.isArray(j.games) ? j.games : [];
+      updatedEl.textContent = "Updated: " + new Date().toLocaleTimeString();
+      statusEl.textContent = j.error ? ("Warning: " + j.error) : "OK";
+      render();
+    }catch(e){
+      statusEl.textContent = "Error: " + (e?.message || e);
+      rowsEl.innerHTML = `<tr><td colspan="5" class="muted">Failed to load /api/live.</td></tr>`;
+    }
+  }
+
+  document.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("[data-copy]");
+    if (!btn) return;
+    const val = btn.getAttribute("data-copy");
+    try{
+      await navigator.clipboard.writeText(val);
+      statusEl.textContent = `Copied: ${val}`;
+    }catch{
+      statusEl.textContent = "Copy failed (browser permissions)";
+    }
+  });
+
+  el("refresh").addEventListener("click", () => load(true));
+  el("autoref").addEventListener("click", () => {
+    autoOn = !autoOn;
+    el("autoref").textContent = "Auto: " + (autoOn ? "ON" : "OFF");
+    if (autoOn) startAuto(); else stopAuto();
+  });
+  qEl.addEventListener("input", render);
+
+  function startAuto(){ stopAuto(); timer = setInterval(() => { if (autoOn) load(false); }, 3000); }
+  function stopAuto(){ if (timer) clearInterval(timer); timer = null; }
+
+  load(false);
+  startAuto();
+</script>
+
+<!-- Matomo -->
+<script>
+  var _paq = window._paq = window._paq || [];
+  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+  _paq.push(['trackPageView']);
+  _paq.push(['enableLinkTracking']);
+  (function() {
+    var u="/matomo/";
+    _paq.push(['setTrackerUrl', u+'matomo.php']);
+    _paq.push(['setSiteId', '1']);
+    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+  })();
+</script>
+<!-- End Matomo Code -->
+
+</body>
+</html>
