@@ -10,8 +10,8 @@
   margin-top:10px;
 }
 .home-hero__img{
-  width:190px;
-  max-width:45vw;
+  width:auto;
+  max-width:100%;
   height:auto;
   border-radius:14px;
   box-shadow:0 10px 30px rgba(0,0,0,.18);
@@ -22,7 +22,7 @@
 .home-hero__actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 
 @media (max-width:520px){
-  .home-hero__img{width:150px}
+  .home-hero__img{max-width:100%}
 }
 
 .dashgrid{
