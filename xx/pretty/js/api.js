@@ -46,9 +46,20 @@ export function durString(seconds) {
   return `${mm}m${r}s`;
 }
 export function replayUrlFromMatch(m) {
+  const base = jsonBasePath();
+  const normalizeReplayPath = (path) => {
+    if (!path) return "";
+    if (path.includes("://")) return path;
+    if (path.startsWith("/")) {
+      if (path.startsWith("/jsons/")) return `${base}${path.slice("/jsons/".length)}`;
+      return path;
+    }
+    const cleaned = path.startsWith("jsons/") ? path.slice("jsons/".length) : path;
+    return `${base}${cleaned}`;
+  };
   const direct = m?.replay_url || m?.replayUrl || m?.replay || "";
-  if (typeof direct === "string" && direct.length > 0) return direct;
+  if (typeof direct === "string" && direct.length > 0) return normalizeReplayPath(direct);
   const fn = m?.replay_file || m?.replayFile || m?.replay_filename || m?.replayFilename || "";
-  if (typeof fn === "string" && fn.length > 0) return `${jsonBasePath()}replays/${fn}`;
+  if (typeof fn === "string" && fn.length > 0) return `${base}replays/${fn}`;
   return "";
 }
