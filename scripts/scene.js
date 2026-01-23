@@ -965,10 +965,7 @@ export const initScene = (
   skyDome.visible = false;
   scene.add(skyDome);
 
-  sunSprite = createSunSprite();
-  sunSprite.visible = false;
-  scene.add(sunSprite);
-  updateSunSpriteScale();
+  sunSprite = null;
 
   const applyTimeOfDayVisuals = () => {
     const skyState = timeOfDayState.skyState ?? defaultSkyState;
@@ -1004,12 +1001,14 @@ export const initScene = (
     skyGradientUniforms.brightness.value = gradientBrightness;
     skyGradientUniforms.opacity.value = gradientOpacity;
 
-    if (sunSprite.material) {
+    if (sunSprite?.material) {
       sunSprite.material.opacity = sunVisibility;
     }
 
     skyDome.visible = gradientOpacity > 0.01;
-    sunSprite.visible = false;
+    if (sunSprite) {
+      sunSprite.visible = false;
+    }
 
     const starVisibility = THREE.MathUtils.clamp(1 - sunVisibility * 1.05, 0, 1);
     setStarVisibilityForTimeOfDay(starVisibility);
@@ -1115,11 +1114,13 @@ export const initScene = (
 
     skyDome.position.copy(playerPosition);
     skyDome.scale.setScalar(domeScale);
-    sunSprite.position.set(
-      playerPosition.x,
-      playerPosition.y + sunHeight,
-      playerPosition.z - sunDepth
-    );
+    if (sunSprite) {
+      sunSprite.position.set(
+        playerPosition.x,
+        playerPosition.y + sunHeight,
+        playerPosition.z - sunDepth
+      );
+    }
   };
 
   updateTimeOfDay(true);
