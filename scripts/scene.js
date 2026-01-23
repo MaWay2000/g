@@ -3966,7 +3966,7 @@ export const initScene = (
       center: skyCenter,
       size: 0.072,
       opacity: 0.82,
-      distribution: "dome",
+      distribution: "spherical",
     });
     group.add(primaryStarField);
 
@@ -3977,7 +3977,7 @@ export const initScene = (
       size: 0.05,
       opacity: 0.55,
       colorVariance: 0.06,
-      distribution: "dome",
+      distribution: "spherical",
     });
     group.add(distantStarField);
 
@@ -4604,7 +4604,7 @@ export const initScene = (
       center: skyCenter,
       size: 0.07,
       opacity: 0.8,
-      distribution: "dome",
+      distribution: "spherical",
     });
     group.add(nearStarField);
 
@@ -4615,7 +4615,7 @@ export const initScene = (
       size: 0.05,
       opacity: 0.58,
       colorVariance: 0.06,
-      distribution: "dome",
+      distribution: "spherical",
     });
     group.add(farStarField);
 
