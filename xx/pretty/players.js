@@ -255,12 +255,23 @@
     throw lastErr || new Error("Failed to fetch JSON");
   }
 
+  function jsonBasePath() {
+    const pathname = window.location?.pathname || "/";
+    if (pathname.includes("/pretty/")) {
+      return new URL("../jsons/", window.location.href).pathname;
+    }
+    if (pathname.endsWith("/")) return `${pathname}jsons/`;
+    const lastSlash = pathname.lastIndexOf("/");
+    const base = lastSlash >= 0 ? pathname.slice(0, lastSlash + 1) : "/";
+    return `${base}jsons/`;
+  }
+
   async function load(){
     setStatus("Loading matchstats.json …");
     try{
-      // This page is under /pretty/, but the JSON is served from /jsons/ at the site root.
+      const basePath = jsonBasePath();
       const ms = await fetchJSONWithFallback([
-        "/jsons/matchstats.json",
+        `${basePath}matchstats.json`,
         "../jsons/matchstats.json",
         "./jsons/matchstats.json",
       ]);
