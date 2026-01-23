@@ -402,7 +402,7 @@ function safeNum(x){
       const rep = g.rep ? `<a class="link" href="${escapeHtml(g.rep)}">Replay</a>` : "";
 
       const mapTag = g.id
-        ? `<a class="tag map link" href="/pretty/games.html?gid=${encodeURIComponent(String(g.id))}">${escapeHtml(map)}</a>`
+        ? `<a class="tag map link" href="./games.html?gid=${encodeURIComponent(String(g.id))}">${escapeHtml(map)}</a>`
         : `<div class="tag map">${escapeHtml(map)}</div>`;
 
       div.innerHTML = `
