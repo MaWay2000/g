@@ -32,7 +32,7 @@
           decoding="async"
         />
         <div class="home-hero__text">
-          <h1></h1>
+          <h1>Autohoster Live Dashboard</h1>
           <p class="muted">Live lobby status, recent matches and replay links (chubbyhost)</p>
           <div class="home-hero__actions">
             <a class="btn" href="./games.html">Click: Game Results</a>
@@ -43,9 +43,41 @@
       </div>
     </section>
 
-    <!-- Bottom dashboard removed -->
+    <section class="dashgrid">
+      <div class="card cardpad">
+        <div class="dashhead">
+          <h2 class="dashtitle">Live lobby</h2>
+          <div id="homeStatus" class="status">—</div>
+        </div>
+        <div id="liveKpis" class="kpiGrid"></div>
+        <div id="lobbyMeta" class="muted small" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <div class="cardpad">
+          <div class="dashhead">
+            <h2 class="dashtitle">Recent matches</h2>
+            <div id="matchesMeta" class="muted small"></div>
+          </div>
+          <table class="table small">
+            <thead>
+              <tr>
+                <th>Map</th>
+                <th>Start (UTC)</th>
+                <th>Duration</th>
+                <th>Result</th>
+                <th>Replay</th>
+              </tr>
+            </thead>
+            <tbody id="recentBody"></tbody>
+          </table>
+        </div>
+        <div id="recentFooter" class="footer"></div>
+      </div>
+    </section>
   </main>
   <script src="./js/nav-active.js"></script>
+  <script type="module" src="./js/home.js"></script>
 
 <!-- Matomo -->
 <script>
