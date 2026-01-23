@@ -1,8 +1,8 @@
-import { fetchJson, safeArray, toUtcString, durString, replayUrlFromMatch } from "./api.js";
+import { fetchJson, jsonBasePath, safeArray, toUtcString, durString, replayUrlFromMatch } from "./api.js";
 import { showDetail } from "./render-detail.js";
 import { escapeHtml } from "./render-list.js";
 
-const MATCHES_URL = "/jsons/matchstats.json";
+const MATCHES_URL = `${jsonBasePath()}matchstats.json`;
 
 let allMatches = [];
 

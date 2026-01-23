@@ -9,6 +9,13 @@ export async function fetchJson(url, timeoutMs = 10000) {
     clearTimeout(t);
   }
 }
+export function jsonBasePath() {
+  const pathname = window.location?.pathname || "/";
+  if (pathname.endsWith("/")) return `${pathname}jsons/`;
+  const lastSlash = pathname.lastIndexOf("/");
+  const base = lastSlash >= 0 ? pathname.slice(0, lastSlash + 1) : "/";
+  return `${base}jsons/`;
+}
 export function safeArray(x) {
   return Array.isArray(x) ? x : (x ? [x] : []);
 }
@@ -42,6 +49,6 @@ export function replayUrlFromMatch(m) {
   const direct = m?.replay_url || m?.replayUrl || m?.replay || "";
   if (typeof direct === "string" && direct.length > 0) return direct;
   const fn = m?.replay_file || m?.replayFile || m?.replay_filename || m?.replayFilename || "";
-  if (typeof fn === "string" && fn.length > 0) return `/jsons/replays/${fn}`;
+  if (typeof fn === "string" && fn.length > 0) return `${jsonBasePath()}replays/${fn}`;
   return "";
 }
