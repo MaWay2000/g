@@ -83,10 +83,25 @@ let _researchNamesPromise = null;
 async function getResearchNames() {
   if (_researchNamesPromise) return _researchNamesPromise;
   _researchNamesPromise = (async () => {
+    const nameUrls = [
+      "./research_names.json",
+      "./jsons/research_names.json",
+      "/pretty/research_names.json",
+      "/jsons/research_names.json"
+    ];
     try {
-      const obj = await fetchJson("/pretty/research_names.json", 8000);
-      return (obj && typeof obj === "object") ? obj : {};
-    } catch {
+      let lastErr;
+      for (const url of nameUrls) {
+        try {
+          const obj = await fetchJson(url, 8000);
+          if (obj && typeof obj === "object") return obj;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr || new Error("No research_names.json found");
+    } catch (err) {
+      console.debug("[render-detail] names not loaded:", err?.message || err);
       return {};
     }
   })();
