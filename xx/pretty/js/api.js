@@ -31,7 +31,7 @@ export function toUtcString(ts) {
       return ts;
     }
     if (typeof ts === "number") {
-      const ms = ts > 2e12 ? ts : (ts > 2e9 ? ts * 1000 : ts * 1000);
+      const ms = ts > 1e12 ? ts : ts * 1000;
       const d = new Date(ms);
       if (!isNaN(d.getTime())) return d.toISOString().replace("T"," ").replace("Z","Z");
     }
