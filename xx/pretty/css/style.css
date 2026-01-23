@@ -48,10 +48,11 @@ a:hover{text-decoration:underline}
 }
 .navlink{
   color:var(--navmuted);
-  padding:8px 10px;
+  padding:8px 14px;
   border-radius:10px;
   display:inline-flex;
   align-items:center;
+  font-weight:600;
 }
 .navlink:hover{
   color:var(--navtext);
@@ -60,11 +61,13 @@ a:hover{text-decoration:underline}
 }
 .navlink.active{
   color:#fff;
-  background:var(--accent);
   text-decoration:none;
+  background:transparent;
+  border-bottom:2px solid var(--accent);
+  padding-bottom:6px;
 }
 .navlink.active:hover{
-  background:var(--accent2);
+  border-bottom-color:var(--accent2);
 }
 
 .wrap{max-width:1200px;margin:0 auto;padding:38px 16px 56px}
