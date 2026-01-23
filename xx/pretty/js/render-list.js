@@ -110,7 +110,7 @@ export function buildGamesRows(matches, onClick, onHexClick) {
       : `<span class="muted small">—</span>`;
 
     rows.push(`
-      <tr data-id="${encodeURIComponent(id)}">
+      <tr data-id="${encodeURIComponent(id)}" role="link" tabindex="0" aria-label="Open game details for ${escapeHtml(map)}">
         <td><a href="#" class="hexlink" title="Research timeline" data-hex="${encodeURIComponent(id)}" aria-label="Research timeline"></a></td>
         <td><a class="maplink" href="./games.html?gid=${encodeURIComponent(id)}">${escapeHtml(map)}</a></td>
         <td><code>${escapeHtml(when || "")}</code></td>
@@ -150,4 +150,14 @@ export function buildGamesRows(matches, onClick, onHexClick) {
   const id = decodeURIComponent(tr.getAttribute("data-id"));
   onClick(id);
 };
+
+  tbody.onkeydown = (e) => {
+    if (e.target.closest("a, button, input, select, textarea")) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const tr = e.target.closest("tr[data-id]");
+    if (!tr) return;
+    e.preventDefault();
+    const id = decodeURIComponent(tr.getAttribute("data-id"));
+    onClick(id);
+  };
 }
