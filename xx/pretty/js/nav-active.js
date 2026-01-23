@@ -14,6 +14,7 @@
     // More specific buckets first
     if (/(^|-)players?\.html$/.test(file) || /player/.test(file)) return "players";
     if (/lobby/.test(file)) return "lobby";
+    if (/history/.test(file)) return "history";
     if (/top|leader|elo/.test(file)) return "leaderboard";
 
     // Games + match/replay/research pages
