@@ -88,7 +88,7 @@ const normalizeSettings = (settings = {}) => {
       return DEFAULT_SETTINGS.viewDistance;
     }
 
-    return Math.max(0.1, Math.min(3, numericValue));
+    return Math.max(0.01, Math.min(3, numericValue));
   };
 
   return {

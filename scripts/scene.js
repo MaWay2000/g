@@ -135,7 +135,7 @@ export const initScene = (
       return 1;
     }
 
-    return Math.max(0.1, Math.min(3, numericValue));
+    return Math.max(0.01, Math.min(3, numericValue));
   };
 
   const parseStarSetting = (value, fallback) => {
