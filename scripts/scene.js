@@ -3929,6 +3929,9 @@ export const initScene = (
           map: texture ?? null,
           transparent: false,
           opacity: terrainStyle.opacity,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
         });
         terrainMaterials.set(materialKey, material);
         return material;
