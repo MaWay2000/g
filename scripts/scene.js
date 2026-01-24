@@ -3871,7 +3871,7 @@ export const initScene = (
       const terrainTiles = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
-      const terrainTileOverlap = cellSize * 0.01;
+      const terrainTileOverlap = cellSize * 0.002;
       const objectPlacements = Array.isArray(normalizedMap.objects)
         ? normalizedMap.objects
         : [];
