@@ -3595,6 +3595,7 @@ export const initScene = (
 
   const createOperationsExteriorEnvironment = () => {
     const group = new THREE.Group();
+    const DOOR_MARKER_PATH = "door-marker";
 
     const buildOutsideTerrainFromMap = (mapDefinition, walkwayFrontEdge) => {
       if (!mapDefinition || typeof mapDefinition !== "object") {
@@ -3655,6 +3656,9 @@ export const initScene = (
       const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
+      const mapObjectGroup = new THREE.Group();
+      mapObjectGroup.name = "operations-exterior-outside-objects";
+      mapGroup.add(mapObjectGroup);
 
       const base = new THREE.Mesh(
         new THREE.BoxGeometry(
@@ -3677,6 +3681,9 @@ export const initScene = (
       const terrainTiles = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
+      const objectPlacements = Array.isArray(normalizedMap.objects)
+        ? normalizedMap.objects
+        : [];
 
       const concealedTerrainMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
@@ -3734,6 +3741,47 @@ export const initScene = (
         });
         terrainMaterials.set(materialKey, material);
         return material;
+      };
+
+      const getPlacementWorldPosition = (placement) => {
+        const position = placement?.position ?? {};
+        const placementX = Number.isFinite(position.x) ? position.x : 0;
+        const placementZ = Number.isFinite(position.z) ? position.z : 0;
+        const column = Math.floor(placementX + width / 2);
+        const row = Math.floor(placementZ + height / 2);
+        const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
+        const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
+        const index = clampedRow * width + clampedColumn;
+        const elevation = getOutsideTerrainElevation(
+          normalizedMap.heights?.[index]
+        );
+        return {
+          x: placementX * cellSize,
+          z: mapCenterZ + placementZ * cellSize,
+          surfaceY: roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation,
+        };
+      };
+
+      const applyPlacementTransform = (object, placement, { surfaceY }) => {
+        const position = placement?.position ?? {};
+        const rotation = placement?.rotation ?? {};
+        const scale = placement?.scale ?? {};
+        const placementPosition = getPlacementWorldPosition(placement);
+        object.position.set(
+          placementPosition.x,
+          surfaceY,
+          placementPosition.z
+        );
+        object.rotation.set(
+          Number.isFinite(rotation.x) ? rotation.x : 0,
+          Number.isFinite(rotation.y) ? rotation.y : 0,
+          Number.isFinite(rotation.z) ? rotation.z : 0
+        );
+        object.scale.set(
+          Number.isFinite(scale.x) ? scale.x : 1,
+          Number.isFinite(scale.y) ? scale.y : 1,
+          Number.isFinite(scale.z) ? scale.z : 1
+        );
       };
 
       for (let row = 0; row < height; row += 1) {
@@ -3846,6 +3894,52 @@ export const initScene = (
             tile.add(hazardGlow);
           }
         }
+      }
+
+      if (objectPlacements.length > 0) {
+        objectPlacements.forEach(async (placement) => {
+          if (!placement?.path) {
+            return;
+          }
+          const placementPosition = getPlacementWorldPosition(placement);
+          if (placement.path === DOOR_MARKER_PATH) {
+            const door = createHangarDoor();
+            const doorHeight =
+              door.userData?.height ?? BASE_DOOR_HEIGHT;
+            applyPlacementTransform(door, placement, {
+              surfaceY: placementPosition.surfaceY + doorHeight / 2,
+            });
+            mapObjectGroup.add(door);
+            adjustable.push({
+              object: door,
+              offset: door.position.y - roomFloorY,
+            });
+            return;
+          }
+
+          try {
+            const model = await loadModelFromManifestEntry({
+              path: placement.path,
+            });
+            if (!model) {
+              return;
+            }
+            applyPlacementTransform(model, placement, {
+              surfaceY: placementPosition.surfaceY,
+            });
+            mapObjectGroup.add(model);
+            adjustable.push({
+              object: model,
+              offset: model.position.y - roomFloorY,
+            });
+          } catch (error) {
+            console.warn(
+              "Unable to load outside map object",
+              placement.path,
+              error
+            );
+          }
+        });
       }
 
       return {
