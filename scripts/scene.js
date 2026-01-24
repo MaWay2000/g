@@ -191,12 +191,15 @@ export const initScene = (
   };
   const BASE_VIEW_DISTANCE = 200;
   const BASE_SKY_DOME_RADIUS = 650;
+  const BASE_FOG_NEAR_FACTOR = 0.4;
+  const BASE_FOG_FAR_FACTOR = 1.4;
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
   const BASE_SUN_SCALE = 18;
   const MIN_SUN_SCALE = 6;
   let sunSprite = null;
+  let updateFogForDistance = () => {};
   const getSkyDomeRadius = (distanceMultiplier = viewSettings.distanceMultiplier) => {
     const multiplier = Number.isFinite(distanceMultiplier)
       ? distanceMultiplier
@@ -241,6 +244,7 @@ export const initScene = (
     );
     camera.updateProjectionMatrix();
     updateSunSpriteScale();
+    updateFogForDistance(viewSettings.distanceMultiplier);
     return viewSettings.distanceMultiplier;
   };
 
@@ -880,6 +884,33 @@ export const initScene = (
   const scene = new THREE.Scene();
   const skyBackgroundColor = new THREE.Color(0x000000);
   scene.background = skyBackgroundColor;
+  scene.fog = new THREE.Fog(
+    skyBackgroundColor,
+    BASE_VIEW_DISTANCE * BASE_FOG_NEAR_FACTOR * viewSettings.distanceMultiplier,
+    BASE_VIEW_DISTANCE * BASE_FOG_FAR_FACTOR * viewSettings.distanceMultiplier
+  );
+
+  updateFogForDistance = (
+    distanceMultiplier = viewSettings.distanceMultiplier
+  ) => {
+    if (!scene.fog) {
+      return;
+    }
+
+    const normalizedDistance = normalizeViewDistance(distanceMultiplier);
+    const fogNear = Math.max(
+      1,
+      BASE_VIEW_DISTANCE * BASE_FOG_NEAR_FACTOR * normalizedDistance
+    );
+    const fogFar = Math.max(
+      fogNear + 1,
+      BASE_VIEW_DISTANCE * BASE_FOG_FAR_FACTOR * normalizedDistance
+    );
+
+    scene.fog.near = fogNear;
+    scene.fog.far = fogFar;
+    scene.fog.color.copy(skyBackgroundColor);
+  };
 
   const camera = new THREE.PerspectiveCamera(
     75,
@@ -931,6 +962,7 @@ export const initScene = (
       transparent: true,
       depthWrite: false,
     });
+    material.fog = false;
 
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(BASE_SUN_SCALE, BASE_SUN_SCALE, 1);
@@ -1161,6 +1193,7 @@ export const initScene = (
         }
       `,
     });
+    material.fog = false;
     const dome = new THREE.Mesh(geometry, material);
     dome.renderOrder = -2;
     return dome;
@@ -1224,6 +1257,9 @@ export const initScene = (
       .lerp(topColor, 0.35)
       .multiplyScalar(gradientBrightness);
     scene.background = skyBackgroundColor;
+    if (scene.fog) {
+      scene.fog.color.copy(skyBackgroundColor);
+    }
     renderer.toneMappingExposure = THREE.MathUtils.lerp(0.25, 1.15, brightness);
   };
 
