@@ -3871,7 +3871,6 @@ export const initScene = (
       const terrainTiles = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
-      const terrainTileOverlap = cellSize * 0.002;
       const objectPlacements = Array.isArray(normalizedMap.objects)
         ? normalizedMap.objects
         : [];
@@ -3998,11 +3997,7 @@ export const initScene = (
             tileGeometry,
             getMaterialForTerrain(resolvedTerrain.id, tileId, index)
           );
-          tile.scale.set(
-            cellSize + terrainTileOverlap,
-            totalTileHeight,
-            cellSize + terrainTileOverlap
-          );
+          tile.scale.set(cellSize, totalTileHeight, cellSize);
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
             roomFloorY -
