@@ -227,8 +227,9 @@ export const initScene = (
     const nextDistance = normalizeViewDistance(
       nextSettings.viewDistance ?? nextSettings.distanceMultiplier
     );
+    const forceUpdate = nextSettings.force === true;
 
-    if (nextDistance === viewSettings.distanceMultiplier) {
+    if (!forceUpdate && nextDistance === viewSettings.distanceMultiplier) {
       return viewSettings.distanceMultiplier;
     }
 

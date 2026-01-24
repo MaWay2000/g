@@ -718,6 +718,7 @@ const applyViewSettingsUiState = () => {
 
   sceneController?.setViewSettings?.({
     viewDistance,
+    force: true,
   });
 };
 
