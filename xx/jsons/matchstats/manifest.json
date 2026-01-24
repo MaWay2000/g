@@ -1,9 +1,0 @@
-[
-  {
-    "shard": "matchstats/2026-01.json",
-    "month": "2026-01",
-    "count": 100,
-    "min_started_utc": "2026-01-05T04:11:17Z",
-    "max_started_utc": "2026-01-12T03:34:44Z"
-  }
-]
