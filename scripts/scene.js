@@ -189,12 +189,23 @@ export const initScene = (
     ),
   };
   const BASE_VIEW_DISTANCE = 200;
+  const BASE_SKY_DOME_RADIUS = 650;
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
   const BASE_SUN_SCALE = 18;
   const MIN_SUN_SCALE = 6;
   let sunSprite = null;
+  const getSkyDomeRadius = (distanceMultiplier = viewSettings.distanceMultiplier) => {
+    const multiplier = Number.isFinite(distanceMultiplier)
+      ? distanceMultiplier
+      : viewSettings.distanceMultiplier;
+
+    return Math.max(
+      BASE_SKY_DOME_RADIUS,
+      BASE_VIEW_DISTANCE * multiplier * 1.2
+    );
+  };
   const getMaxStepHeight = () =>
     BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
   const getJumpVelocity = () =>
@@ -221,7 +232,11 @@ export const initScene = (
     }
 
     viewSettings.distanceMultiplier = nextDistance;
-    camera.far = BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier;
+    const targetSkyRadius = getSkyDomeRadius(viewSettings.distanceMultiplier);
+    camera.far = Math.max(
+      BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier,
+      targetSkyRadius * 1.05
+    );
     camera.updateProjectionMatrix();
     updateSunSpriteScale();
     return viewSettings.distanceMultiplier;
@@ -923,7 +938,6 @@ export const initScene = (
     skyState: defaultSkyState,
   };
 
-  const BASE_SKY_DOME_RADIUS = 650;
   const createSkyDome = () => {
     const geometry = new THREE.SphereGeometry(BASE_SKY_DOME_RADIUS, 48, 32);
     const material = new THREE.ShaderMaterial({
@@ -1107,10 +1121,7 @@ export const initScene = (
     const sunHeight = THREE.MathUtils.lerp(18, 72, sunVisibility);
     const sunDepth = THREE.MathUtils.lerp(140, 90, sunVisibility);
 
-    const targetRadius = Math.max(
-      BASE_SKY_DOME_RADIUS,
-      BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier * 1.2
-    );
+    const targetRadius = getSkyDomeRadius();
     const domeScale = targetRadius / BASE_SKY_DOME_RADIUS;
 
     skyDome.position.copy(playerPosition);
