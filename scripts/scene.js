@@ -44,6 +44,7 @@ import { samplePeriodicElement } from "./data/periodic-elements.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_ELEMENT_WEIGHT = 1;
+const TERRAIN_LAYER = 1;
 
 const getElementWeightFromAtomicNumber = (number) => {
   if (!Number.isFinite(number) || number <= 0) {
@@ -278,6 +279,27 @@ export const initScene = (
     return texture;
   })();
 
+  const createTerrainDepthTarget = () => {
+    const pixelRatio = renderer.getPixelRatio();
+    const width = Math.max(1, Math.round(window.innerWidth * pixelRatio));
+    const height = Math.max(1, Math.round(window.innerHeight * pixelRatio));
+    const target = new THREE.WebGLRenderTarget(width, height);
+    target.texture.minFilter = THREE.NearestFilter;
+    target.texture.magFilter = THREE.NearestFilter;
+    target.texture.generateMipmaps = false;
+    target.depthTexture = new THREE.DepthTexture(width, height);
+    target.depthTexture.format = THREE.DepthFormat;
+    target.depthTexture.type = THREE.UnsignedShortType;
+    target.depthTexture.minFilter = THREE.NearestFilter;
+    target.depthTexture.magFilter = THREE.NearestFilter;
+    return target;
+  };
+
+  const terrainDepthMaterial = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.BasicDepthPacking,
+  });
+  terrainDepthMaterial.blending = THREE.NoBlending;
+
   const registeredStarFields = new Set();
   let allowStarsForTimeOfDay = true;
   let starVisibilityForTime = 1;
@@ -314,6 +336,7 @@ export const initScene = (
     starField.material?.dispose?.();
 
     const refreshed = createStarField(config);
+    applyStarDepthMaterial(refreshed);
 
     if (refreshed) {
       if (Number.isFinite(yOffset)) {
@@ -604,6 +627,172 @@ export const initScene = (
     return starField;
   };
 
+  const createStarDepthMaterial = (sourceMaterial) => {
+    const size = Number.isFinite(sourceMaterial?.size)
+      ? sourceMaterial.size
+      : 0.06;
+    const opacity = Number.isFinite(sourceMaterial?.opacity)
+      ? sourceMaterial.opacity
+      : 1;
+    const alphaTest = Number.isFinite(sourceMaterial?.alphaTest)
+      ? sourceMaterial.alphaTest
+      : 0.01;
+    const map = sourceMaterial?.map ?? starSpriteTexture;
+
+    const material = new THREE.ShaderMaterial({
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      vertexColors: true,
+      uniforms: {
+        uSize: { value: size },
+        uOpacity: { value: opacity },
+        uAlphaTest: { value: alphaTest },
+        uPointTexture: { value: map },
+        uDepthTexture: { value: null },
+        uCameraNear: { value: camera.near },
+        uCameraFar: { value: camera.far },
+        uProjectionMatrix: { value: new THREE.Matrix4() },
+        uViewMatrix: { value: new THREE.Matrix4() },
+        uPixelRatio: { value: renderer.getPixelRatio() },
+      },
+      vertexShader: `
+        uniform float uSize;
+        uniform float uPixelRatio;
+        uniform mat4 uProjectionMatrix;
+        uniform mat4 uViewMatrix;
+        varying vec3 vColor;
+        varying vec2 vScreenUv;
+
+        void main() {
+          vColor = color;
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vec4 viewPosition = uViewMatrix * worldPosition;
+          vec4 clipPosition = uProjectionMatrix * viewPosition;
+          gl_Position = clipPosition;
+          vScreenUv = clipPosition.xy / clipPosition.w * 0.5 + 0.5;
+          float perspectiveScale = viewPosition.z < 0.0 ? (1.0 / -viewPosition.z) : 1.0;
+          gl_PointSize = uSize * perspectiveScale * uPixelRatio;
+        }
+      `,
+      fragmentShader: `
+        uniform float uOpacity;
+        uniform float uAlphaTest;
+        uniform sampler2D uPointTexture;
+        uniform sampler2D uDepthTexture;
+        uniform float uCameraNear;
+        uniform float uCameraFar;
+        varying vec3 vColor;
+        varying vec2 vScreenUv;
+
+        float perspectiveDepthToViewZ(const in float depth, const in float near, const in float far) {
+          return (near * far) / ((far - near) * depth - far);
+        }
+
+        void main() {
+          vec4 texColor = texture2D(uPointTexture, gl_PointCoord);
+          vec4 color = vec4(vColor, uOpacity) * texColor;
+          if (color.a <= uAlphaTest) {
+            discard;
+          }
+          if (
+            vScreenUv.x >= 0.0 &&
+            vScreenUv.x <= 1.0 &&
+            vScreenUv.y >= 0.0 &&
+            vScreenUv.y <= 1.0
+          ) {
+            float terrainDepth = texture2D(uDepthTexture, vScreenUv).r;
+            if (terrainDepth < 1.0) {
+              float terrainViewZ = perspectiveDepthToViewZ(terrainDepth, uCameraNear, uCameraFar);
+              float starViewZ = perspectiveDepthToViewZ(gl_FragCoord.z, uCameraNear, uCameraFar);
+              float terrainLinear = -terrainViewZ;
+              float starLinear = -starViewZ;
+              if (starLinear > terrainLinear + 0.05) {
+                discard;
+              }
+            }
+          }
+          gl_FragColor = color;
+        }
+      `,
+    });
+
+    material.opacity = opacity;
+
+    return material;
+  };
+
+  const applyStarDepthMaterial = (starField) => {
+    if (!starField?.material) {
+      return;
+    }
+
+    if (
+      starField.material?.isShaderMaterial &&
+      starField.material?.uniforms?.uDepthTexture
+    ) {
+      return;
+    }
+
+    const sourceMaterial = starField.material;
+    const depthMaterial = createStarDepthMaterial(sourceMaterial);
+    starField.material = depthMaterial;
+    sourceMaterial.dispose?.();
+  };
+
+  const updateStarDepthUniforms = () => {
+    registeredStarFields.forEach((starField) => {
+      const material = starField?.material;
+      if (
+        !material?.isShaderMaterial ||
+        !material.uniforms?.uDepthTexture
+      ) {
+        return;
+      }
+
+      material.uniforms.uDepthTexture.value = terrainDepthTarget.depthTexture;
+      material.uniforms.uCameraNear.value = camera.near;
+      material.uniforms.uCameraFar.value = camera.far;
+      material.uniforms.uProjectionMatrix.value.copy(camera.projectionMatrix);
+      material.uniforms.uViewMatrix.value.copy(camera.matrixWorldInverse);
+      material.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+      material.uniforms.uOpacity.value = material.opacity;
+    });
+  };
+
+  const enableTerrainLayerForTiles = (tiles = []) => {
+    tiles.forEach((tile) => {
+      if (!tile) {
+        return;
+      }
+
+      tile.layers.enable(TERRAIN_LAYER);
+      tile.traverse?.((child) => {
+        child.layers.enable(TERRAIN_LAYER);
+      });
+    });
+  };
+
+  const updateTerrainDepthTexture = () => {
+    if (!terrainDepthTarget) {
+      return;
+    }
+
+    const previousRenderTarget = renderer.getRenderTarget();
+    const previousOverrideMaterial = scene.overrideMaterial;
+    const previousLayerMask = camera.layers.mask;
+
+    camera.layers.set(TERRAIN_LAYER);
+    scene.overrideMaterial = terrainDepthMaterial;
+    renderer.setRenderTarget(terrainDepthTarget);
+    renderer.clear();
+    renderer.render(scene, camera);
+
+    renderer.setRenderTarget(previousRenderTarget);
+    scene.overrideMaterial = previousOverrideMaterial;
+    camera.layers.mask = previousLayerMask;
+  };
+
   const createRenderer = () => {
     const testCanvas = document.createElement("canvas");
     const webglContextTypes = ["webgl2", "webgl", "experimental-webgl"];
@@ -685,6 +874,7 @@ export const initScene = (
     Math.min(devicePixelRatio, Math.max(0.5, effectivePixelRatioCap))
   );
   renderer.setSize(window.innerWidth, window.innerHeight, false);
+  const terrainDepthTarget = createTerrainDepthTarget();
 
   const scene = new THREE.Scene();
   const skyBackgroundColor = new THREE.Color(0x000000);
@@ -4073,6 +4263,7 @@ export const initScene = (
       opacity: 0.82,
       distribution: "spherical",
     });
+    applyStarDepthMaterial(primaryStarField);
     group.add(primaryStarField);
 
     const distantStarField = createStarField({
@@ -4084,6 +4275,7 @@ export const initScene = (
       colorVariance: 0.06,
       distribution: "spherical",
     });
+    applyStarDepthMaterial(distantStarField);
     group.add(distantStarField);
 
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
@@ -4711,6 +4903,7 @@ export const initScene = (
       opacity: 0.8,
       distribution: "spherical",
     });
+    applyStarDepthMaterial(nearStarField);
     group.add(nearStarField);
 
     const farStarField = createStarField({
@@ -4722,6 +4915,7 @@ export const initScene = (
       colorVariance: 0.06,
       distribution: "spherical",
     });
+    applyStarDepthMaterial(farStarField);
     group.add(farStarField);
 
     adjustableEntries.push(
@@ -5079,6 +5273,8 @@ export const initScene = (
       const terrainTiles = Array.isArray(environment?.terrainTiles)
         ? environment.terrainTiles.filter((tile) => tile && tile.isObject3D)
         : [];
+
+      enableTerrainLayerForTiles(terrainTiles);
 
       const starFields = Array.isArray(environment?.starFields)
         ? environment.starFields.filter((field) => field?.isObject3D)
@@ -8386,6 +8582,8 @@ export const initScene = (
     updateTimeOfDay();
     updateStarFieldPositions();
     updateSkyBackdrop();
+    updateTerrainDepthTexture();
+    updateStarDepthUniforms();
 
     renderer.render(scene, camera);
   };
@@ -8399,6 +8597,13 @@ export const initScene = (
     renderer.setSize(width, safeHeight, false);
     camera.aspect = width / safeHeight;
     camera.updateProjectionMatrix();
+    if (terrainDepthTarget) {
+      const pixelRatio = renderer.getPixelRatio();
+      terrainDepthTarget.setSize(
+        Math.max(1, Math.round(width * pixelRatio)),
+        Math.max(1, Math.round(safeHeight * pixelRatio))
+      );
+    }
 
     reflectiveSurfaces.forEach((reflector) => {
       const renderTarget = reflector?.renderTarget;
