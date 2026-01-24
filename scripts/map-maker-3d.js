@@ -869,6 +869,23 @@ export const initMapMaker3d = ({
     };
   };
 
+  const alignObjectToSurface = (object, surfaceY) => {
+    if (!object || !Number.isFinite(surfaceY)) {
+      return;
+    }
+    object.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(object);
+    if (!Number.isFinite(bounds.min.y)) {
+      return;
+    }
+    const offset = surfaceY - bounds.min.y;
+    if (!Number.isFinite(offset) || Math.abs(offset) < 0.0001) {
+      return;
+    }
+    object.position.y += offset;
+    object.updateMatrixWorld(true);
+  };
+
   const applyObjectTransform = (object, placement) => {
     const position = placement?.position ?? { x: 0, y: 0, z: 0 };
     const rotation = placement?.rotation ?? { x: 0, y: 0, z: 0 };
@@ -876,6 +893,7 @@ export const initMapMaker3d = ({
     object.position.set(position.x, position.y, position.z);
     object.rotation.set(rotation.x, rotation.y, rotation.z);
     object.scale.set(scale.x, scale.y, scale.z);
+    alignObjectToSurface(object, position.y);
   };
 
   const updateObjectPlacements = (placements) => {
