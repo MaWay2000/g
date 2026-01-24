@@ -3953,7 +3953,28 @@ export const initScene = (
         };
       };
 
-      const applyPlacementTransform = (object, placement, { surfaceY }) => {
+      const alignObjectToSurface = (object, surfaceY) => {
+        if (!object || !Number.isFinite(surfaceY)) {
+          return;
+        }
+        object.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(object);
+        if (!Number.isFinite(bounds.min.y)) {
+          return;
+        }
+        const offset = surfaceY - bounds.min.y;
+        if (!Number.isFinite(offset) || Math.abs(offset) < 0.0001) {
+          return;
+        }
+        object.position.y += offset;
+        object.updateMatrixWorld(true);
+      };
+
+      const applyPlacementTransform = (
+        object,
+        placement,
+        { surfaceY, alignToSurface = true }
+      ) => {
         const position = placement?.position ?? {};
         const rotation = placement?.rotation ?? {};
         const scale = placement?.scale ?? {};
@@ -3973,6 +3994,9 @@ export const initScene = (
           Number.isFinite(scale.y) ? scale.y : 1,
           Number.isFinite(scale.z) ? scale.z : 1
         );
+        if (alignToSurface) {
+          alignObjectToSurface(object, surfaceY);
+        }
       };
 
       for (let row = 0; row < height; row += 1) {
@@ -4099,6 +4123,7 @@ export const initScene = (
               door.userData?.height ?? BASE_DOOR_HEIGHT;
             applyPlacementTransform(door, placement, {
               surfaceY: placementPosition.surfaceY + doorHeight / 2,
+              alignToSurface: false,
             });
             mapObjectGroup.add(door);
             adjustable.push({
@@ -4117,6 +4142,7 @@ export const initScene = (
             }
             applyPlacementTransform(model, placement, {
               surfaceY: placementPosition.surfaceY,
+              alignToSurface: true,
             });
             mapObjectGroup.add(model);
             adjustable.push({
