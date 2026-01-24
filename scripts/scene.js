@@ -192,6 +192,7 @@ export const initScene = (
   const BASE_VIEW_DISTANCE = 200;
   const BASE_SKY_DOME_RADIUS = 650;
   const BASE_FOG_DENSITY = 0.006;
+  const MIN_FOG_DENSITY = 0.002;
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
@@ -208,6 +209,12 @@ export const initScene = (
       BASE_SKY_DOME_RADIUS,
       BASE_VIEW_DISTANCE * multiplier * 1.2
     );
+  };
+  const getFogDensity = (
+    distanceMultiplier = viewSettings.distanceMultiplier
+  ) => {
+    const normalizedDistance = normalizeViewDistance(distanceMultiplier);
+    return Math.max(MIN_FOG_DENSITY, BASE_FOG_DENSITY / normalizedDistance);
   };
   const getMaxStepHeight = () =>
     BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
@@ -885,7 +892,7 @@ export const initScene = (
   scene.background = skyBackgroundColor;
   scene.fog = new THREE.FogExp2(
     skyBackgroundColor,
-    BASE_FOG_DENSITY / viewSettings.distanceMultiplier
+    getFogDensity(viewSettings.distanceMultiplier)
   );
 
   updateFogForDistance = (
@@ -895,8 +902,7 @@ export const initScene = (
       return;
     }
 
-    const normalizedDistance = normalizeViewDistance(distanceMultiplier);
-    scene.fog.density = BASE_FOG_DENSITY / normalizedDistance;
+    scene.fog.density = getFogDensity(distanceMultiplier);
     scene.fog.color.copy(skyBackgroundColor);
   };
 
