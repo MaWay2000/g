@@ -1066,6 +1066,14 @@ export const initMapMaker3d = ({
   const hasSelection = () =>
     Number.isFinite(selectionStart) && Number.isFinite(selectionEnd);
 
+  const getCellElevation = (index, offset = 0) => {
+    if (!lastMap) {
+      return TERRAIN_HEIGHT + offset;
+    }
+    const heightValue = lastMap.heights?.[index];
+    return getTerrainHeight(heightValue) + offset;
+  };
+
   const updateBrushPreview = (index) => {
     if (!Number.isFinite(index)) {
       highlightMesh.visible = false;
@@ -1112,12 +1120,13 @@ export const initMapMaker3d = ({
 
     let instanceIndex = 0;
     const tempMatrix = new THREE.Matrix4();
-    const elevation = TERRAIN_HEIGHT + 0.08;
     for (let row = startY; row <= endY; row += 1) {
       for (let col = startX; col <= endX; col += 1) {
         if (col < 0 || col >= mapWidth || row < 0 || row >= mapHeight) {
           tempMatrix.makeTranslation(0, -999, 0);
         } else {
+          const cellIndex = row * mapWidth + col;
+          const elevation = getCellElevation(cellIndex, 0.08);
           const worldX = col - mapWidth / 2 + 0.5;
           const worldZ = row - mapHeight / 2 + 0.5;
           tempMatrix.makeTranslation(worldX, elevation, worldZ);
@@ -1165,9 +1174,10 @@ export const initMapMaker3d = ({
     }
     let instanceIndex = 0;
     const tempMatrix = new THREE.Matrix4();
-    const elevation = TERRAIN_HEIGHT + 0.06;
     for (let row = minY; row <= maxY; row += 1) {
       for (let col = minX; col <= maxX; col += 1) {
+        const cellIndex = row * mapWidth + col;
+        const elevation = getCellElevation(cellIndex, 0.06);
         const worldX = col - mapWidth / 2 + 0.5;
         const worldZ = row - mapHeight / 2 + 0.5;
         tempMatrix.makeTranslation(worldX, elevation, worldZ);
