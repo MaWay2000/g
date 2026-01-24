@@ -497,7 +497,6 @@ if (viewSettingsToggleButton instanceof HTMLButtonElement) {
     }
 
     setViewSettingsExpanded(!isExpanded);
-    applyViewSettingsUiState();
   });
 }
 
