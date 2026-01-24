@@ -191,8 +191,7 @@ export const initScene = (
   };
   const BASE_VIEW_DISTANCE = 200;
   const BASE_SKY_DOME_RADIUS = 650;
-  const BASE_FOG_NEAR_FACTOR = 0.4;
-  const BASE_FOG_FAR_FACTOR = 1.4;
+  const BASE_FOG_DENSITY = 0.006;
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
@@ -884,10 +883,9 @@ export const initScene = (
   const scene = new THREE.Scene();
   const skyBackgroundColor = new THREE.Color(0x000000);
   scene.background = skyBackgroundColor;
-  scene.fog = new THREE.Fog(
+  scene.fog = new THREE.FogExp2(
     skyBackgroundColor,
-    BASE_VIEW_DISTANCE * BASE_FOG_NEAR_FACTOR * viewSettings.distanceMultiplier,
-    BASE_VIEW_DISTANCE * BASE_FOG_FAR_FACTOR * viewSettings.distanceMultiplier
+    BASE_FOG_DENSITY / viewSettings.distanceMultiplier
   );
 
   updateFogForDistance = (
@@ -898,17 +896,7 @@ export const initScene = (
     }
 
     const normalizedDistance = normalizeViewDistance(distanceMultiplier);
-    const fogNear = Math.max(
-      1,
-      BASE_VIEW_DISTANCE * BASE_FOG_NEAR_FACTOR * normalizedDistance
-    );
-    const fogFar = Math.max(
-      fogNear + 1,
-      BASE_VIEW_DISTANCE * BASE_FOG_FAR_FACTOR * normalizedDistance
-    );
-
-    scene.fog.near = fogNear;
-    scene.fog.far = fogFar;
+    scene.fog.density = BASE_FOG_DENSITY / normalizedDistance;
     scene.fog.color.copy(skyBackgroundColor);
   };
 
