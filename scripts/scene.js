@@ -191,7 +191,7 @@ export const initScene = (
   };
   const BASE_VIEW_DISTANCE = 200;
   const BASE_SKY_DOME_RADIUS = 650;
-  const FOG_TARGET_FACTOR = 0.98;
+  const BASE_FOG_DENSITY = 0.006;
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
@@ -880,31 +880,12 @@ export const initScene = (
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   const terrainDepthTarget = createTerrainDepthTarget();
 
-  const getFogDensityForDistance = (
-    distanceMultiplier = viewSettings.distanceMultiplier,
-    farDistance
-  ) => {
-    const normalizedDistance = normalizeViewDistance(distanceMultiplier);
-    const effectiveFar = Number.isFinite(farDistance)
-      ? farDistance
-      : BASE_VIEW_DISTANCE * normalizedDistance;
-    const clampedTarget = Math.min(Math.max(FOG_TARGET_FACTOR, 0.8), 0.999);
-
-    return (
-      Math.sqrt(-Math.log(1 - clampedTarget)) /
-      Math.max(1, effectiveFar)
-    );
-  };
-
   const scene = new THREE.Scene();
   const skyBackgroundColor = new THREE.Color(0x000000);
   scene.background = skyBackgroundColor;
   scene.fog = new THREE.FogExp2(
     skyBackgroundColor,
-    getFogDensityForDistance(
-      viewSettings.distanceMultiplier,
-      BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier
-    )
+    BASE_FOG_DENSITY / viewSettings.distanceMultiplier
   );
 
   updateFogForDistance = (
@@ -914,10 +895,8 @@ export const initScene = (
       return;
     }
 
-    scene.fog.density = getFogDensityForDistance(
-      distanceMultiplier,
-      camera?.far
-    );
+    const normalizedDistance = normalizeViewDistance(distanceMultiplier);
+    scene.fog.density = BASE_FOG_DENSITY / normalizedDistance;
     scene.fog.color.copy(skyBackgroundColor);
   };
 
@@ -932,7 +911,6 @@ export const initScene = (
   const MIN_PLAYER_HEIGHT = 0.1;
   const ROOM_SCALE_FACTOR = 0.25;
   camera.position.set(0, 0, 8 * ROOM_SCALE_FACTOR);
-  updateFogForDistance(viewSettings.distanceMultiplier);
 
   const textureLoader = new THREE.TextureLoader();
 
