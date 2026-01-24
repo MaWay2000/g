@@ -450,114 +450,6 @@ export const initScene = (
     applyStarVisibility();
   };
 
-  const applyStarOpacityMaterial = (material) => {
-    if (!material || material.userData?.usesStarOpacityAttribute) {
-      return;
-    }
-
-    const baseOnBeforeCompile = material.onBeforeCompile;
-    const baseCacheKey = material.customProgramCacheKey?.bind(material);
-
-    material.onBeforeCompile = (shader) => {
-      if (typeof baseOnBeforeCompile === "function") {
-        baseOnBeforeCompile(shader);
-      }
-
-      shader.vertexShader = `attribute float opacity;\nvarying float vOpacity;\n${shader.vertexShader}`;
-      shader.vertexShader = shader.vertexShader.replace(
-        "gl_Position = projectionMatrix * mvPosition;",
-        "vOpacity = opacity;\n  gl_Position = projectionMatrix * mvPosition;"
-      );
-      shader.fragmentShader = `varying float vOpacity;\n${shader.fragmentShader}`;
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "gl_FragColor = vec4( outgoingLight, diffuseColor.a );",
-        "gl_FragColor = vec4( outgoingLight, diffuseColor.a * vOpacity );"
-      );
-    };
-
-    material.customProgramCacheKey = () => {
-      const baseKey = typeof baseCacheKey === "function" ? baseCacheKey() : "base";
-      return `star-opacity-${baseKey}`;
-    };
-
-    material.userData = {
-      ...(material.userData ?? {}),
-      usesStarOpacityAttribute: true,
-    };
-    material.needsUpdate = true;
-  };
-
-  const starOcclusionRaycaster = new THREE.Raycaster();
-  const starOcclusionOrigin = new THREE.Vector3();
-  const starOcclusionDirection = new THREE.Vector3();
-  const starOcclusionWorldPosition = new THREE.Vector3();
-
-  const updateStarOcclusionForView = () => {
-    if (
-      !camera ||
-      !Array.isArray(activeTerrainTiles) ||
-      activeTerrainTiles.length === 0
-    ) {
-      return;
-    }
-
-    starOcclusionOrigin.copy(camera.position);
-
-    registeredStarFields.forEach((starField) => {
-      if (!starField?.geometry?.attributes?.position || !starField.visible) {
-        return;
-      }
-
-      starField.updateMatrixWorld(true);
-      applyStarOpacityMaterial(starField.material);
-
-      const positionAttribute = starField.geometry.attributes.position;
-      const starCount = positionAttribute.count;
-      let opacityAttribute = starField.geometry.attributes.opacity;
-
-      if (!opacityAttribute || opacityAttribute.count !== starCount) {
-        const initialOpacity = new Float32Array(starCount);
-        initialOpacity.fill(1);
-        opacityAttribute = new THREE.Float32BufferAttribute(initialOpacity, 1);
-        starField.geometry.setAttribute("opacity", opacityAttribute);
-      }
-
-      for (let i = 0; i < starCount; i += 1) {
-        starOcclusionWorldPosition
-          .fromBufferAttribute(positionAttribute, i)
-          .applyMatrix4(starField.matrixWorld);
-
-        starOcclusionDirection.subVectors(
-          starOcclusionWorldPosition,
-          starOcclusionOrigin
-        );
-
-        const distanceToStar = starOcclusionDirection.length();
-        if (distanceToStar <= 0.0001) {
-          opacityAttribute.setX(i, 1);
-          continue;
-        }
-
-        starOcclusionDirection.divideScalar(distanceToStar);
-        starOcclusionRaycaster.set(starOcclusionOrigin, starOcclusionDirection);
-        starOcclusionRaycaster.far = distanceToStar;
-
-        const intersections = starOcclusionRaycaster.intersectObjects(
-          activeTerrainTiles,
-          true
-        );
-        const isOccluded =
-          intersections.length > 0 &&
-          Number.isFinite(intersections[0]?.distance) &&
-          intersections[0].distance < distanceToStar;
-
-        opacityAttribute.setX(i, isOccluded ? 0 : 1);
-      }
-
-      opacityAttribute.needsUpdate = true;
-    });
-  };
-
   const updateStarFieldPositions = () => {
     const playerPosition = playerObject?.position;
 
@@ -8493,7 +8385,6 @@ export const initScene = (
     updateResourceSessions(delta);
     updateTimeOfDay();
     updateStarFieldPositions();
-    updateStarOcclusionForView();
     updateSkyBackdrop();
 
     renderer.render(scene, camera);
