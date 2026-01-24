@@ -1176,7 +1176,10 @@ export const initMapMaker3d = ({
     if (!intersects.length) {
       return null;
     }
-    const point = intersects[0].point;
+    const topHit =
+      intersects.find((hit) => (hit.face?.normal?.y ?? 0) > 0.5) ??
+      intersects[0];
+    const point = topHit.point;
     const xIndex = Math.floor(point.x + mapWidth / 2);
     const yIndex = Math.floor(point.z + mapHeight / 2);
     if (
