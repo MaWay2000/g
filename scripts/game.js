@@ -8461,7 +8461,9 @@ const handleGeoVisorQuickSlotChange = (event) => {
   }
 
   const { slot } = event.detail ?? {};
-  const isActive = GEO_VISOR_SLOT_IDS.has(slot?.id);
+  const selectedSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
+  const activeSlot = slot?.activateOnly ? selectedSlot : slot;
+  const isActive = GEO_VISOR_SLOT_IDS.has(activeSlot?.id);
   sceneController?.setGeoVisorEnabled?.(isActive);
 };
 
