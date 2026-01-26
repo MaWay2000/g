@@ -1468,10 +1468,10 @@ export const initScene = (
     }
 
     const playerColumn = Math.floor(
-      (playerPosition.x - mapLeftEdge) / cellSize + 0.5
+      (playerPosition.x - mapLeftEdge) / cellSize
     );
     const playerRow = Math.floor(
-      (playerPosition.z - mapNearEdge) / cellSize + 0.5
+      (playerPosition.z - mapNearEdge) / cellSize
     );
 
     if (
