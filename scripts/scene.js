@@ -3930,7 +3930,11 @@ export const initScene = (
     const group = new THREE.Group();
     const DOOR_MARKER_PATH = "door-marker";
 
-    const buildOutsideTerrainFromMap = (mapDefinition, walkwayFrontEdge) => {
+    const buildOutsideTerrainFromMap = (
+      mapDefinition,
+      walkwayFrontEdge,
+      playerStartZ
+    ) => {
       if (!mapDefinition || typeof mapDefinition !== "object") {
         return null;
       }
@@ -3980,7 +3984,9 @@ export const initScene = (
 
       const mapWorldWidth = width * cellSize;
       const mapWorldDepth = height * cellSize;
-      const mapNearEdge = walkwayFrontEdge;
+      const mapNearEdge = Number.isFinite(playerStartZ)
+        ? playerStartZ - (height / 2) * cellSize
+        : walkwayFrontEdge;
       const mapFarEdge = mapNearEdge + mapWorldDepth;
       const mapCenterZ = (mapNearEdge + mapFarEdge) / 2;
       const mapLeftEdge = -mapWorldWidth / 2;
@@ -4432,7 +4438,8 @@ export const initScene = (
     try {
       builtOutsideTerrain = buildOutsideTerrainFromMap(
         storedOutsideMap,
-        walkwayFrontEdge
+        walkwayFrontEdge,
+        operationsExteriorTeleportOffset?.z
       );
     } catch (error) {
       console.warn("Unable to build exterior terrain from map", error);
