@@ -4073,19 +4073,38 @@ export const initScene = (
         return material;
       };
 
-      const getGeoVisorMaterialForTerrain = (terrainId) => {
-        if (geoVisorMaterials.has(terrainId)) {
-          return geoVisorMaterials.get(terrainId);
+      const getGeoVisorMaterialForTerrain = (
+        terrainId,
+        tileId,
+        variantIndex
+      ) => {
+        const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
+        const materialKey = `${terrainId}:${texturePath ?? "none"}`;
+
+        if (geoVisorMaterials.has(materialKey)) {
+          return geoVisorMaterials.get(materialKey);
         }
 
+        const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
+          DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
         const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-        const material = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(terrainColor),
-          transparent: false,
-          opacity: 1,
+        const texture = getTextureForTerrainTile(tileId, variantIndex);
+        const baseColor = texture ? 0xffffff : terrainColor;
+        const material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(baseColor),
+          roughness: terrainStyle.roughness,
+          metalness: terrainStyle.metalness,
+          emissive: new THREE.Color(terrainColor),
+          emissiveIntensity: Math.max(
+            0.65,
+            terrainStyle.emissiveIntensity ?? 0
+          ),
+          map: texture ?? null,
+          transparent: true,
+          opacity: terrainStyle.opacity ?? 1,
         });
-        geoVisorMaterials.set(terrainId, material);
+        geoVisorMaterials.set(materialKey, material);
         return material;
       };
 
@@ -4205,7 +4224,9 @@ export const initScene = (
           tile.userData.geoVisorMapNearEdge = mapNearEdge;
           tile.userData.geoVisorRevealedMaterial = tile.material;
           tile.userData.geoVisorVisorMaterial = getGeoVisorMaterialForTerrain(
-            resolvedTerrain.id
+            resolvedTerrain.id,
+            tileId,
+            index
           );
           tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
           tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
