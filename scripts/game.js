@@ -33,6 +33,11 @@ import {
 } from "./currency.js";
 import { loadMarketState, persistMarketState } from "./market-state-storage.js";
 import { loadStoredTodos, persistTodos } from "./todo-storage.js";
+import {
+  clearStoredTerrainLife,
+  loadStoredTerrainLife,
+  persistTerrainLifeState,
+} from "./terrain-life-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -1015,6 +1020,41 @@ const terrainLifeById = new Map(
     (terrain) => [terrain.id, Number.isFinite(terrain?.hp) ? terrain.hp : 0]
   )
 );
+const applyStoredTerrainLife = () => {
+  const storedTerrainLife = loadStoredTerrainLife();
+
+  if (!(storedTerrainLife instanceof Map)) {
+    return;
+  }
+
+  storedTerrainLife.forEach((value, terrainId) => {
+    if (!terrainLifeById.has(terrainId)) {
+      return;
+    }
+
+    const terrain = getOutsideTerrainById(terrainId);
+    const maxLife = Number.isFinite(terrain?.hp) ? terrain.hp : 0;
+    const nextLife = Number.isFinite(value)
+      ? Math.max(0, Math.min(maxLife, value))
+      : null;
+
+    if (nextLife !== null) {
+      terrainLifeById.set(terrainId, nextLife);
+    }
+  });
+};
+let persistTerrainLifeTimeoutId = 0;
+const schedulePersistTerrainLife = () => {
+  if (persistTerrainLifeTimeoutId) {
+    window.clearTimeout(persistTerrainLifeTimeoutId);
+  }
+
+  persistTerrainLifeTimeoutId = window.setTimeout(() => {
+    persistTerrainLifeTimeoutId = 0;
+    persistTerrainLifeState(terrainLifeById);
+  }, 100);
+};
+applyStoredTerrainLife();
 const getTerrainLifeValue = (terrain) => {
   if (!terrain?.id) {
     return 0;
@@ -1039,6 +1079,7 @@ const decreaseTerrainLife = (terrainId, amount = 1) => {
   const nextLife = Math.max(0, currentLife - drain);
 
   terrainLifeById.set(terrainId, nextLife);
+  schedulePersistTerrainLife();
   return nextLife;
 };
 
@@ -8917,6 +8958,7 @@ function handleReset(event) {
 
     clearStoredDroneState();
     clearStoredSettings();
+    clearStoredTerrainLife();
 
     sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, {
       persist: false,
