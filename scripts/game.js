@@ -935,7 +935,7 @@ const quickSlotDefinitions = [
   },
   {
     id: "photon-cutter",
-    label: "GeoScan Visor",
+    label: "Geo Visor",
     description: "Visor tuned for precision terrain analysis.",
     icon: "🥽",
   },
