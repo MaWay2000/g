@@ -8480,16 +8480,24 @@ const handleManifestPlacementRemoved = (entry) => {
 };
 
 const applyTerrainLifeDrain = (detail) => {
-  if (!detail?.found || !detail.element) {
-    return;
-  }
-
   const terrainId = detail?.terrain?.id ?? null;
   if (!terrainId) {
     return;
   }
 
-  decreaseTerrainLife(terrainId, 1);
+  if (detail?.found === false) {
+    decreaseTerrainLife(terrainId, 1);
+    return;
+  }
+
+  if (!detail?.found || !detail.element) {
+    return;
+  }
+
+  const drainAmount = getInventoryElementWeight(detail.element);
+  if (Number.isFinite(drainAmount) && drainAmount > 0) {
+    decreaseTerrainLife(terrainId, drainAmount);
+  }
 };
 
 const bootstrapScene = () => {
