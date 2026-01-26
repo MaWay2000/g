@@ -271,6 +271,97 @@
         color: rgba(148, 163, 184, 0.9);
       }
 
+      .geo-scan-panel {
+        position: fixed;
+        left: 50%;
+        bottom: clamp(7.5rem, 14vw, 10.5rem);
+        transform: translateX(-50%);
+        width: min(560px, 92vw);
+        padding: clamp(0.75rem, 2vw, 1rem);
+        border-radius: 18px;
+        border: 1px solid rgba(56, 189, 248, 0.45);
+        background: rgba(15, 23, 42, 0.88);
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(10px);
+        color: rgba(226, 232, 240, 0.96);
+        pointer-events: none;
+        z-index: 5;
+      }
+
+      .geo-scan-panel__header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .geo-scan-panel__eyebrow {
+        margin: 0;
+        font-size: 0.68rem;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: rgba(125, 211, 252, 0.75);
+      }
+
+      .geo-scan-panel__terrain {
+        margin: 0;
+        font-size: clamp(1rem, 2.2vw, 1.2rem);
+        font-weight: 600;
+      }
+
+      .geo-scan-panel__life {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.85rem;
+      }
+
+      .geo-scan-panel__life-label,
+      .geo-scan-panel__elements-label {
+        margin: 0;
+        font-size: 0.75rem;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .geo-scan-panel__life-bar {
+        position: relative;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(30, 41, 59, 0.8);
+        overflow: hidden;
+      }
+
+      .geo-scan-panel__life-fill {
+        position: absolute;
+        inset: 0;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #38bdf8, #0ea5e9, #22d3ee);
+        transition: width 180ms ease;
+      }
+
+      .geo-scan-panel__life-value {
+        font-size: 0.75rem;
+        color: rgba(226, 232, 240, 0.85);
+        white-space: nowrap;
+      }
+
+      .geo-scan-panel__elements {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .geo-scan-panel__elements-list {
+        margin: 0;
+        font-size: 0.78rem;
+        line-height: 1.5;
+        color: rgba(226, 232, 240, 0.88);
+        max-height: 6.8rem;
+        overflow: auto;
+      }
+
       .quick-slot-bar {
         position: fixed;
         left: 50%;
@@ -4186,6 +4277,33 @@
           >
             Standard issue excavation module.
           </p>
+        </div>
+      </div>
+
+      <div class="geo-scan-panel" data-geo-scan-panel hidden>
+        <div class="geo-scan-panel__header">
+          <p class="geo-scan-panel__eyebrow">Geo scan</p>
+          <p class="geo-scan-panel__terrain" data-geo-scan-terrain>
+            Terrain: —
+          </p>
+        </div>
+        <div class="geo-scan-panel__life">
+          <p class="geo-scan-panel__life-label">Terrain life</p>
+          <div
+            class="geo-scan-panel__life-bar"
+            role="meter"
+            aria-label="Terrain life"
+            aria-valuemin="0"
+            aria-valuemax="0"
+            aria-valuenow="0"
+          >
+            <span class="geo-scan-panel__life-fill" data-geo-scan-life-fill></span>
+          </div>
+          <span class="geo-scan-panel__life-value" data-geo-scan-life-value>—</span>
+        </div>
+        <div class="geo-scan-panel__elements">
+          <p class="geo-scan-panel__elements-label">Extractable elements</p>
+          <p class="geo-scan-panel__elements-list" data-geo-scan-elements>—</p>
         </div>
       </div>
 

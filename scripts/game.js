@@ -16,6 +16,7 @@ import {
   persistSettings,
 } from "./settings-storage.js";
 import { PERIODIC_ELEMENTS } from "./data/periodic-elements.js";
+import { OUTSIDE_TERRAIN_TYPES, getOutsideTerrainById } from "./outside-map.js";
 import {
   MAX_ACTIVE_MISSIONS,
   completeMission,
@@ -43,6 +44,22 @@ const terminalToast = document.getElementById("terminalToast");
 const resourceToast = document.getElementById("resourceToast");
 const resourceToolIndicator = document.querySelector(
   "[data-resource-tool-indicator]"
+);
+const geoScanPanel = document.querySelector("[data-geo-scan-panel]");
+const geoScanTerrainLabel = geoScanPanel?.querySelector(
+  "[data-geo-scan-terrain]"
+);
+const geoScanElementsLabel = geoScanPanel?.querySelector(
+  "[data-geo-scan-elements]"
+);
+const geoScanLifeValue = geoScanPanel?.querySelector(
+  "[data-geo-scan-life-value]"
+);
+const geoScanLifeFill = geoScanPanel?.querySelector(
+  "[data-geo-scan-life-fill]"
+);
+const geoScanLifeBar = geoScanPanel?.querySelector(
+  ".geo-scan-panel__life-bar"
 );
 const crosshair = document.querySelector(".crosshair");
 const renderingErrorBanner = document.querySelector("[data-rendering-error]");
@@ -984,6 +1001,15 @@ const quickSlotDefinitions = [
 ];
 
 const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter", "geo-scanner"]);
+const GEO_SCAN_SLOT_ID = "geo-scanner";
+const GEO_SCAN_MAX_HP = Math.max(
+  1,
+  ...(Array.isArray(OUTSIDE_TERRAIN_TYPES)
+    ? OUTSIDE_TERRAIN_TYPES.map((terrain) =>
+        Number.isFinite(terrain?.hp) ? terrain.hp : 0
+      )
+    : [1])
+);
 
 const quickSlotState = {
   slots: quickSlotDefinitions,
@@ -1928,6 +1954,7 @@ const RESOURCE_TOOL_INDICATOR_FADE_DELAY = Math.max(
     RESOURCE_TOOL_INDICATOR_FADE_OUT_DURATION,
   0
 );
+const GEO_SCAN_PANEL_UPDATE_INTERVAL_MS = 200;
 
 let resourceToolIndicatorHideTimeoutId = 0;
 let resourceToolIndicatorFinalizeTimeoutId = 0;
@@ -2031,6 +2058,108 @@ const updateResourceToolIndicator = (slot) => {
   showResourceToolIndicator();
 };
 
+const geoScanPanelState = {
+  terrainId: null,
+};
+
+const formatGeoScanElementList = (elements) => {
+  if (!Array.isArray(elements) || elements.length === 0) {
+    return "No extractable elements detected.";
+  }
+
+  const labels = elements
+    .map((element) => {
+      if (!element || typeof element !== "object") {
+        return null;
+      }
+
+      const symbol =
+        typeof element.symbol === "string" ? element.symbol.trim() : "";
+      const name = typeof element.name === "string" ? element.name.trim() : "";
+
+      if (symbol && name) {
+        return `${symbol} (${name})`;
+      }
+
+      return symbol || name || null;
+    })
+    .filter(Boolean);
+
+  return labels.length > 0 ? labels.join(", ") : "No extractable elements detected.";
+};
+
+const hideGeoScanPanel = () => {
+  if (geoScanPanel instanceof HTMLElement) {
+    geoScanPanel.hidden = true;
+  }
+  geoScanPanelState.terrainId = null;
+};
+
+const updateGeoScanPanel = () => {
+  if (!(geoScanPanel instanceof HTMLElement)) {
+    return;
+  }
+
+  const slot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
+  const isGeoScanActive = slot?.id === GEO_SCAN_SLOT_ID;
+
+  if (!isGeoScanActive) {
+    hideGeoScanPanel();
+    return;
+  }
+
+  const terrainDetail = sceneController?.getTerrainScanTarget?.() ?? null;
+
+  if (!terrainDetail?.terrainId || terrainDetail.terrainId === "void") {
+    hideGeoScanPanel();
+    return;
+  }
+
+  const terrain = getOutsideTerrainById(terrainDetail.terrainId);
+  if (!terrain || terrain.id === "void") {
+    hideGeoScanPanel();
+    return;
+  }
+
+  geoScanPanel.hidden = false;
+
+  if (geoScanPanelState.terrainId !== terrain.id) {
+    geoScanPanelState.terrainId = terrain.id;
+
+    const terrainLabelText =
+      typeof terrainDetail.terrainLabel === "string" && terrainDetail.terrainLabel.trim() !== ""
+        ? terrainDetail.terrainLabel.trim()
+        : terrain.label ?? terrain.id ?? "Unknown terrain";
+
+    if (geoScanTerrainLabel instanceof HTMLElement) {
+      geoScanTerrainLabel.textContent = `Terrain: ${terrainLabelText}`;
+    }
+
+    if (geoScanElementsLabel instanceof HTMLElement) {
+      geoScanElementsLabel.textContent = formatGeoScanElementList(terrain.elements);
+    }
+  }
+
+  const terrainHp = Number.isFinite(terrain.hp) ? terrain.hp : 0;
+  const clampedPercent = Math.max(
+    0,
+    Math.min(100, Math.round((terrainHp / GEO_SCAN_MAX_HP) * 100))
+  );
+
+  if (geoScanLifeFill instanceof HTMLElement) {
+    geoScanLifeFill.style.width = `${clampedPercent}%`;
+  }
+
+  if (geoScanLifeValue instanceof HTMLElement) {
+    geoScanLifeValue.textContent = `${terrainHp} / ${GEO_SCAN_MAX_HP}`;
+  }
+
+  if (geoScanLifeBar instanceof HTMLElement) {
+    geoScanLifeBar.setAttribute("aria-valuenow", String(terrainHp));
+    geoScanLifeBar.setAttribute("aria-valuemax", String(GEO_SCAN_MAX_HP));
+  }
+};
+
 const updateDroneQuickSlotState = () => {
   if (!(quickSlotBar instanceof HTMLElement)) {
     return;
@@ -2077,6 +2206,7 @@ const updateQuickSlotUi = () => {
     quickSlotState.slots[quickSlotState.selectedIndex] ?? null
   );
   updateDroneQuickSlotState();
+  updateGeoScanPanel();
 };
 
 const clearQuickSlotActivationEffects = () => {
@@ -8275,6 +8405,7 @@ if (inventoryDroneAutoRefillToggle instanceof HTMLInputElement) {
 }
 
 window.setInterval(cancelStalledDroneMiningSession, DRONE_STALL_CHECK_INTERVAL_MS);
+window.setInterval(updateGeoScanPanel, GEO_SCAN_PANEL_UPDATE_INTERVAL_MS);
 
 const describeManifestEntry = (entry) => {
   if (typeof entry?.label === "string" && entry.label.trim() !== "") {
