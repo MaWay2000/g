@@ -1369,6 +1369,11 @@ export const initScene = (
   let activeResourceTargets = [];
   let activeTerrainTiles = [];
   let hasStoredOutsideMap = false;
+  const GEO_VISOR_TILE_RANGE = 2;
+  let geoVisorEnabled = false;
+  let geoVisorLastRow = null;
+  let geoVisorLastColumn = null;
+  let geoVisorLastEnabled = null;
 
   const getResourceTargetsForFloor = (floorId) => {
     if (!floorId) {
@@ -1395,6 +1400,106 @@ export const initScene = (
     }
 
     return tiles;
+  };
+
+  const applyGeoVisorMaterialToTile = (tile, shouldReveal) => {
+    if (!tile?.userData) {
+      return;
+    }
+
+    const targetMaterial = shouldReveal
+      ? tile.userData.geoVisorRevealedMaterial
+      : tile.userData.geoVisorConcealedMaterial;
+
+    if (!targetMaterial || tile.material === targetMaterial) {
+      tile.userData.geoVisorRevealed = shouldReveal;
+      return;
+    }
+
+    tile.material = targetMaterial;
+    tile.userData.geoVisorRevealed = shouldReveal;
+  };
+
+  const updateGeoVisorTerrainVisibility = ({ force = false } = {}) => {
+    if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
+      geoVisorLastRow = null;
+      geoVisorLastColumn = null;
+      geoVisorLastEnabled = geoVisorEnabled;
+      return;
+    }
+
+    if (!geoVisorEnabled) {
+      if (!force && geoVisorLastEnabled === false) {
+        return;
+      }
+
+      activeTerrainTiles.forEach((tile) => {
+        applyGeoVisorMaterialToTile(tile, false);
+      });
+
+      geoVisorLastRow = null;
+      geoVisorLastColumn = null;
+      geoVisorLastEnabled = false;
+      return;
+    }
+
+    const sampleTile = activeTerrainTiles.find(
+      (tile) => Number.isFinite(tile?.userData?.geoVisorCellSize)
+    );
+    const playerPosition = playerObject?.position;
+
+    if (!sampleTile || !playerPosition) {
+      return;
+    }
+
+    const cellSize = sampleTile.userData.geoVisorCellSize;
+    const mapLeftEdge = sampleTile.userData.geoVisorMapLeftEdge;
+    const mapNearEdge = sampleTile.userData.geoVisorMapNearEdge;
+
+    if (
+      !Number.isFinite(cellSize) ||
+      !Number.isFinite(mapLeftEdge) ||
+      !Number.isFinite(mapNearEdge)
+    ) {
+      return;
+    }
+
+    const playerColumn = Math.floor((playerPosition.x - mapLeftEdge) / cellSize);
+    const playerRow = Math.floor((playerPosition.z - mapNearEdge) / cellSize);
+
+    if (
+      !force &&
+      geoVisorLastEnabled === true &&
+      geoVisorLastRow === playerRow &&
+      geoVisorLastColumn === playerColumn
+    ) {
+      return;
+    }
+
+    activeTerrainTiles.forEach((tile) => {
+      if (!tile?.userData) {
+        return;
+      }
+
+      const tileRow = tile.userData.geoVisorRow;
+      const tileColumn = tile.userData.geoVisorColumn;
+
+      if (!Number.isFinite(tileRow) || !Number.isFinite(tileColumn)) {
+        return;
+      }
+
+      const withinRange =
+        Math.max(
+          Math.abs(tileRow - playerRow),
+          Math.abs(tileColumn - playerColumn)
+        ) <= GEO_VISOR_TILE_RANGE;
+
+      applyGeoVisorMaterialToTile(tile, withinRange);
+    });
+
+    geoVisorLastRow = playerRow;
+    geoVisorLastColumn = playerColumn;
+    geoVisorLastEnabled = true;
   };
 
   const registerEnvironmentHeightAdjuster = (adjuster) => {
@@ -4073,6 +4178,18 @@ export const initScene = (
               : resolvedTerrain.id;
           tile.userData.tileId = tileId;
           tile.userData.terrainHeight = totalTileHeight;
+          tile.userData.geoVisorRow = row;
+          tile.userData.geoVisorColumn = column;
+          tile.userData.geoVisorCellSize = cellSize;
+          tile.userData.geoVisorMapLeftEdge = mapLeftEdge;
+          tile.userData.geoVisorMapNearEdge = mapNearEdge;
+          tile.userData.geoVisorRevealedMaterial = tile.material;
+          tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
+          tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
+
+          if (!geoVisorEnabled) {
+            tile.material = concealedTerrainMaterial;
+          }
 
           terrainTiles.push(tile);
 
@@ -7377,6 +7494,7 @@ export const initScene = (
 
     activeResourceTargets = getResourceTargetsForFloor(resolvedFloorId);
     activeTerrainTiles = getTerrainTilesForFloor(resolvedFloorId);
+    updateGeoVisorTerrainVisibility({ force: true });
   }
 
   const findLiftFloorIndexById = (floorId) => {
@@ -8639,6 +8757,7 @@ export const initScene = (
     updateTimeOfDay();
     updateStarFieldPositions();
     updateSkyBackdrop();
+    updateGeoVisorTerrainVisibility();
     updateTerrainDepthTexture();
     updateStarDepthUniforms();
 
@@ -8742,6 +8861,17 @@ export const initScene = (
 
       speedSettings.playerSpeedMultiplier = nextMultiplier;
       return speedSettings.playerSpeedMultiplier;
+    },
+    setGeoVisorEnabled: (enabled = true) => {
+      const nextState = Boolean(enabled);
+
+      if (geoVisorEnabled === nextState) {
+        return geoVisorEnabled;
+      }
+
+      geoVisorEnabled = nextState;
+      updateGeoVisorTerrainVisibility({ force: true });
+      return geoVisorEnabled;
     },
     setJumpSettings: (nextSettings = {}) => {
       const nextMultiplier = normalizeJumpMultiplier(

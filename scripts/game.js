@@ -983,6 +983,8 @@ const quickSlotDefinitions = [
   },
 ];
 
+const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter", "geo-scanner"]);
+
 const quickSlotState = {
   slots: quickSlotDefinitions,
   selectedIndex: 0,
@@ -8229,8 +8231,19 @@ const handleDroneQuickSlotActivation = (event) => {
   handleDroneToggleRequest();
 };
 
+const handleGeoVisorQuickSlotChange = (event) => {
+  if (!(event instanceof CustomEvent)) {
+    return;
+  }
+
+  const { slot } = event.detail ?? {};
+  const isActive = GEO_VISOR_SLOT_IDS.has(slot?.id);
+  sceneController?.setGeoVisorEnabled?.(isActive);
+};
+
 if (canvas instanceof HTMLElement) {
   canvas.addEventListener("quick-slot:change", handleDroneQuickSlotActivation);
+  canvas.addEventListener("quick-slot:change", handleGeoVisorQuickSlotChange);
 }
 
 droneRefuelButtons.forEach((button) => {
@@ -8448,6 +8461,9 @@ const bootstrapScene = () => {
     },
     onDroneReturnComplete: handleDroneReturnComplete,
   });
+
+  const currentSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
+  sceneController?.setGeoVisorEnabled?.(GEO_VISOR_SLOT_IDS.has(currentSlot?.id));
 
   } catch (error) {
     console.error("Failed to initialize 3D scene", error);
