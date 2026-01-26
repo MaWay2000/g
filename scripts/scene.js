@@ -4080,12 +4080,8 @@ export const initScene = (
 
         const terrain = getOutsideTerrainById(terrainId);
         const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-        const material = new THREE.MeshStandardMaterial({
+        const material = new THREE.MeshBasicMaterial({
           color: new THREE.Color(terrainColor),
-          emissive: new THREE.Color(terrainColor),
-          emissiveIntensity: 0.65,
-          roughness: 0.6,
-          metalness: 0.18,
           transparent: false,
           opacity: 1,
         });
