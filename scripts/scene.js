@@ -818,7 +818,6 @@ export const initScene = (
         const context = testCanvas.getContext(contextType, options);
 
         if (context) {
-          context.getExtension("WEBGL_lose_context")?.loseContext?.();
           return true;
         }
 
