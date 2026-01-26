@@ -1368,7 +1368,6 @@ export const initScene = (
   let activeResourceTargets = [];
   let activeTerrainTiles = [];
   let hasStoredOutsideMap = false;
-  const GEO_VISOR_TILE_RANGE = 2;
   let geoVisorEnabled = false;
   let geoVisorLastRow = null;
   let geoVisorLastColumn = null;
@@ -1446,66 +1445,16 @@ export const initScene = (
       return;
     }
 
-    const sampleTile = activeTerrainTiles.find(
-      (tile) => Number.isFinite(tile?.userData?.geoVisorCellSize)
-    );
-    const playerPosition = playerObject?.position;
-
-    if (!sampleTile || !playerPosition) {
-      return;
-    }
-
-    const cellSize = sampleTile.userData.geoVisorCellSize;
-    const mapLeftEdge = sampleTile.userData.geoVisorMapLeftEdge;
-    const mapNearEdge = sampleTile.userData.geoVisorMapNearEdge;
-
-    if (
-      !Number.isFinite(cellSize) ||
-      !Number.isFinite(mapLeftEdge) ||
-      !Number.isFinite(mapNearEdge)
-    ) {
-      return;
-    }
-
-    const playerColumn = Math.floor(
-      (playerPosition.x - mapLeftEdge) / cellSize
-    );
-    const playerRow = Math.floor(
-      (playerPosition.z - mapNearEdge) / cellSize
-    );
-
-    if (
-      !force &&
-      geoVisorLastEnabled === true &&
-      geoVisorLastRow === playerRow &&
-      geoVisorLastColumn === playerColumn
-    ) {
+    if (!force && geoVisorLastEnabled === true) {
       return;
     }
 
     activeTerrainTiles.forEach((tile) => {
-      if (!tile?.userData) {
-        return;
-      }
-
-      const tileRow = tile.userData.geoVisorRow;
-      const tileColumn = tile.userData.geoVisorColumn;
-
-      if (!Number.isFinite(tileRow) || !Number.isFinite(tileColumn)) {
-        return;
-      }
-
-      const withinRange =
-        Math.max(
-          Math.abs(tileRow - playerRow),
-          Math.abs(tileColumn - playerColumn)
-        ) <= GEO_VISOR_TILE_RANGE;
-
-      applyGeoVisorMaterialToTile(tile, withinRange);
+      applyGeoVisorMaterialToTile(tile, true);
     });
 
-    geoVisorLastRow = playerRow;
-    geoVisorLastColumn = playerColumn;
+    geoVisorLastRow = null;
+    geoVisorLastColumn = null;
     geoVisorLastEnabled = true;
   };
 
