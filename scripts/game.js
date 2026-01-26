@@ -1010,6 +1010,37 @@ const GEO_SCAN_MAX_HP = Math.max(
       )
     : [1])
 );
+const terrainLifeById = new Map(
+  (Array.isArray(OUTSIDE_TERRAIN_TYPES) ? OUTSIDE_TERRAIN_TYPES : []).map(
+    (terrain) => [terrain.id, Number.isFinite(terrain?.hp) ? terrain.hp : 0]
+  )
+);
+const getTerrainLifeValue = (terrain) => {
+  if (!terrain?.id) {
+    return 0;
+  }
+
+  if (terrainLifeById.has(terrain.id)) {
+    return terrainLifeById.get(terrain.id);
+  }
+
+  const fallbackLife = Number.isFinite(terrain?.hp) ? terrain.hp : 0;
+  terrainLifeById.set(terrain.id, fallbackLife);
+  return fallbackLife;
+};
+const decreaseTerrainLife = (terrainId, amount = 1) => {
+  if (!terrainId) {
+    return 0;
+  }
+
+  const terrain = getOutsideTerrainById(terrainId);
+  const currentLife = getTerrainLifeValue(terrain);
+  const drain = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+  const nextLife = Math.max(0, currentLife - drain);
+
+  terrainLifeById.set(terrainId, nextLife);
+  return nextLife;
+};
 
 const quickSlotState = {
   slots: quickSlotDefinitions,
@@ -2140,7 +2171,7 @@ const updateGeoScanPanel = () => {
     }
   }
 
-  const terrainHp = Number.isFinite(terrain.hp) ? terrain.hp : 0;
+  const terrainHp = getTerrainLifeValue(terrain);
   const clampedPercent = Math.max(
     0,
     Math.min(100, Math.round((terrainHp / GEO_SCAN_MAX_HP) * 100))
@@ -8448,6 +8479,19 @@ const handleManifestPlacementRemoved = (entry) => {
   showTerminalToast({ title: "Model removed", description: describeManifestEntry(entry) });
 };
 
+const applyTerrainLifeDrain = (detail) => {
+  if (!detail?.found || !detail.element) {
+    return;
+  }
+
+  const terrainId = detail?.terrain?.id ?? null;
+  if (!terrainId) {
+    return;
+  }
+
+  decreaseTerrainLife(terrainId, 1);
+};
+
 const bootstrapScene = () => {
   if (!(canvas instanceof HTMLCanvasElement)) {
     return;
@@ -8520,6 +8564,7 @@ const bootstrapScene = () => {
     onManifestEditModeChange: handleManifestEditModeChange,
     onManifestPlacementRemoved: handleManifestPlacementRemoved,
     onResourceCollected(detail) {
+      applyTerrainLifeDrain(detail);
       if (detail?.source === "drone-miner") {
         handleDroneResourceCollected(detail);
         return;
