@@ -8870,6 +8870,7 @@ export const initScene = (
       updateGeoVisorTerrainVisibility({ force: true });
       return geoVisorEnabled;
     },
+    getTerrainScanTarget: () => findTerrainIntersection(),
     setJumpSettings: (nextSettings = {}) => {
       const nextMultiplier = normalizeJumpMultiplier(
         nextSettings.playerJumpMultiplier
