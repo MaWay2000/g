@@ -1467,8 +1467,12 @@ export const initScene = (
       return;
     }
 
-    const playerColumn = Math.floor((playerPosition.x - mapLeftEdge) / cellSize);
-    const playerRow = Math.floor((playerPosition.z - mapNearEdge) / cellSize);
+    const playerColumn = Math.floor(
+      (playerPosition.x - mapLeftEdge) / cellSize + 0.5
+    );
+    const playerRow = Math.floor(
+      (playerPosition.z - mapNearEdge) / cellSize + 0.5
+    );
 
     if (
       !force &&
