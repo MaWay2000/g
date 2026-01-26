@@ -1433,7 +1433,7 @@ export const initScene = (
       }
 
       activeTerrainTiles.forEach((tile) => {
-        applyGeoVisorMaterialToTile(tile, false);
+        applyGeoVisorMaterialToTile(tile, true);
       });
 
       geoVisorLastRow = null;
@@ -4186,7 +4186,7 @@ export const initScene = (
           tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
           tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
 
-          if (!geoVisorEnabled) {
+          if (geoVisorEnabled) {
             tile.material = concealedTerrainMaterial;
           }
 
