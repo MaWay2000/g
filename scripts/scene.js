@@ -1726,6 +1726,93 @@ export const initScene = (
     return texture;
   };
 
+  const runtimeTerrainTextures = new Map();
+  const runtimeTerrainMaterials = new Map();
+  const runtimeGeoVisorMaterials = new Map();
+
+  const getRuntimeTerrainTexture = (tileId, variantIndex) => {
+    const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
+
+    if (!texturePath) {
+      return null;
+    }
+
+    if (!runtimeTerrainTextures.has(texturePath)) {
+      const texture = loadClampedTexture(texturePath);
+      runtimeTerrainTextures.set(texturePath, texture);
+    }
+
+    return runtimeTerrainTextures.get(texturePath);
+  };
+
+  const getRuntimeTerrainMaterial = (terrainId, tileId, variantIndex) => {
+    if (CONCEAL_OUTSIDE_TERRAIN_TILES) {
+      return null;
+    }
+
+    const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
+    const materialKey = `${terrainId}:${texturePath ?? "none"}`;
+
+    if (runtimeTerrainMaterials.has(materialKey)) {
+      return runtimeTerrainMaterials.get(materialKey);
+    }
+
+    const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
+      DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+    const terrain = getOutsideTerrainById(terrainId);
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const baseColor = texture
+      ? 0xffffff
+      : terrainId === "void"
+        ? terrainStyle.color ??
+          terrain?.color ??
+          DEFAULT_OUTSIDE_TERRAIN_COLOR
+        : 0xffffff;
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(baseColor),
+      roughness: terrainStyle.roughness,
+      metalness: terrainStyle.metalness,
+      emissive: new THREE.Color(terrainStyle.emissive),
+      emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
+      map: texture ?? null,
+      transparent: false,
+      opacity: terrainStyle.opacity,
+    });
+    runtimeTerrainMaterials.set(materialKey, material);
+    return material;
+  };
+
+  const getRuntimeGeoVisorMaterial = (terrainId, tileId, variantIndex) => {
+    const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
+    const materialKey = `${terrainId}:${texturePath ?? "none"}`;
+
+    if (runtimeGeoVisorMaterials.has(materialKey)) {
+      return runtimeGeoVisorMaterials.get(materialKey);
+    }
+
+    const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
+      DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+    const terrain = getOutsideTerrainById(terrainId);
+    const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const baseColor = texture ? 0xffffff : terrainColor;
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(baseColor),
+      roughness: terrainStyle.roughness,
+      metalness: terrainStyle.metalness,
+      emissive: new THREE.Color(terrainColor),
+      emissiveIntensity: Math.max(
+        0.65,
+        terrainStyle.emissiveIntensity ?? 0
+      ),
+      map: texture ?? null,
+      transparent: true,
+      opacity: terrainStyle.opacity ?? 1,
+    });
+    runtimeGeoVisorMaterials.set(materialKey, material);
+    return material;
+  };
+
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(ambientLight);
 
@@ -4170,6 +4257,7 @@ export const initScene = (
               : resolvedTerrain.id;
           tile.userData.tileId = tileId;
           tile.userData.terrainHeight = totalTileHeight;
+          tile.userData.tileVariantIndex = index;
           tile.userData.geoVisorRow = row;
           tile.userData.geoVisorColumn = column;
           tile.userData.geoVisorCellSize = cellSize;
@@ -7494,6 +7582,107 @@ export const initScene = (
     updateGeoVisorTerrainVisibility({ force: true });
   }
 
+  const findTerrainTileAtPosition = (position) => {
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) ||
+        !Number.isFinite(position.z)) {
+      return null;
+    }
+
+    if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
+      return null;
+    }
+
+    const point = new THREE.Vector3(position.x, position.y, position.z);
+    const bounds = new THREE.Box3();
+
+    for (const tile of activeTerrainTiles) {
+      if (!tile || !tile.isObject3D) {
+        continue;
+      }
+
+      bounds.setFromObject(tile);
+      if (bounds.containsPoint(point)) {
+        return tile;
+      }
+    }
+
+    return null;
+  };
+
+  const removeResourceTargetFromFloor = (tile, floorId) => {
+    if (!tile || !floorId) {
+      return;
+    }
+
+    const resourceTargets = resourceTargetsByEnvironment.get(floorId);
+    if (!Array.isArray(resourceTargets) || resourceTargets.length === 0) {
+      return;
+    }
+
+    const nextTargets = resourceTargets.filter((target) => target !== tile);
+    resourceTargetsByEnvironment.set(floorId, nextTargets);
+
+    const activeFloor = getActiveLiftFloor();
+    if (activeFloor?.id === floorId) {
+      activeResourceTargets = nextTargets;
+    }
+  };
+
+  const setTerrainTileToVoid = (tile) => {
+    if (!tile?.userData) {
+      return false;
+    }
+
+    if (tile.userData.terrainId === "void") {
+      return false;
+    }
+
+    const voidTerrain = getOutsideTerrainById("void");
+    const tileId = getOutsideTerrainDefaultTileId("void");
+    const variantIndex = Number.isFinite(tile.userData.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : 0;
+    const baseMaterial =
+      getRuntimeTerrainMaterial("void", tileId, variantIndex) ??
+      tile.userData.geoVisorConcealedMaterial;
+    const visorMaterial = getRuntimeGeoVisorMaterial("void", tileId, variantIndex);
+
+    tile.userData.terrainId = "void";
+    tile.userData.terrainLabel = voidTerrain?.label ?? "Void";
+    tile.userData.tileId = tileId;
+    tile.userData.geoVisorRevealedMaterial = baseMaterial;
+    tile.userData.geoVisorVisorMaterial = visorMaterial;
+    tile.userData.isResourceTarget = false;
+
+    if (geoVisorEnabled) {
+      tile.material = tile.userData.geoVisorConcealedMaterial ?? baseMaterial;
+    } else {
+      tile.material = baseMaterial;
+    }
+
+    return true;
+  };
+
+  const setTerrainVoidAtPosition = (position) => {
+    const tile = findTerrainTileAtPosition(position);
+    if (!tile) {
+      return false;
+    }
+
+    const updated = setTerrainTileToVoid(tile);
+    if (!updated) {
+      return false;
+    }
+
+    const activeFloor = getActiveLiftFloor();
+    if (activeFloor?.id) {
+      removeResourceTargetFromFloor(tile, activeFloor.id);
+    }
+
+    updateGeoVisorTerrainVisibility({ force: true });
+    return true;
+  };
+
   const findLiftFloorIndexById = (floorId) => {
     if (!floorId || !Array.isArray(liftState.floors)) {
       return -1;
@@ -8871,6 +9060,7 @@ export const initScene = (
       return geoVisorEnabled;
     },
     getTerrainScanTarget: () => findTerrainIntersection(),
+    setTerrainVoidAtPosition,
     setJumpSettings: (nextSettings = {}) => {
       const nextMultiplier = normalizeJumpMultiplier(
         nextSettings.playerJumpMultiplier

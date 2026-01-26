@@ -2141,8 +2141,30 @@ const updateGeoScanPanel = () => {
 
   const terrainDetail = sceneController?.getTerrainScanTarget?.() ?? null;
 
-  if (!terrainDetail?.terrainId || terrainDetail.terrainId === "void") {
+  if (!terrainDetail?.terrainId) {
     hideGeoScanPanel();
+    return;
+  }
+
+  if (terrainDetail.terrainId === "void") {
+    geoScanPanel.hidden = false;
+    geoScanPanelState.terrainId = "void";
+    if (geoScanTerrainLabel instanceof HTMLElement) {
+      geoScanTerrainLabel.textContent = "Terrain: Void";
+    }
+    if (geoScanElementsLabel instanceof HTMLElement) {
+      geoScanElementsLabel.textContent = "Area is empty.";
+    }
+    if (geoScanLifeFill instanceof HTMLElement) {
+      geoScanLifeFill.style.width = "0%";
+    }
+    if (geoScanLifeValue instanceof HTMLElement) {
+      geoScanLifeValue.textContent = `0 / ${GEO_SCAN_MAX_HP}`;
+    }
+    if (geoScanLifeBar instanceof HTMLElement) {
+      geoScanLifeBar.setAttribute("aria-valuenow", "0");
+      geoScanLifeBar.setAttribute("aria-valuemax", String(GEO_SCAN_MAX_HP));
+    }
     return;
   }
 
@@ -8486,7 +8508,10 @@ const applyTerrainLifeDrain = (detail) => {
   }
 
   if (detail?.found === false) {
-    decreaseTerrainLife(terrainId, 1);
+    const nextLife = decreaseTerrainLife(terrainId, 1);
+    if (nextLife <= 0) {
+      sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
+    }
     return;
   }
 
@@ -8496,7 +8521,10 @@ const applyTerrainLifeDrain = (detail) => {
 
   const drainAmount = getInventoryElementWeight(detail.element);
   if (Number.isFinite(drainAmount) && drainAmount > 0) {
-    decreaseTerrainLife(terrainId, drainAmount);
+    const nextLife = decreaseTerrainLife(terrainId, drainAmount);
+    if (nextLife <= 0) {
+      sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
+    }
   }
 };
 
