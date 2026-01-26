@@ -193,6 +193,9 @@ export const initScene = (
   const BASE_SKY_DOME_RADIUS = 650;
   const BASE_FOG_DENSITY = 0.006;
   const MIN_FOG_DENSITY = 0.002;
+  const BASE_HEIGHT_FOG_DENSITY = 0.08;
+  const MIN_HEIGHT_FOG_DENSITY = 0.03;
+  const HEIGHT_FOG_OFFSET = 0.35;
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
@@ -216,6 +219,104 @@ export const initScene = (
     const normalizedDistance = normalizeViewDistance(distanceMultiplier);
     return Math.max(MIN_FOG_DENSITY, BASE_FOG_DENSITY / normalizedDistance);
   };
+  const getHeightFogDensity = (
+    distanceMultiplier = viewSettings.distanceMultiplier
+  ) => {
+    const normalizedDistance = normalizeViewDistance(distanceMultiplier);
+    return Math.max(
+      MIN_HEIGHT_FOG_DENSITY,
+      BASE_HEIGHT_FOG_DENSITY / normalizedDistance
+    );
+  };
+  const heightFogUniforms = {
+    fogHeightDensity: { value: getHeightFogDensity() },
+    fogHeightOffset: { value: 0 },
+  };
+
+  const applyHeightFogShaderPatch = () => {
+    if (THREE.ShaderChunk.__heightFogPatched) {
+      return;
+    }
+
+    THREE.ShaderChunk.__heightFogPatched = true;
+    THREE.ShaderChunk.fog_pars_vertex = `
+#ifdef USE_FOG
+varying float vFogDepth;
+varying float vFogHeight;
+#endif
+`;
+    THREE.ShaderChunk.fog_vertex = `
+#ifdef USE_FOG
+vFogDepth = -mvPosition.z;
+vec4 fogWorldPosition = modelMatrix * vec4(position, 1.0);
+vFogHeight = fogWorldPosition.y;
+#endif
+`;
+    THREE.ShaderChunk.fog_pars_fragment = `
+#ifdef USE_FOG
+uniform vec3 fogColor;
+varying float vFogDepth;
+varying float vFogHeight;
+#ifdef FOG_EXP2
+uniform float fogDensity;
+#else
+uniform float fogNear;
+uniform float fogFar;
+#endif
+uniform float fogHeightDensity;
+uniform float fogHeightOffset;
+#endif
+`;
+    THREE.ShaderChunk.fog_fragment = `
+#ifdef USE_FOG
+#ifdef FOG_EXP2
+  float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vFogDepth * vFogDepth);
+#else
+  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
+#endif
+  float heightFogDistance = max(vFogHeight - fogHeightOffset, 0.0);
+  float heightFogFactor = 1.0 - exp(-fogHeightDensity * heightFogDistance);
+  float combinedFogFactor = 1.0 - (1.0 - fogFactor) * (1.0 - heightFogFactor);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, clamp(combinedFogFactor, 0.0, 1.0));
+#endif
+`;
+  };
+
+  const ensureHeightFogUniforms = () => {
+    if (THREE.Material.prototype.__heightFogUniformsPatched) {
+      return;
+    }
+
+    THREE.Material.prototype.__heightFogUniformsPatched = true;
+    const originalOnBeforeCompile = THREE.Material.prototype.onBeforeCompile;
+
+    THREE.Material.prototype.onBeforeCompile = function (shader, renderer) {
+      if (typeof originalOnBeforeCompile === "function") {
+        originalOnBeforeCompile.call(this, shader, renderer);
+      }
+
+      if (!this.fog) {
+        return;
+      }
+
+      shader.uniforms.fogHeightDensity = heightFogUniforms.fogHeightDensity;
+      shader.uniforms.fogHeightOffset = heightFogUniforms.fogHeightOffset;
+    };
+  };
+
+  const updateHeightFogForDistance = (
+    distanceMultiplier = viewSettings.distanceMultiplier
+  ) => {
+    heightFogUniforms.fogHeightDensity.value =
+      getHeightFogDensity(distanceMultiplier);
+  };
+
+  const updateHeightFogOffset = () => {
+    heightFogUniforms.fogHeightOffset.value = roomFloorY + HEIGHT_FOG_OFFSET;
+  };
+
+  applyHeightFogShaderPatch();
+  ensureHeightFogUniforms();
   const getMaxStepHeight = () =>
     BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
   const getJumpVelocity = () =>
@@ -903,6 +1004,7 @@ export const initScene = (
 
     scene.fog.density = getFogDensity(distanceMultiplier);
     scene.fog.color.copy(skyBackgroundColor);
+    updateHeightFogForDistance(distanceMultiplier);
   };
 
   const camera = new THREE.PerspectiveCamera(
@@ -5919,6 +6021,7 @@ export const initScene = (
     roomFloorY = -roomHeight / 2;
 
     roomMesh.scale.set(1, heightScale, 1);
+    updateHeightFogOffset();
 
     liftState.floors.forEach((floor) => {
       if (floor?.position instanceof THREE.Vector3) {
