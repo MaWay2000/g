@@ -41,6 +41,7 @@ import {
   getOutsideTerrainDefaultTileId,
   getOutsideTerrainTilePath,
 } from "./outside-map.js";
+import { loadStoredTerrainLife } from "./terrain-life-storage.js";
 import { samplePeriodicElement } from "./data/periodic-elements.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
@@ -3963,14 +3964,49 @@ export const initScene = (
     -OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 + 1.9
   );
 
-  const createOperationsExteriorEnvironment = () => {
-    const group = new THREE.Group();
-    const DOOR_MARKER_PATH = "door-marker";
+    const createOperationsExteriorEnvironment = () => {
+      const group = new THREE.Group();
+      const DOOR_MARKER_PATH = "door-marker";
 
-    const buildOutsideTerrainFromMap = (mapDefinition, walkwayFrontEdge) => {
-      if (!mapDefinition || typeof mapDefinition !== "object") {
-        return null;
-      }
+      const applyDepletedTerrainLife = (mapDefinition) => {
+        const storedTerrainLife = loadStoredTerrainLife();
+        if (!(storedTerrainLife instanceof Map)) {
+          return { map: mapDefinition, changed: false };
+        }
+
+        let normalizedMap = null;
+        try {
+          normalizedMap = normalizeOutsideMap(mapDefinition);
+        } catch (error) {
+          console.warn("Unable to normalize outside map for terrain life", error);
+          return { map: mapDefinition, changed: false };
+        }
+
+        let changed = false;
+        normalizedMap.cells = normalizedMap.cells.map((cell) => {
+          const terrainId = cell?.terrainId ?? "void";
+          const terrainLife = storedTerrainLife.get(terrainId);
+          if (
+            terrainId !== "void" &&
+            Number.isFinite(terrainLife) &&
+            terrainLife <= 0
+          ) {
+            changed = true;
+            return {
+              terrainId: "void",
+              tileId: getOutsideTerrainDefaultTileId("void"),
+            };
+          }
+          return cell;
+        });
+
+        return { map: normalizedMap, changed };
+      };
+
+      const buildOutsideTerrainFromMap = (mapDefinition, walkwayFrontEdge) => {
+        if (!mapDefinition || typeof mapDefinition !== "object") {
+          return null;
+        }
 
       let normalizedMap = null;
       try {
@@ -4459,6 +4495,18 @@ export const initScene = (
     }
     if (!storedOutsideMap) {
       storedOutsideMap = createDefaultOutsideMap();
+    }
+
+    const { map: terrainLifeMap, changed: terrainLifeChanged } =
+      applyDepletedTerrainLife(storedOutsideMap);
+    storedOutsideMap = terrainLifeMap;
+    if (terrainLifeChanged) {
+      try {
+        storedOutsideMap = saveOutsideMapToStorage(storedOutsideMap);
+        hasStoredOutsideMap = true;
+      } catch (error) {
+        console.warn("Unable to save outside map after terrain life sync", error);
+      }
     }
 
     const walkwayDepth = Number.isFinite(walkway.geometry?.parameters?.depth)
