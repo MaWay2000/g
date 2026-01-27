@@ -36,6 +36,7 @@ import {
   createDefaultOutsideMap,
   loadOutsideMapFromStorage,
   normalizeOutsideMap,
+  saveOutsideMapToStorage,
   getOutsideTerrainById,
   getOutsideTerrainDefaultTileId,
   getOutsideTerrainTilePath,
@@ -7658,6 +7659,30 @@ export const initScene = (
       tile.material = tile.userData.geoVisorConcealedMaterial ?? baseMaterial;
     } else {
       tile.material = baseMaterial;
+    }
+
+    const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : null;
+    if (
+      Number.isInteger(tileIndex) &&
+      storedOutsideMap &&
+      Array.isArray(storedOutsideMap.cells)
+    ) {
+      const currentCell = storedOutsideMap.cells[tileIndex];
+      if (
+        !currentCell ||
+        currentCell.terrainId !== "void" ||
+        currentCell.tileId !== tileId
+      ) {
+        storedOutsideMap.cells[tileIndex] = { terrainId: "void", tileId };
+        try {
+          storedOutsideMap = saveOutsideMapToStorage(storedOutsideMap);
+          hasStoredOutsideMap = true;
+        } catch (error) {
+          console.warn("Unable to persist outside map terrain update", error);
+        }
+      }
     }
 
     return true;
