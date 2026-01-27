@@ -7713,7 +7713,10 @@ export const initScene = (
     tile.userData.isResourceTarget = false;
 
     if (geoVisorEnabled) {
-      tile.material = tile.userData.geoVisorConcealedMaterial ?? baseMaterial;
+      tile.material =
+        tile.userData.geoVisorVisorMaterial ??
+        tile.userData.geoVisorRevealedMaterial ??
+        baseMaterial;
     } else {
       tile.material = baseMaterial;
     }
