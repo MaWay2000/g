@@ -3984,7 +3984,8 @@ export const initScene = (
 
         let changed = false;
         normalizedMap.cells = normalizedMap.cells.map((cell) => {
-          const terrainId = cell?.terrainId ?? "void";
+          const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
+          const terrainId = resolvedTerrain?.id ?? "void";
           const terrainLife = storedTerrainLife.get(terrainId);
           if (
             terrainId !== "void" &&
