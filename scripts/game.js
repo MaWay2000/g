@@ -960,6 +960,7 @@ const quickSlotDefinitions = [
     id: "photon-cutter",
     label: "Geo Visor",
     description: "Visor tuned for precision terrain analysis.",
+    activateOnly: true,
     icon: "🥽",
   },
   {
@@ -972,6 +973,7 @@ const quickSlotDefinitions = [
     id: "geo-scanner",
     label: "Geo Scan",
     description: "Reveals hidden mineral signatures nearby.",
+    activateOnly: true,
     icon: "📡",
   },
   {
@@ -1092,6 +1094,10 @@ const decreaseTerrainLife = (terrainId, tileIndex, amount = 1) => {
 const quickSlotState = {
   slots: quickSlotDefinitions,
   selectedIndex: 0,
+};
+
+const geoVisorState = {
+  activeSlotId: null,
 };
 
 const quickSlotActivationTimeouts = new Map();
@@ -2180,8 +2186,8 @@ const updateGeoScanPanel = () => {
     return;
   }
 
-  const slot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
-  const isGeoScanActive = slot?.id === GEO_SCAN_SLOT_ID;
+  const activeGeoSlotId = getActiveGeoVisorSlotId();
+  const isGeoScanActive = activeGeoSlotId === GEO_SCAN_SLOT_ID;
 
   if (!isGeoScanActive) {
     hideGeoScanPanel();
@@ -2285,6 +2291,59 @@ const updateDroneQuickSlotState = () => {
   }
 };
 
+const getActiveGeoVisorSlotId = () => {
+  if (GEO_VISOR_SLOT_IDS.has(geoVisorState.activeSlotId)) {
+    return geoVisorState.activeSlotId;
+  }
+
+  const selectedSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
+  if (GEO_VISOR_SLOT_IDS.has(selectedSlot?.id) && !selectedSlot?.activateOnly) {
+    return selectedSlot.id;
+  }
+
+  return null;
+};
+
+const updateGeoVisorQuickSlotState = () => {
+  if (!(quickSlotBar instanceof HTMLElement)) {
+    return;
+  }
+
+  const activeSlotId = getActiveGeoVisorSlotId();
+  const geoSlotButtons = quickSlotBar.querySelectorAll("[data-quick-slot-id]");
+
+  geoSlotButtons.forEach((button) => {
+    if (!(button instanceof HTMLElement)) {
+      return;
+    }
+
+    const slotId = button.dataset.quickSlotId;
+
+    if (!GEO_VISOR_SLOT_IDS.has(slotId)) {
+      return;
+    }
+
+    if (slotId === activeSlotId) {
+      button.dataset.geoActive = "true";
+    } else {
+      delete button.dataset.geoActive;
+    }
+  });
+};
+
+const setGeoVisorActiveSlotId = (slotId) => {
+  const normalizedId = GEO_VISOR_SLOT_IDS.has(slotId) ? slotId : null;
+
+  if (geoVisorState.activeSlotId === normalizedId) {
+    return;
+  }
+
+  geoVisorState.activeSlotId = normalizedId;
+  updateGeoVisorQuickSlotState();
+  updateGeoScanPanel();
+  sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
+};
+
 const updateQuickSlotUi = () => {
   if (quickSlotBar instanceof HTMLElement) {
     const buttons = quickSlotBar.querySelectorAll(".quick-slot-bar__slot");
@@ -2311,6 +2370,8 @@ const updateQuickSlotUi = () => {
     quickSlotState.slots[quickSlotState.selectedIndex] ?? null
   );
   updateDroneQuickSlotState();
+  updateGeoVisorQuickSlotState();
+  sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
   updateGeoScanPanel();
 };
 
@@ -8471,11 +8532,26 @@ const handleGeoVisorQuickSlotChange = (event) => {
     return;
   }
 
-  const { slot } = event.detail ?? {};
+  const { slot, userInitiated } = event.detail ?? {};
+
+  if (slot?.activateOnly && GEO_VISOR_SLOT_IDS.has(slot?.id) && userInitiated) {
+    const nextSlotId =
+      geoVisorState.activeSlotId === slot.id ? null : slot.id;
+    setGeoVisorActiveSlotId(nextSlotId);
+    return;
+  }
+
   const selectedSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
-  const activeSlot = slot?.activateOnly ? selectedSlot : slot;
-  const isActive = GEO_VISOR_SLOT_IDS.has(activeSlot?.id);
-  sceneController?.setGeoVisorEnabled?.(isActive);
+
+  if (!geoVisorState.activeSlotId) {
+    setGeoVisorActiveSlotId(
+      GEO_VISOR_SLOT_IDS.has(selectedSlot?.id) ? selectedSlot.id : null
+    );
+    return;
+  }
+
+  updateGeoVisorQuickSlotState();
+  sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
 };
 
 if (canvas instanceof HTMLElement) {
@@ -8730,7 +8806,7 @@ const bootstrapScene = () => {
   });
 
   const currentSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
-  sceneController?.setGeoVisorEnabled?.(GEO_VISOR_SLOT_IDS.has(currentSlot?.id));
+  sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
 
   } catch (error) {
     console.error("Failed to initialize 3D scene", error);
