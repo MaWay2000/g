@@ -1796,10 +1796,7 @@ export const initScene = (
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
     const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-    const isVoidTerrain = terrainId === "void";
-    const texture = isVoidTerrain
-      ? null
-      : getRuntimeTerrainTexture(tileId, variantIndex);
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture ? 0xffffff : terrainColor;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
