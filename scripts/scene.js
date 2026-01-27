@@ -1762,7 +1762,8 @@ export const initScene = (
     const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
-    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const rawTexture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const texture = terrainId === "void" ? null : rawTexture;
     const baseColor = texture
       ? 0xffffff
       : terrainId === "void"
@@ -1796,7 +1797,8 @@ export const initScene = (
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
     const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const rawTexture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const texture = terrainId === "void" ? null : rawTexture;
     const baseColor = texture ? 0xffffff : terrainColor;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
@@ -4129,7 +4131,8 @@ export const initScene = (
         const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
-        const texture = getTextureForTerrainTile(tileId, variantIndex);
+        const rawTexture = getTextureForTerrainTile(tileId, variantIndex);
+        const texture = terrainId === "void" ? null : rawTexture;
         const baseColor = texture
           ? 0xffffff
           : terrainId === "void"
@@ -4167,7 +4170,8 @@ export const initScene = (
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
         const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-        const texture = getTextureForTerrainTile(tileId, variantIndex);
+        const rawTexture = getTextureForTerrainTile(tileId, variantIndex);
+        const texture = terrainId === "void" ? null : rawTexture;
         const baseColor = texture ? 0xffffff : terrainColor;
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
