@@ -1,5 +1,13 @@
 const TERRAIN_LIFE_STORAGE_KEY = "dustyNova.terrainLife";
 
+export const getTerrainLifeKey = (cellIndex) => {
+  if (!Number.isInteger(cellIndex) || cellIndex < 0) {
+    return null;
+  }
+
+  return `cell:${cellIndex}`;
+};
+
 const getTerrainLifeStorage = (() => {
   let resolved = false;
   let storage = null;
