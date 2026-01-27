@@ -35,6 +35,7 @@ import { loadMarketState, persistMarketState } from "./market-state-storage.js";
 import { loadStoredTodos, persistTodos } from "./todo-storage.js";
 import {
   clearStoredTerrainLife,
+  getTerrainLifeKey,
   loadStoredTerrainLife,
   persistTerrainLifeState,
 } from "./terrain-life-storage.js";
@@ -1015,11 +1016,7 @@ const GEO_SCAN_MAX_HP = Math.max(
       )
     : [1])
 );
-const terrainLifeById = new Map(
-  (Array.isArray(OUTSIDE_TERRAIN_TYPES) ? OUTSIDE_TERRAIN_TYPES : []).map(
-    (terrain) => [terrain.id, Number.isFinite(terrain?.hp) ? terrain.hp : 0]
-  )
-);
+const terrainLifeByCell = new Map();
 const applyStoredTerrainLife = () => {
   const storedTerrainLife = loadStoredTerrainLife();
 
@@ -1027,19 +1024,13 @@ const applyStoredTerrainLife = () => {
     return;
   }
 
-  storedTerrainLife.forEach((value, terrainId) => {
-    if (!terrainLifeById.has(terrainId)) {
+  storedTerrainLife.forEach((value, cellKey) => {
+    if (typeof cellKey !== "string" || !cellKey.startsWith("cell:")) {
       return;
     }
 
-    const terrain = getOutsideTerrainById(terrainId);
-    const maxLife = Number.isFinite(terrain?.hp) ? terrain.hp : 0;
-    const nextLife = Number.isFinite(value)
-      ? Math.max(0, Math.min(maxLife, value))
-      : null;
-
-    if (nextLife !== null) {
-      terrainLifeById.set(terrainId, nextLife);
+    if (Number.isFinite(value) && value >= 0) {
+      terrainLifeByCell.set(cellKey, value);
     }
   });
 };
@@ -1051,34 +1042,49 @@ const schedulePersistTerrainLife = () => {
 
   persistTerrainLifeTimeoutId = window.setTimeout(() => {
     persistTerrainLifeTimeoutId = 0;
-    persistTerrainLifeState(terrainLifeById);
+    persistTerrainLifeState(terrainLifeByCell);
   }, 100);
 };
 applyStoredTerrainLife();
-const getTerrainLifeValue = (terrain) => {
+const getTerrainLifeValue = (terrain, tileIndex) => {
   if (!terrain?.id) {
     return 0;
   }
 
-  if (terrainLifeById.has(terrain.id)) {
-    return terrainLifeById.get(terrain.id);
+  const maxLife = Number.isFinite(terrain?.hp) ? terrain.hp : 0;
+  const cellKey = getTerrainLifeKey(tileIndex);
+  if (!cellKey) {
+    return maxLife;
   }
 
-  const fallbackLife = Number.isFinite(terrain?.hp) ? terrain.hp : 0;
-  terrainLifeById.set(terrain.id, fallbackLife);
-  return fallbackLife;
+  const storedLife = terrainLifeByCell.get(cellKey);
+  if (Number.isFinite(storedLife)) {
+    const normalizedLife = Math.max(0, Math.min(maxLife, storedLife));
+    if (normalizedLife !== storedLife) {
+      terrainLifeByCell.set(cellKey, normalizedLife);
+    }
+    return normalizedLife;
+  }
+
+  terrainLifeByCell.set(cellKey, maxLife);
+  return maxLife;
 };
-const decreaseTerrainLife = (terrainId, amount = 1) => {
+const decreaseTerrainLife = (terrainId, tileIndex, amount = 1) => {
   if (!terrainId) {
     return 0;
   }
 
+  const cellKey = getTerrainLifeKey(tileIndex);
+  if (!cellKey) {
+    return 0;
+  }
+
   const terrain = getOutsideTerrainById(terrainId);
-  const currentLife = getTerrainLifeValue(terrain);
+  const currentLife = getTerrainLifeValue(terrain, tileIndex);
   const drain = Number.isFinite(amount) ? Math.max(0, amount) : 0;
   const nextLife = Math.max(0, currentLife - drain);
 
-  terrainLifeById.set(terrainId, nextLife);
+  terrainLifeByCell.set(cellKey, nextLife);
   schedulePersistTerrainLife();
   return nextLife;
 };
@@ -2132,6 +2138,7 @@ const updateResourceToolIndicator = (slot) => {
 
 const geoScanPanelState = {
   terrainId: null,
+  tileIndex: null,
 };
 
 const formatGeoScanElementList = (elements) => {
@@ -2165,6 +2172,7 @@ const hideGeoScanPanel = () => {
     geoScanPanel.hidden = true;
   }
   geoScanPanelState.terrainId = null;
+  geoScanPanelState.tileIndex = null;
 };
 
 const updateGeoScanPanel = () => {
@@ -2190,6 +2198,7 @@ const updateGeoScanPanel = () => {
   if (terrainDetail.terrainId === "void") {
     geoScanPanel.hidden = false;
     geoScanPanelState.terrainId = "void";
+    geoScanPanelState.tileIndex = null;
     if (geoScanTerrainLabel instanceof HTMLElement) {
       geoScanTerrainLabel.textContent = "Terrain: Void";
     }
@@ -2234,7 +2243,9 @@ const updateGeoScanPanel = () => {
     }
   }
 
-  const terrainHp = getTerrainLifeValue(terrain);
+  geoScanPanelState.tileIndex = terrainDetail.tileIndex ?? null;
+
+  const terrainHp = getTerrainLifeValue(terrain, terrainDetail.tileIndex);
   const clampedPercent = Math.max(
     0,
     Math.min(100, Math.round((terrainHp / GEO_SCAN_MAX_HP) * 100))
@@ -8546,12 +8557,13 @@ const handleManifestPlacementRemoved = (entry) => {
 
 const applyTerrainLifeDrain = (detail) => {
   const terrainId = detail?.terrain?.id ?? null;
-  if (!terrainId) {
+  const tileIndex = detail?.terrain?.tileIndex ?? null;
+  if (!terrainId || !Number.isInteger(tileIndex)) {
     return;
   }
 
   if (detail?.found === false) {
-    const nextLife = decreaseTerrainLife(terrainId, 1);
+    const nextLife = decreaseTerrainLife(terrainId, tileIndex, 1);
     if (nextLife <= 0) {
       sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
     }
@@ -8564,7 +8576,7 @@ const applyTerrainLifeDrain = (detail) => {
 
   const drainAmount = getInventoryElementWeight(detail.element);
   if (Number.isFinite(drainAmount) && drainAmount > 0) {
-    const nextLife = decreaseTerrainLife(terrainId, drainAmount);
+    const nextLife = decreaseTerrainLife(terrainId, tileIndex, drainAmount);
     if (nextLife <= 0) {
       sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
     }

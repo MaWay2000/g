@@ -41,7 +41,7 @@ import {
   getOutsideTerrainDefaultTileId,
   getOutsideTerrainTilePath,
 } from "./outside-map.js";
-import { loadStoredTerrainLife } from "./terrain-life-storage.js";
+import { getTerrainLifeKey, loadStoredTerrainLife } from "./terrain-life-storage.js";
 import { samplePeriodicElement } from "./data/periodic-elements.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
@@ -3983,10 +3983,11 @@ export const initScene = (
         }
 
         let changed = false;
-        normalizedMap.cells = normalizedMap.cells.map((cell) => {
+        normalizedMap.cells = normalizedMap.cells.map((cell, index) => {
           const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
           const terrainId = resolvedTerrain?.id ?? "void";
-          const terrainLife = storedTerrainLife.get(terrainId);
+          const cellKey = getTerrainLifeKey(index);
+          const terrainLife = cellKey ? storedTerrainLife.get(cellKey) : null;
           if (
             terrainId !== "void" &&
             Number.isFinite(terrainLife) &&
@@ -6427,8 +6428,11 @@ export const initScene = (
 
     const terrainId = targetObject.userData?.terrainId ?? null;
     const terrainLabel = targetObject.userData?.terrainLabel ?? null;
+    const tileIndex = Number.isFinite(targetObject.userData?.tileVariantIndex)
+      ? targetObject.userData.tileVariantIndex
+      : null;
 
-    return { terrainId, terrainLabel };
+    return { terrainId, terrainLabel, tileIndex };
   };
 
   const prepareResourceCollection = ({ requireLockedControls = true } = {}) => {
@@ -7031,6 +7035,9 @@ export const initScene = (
   }) {
     const terrainId = targetObject.userData?.terrainId ?? null;
     const terrainLabel = targetObject.userData?.terrainLabel ?? null;
+    const tileIndex = Number.isFinite(targetObject.userData?.tileVariantIndex)
+      ? targetObject.userData.tileVariantIndex
+      : null;
     const sessionSource = source || RESOURCE_SESSION_PLAYER_SOURCE;
     const session = getResourceSession(sessionSource);
 
@@ -7040,6 +7047,7 @@ export const initScene = (
       terrain: {
         id: terrainId,
         label: terrainLabel,
+        tileIndex,
       },
       position: {
         x: intersection.point.x,
