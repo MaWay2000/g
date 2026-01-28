@@ -971,8 +971,8 @@ const quickSlotDefinitions = [
   },
   {
     id: "geo-scanner",
-    label: "Geo Scan",
-    description: "Reveals hidden mineral signatures nearby.",
+    label: "Geo Scanner",
+    description: "Construction layout view for placing structures on the map.",
     activateOnly: true,
     icon: "📡",
   },
@@ -1008,8 +1008,8 @@ const quickSlotDefinitions = [
   },
 ];
 
-const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter", "geo-scanner"]);
-const GEO_SCAN_SLOT_ID = "geo-scanner";
+const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter"]);
+const GEO_VISOR_PANEL_SLOT_ID = "photon-cutter";
 const GEO_SCAN_MAX_HP = Math.max(
   1,
   ...(Array.isArray(OUTSIDE_TERRAIN_TYPES)
@@ -2191,7 +2191,7 @@ const updateGeoScanPanel = () => {
   }
 
   const activeGeoSlotId = getActiveGeoVisorSlotId();
-  const isGeoScanActive = activeGeoSlotId === GEO_SCAN_SLOT_ID;
+  const isGeoScanActive = activeGeoSlotId === GEO_VISOR_PANEL_SLOT_ID;
 
   if (!isGeoScanActive) {
     hideGeoScanPanel();
