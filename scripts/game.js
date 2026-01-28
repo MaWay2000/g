@@ -2163,11 +2163,11 @@ const formatGeoScanElementList = (elements) => {
       const name = typeof element.name === "string" ? element.name.trim() : "";
 
       if (name) {
-        return `(${name})`;
+        return name;
       }
 
       if (symbol) {
-        return `(${symbol})`;
+        return symbol;
       }
 
       return null;
