@@ -4156,6 +4156,18 @@ export const initScene = (
           terrainPlaneSegments
         );
         geometry.rotateX(-Math.PI / 2);
+        const uvInset = 0.0025;
+        const uvs = geometry.attributes.uv;
+        for (let index = 0; index < uvs.count; index += 1) {
+          const u = uvs.getX(index);
+          const v = uvs.getY(index);
+          uvs.setXY(
+            index,
+            u * (1 - uvInset * 2) + uvInset,
+            v * (1 - uvInset * 2) + uvInset
+          );
+        }
+        uvs.needsUpdate = true;
         const positions = geometry.attributes.position;
         const centerX = mapLeftEdge + column * cellSize + cellSize / 2;
         const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
