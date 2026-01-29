@@ -4094,6 +4094,9 @@ export const initScene = (
 
       const mapWorldWidth = width * cellSize;
       const mapWorldDepth = height * cellSize;
+      const borderTiles = 3;
+      const expandedWorldWidth = mapWorldWidth + borderTiles * 2 * cellSize;
+      const expandedWorldDepth = mapWorldDepth + borderTiles * 2 * cellSize;
       const mapNearEdge = walkwayFrontEdge;
       const mapFarEdge = mapNearEdge + mapWorldDepth;
       const mapCenterZ = (mapNearEdge + mapFarEdge) / 2;
@@ -4114,9 +4117,9 @@ export const initScene = (
 
       const base = new THREE.Mesh(
         new THREE.BoxGeometry(
-          mapWorldWidth,
+          expandedWorldWidth,
           0.08,
-          mapWorldDepth
+          expandedWorldDepth
         ),
         new THREE.MeshStandardMaterial({
           color: new THREE.Color(0x0b1220),
@@ -4395,9 +4398,20 @@ export const initScene = (
         }
       };
 
-      for (let row = 0; row < height; row += 1) {
-        for (let column = 0; column < width; column += 1) {
-          const index = row * width + column;
+      const clampColumnIndex = (column) =>
+        THREE.MathUtils.clamp(column, 0, width - 1);
+      const clampRowIndex = (row) => THREE.MathUtils.clamp(row, 0, height - 1);
+      const getCellIndex = (column, row) => {
+        const clampedColumn = clampColumnIndex(column);
+        const clampedRow = clampRowIndex(row);
+        return clampedRow * width + clampedColumn;
+      };
+
+      for (let row = -borderTiles; row < height + borderTiles; row += 1) {
+        for (let column = -borderTiles; column < width + borderTiles; column += 1) {
+          const isInsideMap =
+            column >= 0 && column < width && row >= 0 && row < height;
+          const index = getCellIndex(column, row);
           const cellData = rawCells[index] ?? {};
           const terrainId = cellData?.terrainId ?? "void";
           const tileId =
@@ -4429,33 +4443,35 @@ export const initScene = (
             offset: tile.position.y - roomFloorY,
           });
 
-          tile.userData.terrainId = resolvedTerrain.id;
-          tile.userData.terrainLabel =
-            typeof resolvedTerrain.label === "string"
-              ? resolvedTerrain.label
-              : resolvedTerrain.id;
-          tile.userData.tileId = tileId;
-          tile.userData.terrainHeight = surfaceHeight;
-          tile.userData.tileVariantIndex = index;
-          tile.userData.geoVisorRow = row;
-          tile.userData.geoVisorColumn = column;
-          tile.userData.geoVisorCellSize = cellSize;
-          tile.userData.geoVisorMapLeftEdge = mapLeftEdge;
-          tile.userData.geoVisorMapNearEdge = mapNearEdge;
-          tile.userData.geoVisorRevealedMaterial = tile.material;
-          tile.userData.geoVisorVisorMaterial = getGeoVisorMaterialForTerrain(
-            resolvedTerrain.id,
-            tileId,
-            index
-          );
-          tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
-          tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
+          if (isInsideMap) {
+            tile.userData.terrainId = resolvedTerrain.id;
+            tile.userData.terrainLabel =
+              typeof resolvedTerrain.label === "string"
+                ? resolvedTerrain.label
+                : resolvedTerrain.id;
+            tile.userData.tileId = tileId;
+            tile.userData.terrainHeight = surfaceHeight;
+            tile.userData.tileVariantIndex = index;
+            tile.userData.geoVisorRow = row;
+            tile.userData.geoVisorColumn = column;
+            tile.userData.geoVisorCellSize = cellSize;
+            tile.userData.geoVisorMapLeftEdge = mapLeftEdge;
+            tile.userData.geoVisorMapNearEdge = mapNearEdge;
+            tile.userData.geoVisorRevealedMaterial = tile.material;
+            tile.userData.geoVisorVisorMaterial = getGeoVisorMaterialForTerrain(
+              resolvedTerrain.id,
+              tileId,
+              index
+            );
+            tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
+            tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
 
-          if (geoVisorEnabled) {
-            tile.material = concealedTerrainMaterial;
+            if (geoVisorEnabled) {
+              tile.material = concealedTerrainMaterial;
+            }
+
+            terrainTiles.push(tile);
           }
-
-          terrainTiles.push(tile);
 
           const westIndex = column > 0 ? index - 1 : null;
           const eastIndex = column < width - 1 ? index + 1 : null;
@@ -4469,16 +4485,16 @@ export const initScene = (
             northIndex === null ? null : getSurfaceHeight(northIndex);
           const southHeight =
             southIndex === null ? null : getSurfaceHeight(southIndex);
-          if (surfaceHeight > getMaxStepHeight() + 0.1) {
+          if (isInsideMap && surfaceHeight > getMaxStepHeight() + 0.1) {
             colliderDescriptors.push({ object: tile });
           }
 
-          if (resolvedTerrain.id !== "void") {
+          if (isInsideMap && resolvedTerrain.id !== "void") {
             tile.userData.isResourceTarget = true;
             resourceTargets.push(tile);
           }
 
-          if (resolvedTerrain.id === "point") {
+          if (isInsideMap && resolvedTerrain.id === "point") {
             const markerMaterial = new THREE.MeshStandardMaterial({
               color: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
               emissive: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
@@ -4494,7 +4510,7 @@ export const initScene = (
             );
             marker.position.set(0, surfaceHeight + cellSize * 0.5, 0);
             tile.add(marker);
-          } else if (resolvedTerrain.id === "hazard") {
+          } else if (isInsideMap && resolvedTerrain.id === "hazard") {
             const beaconMaterial = new THREE.MeshStandardMaterial({
               color: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
               emissive: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
