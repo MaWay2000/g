@@ -8518,7 +8518,7 @@ export const initScene = (
   const terrainGroundRayDirection = new THREE.Vector3(0, -1, 0);
   const terrainGroundRayOrigin = new THREE.Vector3();
 
-  const getTerrainGroundHeight = (position) => {
+  const getTerrainGroundHeight = (position, maxGroundBaseHeight = null) => {
     if (
       !position ||
       !Array.isArray(activeTerrainTiles) ||
@@ -8542,9 +8542,15 @@ export const initScene = (
       return null;
     }
 
-    const maxGroundHeight = Number.isFinite(position.y)
-      ? position.y + getMaxStepHeight() + STEP_HEIGHT_TOLERANCE
+    const baseHeight = Number.isFinite(maxGroundBaseHeight)
+      ? maxGroundBaseHeight
+      : Number.isFinite(position.y)
+      ? position.y
       : null;
+    const maxGroundHeight =
+      baseHeight === null
+        ? null
+        : baseHeight + getMaxStepHeight() + STEP_HEIGHT_TOLERANCE;
     const filteredIntersections =
       maxGroundHeight === null
         ? intersections
@@ -8570,7 +8576,15 @@ export const initScene = (
   };
 
   const getPlayerGroundHeight = (position) => {
-    const terrainHeight = getTerrainGroundHeight(position);
+    const groundedBaseHeight = isGrounded
+      ? position?.y
+      : Number.isFinite(playerGroundedHeight)
+      ? playerGroundedHeight
+      : null;
+    const terrainHeight = getTerrainGroundHeight(
+      position,
+      groundedBaseHeight
+    );
     if (!Number.isFinite(terrainHeight)) {
       return roomFloorY;
     }
