@@ -4088,9 +4088,9 @@ export const initScene = (
 
       const base = new THREE.Mesh(
         new THREE.BoxGeometry(
-          mapWorldWidth + cellSize * 0.6,
+          mapWorldWidth,
           0.08,
-          mapWorldDepth + cellSize * 0.6
+          mapWorldDepth
         ),
         new THREE.MeshStandardMaterial({
           color: new THREE.Color(0x0b1220),
