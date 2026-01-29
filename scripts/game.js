@@ -2396,6 +2396,10 @@ const updateGeoVisorBatteryState = () => {
     )
   );
 
+  if (isGeoVisorActive && nextLevel === 0) {
+    setGeoVisorActiveSlotId(null);
+  }
+
   if (Math.abs(nextLevel - geoVisorBatteryState.level) >= 0.001) {
     geoVisorBatteryState.level = nextLevel;
     updateGeoVisorBatteryIndicator();
