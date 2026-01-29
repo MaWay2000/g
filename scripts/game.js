@@ -23,16 +23,22 @@ import {
   getActiveMissions,
   getMissions,
   getPendingMissions,
+  resetMissions,
   subscribeToMissionState,
 } from "./missions.js";
 import {
   addMarsMoney,
   getCurrencyBalance,
   isCurrencyStorageAvailable,
+  resetCurrency,
   subscribeToCurrency,
 } from "./currency.js";
-import { loadMarketState, persistMarketState } from "./market-state-storage.js";
-import { loadStoredTodos, persistTodos } from "./todo-storage.js";
+import {
+  getDefaultMarketState,
+  loadMarketState,
+  persistMarketState,
+} from "./market-state-storage.js";
+import { clearStoredTodos, loadStoredTodos, persistTodos } from "./todo-storage.js";
 import {
   clearStoredTerrainLife,
   getTerrainLifeKey,
@@ -4157,6 +4163,24 @@ let lastTodoFocusedElement = null;
 let todoPanelWasPointerLocked = false;
 let todoPanelCloseFallbackId = 0;
 let todoPersistTimeoutId = 0;
+
+const clearStoredInventoryState = () => {
+  const storage = getInventoryStorage();
+
+  if (!storage) {
+    return false;
+  }
+
+  try {
+    storage.removeItem(INVENTORY_STORAGE_KEY);
+    lastSerializedInventoryState = null;
+    return true;
+  } catch (error) {
+    console.warn("Unable to clear stored inventory state", error);
+  }
+
+  return false;
+};
 
 const attemptToRestorePointerLock = () => {
   const controls = sceneController?.controls;
@@ -9171,7 +9195,7 @@ function handleReset(event) {
   }
 
   const shouldReset = window.confirm(
-    "Reset your saved position, view settings, and custom height? This cannot be undone."
+    "Reset all saved progress, inventory, quests, and settings? This cannot be undone."
   );
 
   if (!shouldReset) {
@@ -9189,15 +9213,28 @@ function handleReset(event) {
       : undefined;
 
   try {
-    const cleared = clearStoredPlayerState();
+    const clearedPlayerState = clearStoredPlayerState();
+    const clearedDroneState = clearStoredDroneState();
+    const clearedSettings = clearStoredSettings();
+    const clearedTerrainLife = clearStoredTerrainLife();
+    const clearedInventory = clearStoredInventoryState();
+    const clearedTodos = clearStoredTodos();
+    const resetMarketState = persistMarketState(getDefaultMarketState());
 
-    if (!cleared) {
+    resetMissions();
+    resetCurrency();
+
+    if (
+      !clearedPlayerState ||
+      !clearedDroneState ||
+      !clearedSettings ||
+      !clearedTerrainLife ||
+      !clearedInventory ||
+      !clearedTodos ||
+      !resetMarketState
+    ) {
       throw new Error("Unable to access saved data");
     }
-
-    clearStoredDroneState();
-    clearStoredSettings();
-    clearStoredTerrainLife();
 
     sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, {
       persist: false,
