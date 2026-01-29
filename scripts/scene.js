@@ -4061,8 +4061,7 @@ export const initScene = (
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
 
-      const tileBaseRadius = 0.5 * Math.SQRT2;
-      const tileGeometry = new THREE.ConeGeometry(tileBaseRadius, 1, 4);
+      const tileGeometry = new THREE.ConeGeometry(0.5, 1, 4);
       tileGeometry.rotateY(Math.PI / 4);
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
@@ -4264,8 +4263,7 @@ export const initScene = (
           const resolvedTerrain = getOutsideTerrainById(terrainId);
           const style = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
             DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
-          const tileHeight =
-            style.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
+          const tileHeight = style.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
           const elevation = getOutsideTerrainElevation(
             normalizedMap.heights?.[index]
           );
@@ -4275,10 +4273,13 @@ export const initScene = (
             tileGeometry,
             getMaterialForTerrain(resolvedTerrain.id, tileId, index)
           );
-          tile.scale.set(cellSize, tileHeight, cellSize);
+          tile.scale.set(cellSize, totalTileHeight, cellSize);
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
-            roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation + tileHeight / 2,
+            roomFloorY -
+              totalTileHeight / 2 +
+              OUTSIDE_TERRAIN_CLEARANCE +
+              elevation,
             mapNearEdge + row * cellSize + cellSize / 2
           );
           tile.castShadow = false;
@@ -4340,7 +4341,7 @@ export const initScene = (
               new THREE.ConeGeometry(cellSize * 0.28, cellSize * 0.9, 16),
               markerMaterial
             );
-            marker.position.set(0, tileHeight / 2 + cellSize * 0.5, 0);
+            marker.position.set(0, totalTileHeight / 2 + cellSize * 0.5, 0);
             tile.add(marker);
           } else if (resolvedTerrain.id === "hazard") {
             const beaconMaterial = new THREE.MeshStandardMaterial({
@@ -4361,7 +4362,7 @@ export const initScene = (
               ),
               beaconMaterial
             );
-            beacon.position.set(0, tileHeight / 2 + cellSize * 0.45, 0);
+            beacon.position.set(0, totalTileHeight / 2 + cellSize * 0.45, 0);
             tile.add(beacon);
 
             const hazardGlow = new THREE.Mesh(
