@@ -356,6 +356,40 @@ function normalizeMapDefinition(definition) {
   return normalized;
 }
 
+async function resolveExternalHeights(mapDefinition) {
+  if (!mapDefinition || typeof mapDefinition !== "object") {
+    return mapDefinition;
+  }
+
+  if (Array.isArray(mapDefinition.heights)) {
+    return mapDefinition;
+  }
+
+  const heightsFile =
+    typeof mapDefinition.heightsFile === "string"
+      ? mapDefinition.heightsFile.trim()
+      : "";
+  if (!heightsFile) {
+    return mapDefinition;
+  }
+
+  try {
+    const response = await fetch(heightsFile, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Heights request failed: ${response.status}`);
+    }
+    const data = await response.json();
+    const heights = Array.isArray(data) ? data : data?.heights;
+    if (!Array.isArray(heights)) {
+      throw new Error("Heights data is not an array");
+    }
+    return { ...mapDefinition, heights };
+  } catch (error) {
+    console.warn("Unable to load external heights file", error);
+    return mapDefinition;
+  }
+}
+
 function updateLandscapeViewer() {
   if (!landscapeViewer) {
     return;
@@ -849,7 +883,7 @@ function restoreMapFromLocalStorage({
 
   try {
     const parsed = JSON.parse(serialized);
-    applyImportedMap(parsed);
+    void applyImportedMap(parsed);
   } catch (error) {
     console.error("Saved map is invalid", error);
     storage.removeItem(LOCAL_STORAGE_KEY);
@@ -1668,8 +1702,9 @@ function initPaletteTabs() {
   setActivePaletteTab(activeTab?.dataset.mapMakerTab ?? "terrain");
 }
 
-function applyImportedMap(mapDefinition) {
-  const normalized = normalizeMapDefinition(mapDefinition);
+async function applyImportedMap(mapDefinition) {
+  const resolved = await resolveExternalHeights(mapDefinition);
+  const normalized = normalizeMapDefinition(resolved);
 
   state.map = normalized;
   clearSelection();
@@ -2122,7 +2157,7 @@ function initControls() {
   elements.importButton.addEventListener("click", () => {
     try {
       const map = JSON.parse(elements.importTextarea.value);
-      applyImportedMap(map);
+      void applyImportedMap(map);
     } catch (error) {
       console.error("Invalid JSON", error);
       alert("Paste a valid JSON map definition.");

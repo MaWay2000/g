@@ -447,6 +447,10 @@ export function normalizeOutsideMap(definition) {
   const width = clampOutsideMapDimension(definition.width);
   const height = clampOutsideMapDimension(definition.height);
   const totalCells = width * height;
+  const heightsFile =
+    typeof definition.heightsFile === "string"
+      ? definition.heightsFile.trim()
+      : "";
   const sourceCells = Array.isArray(definition.cells) ? definition.cells : [];
   const sourceTerrainIds = Array.isArray(definition.terrainIds)
     ? definition.terrainIds
@@ -464,6 +468,7 @@ export function normalizeOutsideMap(definition) {
     notes: typeof definition.notes === "string" ? definition.notes : "",
     width,
     height,
+    heightsFile: heightsFile || undefined,
     cells: [],
     heights: normalizeOutsideHeights(sourceHeights, width, height),
     objects: normalizeOutsideObjectPlacements(definition.objects),
