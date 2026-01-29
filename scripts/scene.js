@@ -4165,10 +4165,16 @@ export const initScene = (
         return tileHeight + elevation;
       };
 
+      const OUTSIDE_BORDER_HEIGHT = 60;
+      const outsideBorderElevation = getOutsideTerrainElevation(
+        OUTSIDE_BORDER_HEIGHT
+      );
+
       const getCellElevation = (column, row) => {
-        const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
-        const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
-        const index = clampedRow * width + clampedColumn;
+        if (column < 0 || column >= width || row < 0 || row >= height) {
+          return outsideBorderElevation;
+        }
+        const index = row * width + column;
         return getOutsideTerrainElevation(normalizedMap.heights?.[index]);
       };
 
@@ -4190,7 +4196,7 @@ export const initScene = (
         return THREE.MathUtils.lerp(northBlend, southBlend, zBlend);
       };
 
-      const createTerrainTileGeometry = (column, row, tileHeight) => {
+      const createTerrainTileGeometry = (column, row, tileHeight, isInsideMap) => {
         const geometry = new THREE.PlaneGeometry(
           cellSize,
           cellSize,
@@ -4203,6 +4209,7 @@ export const initScene = (
         const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
 
         const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
+        const baseOutsideHeight = tileHeight + outsideBorderElevation;
 
         for (let index = 0; index < positions.count; index += 1) {
           const localX = positions.getX(index);
@@ -4217,8 +4224,9 @@ export const initScene = (
             0,
             1
           );
-          const baseHeight =
-            tileHeight + getBlendedElevation(column, row, xBlend, zBlend);
+          const baseHeight = isInsideMap
+            ? tileHeight + getBlendedElevation(column, row, xBlend, zBlend)
+            : baseOutsideHeight;
           const worldX = centerX + localX;
           const worldZ = centerZ + localZ;
           const noise = getTerrainNoise(worldX, worldZ);
@@ -4424,7 +4432,8 @@ export const initScene = (
           const tileGeometry = createTerrainTileGeometry(
             column,
             row,
-            tileHeight
+            tileHeight,
+            isInsideMap
           );
           const tile = new THREE.Mesh(
             tileGeometry,
