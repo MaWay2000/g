@@ -4111,6 +4111,17 @@ export const initScene = (
         return (primary + secondary + tertiary) / 1.9;
       };
 
+      const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
+        DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+      const tileHeight = terrainStyle.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
+
+      const getSurfaceHeight = (index) => {
+        const elevation = getOutsideTerrainElevation(
+          normalizedMap.heights?.[index]
+        );
+        return tileHeight + elevation;
+      };
+
       const createTerrainTileGeometry = (column, row, elevation, tileHeight) => {
         const geometry = new THREE.PlaneGeometry(
           cellSize,
@@ -4134,6 +4145,59 @@ export const initScene = (
         }
 
         positions.needsUpdate = true;
+        geometry.computeVertexNormals();
+        return geometry;
+      };
+
+      const createTerrainSkirtGeometry = ({
+        startX,
+        startZ,
+        endX,
+        endZ,
+        topHeight,
+        bottomHeight,
+      }) => {
+        const segments = terrainPlaneSegments;
+        const vertexCount = (segments + 1) * 2;
+        const positions = new Float32Array(vertexCount * 3);
+        const uvs = new Float32Array(vertexCount * 2);
+        const indices = [];
+
+        for (let index = 0; index <= segments; index += 1) {
+          const t = segments === 0 ? 0 : index / segments;
+          const worldX = startX + (endX - startX) * t;
+          const worldZ = startZ + (endZ - startZ) * t;
+          const noise = getTerrainNoise(worldX, worldZ) * terrainNoiseAmplitude;
+          const topY = topHeight + noise;
+          const bottomY = bottomHeight + noise;
+          const vertexIndex = index * 2;
+
+          positions[vertexIndex * 3] = worldX;
+          positions[vertexIndex * 3 + 1] = topY;
+          positions[vertexIndex * 3 + 2] = worldZ;
+          positions[vertexIndex * 3 + 3] = worldX;
+          positions[vertexIndex * 3 + 4] = bottomY;
+          positions[vertexIndex * 3 + 5] = worldZ;
+
+          uvs[vertexIndex * 2] = t;
+          uvs[vertexIndex * 2 + 1] = 1;
+          uvs[vertexIndex * 2 + 2] = t;
+          uvs[vertexIndex * 2 + 3] = 0;
+
+          if (index < segments) {
+            const nextIndex = vertexIndex + 2;
+            indices.push(vertexIndex, vertexIndex + 1, nextIndex);
+            indices.push(vertexIndex + 1, nextIndex + 1, nextIndex);
+          }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3)
+        );
+        geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
         geometry.computeVertexNormals();
         return geometry;
       };
@@ -4298,9 +4362,6 @@ export const initScene = (
           const tileId =
             cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
           const resolvedTerrain = getOutsideTerrainById(terrainId);
-          const style = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
-            DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
-          const tileHeight = style.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
           const elevation = getOutsideTerrainElevation(
             normalizedMap.heights?.[index]
           );
@@ -4356,6 +4417,101 @@ export const initScene = (
 
           terrainTiles.push(tile);
 
+          const westIndex = column > 0 ? index - 1 : null;
+          const eastIndex = column < width - 1 ? index + 1 : null;
+          const northIndex = row > 0 ? index - width : null;
+          const southIndex = row < height - 1 ? index + width : null;
+          const westHeight =
+            westIndex === null ? null : getSurfaceHeight(westIndex);
+          const eastHeight =
+            eastIndex === null ? null : getSurfaceHeight(eastIndex);
+          const northHeight =
+            northIndex === null ? null : getSurfaceHeight(northIndex);
+          const southHeight =
+            southIndex === null ? null : getSurfaceHeight(southIndex);
+          const edgeMinDelta = 0.001;
+          const skirtMaterial = tile.material;
+
+          if (westHeight !== null && surfaceHeight - westHeight > edgeMinDelta) {
+            const skirtGeometry = createTerrainSkirtGeometry({
+              startX: mapLeftEdge + column * cellSize,
+              startZ: mapNearEdge + row * cellSize,
+              endX: mapLeftEdge + column * cellSize,
+              endZ: mapNearEdge + (row + 1) * cellSize,
+              topHeight: surfaceHeight,
+              bottomHeight: westHeight,
+            });
+            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
+            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
+            skirt.castShadow = false;
+            skirt.receiveShadow = false;
+            mapGroup.add(skirt);
+            adjustable.push({
+              object: skirt,
+              offset: OUTSIDE_TERRAIN_CLEARANCE,
+            });
+          }
+
+          if (eastHeight !== null && surfaceHeight - eastHeight > edgeMinDelta) {
+            const skirtGeometry = createTerrainSkirtGeometry({
+              startX: mapLeftEdge + (column + 1) * cellSize,
+              startZ: mapNearEdge + (row + 1) * cellSize,
+              endX: mapLeftEdge + (column + 1) * cellSize,
+              endZ: mapNearEdge + row * cellSize,
+              topHeight: surfaceHeight,
+              bottomHeight: eastHeight,
+            });
+            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
+            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
+            skirt.castShadow = false;
+            skirt.receiveShadow = false;
+            mapGroup.add(skirt);
+            adjustable.push({
+              object: skirt,
+              offset: OUTSIDE_TERRAIN_CLEARANCE,
+            });
+          }
+
+          if (northHeight !== null && surfaceHeight - northHeight > edgeMinDelta) {
+            const skirtGeometry = createTerrainSkirtGeometry({
+              startX: mapLeftEdge + (column + 1) * cellSize,
+              startZ: mapNearEdge + row * cellSize,
+              endX: mapLeftEdge + column * cellSize,
+              endZ: mapNearEdge + row * cellSize,
+              topHeight: surfaceHeight,
+              bottomHeight: northHeight,
+            });
+            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
+            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
+            skirt.castShadow = false;
+            skirt.receiveShadow = false;
+            mapGroup.add(skirt);
+            adjustable.push({
+              object: skirt,
+              offset: OUTSIDE_TERRAIN_CLEARANCE,
+            });
+          }
+
+          if (southHeight !== null && surfaceHeight - southHeight > edgeMinDelta) {
+            const skirtGeometry = createTerrainSkirtGeometry({
+              startX: mapLeftEdge + column * cellSize,
+              startZ: mapNearEdge + (row + 1) * cellSize,
+              endX: mapLeftEdge + (column + 1) * cellSize,
+              endZ: mapNearEdge + (row + 1) * cellSize,
+              topHeight: surfaceHeight,
+              bottomHeight: southHeight,
+            });
+            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
+            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
+            skirt.castShadow = false;
+            skirt.receiveShadow = false;
+            mapGroup.add(skirt);
+            adjustable.push({
+              object: skirt,
+              offset: OUTSIDE_TERRAIN_CLEARANCE,
+            });
+          }
+
           if (surfaceHeight > getMaxStepHeight() + 0.1) {
             colliderDescriptors.push({ object: tile });
           }
@@ -4367,9 +4523,9 @@ export const initScene = (
 
           if (resolvedTerrain.id === "point") {
             const markerMaterial = new THREE.MeshStandardMaterial({
-              color: new THREE.Color(style.emissive ?? 0xdb2777),
-              emissive: new THREE.Color(style.emissive ?? 0xdb2777),
-              emissiveIntensity: (style.emissiveIntensity ?? 0.45) * 1.2,
+              color: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
+              emissive: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
+              emissiveIntensity: (terrainStyle.emissiveIntensity ?? 0.45) * 1.2,
               roughness: 0.35,
               metalness: 0.75,
               transparent: true,
@@ -4383,9 +4539,9 @@ export const initScene = (
             tile.add(marker);
           } else if (resolvedTerrain.id === "hazard") {
             const beaconMaterial = new THREE.MeshStandardMaterial({
-              color: new THREE.Color(style.emissive ?? 0xff4d6d),
-              emissive: new THREE.Color(style.emissive ?? 0xff4d6d),
-              emissiveIntensity: (style.emissiveIntensity ?? 0.32) * 1.4,
+              color: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
+              emissive: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
+              emissiveIntensity: (terrainStyle.emissiveIntensity ?? 0.32) * 1.4,
               roughness: 0.3,
               metalness: 0.7,
               transparent: true,
@@ -4406,7 +4562,7 @@ export const initScene = (
             const hazardGlow = new THREE.Mesh(
               new THREE.PlaneGeometry(cellSize * 0.9, cellSize * 0.9),
               new THREE.MeshBasicMaterial({
-                color: style.emissive ?? 0xff6b6b,
+                color: terrainStyle.emissive ?? 0xff6b6b,
                 transparent: true,
                 opacity: 0.3,
                 blending: THREE.AdditiveBlending,
