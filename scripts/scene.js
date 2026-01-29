@@ -219,7 +219,7 @@ export const initScene = (
     return Math.max(MIN_FOG_DENSITY, BASE_FOG_DENSITY / normalizedDistance);
   };
   const getMaxStepHeight = () =>
-    BASE_MAX_STEP_HEIGHT * Math.min(1, jumpSettings.playerJumpMultiplier);
+    BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
   const getJumpVelocity = () =>
     BASE_JUMP_VELOCITY * jumpSettings.playerJumpMultiplier;
   const updateSunSpriteScale = () => {
