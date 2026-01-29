@@ -52,6 +52,9 @@ const state = {
 const UNKNOWN_HP_LABEL = "Unknown";
 const HEIGHT_MIN = 0;
 const HEIGHT_MAX = 255;
+const DEFAULT_GENERATE_HEIGHT_MIN = 0;
+const DEFAULT_GENERATE_HEIGHT_MAX = 64;
+const DEFAULT_GENERATE_HILLS = 8;
 const OBJECT_MANIFEST_URL = "models/manifest.json";
 const DOOR_MARKER_PATH = "door-marker";
 const DOOR_POSITION_EPSILON = 0.01;
@@ -116,6 +119,54 @@ function clampHeightValue(value) {
     return HEIGHT_MIN;
   }
   return Math.min(HEIGHT_MAX, Math.max(HEIGHT_MIN, numeric));
+}
+
+function clampHillsCount(value, maxCells) {
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  const clamped = Math.max(0, Math.floor(numeric));
+  if (Number.isFinite(maxCells)) {
+    return Math.min(clamped, Math.max(0, maxCells));
+  }
+  return clamped;
+}
+
+function getRandomIntInclusive(minValue, maxValue) {
+  const min = Math.min(minValue, maxValue);
+  const max = Math.max(minValue, maxValue);
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function resolveGenerationSettings() {
+  const minInput = elements.generateHeightMinInput?.value ?? DEFAULT_GENERATE_HEIGHT_MIN;
+  const maxInput = elements.generateHeightMaxInput?.value ?? DEFAULT_GENERATE_HEIGHT_MAX;
+  const minHeight = clampHeightValue(minInput);
+  const maxHeight = clampHeightValue(maxInput);
+  const normalizedMin = Math.min(minHeight, maxHeight);
+  const normalizedMax = Math.max(minHeight, maxHeight);
+  const totalCells = state.map.width * state.map.height;
+  const hillsCount = clampHillsCount(
+    elements.generateHillsCountInput?.value ?? DEFAULT_GENERATE_HILLS,
+    totalCells
+  );
+
+  if (elements.generateHeightMinInput) {
+    elements.generateHeightMinInput.value = String(normalizedMin);
+  }
+  if (elements.generateHeightMaxInput) {
+    elements.generateHeightMaxInput.value = String(normalizedMax);
+  }
+  if (elements.generateHillsCountInput) {
+    elements.generateHillsCountInput.value = String(hillsCount);
+  }
+
+  return {
+    minHeight: normalizedMin,
+    maxHeight: normalizedMax,
+    hillsCount,
+  };
 }
 
 function resolveTerrainTileId(tileId, terrainId) {
@@ -204,6 +255,9 @@ const elements = {
   mapSizeDisplay: document.getElementById("mapSizeDisplay"),
   importTextarea: document.getElementById("importTextarea"),
   importButton: document.getElementById("importButton"),
+  generateHeightMinInput: document.getElementById("generateHeightMin"),
+  generateHeightMaxInput: document.getElementById("generateHeightMax"),
+  generateHillsCountInput: document.getElementById("generateHillsCount"),
   generateButton: document.getElementById("generateButton"),
   resetButton: document.getElementById("resetButton"),
   copyButton: document.getElementById("copyButton"),
@@ -1642,6 +1696,8 @@ function generateRandomMap() {
     return;
   }
 
+  const { minHeight, maxHeight, hillsCount } = resolveGenerationSettings();
+
   state.map.cells = state.map.cells.map(() => {
     const randomIndex = Math.floor(Math.random() * pool.length);
     const terrainId = pool[randomIndex].id;
@@ -1650,6 +1706,49 @@ function generateRandomMap() {
       tileId: getOutsideTerrainDefaultTileId(terrainId),
     };
   });
+
+  const totalCells = state.map.width * state.map.height;
+  const heights = Array.from({ length: totalCells }, () =>
+    getRandomIntInclusive(minHeight, maxHeight)
+  );
+
+  if (hillsCount > 0 && state.map.width > 0 && state.map.height > 0) {
+    const maxRadius = Math.max(
+      2,
+      Math.floor(Math.min(state.map.width, state.map.height) / 2)
+    );
+    const heightRange = Math.max(1, maxHeight - minHeight);
+
+    for (let hillIndex = 0; hillIndex < hillsCount; hillIndex += 1) {
+      const centerX = getRandomIntInclusive(0, state.map.width - 1);
+      const centerY = getRandomIntInclusive(0, state.map.height - 1);
+      const radius = getRandomIntInclusive(2, maxRadius);
+      const amplitude = Math.max(
+        1,
+        Math.round(
+          heightRange *
+            (state.map.width + state.map.height > 6 ? 0.6 : 0.35)
+        )
+      );
+
+      for (let y = 0; y < state.map.height; y += 1) {
+        for (let x = 0; x < state.map.width; x += 1) {
+          const distance = Math.hypot(x - centerX, y - centerY);
+          if (distance > radius) {
+            continue;
+          }
+          const falloff = 1 - distance / radius;
+          const index = y * state.map.width + x;
+          const nextHeight = heights[index] + Math.round(amplitude * falloff);
+          heights[index] = clampHeightValue(
+            Math.min(maxHeight, Math.max(minHeight, nextHeight))
+          );
+        }
+      }
+    }
+  }
+
+  state.map.heights = heights;
 
   clearSelection();
   renderGrid();
