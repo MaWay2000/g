@@ -4061,8 +4061,8 @@ export const initScene = (
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
 
-      const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
-      const tileEdgeGeometry = new THREE.EdgesGeometry(tileGeometry, 1);
+      const baseTileGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+      baseTileGeometry.rotateX(-Math.PI / 2);
       const tileEdgeMaterial = new THREE.LineBasicMaterial({
         color: new THREE.Color(0x0f172a),
         transparent: true,
@@ -4100,6 +4100,74 @@ export const initScene = (
       const objectPlacements = Array.isArray(normalizedMap.objects)
         ? normalizedMap.objects
         : [];
+
+      const sampleOutsideHeight = (row, column) => {
+        if (
+          !Number.isInteger(row) ||
+          !Number.isInteger(column) ||
+          row < 0 ||
+          row >= height ||
+          column < 0 ||
+          column >= width
+        ) {
+          return getOutsideTerrainElevation(OUTSIDE_HEIGHT_MIN);
+        }
+        return getOutsideTerrainElevation(
+          normalizedMap.heights?.[row * width + column]
+        );
+      };
+
+      const getOutsideCornerElevation = (cornerRow, cornerColumn) => {
+        const samples = [];
+        for (let rowOffset = -1; rowOffset <= 0; rowOffset += 1) {
+          for (let columnOffset = -1; columnOffset <= 0; columnOffset += 1) {
+            const sampleRow = cornerRow + rowOffset;
+            const sampleColumn = cornerColumn + columnOffset;
+            if (
+              sampleRow >= 0 &&
+              sampleRow < height &&
+              sampleColumn >= 0 &&
+              sampleColumn < width
+            ) {
+              samples.push(sampleOutsideHeight(sampleRow, sampleColumn));
+            }
+          }
+        }
+        if (!samples.length) {
+          return getOutsideTerrainElevation(OUTSIDE_HEIGHT_MIN);
+        }
+        return samples.reduce((sum, value) => sum + value, 0) / samples.length;
+      };
+
+      const getVertexNoise = (cornerRow, cornerColumn) => {
+        const seed =
+          Math.sin(cornerRow * 127.1 + cornerColumn * 311.7) * 43758.5453;
+        return (seed - Math.floor(seed)) * 2 - 1;
+      };
+
+      const OUTSIDE_TERRAIN_VERTEX_NOISE = 0.03;
+
+      const buildTerrainTileGeometry = (row, column, baseElevation) => {
+        const geometry = baseTileGeometry.clone();
+        const positions = geometry.attributes.position;
+        for (let index = 0; index < positions.count; index += 1) {
+          const x = positions.getX(index);
+          const z = positions.getZ(index);
+          const cornerRow = row + (z > 0 ? 1 : 0);
+          const cornerColumn = column + (x > 0 ? 1 : 0);
+          const cornerElevation = getOutsideCornerElevation(
+            cornerRow,
+            cornerColumn
+          );
+          const noise =
+            getVertexNoise(cornerRow, cornerColumn) *
+            OUTSIDE_TERRAIN_VERTEX_NOISE;
+          positions.setY(index, cornerElevation + noise - baseElevation);
+        }
+        positions.needsUpdate = true;
+        geometry.computeVertexNormals();
+        return geometry;
+      };
 
       const concealedTerrainMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
@@ -4206,10 +4274,15 @@ export const initScene = (
         const elevation = getOutsideTerrainElevation(
           normalizedMap.heights?.[index]
         );
+        const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
+          DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+        const tileHeight =
+          terrainStyle.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
         return {
           x: placementX * cellSize,
           z: mapCenterZ + placementZ * cellSize,
-          surfaceY: roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation,
+          surfaceY:
+            roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation + tileHeight,
         };
       };
 
@@ -4274,16 +4347,36 @@ export const initScene = (
           const elevation = getOutsideTerrainElevation(
             normalizedMap.heights?.[index]
           );
-          const totalTileHeight = tileHeight + elevation;
+          const baseElevation = elevation + tileHeight;
+          const cornerCoordinates = [
+            { row, column },
+            { row, column: column + 1 },
+            { row: row + 1, column },
+            { row: row + 1, column: column + 1 },
+          ];
+          const cornerElevations = cornerCoordinates.map(({ row, column }) => {
+            const cornerElevation = getOutsideCornerElevation(row, column);
+            const noise =
+              getVertexNoise(row, column) * OUTSIDE_TERRAIN_VERTEX_NOISE;
+            return cornerElevation + noise;
+          });
+          const maxCornerElevation = Math.max(...cornerElevations);
+          const totalTileHeight = maxCornerElevation + tileHeight;
+          const tileGeometry = buildTerrainTileGeometry(
+            row,
+            column,
+            baseElevation
+          );
+          const tileEdgeGeometry = new THREE.EdgesGeometry(tileGeometry, 1);
 
           const tile = new THREE.Mesh(
             tileGeometry,
             getMaterialForTerrain(resolvedTerrain.id, tileId, index)
           );
-          tile.scale.set(cellSize, tileHeight, cellSize);
+          tile.scale.set(cellSize, 1, cellSize);
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
-            roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation + tileHeight / 2,
+            roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + baseElevation,
             mapNearEdge + row * cellSize + cellSize / 2
           );
           const tileEdges = new THREE.LineSegments(
