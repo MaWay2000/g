@@ -8542,9 +8542,25 @@ export const initScene = (
       return null;
     }
 
+    const maxGroundHeight = Number.isFinite(position.y)
+      ? position.y + getMaxStepHeight() + STEP_HEIGHT_TOLERANCE
+      : null;
+    const filteredIntersections =
+      maxGroundHeight === null
+        ? intersections
+        : intersections.filter((candidate) => {
+            const height = candidate?.point?.y;
+            return Number.isFinite(height) && height <= maxGroundHeight;
+          });
+
+    if (filteredIntersections.length === 0) {
+      return null;
+    }
+
     const intersection =
-      intersections.find((candidate) => findTerrainTile(candidate.object)) ??
-      intersections[0];
+      filteredIntersections.find((candidate) =>
+        findTerrainTile(candidate.object)
+      ) ?? filteredIntersections[0];
 
     if (!intersection?.point) {
       return null;
