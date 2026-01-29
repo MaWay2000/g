@@ -8074,11 +8074,16 @@ export const initScene = (
           getMaxStepHeight() + STEP_HEIGHT_TOLERANCE;
         const tileTop = box.max.y;
 
-        if (
-          Number.isFinite(tileTop) &&
-          playerFeetY + allowedStepHeight >= tileTop
-        ) {
-          return;
+        if (Number.isFinite(tileTop)) {
+          const canStepUp =
+            isGrounded &&
+            verticalVelocity <= 0 &&
+            playerFeetY <= tileTop + STEP_HEIGHT_TOLERANCE &&
+            playerFeetY + allowedStepHeight >= tileTop;
+
+          if (canStepUp) {
+            return;
+          }
         }
       }
 
