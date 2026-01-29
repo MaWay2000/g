@@ -1888,8 +1888,6 @@ export const initScene = (
 
   const CONCEAL_OUTSIDE_TERRAIN_TILES = false;
   const CONCEALED_OUTSIDE_TERRAIN_COLOR = 0x202736;
-  const DISABLE_TERRAIN_SKIRTS = false;
-
   const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
 
   const OUTSIDE_TERRAIN_CLEARANCE = 0.05;
@@ -4205,59 +4203,6 @@ export const initScene = (
         return geometry;
       };
 
-      const createTerrainSkirtGeometry = ({
-        startX,
-        startZ,
-        endX,
-        endZ,
-        topHeight,
-        bottomHeight,
-      }) => {
-        const segments = terrainPlaneSegments;
-        const vertexCount = (segments + 1) * 2;
-        const positions = new Float32Array(vertexCount * 3);
-        const uvs = new Float32Array(vertexCount * 2);
-        const indices = [];
-
-        for (let index = 0; index <= segments; index += 1) {
-          const t = segments === 0 ? 0 : index / segments;
-          const worldX = startX + (endX - startX) * t;
-          const worldZ = startZ + (endZ - startZ) * t;
-          const noise = getTerrainNoise(worldX, worldZ) * terrainNoiseAmplitude;
-          const topY = topHeight + noise;
-          const bottomY = bottomHeight + noise;
-          const vertexIndex = index * 2;
-
-          positions[vertexIndex * 3] = worldX;
-          positions[vertexIndex * 3 + 1] = topY;
-          positions[vertexIndex * 3 + 2] = worldZ;
-          positions[vertexIndex * 3 + 3] = worldX;
-          positions[vertexIndex * 3 + 4] = bottomY;
-          positions[vertexIndex * 3 + 5] = worldZ;
-
-          uvs[vertexIndex * 2] = t;
-          uvs[vertexIndex * 2 + 1] = 1;
-          uvs[vertexIndex * 2 + 2] = t;
-          uvs[vertexIndex * 2 + 3] = 0;
-
-          if (index < segments) {
-            const nextIndex = vertexIndex + 2;
-            indices.push(vertexIndex, vertexIndex + 1, nextIndex);
-            indices.push(vertexIndex + 1, nextIndex + 1, nextIndex);
-          }
-        }
-
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute(
-          "position",
-          new THREE.BufferAttribute(positions, 3)
-        );
-        geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-        geometry.setIndex(indices);
-        geometry.computeVertexNormals();
-        return geometry;
-      };
-
       const getTextureForTerrainTile = (tileId, variantIndex) => {
         const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
 
@@ -4484,105 +4429,6 @@ export const initScene = (
             northIndex === null ? null : getSurfaceHeight(northIndex);
           const southHeight =
             southIndex === null ? null : getSurfaceHeight(southIndex);
-          const edgeMinDelta = 0.001;
-          const skirtMaterial = tile.material;
-
-          if (
-            !DISABLE_TERRAIN_SKIRTS &&
-            westHeight !== null &&
-            surfaceHeight - westHeight > edgeMinDelta
-          ) {
-            const skirtGeometry = createTerrainSkirtGeometry({
-              startX: mapLeftEdge + column * cellSize,
-              startZ: mapNearEdge + row * cellSize,
-              endX: mapLeftEdge + column * cellSize,
-              endZ: mapNearEdge + (row + 1) * cellSize,
-              topHeight: surfaceHeight,
-              bottomHeight: westHeight,
-            });
-            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
-            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
-            skirt.castShadow = false;
-            skirt.receiveShadow = false;
-            mapGroup.add(skirt);
-            adjustable.push({
-              object: skirt,
-              offset: OUTSIDE_TERRAIN_CLEARANCE,
-            });
-          }
-
-          if (
-            !DISABLE_TERRAIN_SKIRTS &&
-            eastHeight !== null &&
-            surfaceHeight - eastHeight > edgeMinDelta
-          ) {
-            const skirtGeometry = createTerrainSkirtGeometry({
-              startX: mapLeftEdge + (column + 1) * cellSize,
-              startZ: mapNearEdge + (row + 1) * cellSize,
-              endX: mapLeftEdge + (column + 1) * cellSize,
-              endZ: mapNearEdge + row * cellSize,
-              topHeight: surfaceHeight,
-              bottomHeight: eastHeight,
-            });
-            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
-            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
-            skirt.castShadow = false;
-            skirt.receiveShadow = false;
-            mapGroup.add(skirt);
-            adjustable.push({
-              object: skirt,
-              offset: OUTSIDE_TERRAIN_CLEARANCE,
-            });
-          }
-
-          if (
-            !DISABLE_TERRAIN_SKIRTS &&
-            northHeight !== null &&
-            surfaceHeight - northHeight > edgeMinDelta
-          ) {
-            const skirtGeometry = createTerrainSkirtGeometry({
-              startX: mapLeftEdge + (column + 1) * cellSize,
-              startZ: mapNearEdge + row * cellSize,
-              endX: mapLeftEdge + column * cellSize,
-              endZ: mapNearEdge + row * cellSize,
-              topHeight: surfaceHeight,
-              bottomHeight: northHeight,
-            });
-            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
-            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
-            skirt.castShadow = false;
-            skirt.receiveShadow = false;
-            mapGroup.add(skirt);
-            adjustable.push({
-              object: skirt,
-              offset: OUTSIDE_TERRAIN_CLEARANCE,
-            });
-          }
-
-          if (
-            !DISABLE_TERRAIN_SKIRTS &&
-            southHeight !== null &&
-            surfaceHeight - southHeight > edgeMinDelta
-          ) {
-            const skirtGeometry = createTerrainSkirtGeometry({
-              startX: mapLeftEdge + column * cellSize,
-              startZ: mapNearEdge + (row + 1) * cellSize,
-              endX: mapLeftEdge + (column + 1) * cellSize,
-              endZ: mapNearEdge + (row + 1) * cellSize,
-              topHeight: surfaceHeight,
-              bottomHeight: southHeight,
-            });
-            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
-            skirt.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
-            skirt.castShadow = false;
-            skirt.receiveShadow = false;
-            mapGroup.add(skirt);
-            adjustable.push({
-              object: skirt,
-              offset: OUTSIDE_TERRAIN_CLEARANCE,
-            });
-          }
-
           if (surfaceHeight > getMaxStepHeight() + 0.1) {
             colliderDescriptors.push({ object: tile });
           }
