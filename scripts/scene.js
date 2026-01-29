@@ -4808,6 +4808,20 @@ export const initScene = (
     entranceRightWall.position.x *= -1;
     group.add(entranceRightWall);
 
+    const entranceBackWall = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        entranceWidth + entranceThickness * 2,
+        entranceHeight,
+        entranceThickness
+      ),
+      entranceMaterial
+    );
+    entranceBackWall.position.set(
+      0,
+      roomFloorY + entranceHeight / 2,
+      entranceRearZ - entranceThickness / 2
+    );
+    group.add(entranceBackWall);
 
     const returnDoorControl = new THREE.Mesh(
       new THREE.PlaneGeometry(returnDoorWidth * 0.82, returnDoorHeight * 0.5),
@@ -4862,6 +4876,7 @@ export const initScene = (
       { object: entranceRoof, offset: entranceHeight + entranceThickness / 2 },
       { object: entranceLeftWall, offset: entranceHeight / 2 },
       { object: entranceRightWall, offset: entranceHeight / 2 },
+      { object: entranceBackWall, offset: entranceHeight / 2 },
       { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
       { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
       { object: primaryStarField, offset: starYOffset },
