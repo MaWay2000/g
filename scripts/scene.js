@@ -4061,7 +4061,8 @@ export const initScene = (
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
 
-      const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
+      const tileGeometry = new THREE.ConeGeometry(0.5, 1, 4);
+      tileGeometry.rotateY(Math.PI / 4);
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
       const mapObjectGroup = new THREE.Group();
