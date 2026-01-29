@@ -4317,9 +4317,7 @@ export const initScene = (
 
           terrainTiles.push(tile);
 
-          if (totalTileHeight > getMaxStepHeight() + 0.1) {
-            colliderDescriptors.push({ object: tile });
-          }
+          colliderDescriptors.push({ object: tile });
 
           if (resolvedTerrain.id !== "void") {
             tile.userData.isResourceTarget = true;
@@ -8064,18 +8062,24 @@ export const initScene = (
     const playerHeadY = playerFeetY + playerHeight;
 
     colliderDescriptors.forEach((descriptor) => {
-      const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
-      if (
-        Number.isFinite(terrainHeight) &&
-        terrainHeight <= getMaxStepHeight() + 0.1
-      ) {
-        return;
-      }
-
       const box = descriptor.box;
 
       if (!box || box.isEmpty()) {
         return;
+      }
+
+      const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
+      if (Number.isFinite(terrainHeight)) {
+        const allowedStepHeight =
+          getMaxStepHeight() + STEP_HEIGHT_TOLERANCE;
+        const tileTop = box.max.y;
+
+        if (
+          Number.isFinite(tileTop) &&
+          playerFeetY + allowedStepHeight >= tileTop
+        ) {
+          return;
+        }
       }
 
       if (playerHeadY <= box.min.y || playerFeetY >= box.max.y) {
