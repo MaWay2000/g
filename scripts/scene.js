@@ -3570,7 +3570,11 @@ export const initScene = (
     const wallSpanWidth = deckWidth + 0.9;
     const wallSpanDepth = deckDepth + 0.8;
 
-    const createFramedWallSegments = (openingWidth, direction) => {
+    const createFramedWallSegments = (
+      openingWidth,
+      openingHeight,
+      direction
+    ) => {
       const adjustedOpening = Math.min(
         openingWidth,
         wallSpanWidth - wallThickness * 2.1
@@ -3606,6 +3610,21 @@ export const initScene = (
       );
 
       segments.forEach((segment) => group.add(segment));
+
+      const remainingHeight = Math.max(wallHeight - openingHeight, 0);
+      if (remainingHeight > 0.05) {
+        const lintel = new THREE.Mesh(
+          new THREE.BoxGeometry(adjustedOpening, remainingHeight, wallDepth),
+          bulkheadMaterial
+        );
+        lintel.position.set(
+          0,
+          roomFloorY + openingHeight + remainingHeight / 2,
+          zPosition
+        );
+        group.add(lintel);
+        segments.push(lintel);
+      }
 
       return segments;
     };
@@ -3871,12 +3890,19 @@ export const initScene = (
     const exteriorDoorOpeningWidth =
       (exteriorExitDoor.userData?.width ?? BASE_DOOR_WIDTH) + 0.8;
 
+    const liftDoorOpeningHeight =
+      (liftDoor.userData?.height ?? BASE_DOOR_HEIGHT) + 0.35;
+    const exteriorDoorOpeningHeight =
+      (exteriorExitDoor.userData?.height ?? BASE_DOOR_HEIGHT) + 0.35;
+
     const frontWallSegments = createFramedWallSegments(
       liftDoorOpeningWidth,
+      liftDoorOpeningHeight,
       1
     );
     const rearWallSegments = createFramedWallSegments(
       exteriorDoorOpeningWidth,
+      exteriorDoorOpeningHeight,
       -1
     );
 
