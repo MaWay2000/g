@@ -4062,13 +4062,6 @@ export const initScene = (
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
 
       const tileGeometry = new THREE.BoxGeometry(1, 1, 1);
-      const tileEdgeGeometry = new THREE.EdgesGeometry(tileGeometry, 1);
-      const tileEdgeMaterial = new THREE.LineBasicMaterial({
-        color: new THREE.Color(0x0f172a),
-        transparent: true,
-        opacity: 0.35,
-        depthWrite: false,
-      });
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
       const mapObjectGroup = new THREE.Group();
@@ -4286,13 +4279,6 @@ export const initScene = (
             roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation + tileHeight / 2,
             mapNearEdge + row * cellSize + cellSize / 2
           );
-          const tileEdges = new THREE.LineSegments(
-            tileEdgeGeometry,
-            tileEdgeMaterial
-          );
-          tileEdges.scale.set(1.01, 1.01, 1.01);
-          tileEdges.renderOrder = 1;
-          tile.add(tileEdges);
           tile.castShadow = false;
           tile.receiveShadow = false;
           mapGroup.add(tile);
