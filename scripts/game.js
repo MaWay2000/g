@@ -79,6 +79,7 @@ const settingsPanelsContainer = settingsMenu?.querySelector("[data-settings-pane
 const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
+const reflectionsToggle = document.querySelector("[data-reflections-toggle]");
 const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
 const playerSpeedRange = document.querySelector("[data-player-speed-range]");
 const playerSpeedInput = document.querySelector("[data-player-speed-input]");
@@ -101,6 +102,9 @@ const viewDistanceInput = document.querySelector("[data-view-distance-input]");
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
+const reflectionScaleRange = document.querySelector(
+  "[data-reflection-scale-range]"
+);
 const timeOffsetRange = document.querySelector("[data-time-offset-range]");
 const skyExtentRange = document.querySelector("[data-sky-extent-range]");
 const playerSpeedValue = document.querySelector("[data-player-speed-value]");
@@ -115,6 +119,7 @@ const viewDistanceValue = document.querySelector("[data-view-distance-value]");
 const starSizeInput = document.querySelector("[data-star-size-input]");
 const starDensityInput = document.querySelector("[data-star-density-input]");
 const starOpacityInput = document.querySelector("[data-star-opacity-input]");
+const reflectionScaleInput = document.querySelector("[data-reflection-scale-input]");
 const timeOffsetInput = document.querySelector("[data-time-offset-input]");
 const skyExtentInput = document.querySelector("[data-sky-extent-input]");
 const skyHeightRange = document.querySelector("[data-sky-height-range]");
@@ -122,6 +127,9 @@ const skyHeightInput = document.querySelector("[data-sky-height-input]");
 const starSizeValue = document.querySelector("[data-star-size-value]");
 const starDensityValue = document.querySelector("[data-star-density-value]");
 const starOpacityValue = document.querySelector("[data-star-opacity-value]");
+const reflectionScaleValue = document.querySelector(
+  "[data-reflection-scale-value]"
+);
 const timeOffsetValue = document.querySelector("[data-time-offset-value]");
 const skyExtentValue = document.querySelector("[data-sky-extent-value]");
 const skyHeightValue = document.querySelector("[data-sky-height-value]");
@@ -160,6 +168,7 @@ const starSettingsInputs = [
   skyExtentInput,
   skyHeightInput,
 ];
+const reflectionSettingInputs = [reflectionScaleRange, reflectionScaleInput];
 const speedSettingInputs = [playerSpeedRange, playerSpeedInput];
 const jumpSettingInputs = [playerJumpRange, playerJumpInput];
 const viewSettingInputs = [viewDistanceRange, viewDistanceInput];
@@ -566,6 +575,16 @@ const applyStarsUiState = () => {
 
 applyStarsUiState();
 
+const setReflectionScaleAvailability = (enabled) => {
+  const shouldEnable = Boolean(enabled);
+
+  reflectionSettingInputs.forEach((input) => {
+    if (input instanceof HTMLInputElement) {
+      input.disabled = !shouldEnable;
+    }
+  });
+};
+
 const setRangeInputValue = (input, value) => {
   if (input instanceof HTMLInputElement && Number.isFinite(value)) {
     const numericValue = Number(value);
@@ -637,6 +656,33 @@ const formatViewDistance = (value) => {
   const displayValue = numericValue.toFixed(2);
   return `${displayValue.replace(/\.?0+$/, "")}x`;
 };
+
+const applyReflectionSettingsUiState = () => {
+  const reflectionsEnabled = currentSettings?.reflectionsEnabled !== false;
+  const reflectorResolutionScale = Number(
+    currentSettings?.reflectorResolutionScale ?? 1
+  );
+
+  if (reflectionsToggle instanceof HTMLInputElement) {
+    reflectionsToggle.checked = reflectionsEnabled;
+    reflectionsToggle.setAttribute("aria-pressed", String(reflectionsEnabled));
+  }
+
+  setReflectionScaleAvailability(reflectionsEnabled);
+  setRangeInputValue(reflectionScaleRange, reflectorResolutionScale);
+  setNumberInputValue(reflectionScaleInput, reflectorResolutionScale);
+  setValueLabel(
+    reflectionScaleValue,
+    formatPercentage(reflectorResolutionScale)
+  );
+
+  sceneController?.setReflectionSettings?.({
+    reflectionsEnabled,
+    reflectorResolutionScale,
+  });
+};
+
+applyReflectionSettingsUiState();
 
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
@@ -8907,6 +8953,7 @@ const bootstrapScene = () => {
   }
 
   applyStarVisualUiState();
+  applyReflectionSettingsUiState();
   applyJumpSettingsUiState();
   applyViewSettingsUiState();
 
@@ -8933,6 +8980,15 @@ if (starsToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, showStars: enabled };
     persistSettings(currentSettings);
     applyStarsUiState();
+  });
+}
+
+if (reflectionsToggle instanceof HTMLInputElement) {
+  reflectionsToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, reflectionsEnabled: enabled };
+    persistSettings(currentSettings);
+    applyReflectionSettingsUiState();
   });
 }
 
@@ -9010,6 +9066,11 @@ bindStarSettingInput("starDensity", [starDensityRange, starDensityInput]);
 bindStarSettingInput("starOpacity", [starOpacityRange, starOpacityInput]);
 bindStarSettingInput("skyExtent", [skyExtentRange, skyExtentInput]);
 bindStarSettingInput("skyDomeHeight", [skyHeightRange, skyHeightInput]);
+bindTimeSettingInput(
+  "reflectorResolutionScale",
+  reflectionSettingInputs,
+  applyReflectionSettingsUiState
+);
 bindTimeSettingInput(
   "timeZoneOffsetHours",
   timeSettingInputs,

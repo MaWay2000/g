@@ -3811,6 +3811,56 @@
                         </span>
                       </button>
                     </div>
+                    <label class="performance-toggle">
+                      <input
+                        class="performance-toggle__input"
+                        type="checkbox"
+                        role="switch"
+                        aria-label="Toggle reflections"
+                        data-reflections-toggle
+                      />
+                      <span class="performance-toggle__track" aria-hidden="true">
+                        <span class="performance-toggle__thumb" aria-hidden="true"></span>
+                      </span>
+                      <span class="performance-toggle__text">
+                        <span class="performance-toggle__title">Reflections</span>
+                      </span>
+                    </label>
+                    <label class="settings-slider" for="reflectorResolutionRange">
+                      <div class="settings-slider__header">
+                        <span class="settings-slider__title">Reflection resolution</span>
+                        <span class="settings-slider__value" data-reflection-scale-value>
+                          100%
+                        </span>
+                      </div>
+                      <p class="settings-slider__hint">
+                        Lower values use less GPU memory for reflections.
+                      </p>
+                      <div class="settings-slider__controls">
+                        <input
+                          id="reflectorResolutionRange"
+                          class="settings-slider__range"
+                          type="range"
+                          min="0.25"
+                          max="1"
+                          step="0.05"
+                          value="1"
+                          aria-label="Reflection resolution scale"
+                          data-reflection-scale-range
+                        />
+                        <input
+                          class="settings-slider__number-input"
+                          type="number"
+                          min="0.25"
+                          max="1"
+                          step="0.05"
+                          value="1"
+                          inputmode="decimal"
+                          aria-label="Reflection resolution scale"
+                          data-reflection-scale-input
+                        />
+                      </div>
+                    </label>
                   </div>
                   <div class="settings-menu__section" role="group" aria-label="Speed settings">
                     <div class="settings-menu__row">

@@ -140,6 +140,16 @@ export const initScene = (
     return Math.max(0.01, Math.min(3, numericValue));
   };
 
+  const normalizeReflectorResolutionScale = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 1;
+    }
+
+    return Math.max(0.25, Math.min(1, numericValue));
+  };
+
   const parseStarSetting = (value, fallback) => {
     const numericValue = Number(value);
 
@@ -1357,8 +1367,12 @@ export const initScene = (
 
   updateTimeOfDay(true);
 
-  const reflectionsEnabled = true;
-  const reflectorResolutionScale = 1;
+  const reflectionSettings = {
+    enabled: settings?.reflectionsEnabled !== false,
+    resolutionScale: normalizeReflectorResolutionScale(
+      settings?.reflectorResolutionScale
+    ),
+  };
 
   const liftInteractables = [];
   const liftUiControllers = new Set();
@@ -5941,13 +5955,63 @@ export const initScene = (
     const aspect = safeSurfaceWidth / safeSurfaceHeight;
     const baseHeight = Math.max(1, window.innerHeight || 1);
     const baseWidth = baseHeight * aspect;
-    const scaledBaseHeight = baseHeight * reflectorResolutionScale;
-    const scaledBaseWidth = baseWidth * reflectorResolutionScale;
+    const scale = normalizeReflectorResolutionScale(
+      reflectionSettings.resolutionScale
+    );
+    const scaledBaseHeight = baseHeight * scale;
+    const scaledBaseWidth = baseWidth * scale;
 
     return {
       width: Math.max(1, Math.round(scaledBaseWidth * pixelRatio)),
       height: Math.max(1, Math.round(scaledBaseHeight * pixelRatio)),
     };
+  };
+
+  const createMirrorReflector = (mirrorWidth, mirrorHeight) => {
+    const renderTargetSize = computeReflectorRenderTargetSize(
+      mirrorWidth,
+      mirrorHeight
+    );
+
+    const reflector = new Reflector(
+      new THREE.PlaneGeometry(mirrorWidth, mirrorHeight),
+      {
+        clipBias: 0.0025,
+        color: new THREE.Color(0x9fb7cf),
+        textureWidth: renderTargetSize.width,
+        textureHeight: renderTargetSize.height,
+      }
+    );
+    const reflectorUserData = reflector.userData || (reflector.userData = {});
+    reflectorUserData.renderSurfaceDimensions = {
+      width: mirrorWidth,
+      height: mirrorHeight,
+    };
+
+    return reflector;
+  };
+
+  const ensureMirrorReflector = (mirrorGroup) => {
+    if (!mirrorGroup) {
+      return null;
+    }
+
+    let reflector = mirrorGroup.userData?.reflector ?? null;
+
+    if (!reflector) {
+      const mirrorDimensions = mirrorGroup.userData?.dimensions ?? {
+        width: BASE_MIRROR_WIDTH,
+        height: BASE_MIRROR_HEIGHT,
+      };
+      reflector = createMirrorReflector(
+        mirrorDimensions.width,
+        mirrorDimensions.height
+      );
+      mirrorGroup.add(reflector);
+      mirrorGroup.userData.reflector = reflector;
+    }
+
+    return reflector;
   };
 
   const createWallMirror = () => {
@@ -5977,26 +6041,8 @@ export const initScene = (
 
     let reflector = null;
 
-    if (reflectionsEnabled) {
-      const renderTargetSize = computeReflectorRenderTargetSize(
-        mirrorWidth,
-        mirrorHeight
-      );
-
-      reflector = new Reflector(
-        new THREE.PlaneGeometry(mirrorWidth, mirrorHeight),
-        {
-          clipBias: 0.0025,
-          color: new THREE.Color(0x9fb7cf),
-          textureWidth: renderTargetSize.width,
-          textureHeight: renderTargetSize.height,
-        }
-      );
-      const reflectorUserData = reflector.userData || (reflector.userData = {});
-      reflectorUserData.renderSurfaceDimensions = {
-        width: mirrorWidth,
-        height: mirrorHeight,
-      };
+    if (reflectionSettings.enabled) {
+      reflector = createMirrorReflector(mirrorWidth, mirrorHeight);
       group.add(reflector);
     }
 
@@ -6027,11 +6073,13 @@ export const initScene = (
 
   const reflectiveSurfaces = [];
   const registerReflectiveSurface = (reflector) => {
-    if (!reflectionsEnabled || !reflector) {
+    if (!reflectionSettings.enabled || !reflector) {
       return;
     }
 
-    reflectiveSurfaces.push(reflector);
+    if (!reflectiveSurfaces.includes(reflector)) {
+      reflectiveSurfaces.push(reflector);
+    }
   };
 
   const createGridLines = (width, height, segmentsX, segmentsY, color, opacity) => {
@@ -6127,10 +6175,48 @@ export const initScene = (
   wallMirror.rotation.y = -Math.PI / 2;
   hangarDeckEnvironmentGroup.add(wallMirror);
 
-  const wallMirrorReflector = wallMirror.userData?.reflector;
-  if (reflectionsEnabled && wallMirrorReflector) {
-    registerReflectiveSurface(wallMirrorReflector);
-  }
+  const syncReflectiveSurfaces = () => {
+    reflectiveSurfaces.length = 0;
+    const wallMirrorReflector = wallMirror.userData?.reflector ?? null;
+
+    if (!reflectionSettings.enabled) {
+      if (wallMirrorReflector) {
+        wallMirrorReflector.visible = false;
+      }
+      return;
+    }
+
+    const reflector = wallMirrorReflector ?? ensureMirrorReflector(wallMirror);
+    if (reflector) {
+      reflector.visible = true;
+      registerReflectiveSurface(reflector);
+    }
+  };
+
+  const resizeReflectiveSurfaces = () => {
+    reflectiveSurfaces.forEach((reflector) => {
+      const renderTarget = reflector?.renderTarget;
+      if (!renderTarget || typeof renderTarget.setSize !== "function") {
+        return;
+      }
+
+      const dimensions =
+        reflector?.userData?.renderSurfaceDimensions ?? undefined;
+      const surfaceWidth = dimensions?.width;
+      const surfaceHeight = dimensions?.height;
+      const { width: targetWidth, height: targetHeight } =
+        computeReflectorRenderTargetSize(surfaceWidth, surfaceHeight);
+
+      if (
+        renderTarget.width !== targetWidth ||
+        renderTarget.height !== targetHeight
+      ) {
+        renderTarget.setSize(targetWidth, targetHeight);
+      }
+    });
+  };
+
+  syncReflectiveSurfaces();
 
   const liftState = {
     floors: [],
@@ -9164,26 +9250,7 @@ export const initScene = (
       );
     }
 
-    reflectiveSurfaces.forEach((reflector) => {
-      const renderTarget = reflector?.renderTarget;
-      if (!renderTarget || typeof renderTarget.setSize !== "function") {
-        return;
-      }
-
-      const dimensions =
-        reflector?.userData?.renderSurfaceDimensions ?? undefined;
-      const surfaceWidth = dimensions?.width;
-      const surfaceHeight = dimensions?.height;
-      const { width: targetWidth, height: targetHeight } =
-        computeReflectorRenderTargetSize(surfaceWidth, surfaceHeight);
-
-      if (
-        renderTarget.width !== targetWidth ||
-        renderTarget.height !== targetHeight
-      ) {
-        renderTarget.setSize(targetWidth, targetHeight);
-      }
-    });
+    resizeReflectiveSurfaces();
   };
 
   window.addEventListener("resize", handleResize);
@@ -9221,6 +9288,32 @@ export const initScene = (
     setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
     setStarVisualSettings: (nextSettings) => {
       applyStarSettings(nextSettings ?? {});
+    },
+    setReflectionSettings: (nextSettings = {}) => {
+      const nextEnabled = nextSettings.reflectionsEnabled !== false;
+      const nextScale = normalizeReflectorResolutionScale(
+        nextSettings.reflectorResolutionScale
+      );
+      const shouldUpdate =
+        nextEnabled !== reflectionSettings.enabled ||
+        nextScale !== reflectionSettings.resolutionScale;
+
+      if (!shouldUpdate) {
+        return {
+          enabled: reflectionSettings.enabled,
+          resolutionScale: reflectionSettings.resolutionScale,
+        };
+      }
+
+      reflectionSettings.enabled = nextEnabled;
+      reflectionSettings.resolutionScale = nextScale;
+      syncReflectiveSurfaces();
+      resizeReflectiveSurfaces();
+
+      return {
+        enabled: reflectionSettings.enabled,
+        resolutionScale: reflectionSettings.resolutionScale,
+      };
     },
     setTimeSettings: (nextSettings = {}) => {
       const nextOffset = normalizeTimeOffset(nextSettings.timeZoneOffsetHours);
