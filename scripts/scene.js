@@ -4061,8 +4061,11 @@ export const initScene = (
       const mapLeftEdge = -mapWorldWidth / 2;
       const mapRightEdge = mapLeftEdge + mapWorldWidth;
 
-      const tileGeometry = new THREE.ConeGeometry(0.5, 1, 4);
-      tileGeometry.rotateY(Math.PI / 4);
+      const terrainNoiseAmplitude = Math.min(
+        cellSize * 0.08,
+        OUTSIDE_HEIGHT_ELEVATION_MAX * 0.35
+      );
+      const terrainPlaneSegments = 6;
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
       const mapObjectGroup = new THREE.Group();
@@ -4100,6 +4103,40 @@ export const initScene = (
         roughness: 0.78,
         metalness: 0.18,
       });
+
+      const getTerrainNoise = (x, z) => {
+        const primary = Math.sin(x * 0.08 + z * 0.12);
+        const secondary = Math.sin(x * 0.14 - z * 0.1) * 0.55;
+        const tertiary = Math.sin((x + z) * 0.05) * 0.35;
+        return (primary + secondary + tertiary) / 1.9;
+      };
+
+      const createTerrainTileGeometry = (column, row, elevation, tileHeight) => {
+        const geometry = new THREE.PlaneGeometry(
+          cellSize,
+          cellSize,
+          terrainPlaneSegments,
+          terrainPlaneSegments
+        );
+        geometry.rotateX(-Math.PI / 2);
+        const positions = geometry.attributes.position;
+        const baseHeight = elevation + tileHeight;
+        const centerX = mapLeftEdge + column * cellSize + cellSize / 2;
+        const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
+
+        for (let index = 0; index < positions.count; index += 1) {
+          const localX = positions.getX(index);
+          const localZ = positions.getZ(index);
+          const worldX = centerX + localX;
+          const worldZ = centerZ + localZ;
+          const noise = getTerrainNoise(worldX, worldZ);
+          positions.setY(index, baseHeight + noise * terrainNoiseAmplitude);
+        }
+
+        positions.needsUpdate = true;
+        geometry.computeVertexNormals();
+        return geometry;
+      };
 
       const getTextureForTerrainTile = (tileId, variantIndex) => {
         const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
@@ -4267,19 +4304,20 @@ export const initScene = (
           const elevation = getOutsideTerrainElevation(
             normalizedMap.heights?.[index]
           );
-          const totalTileHeight = tileHeight + elevation;
-
+          const surfaceHeight = tileHeight + elevation;
+          const tileGeometry = createTerrainTileGeometry(
+            column,
+            row,
+            elevation,
+            tileHeight
+          );
           const tile = new THREE.Mesh(
             tileGeometry,
             getMaterialForTerrain(resolvedTerrain.id, tileId, index)
           );
-          tile.scale.set(cellSize, totalTileHeight, cellSize);
           tile.position.set(
             mapLeftEdge + column * cellSize + cellSize / 2,
-            roomFloorY -
-              totalTileHeight / 2 +
-              OUTSIDE_TERRAIN_CLEARANCE +
-              elevation,
+            roomFloorY + OUTSIDE_TERRAIN_CLEARANCE,
             mapNearEdge + row * cellSize + cellSize / 2
           );
           tile.castShadow = false;
@@ -4296,7 +4334,7 @@ export const initScene = (
               ? resolvedTerrain.label
               : resolvedTerrain.id;
           tile.userData.tileId = tileId;
-          tile.userData.terrainHeight = totalTileHeight;
+          tile.userData.terrainHeight = surfaceHeight;
           tile.userData.tileVariantIndex = index;
           tile.userData.geoVisorRow = row;
           tile.userData.geoVisorColumn = column;
@@ -4318,7 +4356,7 @@ export const initScene = (
 
           terrainTiles.push(tile);
 
-          if (totalTileHeight > getMaxStepHeight() + 0.1) {
+          if (surfaceHeight > getMaxStepHeight() + 0.1) {
             colliderDescriptors.push({ object: tile });
           }
 
@@ -4341,7 +4379,7 @@ export const initScene = (
               new THREE.ConeGeometry(cellSize * 0.28, cellSize * 0.9, 16),
               markerMaterial
             );
-            marker.position.set(0, totalTileHeight / 2 + cellSize * 0.5, 0);
+            marker.position.set(0, surfaceHeight + cellSize * 0.5, 0);
             tile.add(marker);
           } else if (resolvedTerrain.id === "hazard") {
             const beaconMaterial = new THREE.MeshStandardMaterial({
@@ -4362,7 +4400,7 @@ export const initScene = (
               ),
               beaconMaterial
             );
-            beacon.position.set(0, totalTileHeight / 2 + cellSize * 0.45, 0);
+            beacon.position.set(0, surfaceHeight + cellSize * 0.45, 0);
             tile.add(beacon);
 
             const hazardGlow = new THREE.Mesh(
@@ -4376,7 +4414,7 @@ export const initScene = (
                 side: THREE.DoubleSide,
               })
             );
-            hazardGlow.position.set(0, tileHeight / 2 + cellSize * 0.65, 0);
+            hazardGlow.position.set(0, surfaceHeight + cellSize * 0.65, 0);
             hazardGlow.rotation.x = -Math.PI / 2;
             tile.add(hazardGlow);
           }
