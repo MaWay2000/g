@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
   maxPixelRatio: 1.25,
   showFpsCounter: false,
   showStars: true,
+  reflectionsEnabled: true,
+  reflectorResolutionScale: 1,
   playerSpeedMultiplier: 1,
   playerJumpMultiplier: 1,
   jumpApexSmoothing: 6,
@@ -91,11 +93,25 @@ const normalizeSettings = (settings = {}) => {
     return Math.max(0.01, Math.min(3, numericValue));
   };
 
+  const normalizeReflectorResolutionScale = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return DEFAULT_SETTINGS.reflectorResolutionScale;
+    }
+
+    return Math.max(0.25, Math.min(1, numericValue));
+  };
+
   return {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
     showFpsCounter: Boolean(settings.showFpsCounter),
     showStars: settings.showStars !== false,
+    reflectionsEnabled: settings.reflectionsEnabled !== false,
+    reflectorResolutionScale: normalizeReflectorResolutionScale(
+      settings.reflectorResolutionScale
+    ),
     playerSpeedMultiplier: normalizeSpeedMultiplier(settings.playerSpeedMultiplier),
     playerJumpMultiplier: normalizeJumpMultiplier(settings.playerJumpMultiplier),
     jumpApexSmoothing: normalizeJumpApexSmoothing(settings.jumpApexSmoothing),
