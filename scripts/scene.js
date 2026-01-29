@@ -4732,6 +4732,55 @@ export const initScene = (
     const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
     const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
 
+    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.48;
+    const entranceWidth = returnDoorWidth + 2.8;
+    const entranceHeight = returnDoorHeight * 1.18;
+    const entranceThickness = 0.18;
+    const entranceCenterZ = returnDoorZ - entranceDepth / 2 + 0.08;
+
+    const entranceMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0b1a22),
+      roughness: 0.7,
+      metalness: 0.25,
+      emissive: new THREE.Color(0x07131a),
+      emissiveIntensity: 0.2,
+    });
+
+    const entranceRoof = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        entranceWidth + entranceThickness * 2,
+        entranceThickness,
+        entranceDepth
+      ),
+      entranceMaterial
+    );
+    entranceRoof.position.set(
+      0,
+      roomFloorY + entranceHeight + entranceThickness / 2,
+      entranceCenterZ
+    );
+    group.add(entranceRoof);
+
+    const entranceWallGeometry = new THREE.BoxGeometry(
+      entranceThickness,
+      entranceHeight,
+      entranceDepth
+    );
+    const entranceLeftWall = new THREE.Mesh(
+      entranceWallGeometry,
+      entranceMaterial
+    );
+    entranceLeftWall.position.set(
+      -(entranceWidth / 2 + entranceThickness / 2),
+      roomFloorY + entranceHeight / 2,
+      entranceCenterZ
+    );
+    group.add(entranceLeftWall);
+
+    const entranceRightWall = entranceLeftWall.clone();
+    entranceRightWall.position.x *= -1;
+    group.add(entranceRightWall);
+
 
     const returnDoorControl = new THREE.Mesh(
       new THREE.PlaneGeometry(returnDoorWidth * 0.82, returnDoorHeight * 0.5),
@@ -4783,6 +4832,9 @@ export const initScene = (
       { object: platform, offset: -platformThickness / 2 },
       { object: walkway, offset: 0.06 },
       { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
+      { object: entranceRoof, offset: entranceHeight + entranceThickness / 2 },
+      { object: entranceLeftWall, offset: entranceHeight / 2 },
+      { object: entranceRightWall, offset: entranceHeight / 2 },
       { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
       { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
       { object: primaryStarField, offset: starYOffset },
