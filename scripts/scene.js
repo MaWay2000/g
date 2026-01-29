@@ -4732,11 +4732,12 @@ export const initScene = (
     const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
     const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
 
-    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.48;
+    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH;
     const entranceWidth = returnDoorWidth + 2.8;
     const entranceHeight = returnDoorHeight * 1.18;
     const entranceThickness = 0.18;
-    const entranceCenterZ = returnDoorZ - entranceDepth / 2 + 0.08;
+    const entranceCenterZ =
+      OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 - entranceDepth / 2 + 0.08;
 
     const entranceMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0b1a22),
