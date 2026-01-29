@@ -1888,6 +1888,7 @@ export const initScene = (
 
   const CONCEAL_OUTSIDE_TERRAIN_TILES = false;
   const CONCEALED_OUTSIDE_TERRAIN_COLOR = 0x202736;
+  const DISABLE_TERRAIN_SKIRTS = false;
 
   const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
 
@@ -4486,7 +4487,11 @@ export const initScene = (
           const edgeMinDelta = 0.001;
           const skirtMaterial = tile.material;
 
-          if (westHeight !== null && surfaceHeight - westHeight > edgeMinDelta) {
+          if (
+            !DISABLE_TERRAIN_SKIRTS &&
+            westHeight !== null &&
+            surfaceHeight - westHeight > edgeMinDelta
+          ) {
             const skirtGeometry = createTerrainSkirtGeometry({
               startX: mapLeftEdge + column * cellSize,
               startZ: mapNearEdge + row * cellSize,
@@ -4506,7 +4511,11 @@ export const initScene = (
             });
           }
 
-          if (eastHeight !== null && surfaceHeight - eastHeight > edgeMinDelta) {
+          if (
+            !DISABLE_TERRAIN_SKIRTS &&
+            eastHeight !== null &&
+            surfaceHeight - eastHeight > edgeMinDelta
+          ) {
             const skirtGeometry = createTerrainSkirtGeometry({
               startX: mapLeftEdge + (column + 1) * cellSize,
               startZ: mapNearEdge + (row + 1) * cellSize,
@@ -4526,7 +4535,11 @@ export const initScene = (
             });
           }
 
-          if (northHeight !== null && surfaceHeight - northHeight > edgeMinDelta) {
+          if (
+            !DISABLE_TERRAIN_SKIRTS &&
+            northHeight !== null &&
+            surfaceHeight - northHeight > edgeMinDelta
+          ) {
             const skirtGeometry = createTerrainSkirtGeometry({
               startX: mapLeftEdge + (column + 1) * cellSize,
               startZ: mapNearEdge + row * cellSize,
@@ -4546,7 +4559,11 @@ export const initScene = (
             });
           }
 
-          if (southHeight !== null && surfaceHeight - southHeight > edgeMinDelta) {
+          if (
+            !DISABLE_TERRAIN_SKIRTS &&
+            southHeight !== null &&
+            surfaceHeight - southHeight > edgeMinDelta
+          ) {
             const skirtGeometry = createTerrainSkirtGeometry({
               startX: mapLeftEdge + column * cellSize,
               startZ: mapNearEdge + (row + 1) * cellSize,
