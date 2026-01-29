@@ -1010,6 +1010,9 @@ const quickSlotDefinitions = [
 
 const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter"]);
 const GEO_VISOR_PANEL_SLOT_ID = "photon-cutter";
+const GEO_VISOR_BATTERY_DRAIN_MS = 60 * 1000;
+const GEO_VISOR_BATTERY_RECHARGE_MS = 2 * 60 * 1000;
+const GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS = 200;
 const GEO_SCAN_MAX_HP = Math.max(
   1,
   ...(Array.isArray(OUTSIDE_TERRAIN_TYPES)
@@ -1098,6 +1101,13 @@ const quickSlotState = {
 
 const geoVisorState = {
   activeSlotId: null,
+};
+const geoVisorBatteryState = {
+  level: 1,
+  lastUpdate:
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now(),
 };
 
 const quickSlotActivationTimeouts = new Map();
@@ -2335,6 +2345,63 @@ const updateGeoVisorQuickSlotState = () => {
   });
 };
 
+const updateGeoVisorBatteryIndicator = () => {
+  if (!(quickSlotBar instanceof HTMLElement)) {
+    return;
+  }
+
+  const drainPercent = Math.max(
+    0,
+    Math.min(100, Math.round((1 - geoVisorBatteryState.level) * 100))
+  );
+
+  const geoSlotButtons = quickSlotBar.querySelectorAll("[data-geo-visor]");
+  geoSlotButtons.forEach((button) => {
+    if (!(button instanceof HTMLElement)) {
+      return;
+    }
+
+    button.style.setProperty(
+      "--geo-visor-battery-drain",
+      `${drainPercent}%`
+    );
+  });
+};
+
+const updateGeoVisorBatteryState = () => {
+  const now =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+  const delta = now - geoVisorBatteryState.lastUpdate;
+
+  if (!Number.isFinite(delta) || delta <= 0) {
+    geoVisorBatteryState.lastUpdate = now;
+    return;
+  }
+
+  geoVisorBatteryState.lastUpdate = now;
+
+  const isGeoVisorActive = Boolean(getActiveGeoVisorSlotId());
+  const duration = isGeoVisorActive
+    ? GEO_VISOR_BATTERY_DRAIN_MS
+    : GEO_VISOR_BATTERY_RECHARGE_MS;
+  const deltaFraction = delta / duration;
+  const nextLevel = Math.max(
+    0,
+    Math.min(
+      1,
+      geoVisorBatteryState.level +
+        (isGeoVisorActive ? -deltaFraction : deltaFraction)
+    )
+  );
+
+  if (Math.abs(nextLevel - geoVisorBatteryState.level) >= 0.001) {
+    geoVisorBatteryState.level = nextLevel;
+    updateGeoVisorBatteryIndicator();
+  }
+};
+
 const setGeoVisorActiveSlotId = (slotId) => {
   const normalizedId = GEO_VISOR_SLOT_IDS.has(slotId) ? slotId : null;
 
@@ -2375,6 +2442,7 @@ const updateQuickSlotUi = () => {
   );
   updateDroneQuickSlotState();
   updateGeoVisorQuickSlotState();
+  updateGeoVisorBatteryIndicator();
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
   updateGeoScanPanel();
 };
@@ -2462,22 +2530,30 @@ const renderQuickSlotBar = () => {
     button.appendChild(key);
 
     const hasIcon = typeof slot?.icon === "string" && slot.icon.trim() !== "";
+    const isGeoVisorSlot = GEO_VISOR_SLOT_IDS.has(slot?.id);
 
     if (hasIcon) {
       const iconValue = slot.icon.trim();
       const isImageIcon = /\/|\.(svg|png|jpe?g|gif|webp)$/i.test(iconValue);
 
-      const icon = document.createElement(isImageIcon ? "img" : "span");
+      const icon = document.createElement("span");
       icon.className = "quick-slot-bar__slot-icon";
       icon.setAttribute("aria-hidden", "true");
 
-      if (icon instanceof HTMLImageElement) {
-        icon.src = iconValue;
-        icon.alt = "";
-        icon.loading = "lazy";
+      const iconContent = document.createElement(
+        isImageIcon ? "img" : "span"
+      );
+      iconContent.className = "quick-slot-bar__slot-icon-content";
+
+      if (iconContent instanceof HTMLImageElement) {
+        iconContent.src = iconValue;
+        iconContent.alt = "";
+        iconContent.loading = "lazy";
       } else {
-        icon.textContent = iconValue;
+        iconContent.textContent = iconValue;
       }
+
+      icon.appendChild(iconContent);
 
       button.appendChild(icon);
     }
@@ -2496,6 +2572,10 @@ const renderQuickSlotBar = () => {
 
     if (typeof slot?.id === "string" && slot.id.trim() !== "") {
       button.dataset.quickSlotId = slot.id.trim();
+    }
+
+    if (isGeoVisorSlot) {
+      button.dataset.geoVisor = "true";
     }
 
     const ariaLabel =
@@ -8593,6 +8673,10 @@ if (inventoryDroneAutoRefillToggle instanceof HTMLInputElement) {
 
 window.setInterval(cancelStalledDroneMiningSession, DRONE_STALL_CHECK_INTERVAL_MS);
 window.setInterval(updateGeoScanPanel, GEO_SCAN_PANEL_UPDATE_INTERVAL_MS);
+window.setInterval(
+  updateGeoVisorBatteryState,
+  GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS
+);
 
 const describeManifestEntry = (entry) => {
   if (typeof entry?.label === "string" && entry.label.trim() !== "") {

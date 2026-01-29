@@ -411,6 +411,7 @@
       }
 
       .quick-slot-bar__slot-icon {
+        position: relative;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -426,8 +427,29 @@
         overflow: hidden;
       }
 
-      .quick-slot-bar__slot-icon:is(img) {
+      .quick-slot-bar__slot-icon-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+      }
+
+      .quick-slot-bar__slot-icon-content:is(img) {
         object-fit: contain;
+      }
+
+      .quick-slot-bar__slot[data-geo-visor="true"]
+        .quick-slot-bar__slot-icon::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: var(--geo-visor-battery-drain, 0%);
+        background: rgba(0, 0, 0, 0.85);
+        pointer-events: none;
+        transition: height 160ms linear;
       }
 
       .quick-slot-bar__slot[data-drone-active="true"] {
