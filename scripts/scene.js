@@ -4123,7 +4123,32 @@ export const initScene = (
         return tileHeight + elevation;
       };
 
-      const createTerrainTileGeometry = (column, row, elevation, tileHeight) => {
+      const getCellElevation = (column, row) => {
+        const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
+        const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
+        const index = clampedRow * width + clampedColumn;
+        return getOutsideTerrainElevation(normalizedMap.heights?.[index]);
+      };
+
+      const getBlendedElevation = (column, row, xBlend, zBlend) => {
+        const elevation00 = getCellElevation(column, row);
+        const elevation10 = getCellElevation(column + 1, row);
+        const elevation01 = getCellElevation(column, row + 1);
+        const elevation11 = getCellElevation(column + 1, row + 1);
+        const northBlend = THREE.MathUtils.lerp(
+          elevation00,
+          elevation10,
+          xBlend
+        );
+        const southBlend = THREE.MathUtils.lerp(
+          elevation01,
+          elevation11,
+          xBlend
+        );
+        return THREE.MathUtils.lerp(northBlend, southBlend, zBlend);
+      };
+
+      const createTerrainTileGeometry = (column, row, tileHeight) => {
         const geometry = new THREE.PlaneGeometry(
           cellSize,
           cellSize,
@@ -4132,7 +4157,6 @@ export const initScene = (
         );
         geometry.rotateX(-Math.PI / 2);
         const positions = geometry.attributes.position;
-        const baseHeight = elevation + tileHeight;
         const centerX = mapLeftEdge + column * cellSize + cellSize / 2;
         const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
 
@@ -4141,6 +4165,18 @@ export const initScene = (
         for (let index = 0; index < positions.count; index += 1) {
           const localX = positions.getX(index);
           const localZ = positions.getZ(index);
+          const xBlend = THREE.MathUtils.clamp(
+            localX / cellSize + 0.5,
+            0,
+            1
+          );
+          const zBlend = THREE.MathUtils.clamp(
+            localZ / cellSize + 0.5,
+            0,
+            1
+          );
+          const baseHeight =
+            tileHeight + getBlendedElevation(column, row, xBlend, zBlend);
           const worldX = centerX + localX;
           const worldZ = centerZ + localZ;
           const noise = getTerrainNoise(worldX, worldZ);
@@ -4388,7 +4424,6 @@ export const initScene = (
           const tileGeometry = createTerrainTileGeometry(
             column,
             row,
-            elevation,
             tileHeight
           );
           const tile = new THREE.Mesh(
