@@ -1323,6 +1323,26 @@
         </section>
 
         <section class="sidebar-section">
+          <h2>Generation</h2>
+          <div class="control-group">
+            <div class="control">
+              <label>Height range</label>
+              <div class="actions-row">
+                <input id="generateHeightMin" type="number" min="0" max="255" step="1" value="0" />
+                –
+                <input id="generateHeightMax" type="number" min="0" max="255" step="1" value="64" />
+              </div>
+              <div class="hint">Heights are clamped between 0 and 255.</div>
+            </div>
+            <div class="control">
+              <label for="generateHillsCount">Hills count</label>
+              <input id="generateHillsCount" type="number" min="0" max="40000" step="1" value="8" />
+              <div class="hint">Higher counts add more peaks to the height map.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="sidebar-section">
           <h2>Import JSON</h2>
           <p>Paste an exported map definition to replace the current layout.</p>
           <div class="control">
