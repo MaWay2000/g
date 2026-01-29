@@ -8782,10 +8782,6 @@ const bootstrapScene = () => {
         title: label || "Resource collected",
         description: resourceToastDescription || "Resource extracted.",
       });
-      showTerminalToast({
-        title: "Resource collected",
-        description: description || "Resource extracted.",
-      });
     },
     onResourceUnavailable({ terrain } = {}) {
       const terrainLabel = terrain?.terrainLabel ?? null;
