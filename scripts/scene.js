@@ -4065,6 +4065,7 @@ export const initScene = (
         cellSize * 0.08,
         OUTSIDE_HEIGHT_ELEVATION_MAX * 0.35
       );
+      const platformBlendDistance = cellSize * 0.85;
       const terrainPlaneSegments = 6;
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
@@ -4135,13 +4136,31 @@ export const initScene = (
         const centerX = mapLeftEdge + column * cellSize + cellSize / 2;
         const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
 
+        const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
+
         for (let index = 0; index < positions.count; index += 1) {
           const localX = positions.getX(index);
           const localZ = positions.getZ(index);
           const worldX = centerX + localX;
           const worldZ = centerZ + localZ;
           const noise = getTerrainNoise(worldX, worldZ);
-          positions.setY(index, baseHeight + noise * terrainNoiseAmplitude);
+          const terrainY = baseHeight + noise * terrainNoiseAmplitude;
+          const distanceFromPlatform = Math.max(0, worldZ - mapNearEdge);
+          const distanceToPlatform = Math.max(
+            0,
+            platformBlendDistance - distanceFromPlatform
+          );
+          const blendWeight = THREE.MathUtils.smoothstep(
+            distanceToPlatform,
+            0,
+            platformBlendDistance
+          );
+          const blendedY = THREE.MathUtils.lerp(
+            terrainY,
+            platformLocalY,
+            blendWeight
+          );
+          positions.setY(index, blendedY);
         }
 
         positions.needsUpdate = true;
