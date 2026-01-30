@@ -2013,8 +2013,9 @@ export const initScene = (
   roomMesh.scale.set(1, roomHeight / BASE_ROOM_HEIGHT, 1);
   hangarDeckEnvironmentGroup.add(roomMesh);
 
-  const createHangarDoor = (themeOverrides = {}) => {
+  const createHangarDoor = (themeOverrides = {}, options = {}) => {
     const theme = { ...DEFAULT_DOOR_THEME, ...themeOverrides };
+    const { includeBackWall = false } = options;
     const group = new THREE.Group();
 
     const doorWidth = BASE_DOOR_WIDTH;
@@ -2126,6 +2127,32 @@ export const initScene = (
     const rightFrame = leftFrame.clone();
     rightFrame.position.x = doorWidth / 2 + frameWidth / 2;
     group.add(rightFrame);
+
+    if (includeBackWall) {
+      const backWallMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0b1113),
+        roughness: 0.68,
+        metalness: 0.32,
+        map: grungeTexture,
+        roughnessMap: grungeTexture,
+        metalnessMap: grungeTexture,
+      });
+      const backWallDepth = 0.18;
+      const backWall = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          doorWidth + frameWidth * 2.2,
+          doorHeight + lintelHeight + thresholdHeight,
+          backWallDepth
+        ),
+        backWallMaterial
+      );
+      backWall.position.set(
+        0,
+        0,
+        -frameDepth / 2 - backWallDepth / 2 - 0.02
+      );
+      group.add(backWall);
+    }
 
     const trimMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x7f1d1d),
@@ -2754,7 +2781,9 @@ export const initScene = (
     return group;
   };
 
-  const hangarDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
+  const hangarDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
+    includeBackWall: true,
+  });
   hangarDoor.position.set(
     0,
     -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
@@ -3772,7 +3801,9 @@ export const initScene = (
     statusGlow.position.set(0, roomFloorY + 1.6, -deckDepth / 2 + 0.07);
     group.add(statusGlow);
 
-    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
+    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
+      includeBackWall: true,
+    });
     liftDoor.position.set(
       0,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
@@ -5422,7 +5453,9 @@ export const initScene = (
     consoleScreen.rotation.x = -THREE.MathUtils.degToRad(12);
     group.add(consoleScreen);
 
-    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
+    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
+      includeBackWall: true,
+    });
     liftDoor.position.set(
       0,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
@@ -5742,7 +5775,9 @@ export const initScene = (
     horizonLight.position.set(-2.5, roomFloorY + 3.2, 4.6);
     group.add(horizonLight);
 
-    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
+    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
+      includeBackWall: true,
+    });
     liftDoor.position.set(
       -roomWidth / 3,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
