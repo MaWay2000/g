@@ -4321,13 +4321,19 @@ export const initScene = (
       );
 
       const baseY = roomFloorY - 0.04;
+      const minTerrainSurfaceY =
+        roomFloorY +
+        OUTSIDE_TERRAIN_CLEARANCE +
+        tileHeight +
+        getOutsideTerrainElevation(OUTSIDE_HEIGHT_MIN);
       const perimeterTopY =
         roomFloorY +
         OUTSIDE_TERRAIN_CLEARANCE +
         tileHeight +
         outsideBorderElevation +
         terrainNoiseAmplitude;
-      const perimeterHeight = Math.max(0.2, (perimeterTopY - baseY) * 2);
+      const perimeterBottomY = Math.min(baseY, minTerrainSurfaceY);
+      const perimeterHeight = Math.max(0.2, perimeterTopY - perimeterBottomY);
       const perimeterThickness = cellSize * 0.6;
       const perimeterMaterialBase = new THREE.MeshStandardMaterial({
         color: new THREE.Color(0x0b1220),
@@ -4378,7 +4384,7 @@ export const initScene = (
       };
       const expandedHalfWidth = expandedWorldWidth / 2;
       const expandedHalfDepth = expandedWorldDepth / 2;
-      const perimeterCenterY = perimeterTopY - perimeterHeight / 2;
+      const perimeterCenterY = (perimeterTopY + perimeterBottomY) / 2;
 
       const northWall = new THREE.Mesh(
         new THREE.BoxGeometry(
