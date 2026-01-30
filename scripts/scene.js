@@ -2802,6 +2802,7 @@ export const initScene = (
     -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
     roomDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
   );
+  hangarDoor.rotation.y = Math.PI;
   hangarDeckEnvironmentGroup.add(hangarDoor);
   hangarDoor.userData.floorOffset = 0;
   registerLiftDoor(hangarDoor);
@@ -5095,7 +5096,7 @@ export const initScene = (
       entranceBaseY + (returnDoor.userData.height ?? 0) / 2,
       returnDoorZ
     );
-    returnDoor.rotation.y = 0;
+    returnDoor.rotation.y = Math.PI;
     returnDoor.userData.floorOffset = entranceBaseY - roomFloorY;
     group.add(returnDoor);
 
@@ -5483,6 +5484,7 @@ export const initScene = (
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
       -bayDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
     );
+    liftDoor.rotation.y = Math.PI;
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
@@ -5805,6 +5807,7 @@ export const initScene = (
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
       -plazaDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
     );
+    liftDoor.rotation.y = Math.PI;
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
