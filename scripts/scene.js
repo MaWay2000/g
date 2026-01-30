@@ -37,12 +37,12 @@ import {
   loadOutsideMapFromStorage,
   normalizeOutsideMap,
   saveOutsideMapToStorage,
+  OUTSIDE_TERRAIN_ELEMENTS_BY_ID,
   getOutsideTerrainById,
   getOutsideTerrainDefaultTileId,
   getOutsideTerrainTilePath,
 } from "./outside-map.js";
 import { getTerrainLifeKey, loadStoredTerrainLife } from "./terrain-life-storage.js";
-import { samplePeriodicElement } from "./data/periodic-elements.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_ELEMENT_WEIGHT = 1;
@@ -54,6 +54,47 @@ const getElementWeightFromAtomicNumber = (number) => {
   }
 
   return number;
+};
+
+const sampleTerrainElement = (terrainId, randomFn = Math.random) => {
+  if (typeof terrainId !== "string" || !terrainId) {
+    return null;
+  }
+
+  const elements = OUTSIDE_TERRAIN_ELEMENTS_BY_ID.get(terrainId) ?? [];
+  if (elements.length === 0) {
+    return null;
+  }
+
+  const weights = elements.map((element) => {
+    if (!element || !Number.isFinite(element.number) || element.number <= 0) {
+      return 0;
+    }
+    return 1 / element.number;
+  });
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+    return null;
+  }
+
+  const randomValue = randomFn();
+  const clampedRandom =
+    Number.isFinite(randomValue) && randomValue >= 0 && randomValue <= 1
+      ? randomValue
+      : Math.random();
+  const target = clampedRandom * totalWeight;
+  let cumulative = 0;
+
+  for (let index = 0; index < elements.length; index += 1) {
+    cumulative += weights[index];
+    if (target <= cumulative) {
+      const element = elements[index];
+      return element ? { ...element } : null;
+    }
+  }
+
+  const fallback = elements[elements.length - 1];
+  return fallback ? { ...fallback } : null;
 };
 
 export const initScene = (
@@ -7784,7 +7825,8 @@ export const initScene = (
       return;
     }
 
-    const element = samplePeriodicElement();
+    const terrainId = baseDetail?.terrain?.id ?? null;
+    const element = sampleTerrainElement(terrainId);
 
     if (!element) {
       if (eventDetail) {
