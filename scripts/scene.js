@@ -8126,7 +8126,7 @@ export const initScene = (
   if (!storedPlayerState && hasStoredOutsideMap) {
     defaultPlayerPosition.copy(resolvedOperationsExteriorFloorPosition);
     defaultPlayerPosition.y = roomFloorY;
-    playerObject.rotation.y = Math.PI;
+    playerObject.rotation.y = 0;
   }
 
   const hangarDeckFloorBounds = createFloorBounds(roomWidth, roomDepth, {
@@ -8193,7 +8193,7 @@ export const initScene = (
       title: "Surface Access",
       description: "Forward observation platform",
       position: resolvedOperationsExteriorFloorPosition,
-      yaw: Math.PI,
+      yaw: 0,
       bounds: resolvedOperationsExteriorFloorBounds,
     },
     {
