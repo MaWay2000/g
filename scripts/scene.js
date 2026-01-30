@@ -2656,6 +2656,8 @@ export const initScene = (
         const rawTitle =
           current?.title ||
           current?.id ||
+          next?.title ||
+          next?.id ||
           trimmedMapName ||
           "Unknown Deck";
         const titleWords = rawTitle
