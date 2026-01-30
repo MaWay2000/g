@@ -4899,8 +4899,18 @@ export const initScene = (
     group.add(ambient);
 
     const returnDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
-    const returnDoorZ =
-      -OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 + 0.32 * ROOM_SCALE_FACTOR;
+    const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
+    const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
+
+    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
+    const entranceWidth = returnDoorWidth + 1.6;
+    const entranceHeight = returnDoorHeight * 1.05;
+    const entranceThickness = 0.16;
+    const entranceRearZ = -OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 + 0.12;
+    const entranceCenterZ = entranceRearZ + entranceDepth / 2;
+    const entranceFrontZ = entranceRearZ + entranceDepth;
+    const returnDoorZ = entranceFrontZ - 0.42;
+
     returnDoor.position.set(
       0,
       roomFloorY + (returnDoor.userData.height ?? 0) / 2,
@@ -4909,16 +4919,6 @@ export const initScene = (
     returnDoor.rotation.y = 0;
     returnDoor.userData.floorOffset = 0;
     group.add(returnDoor);
-
-    const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
-    const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
-
-    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.78;
-    const entranceWidth = returnDoorWidth + 2.8;
-    const entranceHeight = returnDoorHeight * 1.18;
-    const entranceThickness = 0.18;
-    const entranceRearZ = -OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 + 0.08;
-    const entranceCenterZ = entranceRearZ + entranceDepth / 2;
 
     const entranceMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0b1a22),
