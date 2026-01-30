@@ -352,6 +352,7 @@ export const initMapMaker3d = ({
     flatShading: true,
     roughness: 0.9,
     metalness: 0.05,
+    side: THREE.DoubleSide,
   });
 
   const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
