@@ -4405,23 +4405,21 @@ export const initScene = (
           const terrainY = baseHeight + noise * terrainNoiseAmplitude;
           let blendedY = terrainY;
 
-          if (isInsideMap) {
-            const distanceFromPlatform = Math.max(0, worldZ - mapNearEdge);
-            const distanceToPlatform = Math.max(
-              0,
-              platformBlendDistance - distanceFromPlatform
-            );
-            const blendWeight = THREE.MathUtils.smoothstep(
-              distanceToPlatform,
-              0,
-              platformBlendDistance
-            );
-            blendedY = THREE.MathUtils.lerp(
-              terrainY,
-              platformLocalY,
-              blendWeight
-            );
-          }
+          const distanceFromPlatform = Math.abs(worldZ - mapNearEdge);
+          const distanceToPlatform = Math.max(
+            0,
+            platformBlendDistance - distanceFromPlatform
+          );
+          const blendWeight = THREE.MathUtils.smoothstep(
+            distanceToPlatform,
+            0,
+            platformBlendDistance
+          );
+          blendedY = THREE.MathUtils.lerp(
+            terrainY,
+            platformLocalY,
+            blendWeight
+          );
 
           positions.setY(index, blendedY);
         }
@@ -4614,7 +4612,7 @@ export const initScene = (
           tileHeight + getBlendedElevation(clampedColumn, clampedRow, xBlend, zBlend);
         const noise = getTerrainNoise(worldX, worldZ);
         const terrainY = baseHeight + noise * terrainNoiseAmplitude;
-        const distanceFromPlatform = Math.max(0, worldZ - mapNearEdge);
+        const distanceFromPlatform = Math.abs(worldZ - mapNearEdge);
         const distanceToPlatform = Math.max(
           0,
           platformBlendDistance - distanceFromPlatform
