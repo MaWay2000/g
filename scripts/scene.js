@@ -4951,6 +4951,8 @@ export const initScene = (
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : builtOutsideTerrain?.center?.z ?? 0;
+    platform.position.x = outsideMapCenterX;
+    walkway.position.x = outsideMapCenterX;
     const entranceSurfaceY =
       typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
         ? builtOutsideTerrain.getSurfaceYAtWorldPosition(
@@ -5106,8 +5108,8 @@ export const initScene = (
     const walkwayHalfWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH / 2;
     const walkwayHalfDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
 
-    const walkwayMinX = -walkwayHalfWidth;
-    const walkwayMaxX = walkwayHalfWidth;
+    const walkwayMinX = walkway.position.x - walkwayHalfWidth;
+    const walkwayMaxX = walkway.position.x + walkwayHalfWidth;
     const walkwayMinZ = -walkwayHalfDepth;
     const walkwayMaxZ = walkwayHalfDepth;
 
