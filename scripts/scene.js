@@ -4335,8 +4335,6 @@ export const initScene = (
         const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
 
         const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
-        const baseOutsideHeight = tileHeight + outsideBorderElevation;
-
         for (let index = 0; index < positions.count; index += 1) {
           const localX = positions.getX(index);
           const localZ = positions.getZ(index);
@@ -4350,9 +4348,8 @@ export const initScene = (
             0,
             1
           );
-          const baseHeight = isInsideMap
-            ? tileHeight + getBlendedElevation(column, row, xBlend, zBlend)
-            : baseOutsideHeight;
+          const baseHeight =
+            tileHeight + getBlendedElevation(column, row, xBlend, zBlend);
           const worldX = centerX + localX;
           const worldZ = centerZ + localZ;
           const noise = getTerrainNoise(worldX, worldZ);
