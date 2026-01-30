@@ -34,7 +34,6 @@ import {
 } from "./physics/colliders.js";
 import {
   createDefaultOutsideMap,
-  loadOutsideMapFromFile,
   loadOutsideMapFromStorage,
   normalizeOutsideMap,
   saveOutsideMapToStorage,
@@ -4095,7 +4094,7 @@ export const initScene = (
   const operationsExteriorTeleportOffset =
     resolveOperationsExteriorTeleportOffset();
 
-    const createOperationsExteriorEnvironment = async () => {
+    const createOperationsExteriorEnvironment = () => {
       const group = new THREE.Group();
       const DOOR_MARKER_PATH = "door-marker";
 
@@ -4937,13 +4936,7 @@ export const initScene = (
       console.warn("Unable to load stored outside map", error);
     }
     if (!storedOutsideMap) {
-      try {
-        storedOutsideMap = await loadOutsideMapFromFile();
-        hasStoredOutsideMap = true;
-      } catch (error) {
-        console.warn("Unable to load outside map from file", error);
-        storedOutsideMap = createDefaultOutsideMap();
-      }
+      storedOutsideMap = createDefaultOutsideMap();
     }
 
     const { map: terrainLifeMap, changed: terrainLifeChanged } =
@@ -6009,10 +6002,25 @@ export const initScene = (
     floorPosition.y = roomFloorY;
 
     let state = null;
-    let pendingLoad = null;
-    let pendingLoadToken = 0;
 
-    const finalizeEnvironment = (environment) => {
+    const load = () => {
+      if (state?.group) {
+        if (!state.group.parent) {
+          scene.add(state.group);
+          state.group.updateMatrixWorld(true);
+        }
+        return state;
+      }
+
+      let environment = null;
+
+      try {
+        environment = createEnvironment();
+      } catch (error) {
+        console.warn(`Unable to create environment for ${id}`, error);
+        return null;
+      }
+
       const group = environment?.group;
 
       if (!group) {
@@ -6148,59 +6156,7 @@ export const initScene = (
       return state;
     };
 
-    const load = () => {
-      if (state?.group) {
-        if (!state.group.parent) {
-          scene.add(state.group);
-          state.group.updateMatrixWorld(true);
-        }
-        return state;
-      }
-
-      if (pendingLoad) {
-        return pendingLoad;
-      }
-
-      let environmentResult = null;
-
-      try {
-        environmentResult = createEnvironment();
-      } catch (error) {
-        console.warn(`Unable to create environment for ${id}`, error);
-        return null;
-      }
-
-      if (environmentResult && typeof environmentResult.then === "function") {
-        const loadToken = pendingLoadToken + 1;
-        pendingLoadToken = loadToken;
-
-        pendingLoad = environmentResult
-          .then((environment) => {
-            if (loadToken !== pendingLoadToken) {
-              return null;
-            }
-
-            const nextState = finalizeEnvironment(environment);
-            pendingLoad = null;
-            return nextState;
-          })
-          .catch((error) => {
-            if (loadToken === pendingLoadToken) {
-              pendingLoad = null;
-            }
-            console.warn(`Unable to create environment for ${id}`, error);
-            return null;
-          });
-
-        return pendingLoad;
-      }
-
-      return finalizeEnvironment(environmentResult);
-    };
-
     const unload = () => {
-      pendingLoadToken += 1;
-      pendingLoad = null;
       if (!state?.group) {
         return;
       }
@@ -6696,25 +6652,7 @@ export const initScene = (
     }
 
     if (!mapDefinition) {
-      loadOutsideMapFromFile()
-        .then((loadedMap) => {
-          const name =
-            typeof loadedMap?.name === "string"
-              ? loadedMap.name.trim()
-              : "";
-          cachedOutsideMapName = name;
-          updateLiftUi();
-        })
-        .catch((error) => {
-          console.warn("Unable to load outside map name from file", error);
-          mapDefinition = createDefaultOutsideMap();
-          const fallbackName =
-            typeof mapDefinition?.name === "string"
-              ? mapDefinition.name.trim()
-              : "";
-          cachedOutsideMapName = fallbackName;
-          updateLiftUi();
-        });
+      mapDefinition = createDefaultOutsideMap();
     }
 
     const name =
