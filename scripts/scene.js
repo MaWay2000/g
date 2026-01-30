@@ -4171,6 +4171,78 @@ export const initScene = (
         OUTSIDE_BORDER_HEIGHT
       );
 
+      const baseY = roomFloorY - 0.04;
+      const perimeterTopY =
+        roomFloorY +
+        OUTSIDE_TERRAIN_CLEARANCE +
+        tileHeight +
+        outsideBorderElevation +
+        terrainNoiseAmplitude;
+      const perimeterHeight = Math.max(0.2, perimeterTopY - baseY);
+      const perimeterThickness = cellSize * 0.6;
+      const perimeterMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0b1220),
+        roughness: 0.9,
+        metalness: 0.08,
+      });
+      const expandedHalfWidth = expandedWorldWidth / 2;
+      const expandedHalfDepth = expandedWorldDepth / 2;
+      const perimeterCenterY = baseY + perimeterHeight / 2;
+
+      const northWall = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          expandedWorldWidth,
+          perimeterHeight,
+          perimeterThickness
+        ),
+        perimeterMaterial
+      );
+      northWall.position.set(
+        0,
+        perimeterCenterY,
+        mapCenterZ - expandedHalfDepth + perimeterThickness / 2
+      );
+      mapGroup.add(northWall);
+      adjustable.push({
+        object: northWall,
+        offset: northWall.position.y - roomFloorY,
+      });
+
+      const southWall = northWall.clone();
+      southWall.position.z = mapCenterZ + expandedHalfDepth - perimeterThickness / 2;
+      mapGroup.add(southWall);
+      adjustable.push({
+        object: southWall,
+        offset: southWall.position.y - roomFloorY,
+      });
+
+      const westWall = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          perimeterThickness,
+          perimeterHeight,
+          expandedWorldDepth
+        ),
+        perimeterMaterial
+      );
+      westWall.position.set(
+        -expandedHalfWidth + perimeterThickness / 2,
+        perimeterCenterY,
+        mapCenterZ
+      );
+      mapGroup.add(westWall);
+      adjustable.push({
+        object: westWall,
+        offset: westWall.position.y - roomFloorY,
+      });
+
+      const eastWall = westWall.clone();
+      eastWall.position.x = expandedHalfWidth - perimeterThickness / 2;
+      mapGroup.add(eastWall);
+      adjustable.push({
+        object: eastWall,
+        offset: eastWall.position.y - roomFloorY,
+      });
+
       const getCellElevation = (column, row) => {
         if (column < 0 || column >= width || row < 0 || row >= height) {
           return outsideBorderElevation;
