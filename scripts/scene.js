@@ -4327,7 +4327,7 @@ export const initScene = (
         tileHeight +
         outsideBorderElevation +
         terrainNoiseAmplitude;
-      const perimeterHeight = Math.max(0.2, perimeterTopY - baseY);
+      const perimeterHeight = Math.max(0.2, (perimeterTopY - baseY) * 2);
       const perimeterThickness = cellSize * 0.6;
       const perimeterMaterialBase = new THREE.MeshStandardMaterial({
         color: new THREE.Color(0x0b1220),
@@ -4378,7 +4378,7 @@ export const initScene = (
       };
       const expandedHalfWidth = expandedWorldWidth / 2;
       const expandedHalfDepth = expandedWorldDepth / 2;
-      const perimeterCenterY = baseY + perimeterHeight / 2;
+      const perimeterCenterY = perimeterTopY - perimeterHeight / 2;
 
       const northWall = new THREE.Mesh(
         new THREE.BoxGeometry(
@@ -4398,6 +4398,7 @@ export const initScene = (
         object: northWall,
         offset: northWall.position.y - roomFloorY,
       });
+      colliderDescriptors.push({ object: northWall });
 
       const southWall = northWall.clone();
       southWall.position.z = mapCenterZ + expandedHalfDepth - perimeterThickness / 2;
@@ -4406,6 +4407,7 @@ export const initScene = (
         object: southWall,
         offset: southWall.position.y - roomFloorY,
       });
+      colliderDescriptors.push({ object: southWall });
 
       const westWall = new THREE.Mesh(
         new THREE.BoxGeometry(
@@ -4425,6 +4427,7 @@ export const initScene = (
         object: westWall,
         offset: westWall.position.y - roomFloorY,
       });
+      colliderDescriptors.push({ object: westWall });
 
       const eastWall = westWall.clone();
       eastWall.position.x = expandedHalfWidth - perimeterThickness / 2;
@@ -4433,6 +4436,7 @@ export const initScene = (
         object: eastWall,
         offset: eastWall.position.y - roomFloorY,
       });
+      colliderDescriptors.push({ object: eastWall });
 
       const getCellElevation = (column, row) => {
         if (column < 0 || column >= width || row < 0 || row >= height) {
@@ -5140,6 +5144,7 @@ export const initScene = (
     returnDoor.rotation.y = Math.PI;
     returnDoor.userData.floorOffset = entranceBaseY - roomFloorY;
     group.add(returnDoor);
+    mapColliderDescriptors.push({ object: returnDoor });
     const returnDoorFrontOffset = new THREE.Vector3(0, 0, 1).applyEuler(
       returnDoor.rotation
     );
@@ -5171,6 +5176,7 @@ export const initScene = (
       tunnelCenterZ
     );
     group.add(entranceRoof);
+    mapColliderDescriptors.push({ object: entranceRoof });
 
     const entranceWallGeometry = new THREE.BoxGeometry(
       entranceThickness,
@@ -5187,11 +5193,13 @@ export const initScene = (
       tunnelCenterZ
     );
     group.add(entranceLeftWall);
+    mapColliderDescriptors.push({ object: entranceLeftWall });
 
     const entranceRightWall = entranceLeftWall.clone();
     entranceRightWall.position.x =
       outsideMapCenterX + (entranceWidth / 2 + entranceThickness / 2);
     group.add(entranceRightWall);
+    mapColliderDescriptors.push({ object: entranceRightWall });
 
     const entranceBackWall = new THREE.Mesh(
       new THREE.BoxGeometry(
@@ -5207,6 +5215,7 @@ export const initScene = (
       tunnelRearWallZ
     );
     group.add(entranceBackWall);
+    mapColliderDescriptors.push({ object: entranceBackWall });
 
     const returnDoorControl = new THREE.Mesh(
       new THREE.PlaneGeometry(returnDoorWidth * 0.82, returnDoorHeight * 0.5),
