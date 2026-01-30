@@ -4167,8 +4167,19 @@ export const initScene = (
       };
 
       const OUTSIDE_BORDER_HEIGHT = 60;
+      const mapHeightValues = Array.isArray(normalizedMap.heights)
+        ? normalizedMap.heights
+        : [];
+      const maxMapHeightValue = mapHeightValues.reduce(
+        (maxHeight, value) => Math.max(maxHeight, clampOutsideHeight(value)),
+        OUTSIDE_HEIGHT_MIN
+      );
+      const borderHeightValue = Math.max(
+        OUTSIDE_BORDER_HEIGHT,
+        maxMapHeightValue
+      );
       const outsideBorderElevation = getOutsideTerrainElevation(
-        OUTSIDE_BORDER_HEIGHT
+        borderHeightValue
       );
 
       const baseY = roomFloorY - 0.04;
