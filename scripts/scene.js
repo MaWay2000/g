@@ -2770,8 +2770,13 @@ export const initScene = (
     );
     group.add(panelLight);
 
-    const applyLiftUiState = ({ current, next, busy } = {}) => {
-      updateLiftDisplayTexture({ current, next, busy: Boolean(busy) });
+    const applyLiftUiState = ({ current, next, busy, mapName } = {}) => {
+      updateLiftDisplayTexture({
+        current,
+        next,
+        busy: Boolean(busy),
+        mapName,
+      });
     };
 
     applyLiftUiState({ busy: false });
