@@ -4180,11 +4180,51 @@ export const initScene = (
         terrainNoiseAmplitude;
       const perimeterHeight = Math.max(0.2, perimeterTopY - baseY);
       const perimeterThickness = cellSize * 0.6;
-      const perimeterMaterial = new THREE.MeshStandardMaterial({
+      const perimeterMaterialBase = new THREE.MeshStandardMaterial({
         color: new THREE.Color(0x0b1220),
         roughness: 0.9,
         metalness: 0.08,
       });
+      const perimeterMaterials = new Map();
+      const perimeterTexturePath = (() => {
+        const firstCellWithData = rawCells.find(
+          (cell) => cell?.tileId || cell?.terrainId
+        );
+        const terrainId = firstCellWithData?.terrainId ?? "nonmetal";
+        const tileId =
+          firstCellWithData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+        return getOutsideTerrainTilePath(tileId, 0);
+      })();
+      const getPerimeterMaterial = (length) => {
+        if (!perimeterTexturePath) {
+          return perimeterMaterialBase;
+        }
+
+        const repeatX = Math.max(1, length / cellSize);
+        const repeatY = Math.max(1, perimeterHeight / cellSize);
+        const materialKey = `${perimeterTexturePath}:${repeatX}:${repeatY}`;
+
+        if (perimeterMaterials.has(materialKey)) {
+          return perimeterMaterials.get(materialKey);
+        }
+
+        const texture = loadClampedTexture(perimeterTexturePath);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(repeatX, repeatY);
+        texture.needsUpdate = true;
+
+        const material = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0xffffff),
+          roughness: terrainStyle.roughness,
+          metalness: terrainStyle.metalness,
+          emissive: new THREE.Color(terrainStyle.emissive),
+          emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
+          map: texture,
+        });
+        perimeterMaterials.set(materialKey, material);
+        return material;
+      };
       const expandedHalfWidth = expandedWorldWidth / 2;
       const expandedHalfDepth = expandedWorldDepth / 2;
       const perimeterCenterY = baseY + perimeterHeight / 2;
@@ -4195,7 +4235,7 @@ export const initScene = (
           perimeterHeight,
           perimeterThickness
         ),
-        perimeterMaterial
+        getPerimeterMaterial(expandedWorldWidth)
       );
       northWall.position.set(
         0,
@@ -4222,7 +4262,7 @@ export const initScene = (
           perimeterHeight,
           expandedWorldDepth
         ),
-        perimeterMaterial
+        getPerimeterMaterial(expandedWorldDepth)
       );
       westWall.position.set(
         -expandedHalfWidth + perimeterThickness / 2,
