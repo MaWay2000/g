@@ -4544,6 +4544,45 @@ export const initScene = (
         const clampedRow = clampRowIndex(row);
         return clampedRow * width + clampedColumn;
       };
+      const getSurfaceYAtWorldPosition = (worldX, worldZ) => {
+        const column = Math.floor((worldX - mapLeftEdge) / cellSize);
+        const row = Math.floor((worldZ - mapNearEdge) / cellSize);
+        const clampedColumn = clampColumnIndex(column);
+        const clampedRow = clampRowIndex(row);
+        const cellOriginX = mapLeftEdge + clampedColumn * cellSize;
+        const cellOriginZ = mapNearEdge + clampedRow * cellSize;
+        const xBlend = THREE.MathUtils.clamp(
+          (worldX - cellOriginX) / cellSize,
+          0,
+          1
+        );
+        const zBlend = THREE.MathUtils.clamp(
+          (worldZ - cellOriginZ) / cellSize,
+          0,
+          1
+        );
+        const baseHeight =
+          tileHeight + getBlendedElevation(clampedColumn, clampedRow, xBlend, zBlend);
+        const noise = getTerrainNoise(worldX, worldZ);
+        const terrainY = baseHeight + noise * terrainNoiseAmplitude;
+        const distanceFromPlatform = Math.max(0, worldZ - mapNearEdge);
+        const distanceToPlatform = Math.max(
+          0,
+          platformBlendDistance - distanceFromPlatform
+        );
+        const blendWeight = THREE.MathUtils.smoothstep(
+          distanceToPlatform,
+          0,
+          platformBlendDistance
+        );
+        const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
+        const blendedY = THREE.MathUtils.lerp(
+          terrainY,
+          platformLocalY,
+          blendWeight
+        );
+        return roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + blendedY;
+      };
 
       for (let row = -borderTiles; row < height + borderTiles; row += 1) {
         for (let column = -borderTiles; column < width + borderTiles; column += 1) {
@@ -4739,6 +4778,11 @@ export const initScene = (
 
       return {
         group: mapGroup,
+        center: {
+          x: 0,
+          z: mapCenterZ,
+        },
+        getSurfaceYAtWorldPosition,
         bounds: {
           minX: mapLeftEdge,
           maxX: mapRightEdge,
@@ -4902,22 +4946,38 @@ export const initScene = (
     const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
     const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
 
+    const outsideMapCenterX = builtOutsideTerrain?.center?.x ?? 0;
+    const outsideMapCenterZ =
+      Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
+        ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
+        : builtOutsideTerrain?.center?.z ?? 0;
+    const entranceSurfaceY =
+      typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
+        ? builtOutsideTerrain.getSurfaceYAtWorldPosition(
+            outsideMapCenterX,
+            outsideMapCenterZ
+          )
+        : roomFloorY;
+    const entranceBaseY = Number.isFinite(entranceSurfaceY)
+      ? entranceSurfaceY
+      : roomFloorY;
+
     const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
     const entranceWidth = returnDoorWidth + 1.6;
     const entranceHeight = returnDoorHeight * 1.05;
     const entranceThickness = 0.16;
-    const entranceRearZ = -OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 + 0.12;
-    const entranceCenterZ = entranceRearZ + entranceDepth / 2;
+    const entranceCenterZ = outsideMapCenterZ;
+    const entranceRearZ = entranceCenterZ - entranceDepth / 2;
     const entranceFrontZ = entranceRearZ + entranceDepth;
     const returnDoorZ = entranceFrontZ - 0.42;
 
     returnDoor.position.set(
-      0,
-      roomFloorY + (returnDoor.userData.height ?? 0) / 2,
+      outsideMapCenterX,
+      entranceBaseY + (returnDoor.userData.height ?? 0) / 2,
       returnDoorZ
     );
     returnDoor.rotation.y = 0;
-    returnDoor.userData.floorOffset = 0;
+    returnDoor.userData.floorOffset = entranceBaseY - roomFloorY;
     group.add(returnDoor);
 
     const entranceMaterial = new THREE.MeshStandardMaterial({
@@ -4937,8 +4997,8 @@ export const initScene = (
       entranceMaterial
     );
     entranceRoof.position.set(
-      0,
-      roomFloorY + entranceHeight + entranceThickness / 2,
+      outsideMapCenterX,
+      entranceBaseY + entranceHeight + entranceThickness / 2,
       entranceCenterZ
     );
     group.add(entranceRoof);
@@ -4953,14 +5013,15 @@ export const initScene = (
       entranceMaterial
     );
     entranceLeftWall.position.set(
-      -(entranceWidth / 2 + entranceThickness / 2),
-      roomFloorY + entranceHeight / 2,
+      outsideMapCenterX - (entranceWidth / 2 + entranceThickness / 2),
+      entranceBaseY + entranceHeight / 2,
       entranceCenterZ
     );
     group.add(entranceLeftWall);
 
     const entranceRightWall = entranceLeftWall.clone();
-    entranceRightWall.position.x *= -1;
+    entranceRightWall.position.x =
+      outsideMapCenterX + (entranceWidth / 2 + entranceThickness / 2);
     group.add(entranceRightWall);
 
     const entranceBackWall = new THREE.Mesh(
@@ -4972,8 +5033,8 @@ export const initScene = (
       entranceMaterial
     );
     entranceBackWall.position.set(
-      0,
-      roomFloorY + entranceHeight / 2,
+      outsideMapCenterX,
+      entranceBaseY + entranceHeight / 2,
       entranceRearZ - entranceThickness / 2
     );
     group.add(entranceBackWall);
@@ -4989,8 +5050,8 @@ export const initScene = (
       })
     );
     returnDoorControl.position.set(
-      0,
-      roomFloorY + returnDoorHeight * 0.56,
+      outsideMapCenterX,
+      entranceBaseY + returnDoorHeight * 0.56,
       returnDoorZ + 0.3
     );
     returnDoorControl.userData.isLiftControl = true;
@@ -5010,8 +5071,8 @@ export const initScene = (
     );
     returnDoorHalo.rotation.x = Math.PI / 2;
     returnDoorHalo.position.set(
-      0,
-      roomFloorY + returnDoorHeight * 0.6,
+      outsideMapCenterX,
+      entranceBaseY + returnDoorHeight * 0.6,
       returnDoorZ + 0.34
     );
     group.add(returnDoorHalo);
@@ -5027,13 +5088,13 @@ export const initScene = (
     const adjustableEntries = [
       { object: platform, offset: -platformThickness / 2 },
       { object: walkway, offset: 0.06 },
-      { object: returnDoor, offset: (returnDoor.userData.height ?? 0) / 2 },
-      { object: entranceRoof, offset: entranceHeight + entranceThickness / 2 },
-      { object: entranceLeftWall, offset: entranceHeight / 2 },
-      { object: entranceRightWall, offset: entranceHeight / 2 },
-      { object: entranceBackWall, offset: entranceHeight / 2 },
-      { object: returnDoorControl, offset: returnDoorHeight * 0.56 },
-      { object: returnDoorHalo, offset: returnDoorHeight * 0.6 },
+      { object: returnDoor, offset: returnDoor.position.y - roomFloorY },
+      { object: entranceRoof, offset: entranceRoof.position.y - roomFloorY },
+      { object: entranceLeftWall, offset: entranceLeftWall.position.y - roomFloorY },
+      { object: entranceRightWall, offset: entranceRightWall.position.y - roomFloorY },
+      { object: entranceBackWall, offset: entranceBackWall.position.y - roomFloorY },
+      { object: returnDoorControl, offset: returnDoorControl.position.y - roomFloorY },
+      { object: returnDoorHalo, offset: returnDoorHalo.position.y - roomFloorY },
       { object: primaryStarField, offset: starYOffset },
       { object: distantStarField, offset: starYOffset },
     ];
