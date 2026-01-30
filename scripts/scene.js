@@ -5099,6 +5099,9 @@ export const initScene = (
     returnDoor.rotation.y = Math.PI;
     returnDoor.userData.floorOffset = entranceBaseY - roomFloorY;
     group.add(returnDoor);
+    const returnDoorFrontOffset = new THREE.Vector3(0, 0, 1).applyEuler(
+      returnDoor.rotation
+    );
 
     const entranceMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0b1a22),
@@ -5170,9 +5173,9 @@ export const initScene = (
       })
     );
     returnDoorControl.position.set(
-      outsideMapCenterX,
+      outsideMapCenterX + returnDoorFrontOffset.x * 0.3,
       entranceBaseY + returnDoorHeight * 0.56,
-      returnDoorZ + 0.3
+      returnDoorZ + returnDoorFrontOffset.z * 0.3
     );
     returnDoorControl.userData.isLiftControl = true;
     returnDoorControl.userData.liftFloorId = "operations-concourse";
@@ -5191,9 +5194,9 @@ export const initScene = (
     );
     returnDoorHalo.rotation.x = Math.PI / 2;
     returnDoorHalo.position.set(
-      outsideMapCenterX,
+      outsideMapCenterX + returnDoorFrontOffset.x * 0.34,
       entranceBaseY + returnDoorHeight * 0.6,
-      returnDoorZ + 0.34
+      returnDoorZ + returnDoorFrontOffset.z * 0.34
     );
     group.add(returnDoorHalo);
 
