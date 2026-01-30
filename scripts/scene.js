@@ -2633,7 +2633,7 @@ export const initScene = (
         context.fillText(description, width / 2, height * 0.56);
       };
 
-      const update = ({ current, next, busy }) => {
+      const update = ({ current, next, busy, mapName }) => {
         const gradient = context.createLinearGradient(0, 0, width, height);
         if (busy) {
           gradient.addColorStop(0, "#1f2937");
@@ -2651,7 +2651,13 @@ export const initScene = (
           : "rgba(34, 197, 94, 0.12)";
         context.fillRect(12, 12, width - 24, height - 24);
 
-        const rawTitle = current?.title || current?.id || "Unknown Deck";
+        const trimmedMapName =
+          typeof mapName === "string" ? mapName.trim() : "";
+        const rawTitle =
+          current?.title ||
+          current?.id ||
+          trimmedMapName ||
+          "Unknown Deck";
         const titleWords = rawTitle
           .toString()
           .trim()
@@ -6632,6 +6638,26 @@ export const initScene = (
     floors: [],
     currentIndex: 0,
   };
+  let cachedOutsideMapName = "";
+
+  const resolveOutsideMapName = () => {
+    let mapDefinition = null;
+
+    try {
+      mapDefinition = loadOutsideMapFromStorage();
+    } catch (error) {
+      console.warn("Unable to load stored outside map name", error);
+    }
+
+    if (!mapDefinition) {
+      mapDefinition = createDefaultOutsideMap();
+    }
+
+    const name =
+      typeof mapDefinition?.name === "string" ? mapDefinition.name.trim() : "";
+    cachedOutsideMapName = name;
+    return name;
+  };
 
   const updateEnvironmentForPlayerHeight = () => {
     const heightScale = playerHeight / DEFAULT_PLAYER_HEIGHT;
@@ -8392,6 +8418,8 @@ export const initScene = (
     return getLiftFloorByIndex(liftState.currentIndex + 1);
   };
 
+  const getLiftMapName = () => cachedOutsideMapName || resolveOutsideMapName();
+
   const resolveLiftFloorIndexForPosition = (position) => {
     if (
       !position ||
@@ -8431,6 +8459,7 @@ export const initScene = (
       current: getActiveLiftFloor(),
       next: getNextLiftFloor(),
       busy: false,
+      mapName: getLiftMapName(),
     };
 
     liftUiControllers.forEach((controller) => {
