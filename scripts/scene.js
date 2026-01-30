@@ -3997,11 +3997,60 @@ export const initScene = (
       paddingZ: 1.35,
     }
   );
-  const operationsExteriorTeleportOffset = new THREE.Vector3(
-    0,
-    0,
-    -OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2 + 1.9
-  );
+  const resolveOperationsExteriorTeleportOffset = () => {
+    let mapDefinition = null;
+    try {
+      mapDefinition = loadOutsideMapFromStorage();
+    } catch (error) {
+      console.warn("Unable to load stored outside map for spawn", error);
+    }
+    if (!mapDefinition) {
+      mapDefinition = createDefaultOutsideMap();
+    }
+
+    let normalizedMap = null;
+    try {
+      normalizedMap = normalizeOutsideMap(mapDefinition);
+    } catch (error) {
+      console.warn("Unable to normalize outside map for spawn", error);
+      normalizedMap = createDefaultOutsideMap();
+    }
+
+    const width = Math.max(1, Number.parseInt(normalizedMap.width, 10));
+    const height = Math.max(1, Number.parseInt(normalizedMap.height, 10));
+    const desiredWorldWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH * 1.4;
+    const desiredWorldDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 2.3;
+    const minCellSize = ROOM_SCALE_FACTOR * 13.5;
+    const maxCellSize = ROOM_SCALE_FACTOR * 36;
+    const computedCellSize = Math.min(
+      desiredWorldWidth / width,
+      desiredWorldDepth / height
+    );
+    const fallbackCellSize = THREE.MathUtils.clamp(
+      Number.isFinite(computedCellSize) && computedCellSize > 0
+        ? computedCellSize
+        : minCellSize,
+      minCellSize,
+      maxCellSize
+    );
+    const desiredCellSize = ROOM_SCALE_FACTOR * 60;
+    const cellSize =
+      Number.isFinite(desiredCellSize) && desiredCellSize > 0
+        ? desiredCellSize
+        : fallbackCellSize;
+
+    const mapWorldDepth = height * cellSize;
+    const walkwayCenterZ = -OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.08;
+    const walkwayDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.42;
+    const walkwayFrontEdge = walkwayCenterZ + walkwayDepth / 2;
+    const mapCenterZ = walkwayFrontEdge + mapWorldDepth / 2;
+    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
+    const returnDoorZ = mapCenterZ + entranceDepth / 2 - 0.42;
+
+    return new THREE.Vector3(0, 0, returnDoorZ - 1.6);
+  };
+  const operationsExteriorTeleportOffset =
+    resolveOperationsExteriorTeleportOffset();
 
     const createOperationsExteriorEnvironment = () => {
       const group = new THREE.Group();
@@ -4951,8 +5000,6 @@ export const initScene = (
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : builtOutsideTerrain?.center?.z ?? 0;
-    platform.position.x = outsideMapCenterX;
-    walkway.position.x = outsideMapCenterX;
     const entranceSurfaceY =
       typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
         ? builtOutsideTerrain.getSurfaceYAtWorldPosition(
@@ -4972,6 +5019,25 @@ export const initScene = (
     const entranceRearZ = entranceCenterZ - entranceDepth / 2;
     const entranceFrontZ = entranceRearZ + entranceDepth;
     const returnDoorZ = entranceFrontZ - 0.42;
+    const platformFrontZ = returnDoorZ - 0.6;
+    const platformCenterZ =
+      platformFrontZ - OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
+
+    platform.position.set(
+      outsideMapCenterX,
+      platform.position.y,
+      platformCenterZ
+    );
+    walkway.position.set(
+      outsideMapCenterX,
+      walkway.position.y,
+      platformCenterZ - OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.08
+    );
+    operationsExteriorTeleportOffset.set(
+      outsideMapCenterX,
+      0,
+      returnDoorZ - 1.6
+    );
 
     returnDoor.position.set(
       outsideMapCenterX,
@@ -5110,8 +5176,8 @@ export const initScene = (
 
     const walkwayMinX = walkway.position.x - walkwayHalfWidth;
     const walkwayMaxX = walkway.position.x + walkwayHalfWidth;
-    const walkwayMinZ = -walkwayHalfDepth;
-    const walkwayMaxZ = walkwayHalfDepth;
+    const walkwayMinZ = walkway.position.z - walkwayHalfDepth;
+    const walkwayMaxZ = walkway.position.z + walkwayHalfDepth;
 
     const mapMinX = Number.isFinite(outsideMapBounds?.minX)
       ? outsideMapBounds.minX
