@@ -540,18 +540,6 @@ export const loadOutsideMapFromStorage = (storage = tryGetOutsideMapStorage()) =
   }
 };
 
-export const loadOutsideMapFromFile = async (
-  url = "/maps/outside1.json"
-) => {
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to load outside map (${response.status})`);
-  }
-
-  const payload = await response.json();
-  return normalizeOutsideMap(payload);
-};
-
 export const saveOutsideMapToStorage = (
   map,
   storage = tryGetOutsideMapStorage()
