@@ -2659,7 +2659,7 @@ export const initScene = (
           next?.title ||
           next?.id ||
           trimmedMapName ||
-          "Unknown Deck";
+          "Surface Access";
         const titleWords = rawTitle
           .toString()
           .trim()
@@ -2667,7 +2667,7 @@ export const initScene = (
           .filter(Boolean)
           .map((word) => word.toUpperCase());
         const resolvedTitleWords =
-          titleWords.length > 0 ? titleWords : ["UNKNOWN", "DECK"];
+          titleWords.length > 0 ? titleWords : ["SURFACE", "ACCESS"];
         const status = busy ? "TRANSIT" : "STATIONED";
 
         context.textAlign = "center";
