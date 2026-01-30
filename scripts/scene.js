@@ -4818,6 +4818,10 @@ export const initScene = (
       }
 
       if (objectPlacements.length > 0) {
+        const mapDisplayName =
+          typeof normalizedMap?.name === "string"
+            ? normalizedMap.name.trim()
+            : "";
         objectPlacements.forEach(async (placement) => {
           if (!placement?.path) {
             return;
@@ -4825,6 +4829,12 @@ export const initScene = (
           const placementPosition = getPlacementWorldPosition(placement);
           if (placement.path === DOOR_MARKER_PATH) {
             const door = createHangarDoor();
+            if (
+              mapDisplayName &&
+              typeof door.userData?.liftUi?.updateState === "function"
+            ) {
+              door.userData.liftUi.updateState({ mapName: mapDisplayName });
+            }
             const doorHeight =
               door.userData?.height ?? BASE_DOOR_HEIGHT;
             applyPlacementTransform(door, placement, {
