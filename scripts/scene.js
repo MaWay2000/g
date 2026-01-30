@@ -4077,8 +4077,11 @@ export const initScene = (
     const mapCenterZ = walkwayFrontEdge + mapWorldDepth / 2;
     const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
     const returnDoorZ = mapCenterZ + entranceDepth / 2 - 0.42;
+    const platformFrontZ = returnDoorZ - 0.6;
+    const platformCenterZ =
+      platformFrontZ - OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
 
-    return new THREE.Vector3(0, 0, returnDoorZ - 1.6);
+    return new THREE.Vector3(0, 0, platformCenterZ);
   };
   const operationsExteriorTeleportOffset =
     resolveOperationsExteriorTeleportOffset();
@@ -5062,11 +5065,7 @@ export const initScene = (
       walkway.position.y,
       platformCenterZ - OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.08
     );
-    operationsExteriorTeleportOffset.set(
-      outsideMapCenterX,
-      0,
-      returnDoorZ - 1.6
-    );
+    operationsExteriorTeleportOffset.set(outsideMapCenterX, 0, platformCenterZ);
 
     returnDoor.position.set(
       outsideMapCenterX,
