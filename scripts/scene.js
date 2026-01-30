@@ -4184,6 +4184,7 @@ export const initScene = (
         color: new THREE.Color(0x0b1220),
         roughness: 0.9,
         metalness: 0.08,
+        side: THREE.DoubleSide,
       });
       const perimeterMaterials = new Map();
       const perimeterTexturePath = (() => {
@@ -4221,6 +4222,7 @@ export const initScene = (
           emissive: new THREE.Color(terrainStyle.emissive),
           emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
           map: texture,
+          side: THREE.DoubleSide,
         });
         perimeterMaterials.set(materialKey, material);
         return material;
