@@ -5143,6 +5143,11 @@ export const initScene = (
     const returnDoorFrontOffset = new THREE.Vector3(0, 0, 1).applyEuler(
       returnDoor.rotation
     );
+    const tunnelFrontZ = returnDoorZ + returnDoorFrontOffset.z * 0.42;
+    const tunnelRearZ = tunnelFrontZ - returnDoorFrontOffset.z * entranceDepth;
+    const tunnelCenterZ = (tunnelFrontZ + tunnelRearZ) / 2;
+    const tunnelRearWallZ =
+      tunnelRearZ - returnDoorFrontOffset.z * (entranceThickness / 2);
 
     const entranceMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0b1a22),
@@ -5163,7 +5168,7 @@ export const initScene = (
     entranceRoof.position.set(
       outsideMapCenterX,
       entranceBaseY + entranceHeight + entranceThickness / 2,
-      entranceCenterZ
+      tunnelCenterZ
     );
     group.add(entranceRoof);
 
@@ -5179,7 +5184,7 @@ export const initScene = (
     entranceLeftWall.position.set(
       outsideMapCenterX - (entranceWidth / 2 + entranceThickness / 2),
       entranceBaseY + entranceHeight / 2,
-      entranceCenterZ
+      tunnelCenterZ
     );
     group.add(entranceLeftWall);
 
@@ -5199,7 +5204,7 @@ export const initScene = (
     entranceBackWall.position.set(
       outsideMapCenterX,
       entranceBaseY + entranceHeight / 2,
-      entranceRearZ - entranceThickness / 2
+      tunnelRearWallZ
     );
     group.add(entranceBackWall);
 
