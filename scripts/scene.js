@@ -4145,6 +4145,7 @@ export const initScene = (
         color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
         roughness: 0.78,
         metalness: 0.18,
+        side: THREE.DoubleSide,
       });
 
       const getTerrainNoise = (x, z) => {
@@ -4299,6 +4300,7 @@ export const initScene = (
           emissive: new THREE.Color(terrainStyle.emissive),
           emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
           map: texture ?? null,
+          side: THREE.DoubleSide,
           transparent: false,
           opacity: terrainStyle.opacity,
         });
@@ -4334,6 +4336,7 @@ export const initScene = (
             terrainStyle.emissiveIntensity ?? 0
           ),
           map: texture ?? null,
+          side: THREE.DoubleSide,
           transparent: true,
           opacity: terrainStyle.opacity ?? 1,
         });
