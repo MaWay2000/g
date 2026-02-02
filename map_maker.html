@@ -133,6 +133,19 @@
         box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.4);
       }
 
+      .map-maker-tab:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .map-maker-tab:disabled:hover,
+      .map-maker-tab:disabled:focus-visible {
+        border-color: rgba(51, 65, 85, 0.9);
+        background: #1e293b;
+        color: #e2e8f0;
+      }
+
       .header-actions button,
       .header-actions a {
         display: inline-flex;
@@ -849,6 +862,7 @@
       .map-maker-tabs,
       .map-maker-tab,
       .map-maker-update,
+      .map-maker-history,
       .header-actions button,
       .header-actions a,
       .control input[type="number"],
@@ -875,6 +889,23 @@
       .hint {
         font-size: 0.75rem;
         color: rgba(226, 232, 240, 0.6);
+      }
+
+      .map-maker-history {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem;
+        border-radius: 0.45rem;
+        border: 1px solid rgba(71, 85, 105, 0.9);
+        background: linear-gradient(180deg, #0f172a, #111827 70%);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
+      }
+
+      .map-maker-history .map-maker-tab {
+        min-width: 2.1rem;
+        text-align: center;
+        padding: 0.35rem 0.4rem;
       }
 
       @media (max-width: 1080px) {
@@ -981,6 +1012,28 @@
           data-map-maker-tab="settings"
         >
           Settings
+        </button>
+      </div>
+      <div class="map-maker-history" aria-label="Undo redo controls">
+        <button
+          type="button"
+          id="undoBtn"
+          class="map-maker-tab"
+          disabled
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo (Ctrl+Z)"
+        >
+          ↺
+        </button>
+        <button
+          type="button"
+          id="redoBtn"
+          class="map-maker-tab"
+          disabled
+          title="Redo (Ctrl+Y)"
+          aria-label="Redo (Ctrl+Y)"
+        >
+          ↻
         </button>
       </div>
       <div class="header-actions">
