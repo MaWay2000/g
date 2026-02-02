@@ -5225,6 +5225,19 @@ export const initScene = (
     group.add(entranceBackWall);
     mapColliderDescriptors.push({ object: entranceBackWall });
 
+    const entranceDoorBackerDepth = entranceThickness * 0.85;
+    const entranceDoorBacker = new THREE.Mesh(
+      new THREE.BoxGeometry(entranceWidth, entranceHeight, entranceDoorBackerDepth),
+      entranceMaterial
+    );
+    entranceDoorBacker.position.set(
+      outsideMapCenterX - returnDoorFrontOffset.x * (entranceDoorBackerDepth / 2 + 0.06),
+      entranceBaseY,
+      returnDoorZ - returnDoorFrontOffset.z * (entranceDoorBackerDepth / 2 + 0.06)
+    );
+    group.add(entranceDoorBacker);
+    mapColliderDescriptors.push({ object: entranceDoorBacker });
+
     const returnDoorControl = new THREE.Mesh(
       new THREE.PlaneGeometry(returnDoorWidth * 0.82, returnDoorHeight * 0.5),
       new THREE.MeshBasicMaterial({
