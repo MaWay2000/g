@@ -1243,6 +1243,7 @@ export const initScene = (
       `,
     });
     material.fog = false;
+    material.toneMapped = true;
     const dome = new THREE.Mesh(geometry, material);
     dome.renderOrder = -2;
     return dome;
