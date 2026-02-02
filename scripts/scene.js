@@ -243,6 +243,7 @@ export const initScene = (
     ),
   };
   const BASE_VIEW_DISTANCE = 200;
+  const VIEW_DISTANCE_CULLING_BUFFER = 1.35;
   const BASE_SKY_DOME_RADIUS = 650;
   const BASE_FOG_DENSITY = 0.006;
   const MIN_FOG_DENSITY = 0.002;
@@ -6990,7 +6991,10 @@ export const initScene = (
       return;
     }
 
-    const viewDistance = BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier;
+    const viewDistance =
+      BASE_VIEW_DISTANCE *
+      viewSettings.distanceMultiplier *
+      VIEW_DISTANCE_CULLING_BUFFER;
     if (!Number.isFinite(viewDistance) || viewDistance <= 0) {
       return;
     }
