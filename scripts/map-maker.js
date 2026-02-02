@@ -431,6 +431,49 @@ function normalizeObjectVector(source, fallback) {
   };
 }
 
+function resolvePlacementDestination(placement) {
+  if (!placement || typeof placement !== "object") {
+    return null;
+  }
+  let destinationType =
+    typeof placement.destinationType === "string"
+      ? placement.destinationType
+      : null;
+  let destinationId =
+    typeof placement.destinationId === "string"
+      ? placement.destinationId
+      : null;
+
+  if (!destinationType || !destinationId) {
+    const legacyDestination = placement.destination;
+    if (legacyDestination && typeof legacyDestination === "object") {
+      destinationType =
+        destinationType ??
+        (typeof legacyDestination.type === "string"
+          ? legacyDestination.type
+          : null);
+      destinationId =
+        destinationId ??
+        (typeof legacyDestination.id === "string"
+          ? legacyDestination.id
+          : null);
+    } else if (typeof legacyDestination === "string") {
+      const trimmed = legacyDestination.trim();
+      if (trimmed) {
+        const [type, ...rest] = trimmed.split(":");
+        const idValue = rest.join(":");
+        destinationType = destinationType ?? (type || null);
+        destinationId = destinationId ?? (idValue || null);
+      }
+    }
+  }
+
+  if (!destinationType || !destinationId) {
+    return null;
+  }
+  return { destinationType, destinationId };
+}
+
 function normalizeObjectPlacements(placements) {
   if (!Array.isArray(placements)) {
     return [];
@@ -447,14 +490,7 @@ function normalizeObjectPlacements(placements) {
       const name =
         typeof placement.name === "string" ? placement.name : undefined;
       const id = typeof placement.id === "string" ? placement.id : undefined;
-      const destinationType =
-        typeof placement.destinationType === "string"
-          ? placement.destinationType
-          : undefined;
-      const destinationId =
-        typeof placement.destinationId === "string"
-          ? placement.destinationId
-          : undefined;
+      const destination = resolvePlacementDestination(placement);
       return {
         path,
         position: normalizeObjectVector(
@@ -471,8 +507,12 @@ function normalizeObjectPlacements(placements) {
         ),
         ...(name ? { name } : {}),
         ...(id ? { id } : {}),
-        ...(destinationType ? { destinationType } : {}),
-        ...(destinationId ? { destinationId } : {}),
+        ...(destination?.destinationType
+          ? { destinationType: destination.destinationType }
+          : {}),
+        ...(destination?.destinationId
+          ? { destinationId: destination.destinationId }
+          : {}),
       };
     })
     .filter(Boolean);
