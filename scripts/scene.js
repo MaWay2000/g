@@ -253,6 +253,7 @@ export const initScene = (
   const MIN_SUN_SCALE = 6;
   let sunSprite = null;
   let updateFogForDistance = () => {};
+  let updateViewDistanceCulling = () => {};
   const getSkyDomeRadius = (distanceMultiplier = viewSettings.distanceMultiplier) => {
     const multiplier = Number.isFinite(distanceMultiplier)
       ? distanceMultiplier
@@ -304,6 +305,7 @@ export const initScene = (
     camera.updateProjectionMatrix();
     updateSunSpriteScale();
     updateFogForDistance(viewSettings.distanceMultiplier);
+    updateViewDistanceCulling({ force: true });
     return viewSettings.distanceMultiplier;
   };
 
@@ -6929,6 +6931,70 @@ export const initScene = (
   }
   scene.add(playerObject);
 
+  const viewDistanceCullingState = {
+    lastDistance: null,
+  };
+  const viewDistanceCullingPosition = new THREE.Vector3();
+  const updateObjectViewDistance = (object, playerPosition, maxDistanceSquared) => {
+    if (!object?.isObject3D) {
+      return;
+    }
+
+    object.getWorldPosition(viewDistanceCullingPosition);
+    const distanceSquared = viewDistanceCullingPosition.distanceToSquared(
+      playerPosition
+    );
+    const shouldBeVisible = distanceSquared <= maxDistanceSquared;
+    const isCulled = object.userData?.viewDistanceCulled === true;
+
+    if (!shouldBeVisible && !isCulled) {
+      if (object.userData) {
+        object.userData.viewDistanceBaseVisible = object.visible;
+        object.userData.viewDistanceCulled = true;
+      }
+      object.visible = false;
+      return;
+    }
+
+    if (shouldBeVisible && isCulled) {
+      const baseVisible = object.userData?.viewDistanceBaseVisible;
+      object.visible = baseVisible !== false;
+      if (object.userData) {
+        object.userData.viewDistanceCulled = false;
+      }
+    }
+  };
+  updateViewDistanceCulling = ({ force = false } = {}) => {
+    if (!playerObject?.position) {
+      return;
+    }
+
+    const viewDistance = BASE_VIEW_DISTANCE * viewSettings.distanceMultiplier;
+    if (!Number.isFinite(viewDistance) || viewDistance <= 0) {
+      return;
+    }
+
+    if (!force && viewDistanceCullingState.lastDistance === viewDistance) {
+      // No-op: the caller updates every frame when movement is possible.
+    }
+
+    viewDistanceCullingState.lastDistance = viewDistance;
+    const maxDistanceSquared = viewDistance * viewDistance;
+    const playerPosition = playerObject.position;
+
+    if (Array.isArray(activeTerrainTiles)) {
+      activeTerrainTiles.forEach((tile) => {
+        updateObjectViewDistance(tile, playerPosition, maxDistanceSquared);
+      });
+    }
+
+    if (Array.isArray(activeResourceTargets)) {
+      activeResourceTargets.forEach((target) => {
+        updateObjectViewDistance(target, playerPosition, maxDistanceSquared);
+      });
+    }
+  };
+
   let currentPlayerHorizontalSpeed = 0;
 
   const resourceToolGroup = new THREE.Group();
@@ -8372,6 +8438,7 @@ export const initScene = (
     activeResourceTargets = getResourceTargetsForFloor(resolvedFloorId);
     activeTerrainTiles = getTerrainTilesForFloor(resolvedFloorId);
     updateGeoVisorTerrainVisibility({ force: true });
+    updateViewDistanceCulling({ force: true });
   }
 
   const findTerrainTileAtPosition = (position) => {
@@ -9765,6 +9832,7 @@ export const initScene = (
     updateTimeOfDay();
     updateStarFieldPositions();
     updateSkyBackdrop();
+    updateViewDistanceCulling();
     updateGeoVisorTerrainVisibility();
     updateTerrainDepthTexture();
     updateStarDepthUniforms();
