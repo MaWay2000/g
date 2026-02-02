@@ -65,6 +65,14 @@ const DEFAULT_GENERATE_HEIGHT_MAX = 64;
 const DEFAULT_GENERATE_HILLS = 8;
 const OBJECT_MANIFEST_URL = "models/manifest.json";
 const DOOR_MARKER_PATH = "door-marker";
+
+const DOOR_DESTINATION_AREAS = [
+  { id: "hangar-deck", label: "Command Center" },
+  { id: "operations-concourse", label: "Outside Exit" },
+  { id: "operations-exterior", label: "Surface Access" },
+  { id: "engineering-bay", label: "Engineering Bay" },
+  { id: "exterior-outpost", label: "Exterior Outpost" },
+];
 const DOOR_POSITION_EPSILON = 0.01;
 const TERRAIN_TILE_BY_ID = new Map(
   OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, { tile, index }])
@@ -436,6 +444,17 @@ function normalizeObjectPlacements(placements) {
       if (!path) {
         return null;
       }
+      const name =
+        typeof placement.name === "string" ? placement.name : undefined;
+      const id = typeof placement.id === "string" ? placement.id : undefined;
+      const destinationType =
+        typeof placement.destinationType === "string"
+          ? placement.destinationType
+          : undefined;
+      const destinationId =
+        typeof placement.destinationId === "string"
+          ? placement.destinationId
+          : undefined;
       return {
         path,
         position: normalizeObjectVector(
@@ -450,6 +469,10 @@ function normalizeObjectPlacements(placements) {
           placement.scale,
           DEFAULT_OBJECT_TRANSFORM.scale
         ),
+        ...(name ? { name } : {}),
+        ...(id ? { id } : {}),
+        ...(destinationType ? { destinationType } : {}),
+        ...(destinationId ? { destinationId } : {}),
       };
     })
     .filter(Boolean);
@@ -649,6 +672,14 @@ function formatDoorListEntry(placement, order) {
     typeof placement?.id === "string" && placement.id.trim().length > 0
       ? placement.id.trim()
       : null;
+  const destinationType =
+    typeof placement?.destinationType === "string"
+      ? placement.destinationType
+      : null;
+  const destinationId =
+    typeof placement?.destinationId === "string"
+      ? placement.destinationId
+      : null;
   if (Number.isFinite(index) && Number.isFinite(width)) {
     const x = index % width;
     const y = Math.floor(index / width);
@@ -656,6 +687,8 @@ function formatDoorListEntry(placement, order) {
       name: nameFromPlacement ?? `Door ${x + 1}, ${y + 1}`,
       id: idFromPlacement ?? `door-${x + 1}-${y + 1}`,
       sortIndex: index,
+      destinationType,
+      destinationId,
     };
   }
   const fallbackIndex = order + 1;
@@ -663,6 +696,8 @@ function formatDoorListEntry(placement, order) {
     name: nameFromPlacement ?? `Door ${fallbackIndex}`,
     id: idFromPlacement ?? `door-${fallbackIndex}`,
     sortIndex: Number.POSITIVE_INFINITY,
+    destinationType,
+    destinationId,
   };
 }
 
@@ -675,6 +710,7 @@ function updateDoorList() {
     .map((placement, order) => ({
       ...formatDoorListEntry(placement, order),
       order,
+      placement,
     }))
     .sort((a, b) => {
       if (a.sortIndex !== b.sortIndex) {
@@ -692,7 +728,71 @@ function updateDoorList() {
     const id = document.createElement("div");
     id.className = "door-list-id";
     id.textContent = `ID: ${entry.id}`;
-    item.append(name, id);
+    const destination = document.createElement("div");
+    destination.className = "door-list-destination";
+    const destinationLabel = document.createElement("label");
+    destinationLabel.className = "door-destination-label";
+    const safeId = entry.id.replace(/[^a-z0-9-_]/gi, "");
+    const selectId = `door-destination-${safeId || entry.order}`;
+    destinationLabel.setAttribute("for", selectId);
+    destinationLabel.textContent = "Destination";
+    const select = document.createElement("select");
+    select.className = "door-destination-select";
+    select.id = selectId;
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select area or door";
+    select.appendChild(placeholder);
+
+    const areaGroup = document.createElement("optgroup");
+    areaGroup.label = "Areas";
+    DOOR_DESTINATION_AREAS.forEach((area) => {
+      const option = document.createElement("option");
+      option.value = `area:${area.id}`;
+      option.textContent = area.label;
+      areaGroup.appendChild(option);
+    });
+    select.appendChild(areaGroup);
+
+    if (entries.length > 1) {
+      const doorGroup = document.createElement("optgroup");
+      doorGroup.label = "Doors on this map";
+      entries.forEach((doorEntry) => {
+        if (doorEntry.id === entry.id) {
+          return;
+        }
+        const option = document.createElement("option");
+        option.value = `door:${doorEntry.id}`;
+        option.textContent = `${doorEntry.name} (${doorEntry.id})`;
+        doorGroup.appendChild(option);
+      });
+      if (doorGroup.children.length > 0) {
+        select.appendChild(doorGroup);
+      }
+    }
+
+    if (entry.destinationType && entry.destinationId) {
+      select.value = `${entry.destinationType}:${entry.destinationId}`;
+    }
+
+    select.addEventListener("change", (event) => {
+      const value = event.target.value;
+      const snapshot = cloneMapDefinition(state.map);
+      if (!value) {
+        delete entry.placement.destinationType;
+        delete entry.placement.destinationId;
+      } else {
+        const [type, ...rest] = value.split(":");
+        const idValue = rest.join(":");
+        entry.placement.destinationType = type;
+        entry.placement.destinationId = idValue;
+      }
+      updateJsonPreview();
+      pushUndoSnapshot(snapshot);
+    });
+
+    destination.append(destinationLabel, select);
+    item.append(name, id, destination);
     elements.doorList.appendChild(item);
   });
   const hasDoors = entries.length > 0;
