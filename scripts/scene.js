@@ -5098,7 +5098,9 @@ export const initScene = (
     const ambient = new THREE.AmbientLight(0x0f172a, 0.55);
     group.add(ambient);
 
-    const returnDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
+    const returnDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
+      includeBackWall: true,
+    });
     const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
     const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
 
