@@ -5316,6 +5316,66 @@ export const initScene = (
       },
     };
 
+    const antennaTowerGroup = new THREE.Group();
+    const antennaHeight = Math.max(entranceHeight * 2.4, 9.5);
+    const antennaBaseY = entranceRoof.position.y + entranceThickness / 2;
+    const antennaOffsetX = entranceWidth * 0.55;
+    const antennaOffsetZ = entranceDepth * 0.1;
+    antennaTowerGroup.position.set(
+      outsideMapCenterX + antennaOffsetX,
+      antennaBaseY,
+      tunnelCenterZ + antennaOffsetZ
+    );
+
+    const antennaMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x3c4656),
+      roughness: 0.55,
+      metalness: 0.5,
+    });
+    const antennaBasePlate = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.45, 0.5, 0.18, 16),
+      antennaMaterial
+    );
+    antennaBasePlate.position.y = 0.09;
+    antennaTowerGroup.add(antennaBasePlate);
+
+    const mast = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.08, 0.1, antennaHeight, 12),
+      antennaMaterial
+    );
+    mast.position.y = antennaHeight / 2 + 0.18;
+    antennaTowerGroup.add(mast);
+
+    const supportGeometry = new THREE.CylinderGeometry(0.05, 0.07, antennaHeight * 0.9, 10);
+    for (let i = 0; i < 3; i += 1) {
+      const support = new THREE.Mesh(supportGeometry, antennaMaterial);
+      const angle = (i / 3) * Math.PI * 2;
+      support.position.set(Math.cos(angle) * 0.55, antennaHeight * 0.45, Math.sin(angle) * 0.55);
+      support.rotation.z = Math.sin(angle) * 0.15;
+      support.rotation.x = Math.cos(angle) * 0.15;
+      antennaTowerGroup.add(support);
+    }
+
+    const antennaCrossbar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.08, 0.08),
+      antennaMaterial
+    );
+    antennaCrossbar.position.y = antennaHeight * 0.75;
+    antennaTowerGroup.add(antennaCrossbar);
+
+    const beaconMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff2d2d,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), beaconMaterial);
+    beacon.position.y = antennaHeight + 0.28;
+    antennaTowerGroup.add(beacon);
+    group.add(antennaTowerGroup);
+    liftIndicatorLights.push({ mesh: beacon, phase: Math.PI / 2 });
+
     const adjustableEntries = [
       { object: platform, offset: -platformThickness / 2 },
       { object: walkway, offset: 0.06 },
@@ -5326,6 +5386,7 @@ export const initScene = (
       { object: entranceBackWall, offset: entranceBackWall.position.y - roomFloorY },
       { object: returnDoorControl, offset: returnDoorControl.position.y - roomFloorY },
       { object: returnDoorHalo, offset: returnDoorHalo.position.y - roomFloorY },
+      { object: antennaTowerGroup, offset: antennaTowerGroup.position.y - roomFloorY },
       { object: primaryStarField, offset: starYOffset },
       { object: distantStarField, offset: starYOffset },
     ];
