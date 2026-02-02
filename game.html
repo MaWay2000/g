@@ -806,6 +806,10 @@
         display: flex;
         flex-direction: column;
         justify-content: space-between;
+        --quick-slot-safe-area: calc(
+          clamp(0.75rem, 2.4vw, 1.6rem) + clamp(52px, 11vw, 74px) +
+            clamp(1.5rem, 3vw, 2.5rem)
+        );
       }
 
       .ui-overlay__left-stack {
@@ -1474,8 +1478,11 @@
       }
 
       .terminal-toast {
+        position: fixed;
+        left: 50%;
+        bottom: var(--quick-slot-safe-area);
         align-self: center;
-        margin-bottom: 2.5rem;
+        margin-bottom: 0;
         padding: 0.85rem 1.6rem;
         border-radius: 16px;
         background: rgba(15, 23, 42, 0.82);
@@ -1485,13 +1492,13 @@
         letter-spacing: 0.02em;
         pointer-events: none;
         opacity: 0;
-        transform: translateY(12px);
+        transform: translate(-50%, 12px);
         transition: opacity 200ms ease, transform 200ms ease;
       }
 
       .terminal-toast[data-visible="true"] {
         opacity: 1;
-        transform: translateY(0);
+        transform: translate(-50%, 0);
       }
 
       .terminal-toast[hidden] {
@@ -1558,8 +1565,11 @@
       }
 
       .instructions {
+        position: fixed;
+        left: 50%;
+        bottom: calc(var(--quick-slot-safe-area) + 1rem);
         align-self: center;
-        margin-bottom: 3rem;
+        margin-bottom: 0;
         padding: 0.9rem 1.4rem;
         border-radius: 16px;
         background: rgba(15, 23, 42, 0.75);
@@ -1569,6 +1579,7 @@
         text-align: center;
         max-width: min(90vw, 420px);
         pointer-events: none;
+        transform: translateX(-50%);
       }
 
       .instructions[hidden] {
