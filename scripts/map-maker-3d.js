@@ -301,6 +301,10 @@ export const initMapMaker3d = ({
 
   const objectGroup = new THREE.Group();
   scene.add(objectGroup);
+  const objectPreviewGroup = new THREE.Group();
+  objectPreviewGroup.visible = false;
+  objectPreviewGroup.name = "Object Preview";
+  scene.add(objectPreviewGroup);
 
   const gltfLoader = new GLTFLoader();
   const modelCache = new Map();
@@ -455,6 +459,10 @@ export const initMapMaker3d = ({
   let mapHeight = 0;
   let objectPlacementToken = 0;
   let objectPlacements = [];
+  let previewObject = null;
+  let previewPath = null;
+  let previewToken = 0;
+  let previewIndex = null;
   const getTerrainToggleState = () => {
     if (!terrainTypeToggle) {
       return true;
@@ -542,6 +550,17 @@ export const initMapMaker3d = ({
       }
     });
     return clone;
+  };
+
+  const applyPreviewMaterial = (object) => {
+    object.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const material = child.material;
+        material.transparent = true;
+        material.opacity = 0.55;
+        material.depthWrite = false;
+      }
+    });
   };
 
   const createDoorMarkerModel = () => {
@@ -916,6 +935,13 @@ export const initMapMaker3d = ({
     });
   };
 
+  const clearPreviewObject = () => {
+    previewPath = null;
+    previewObject = null;
+    objectPreviewGroup.clear();
+    objectPreviewGroup.visible = false;
+  };
+
   const setCameraForMap = (width, height) => {
     const size = Math.max(width, height, 8);
     mapSize = size;
@@ -1012,6 +1038,7 @@ export const initMapMaker3d = ({
     applyMapGeometry(map, { resetCamera: shouldResetCamera });
     updateObjectPlacements(map.objects);
     updateSelectionPreview();
+    void updateObjectPreview(previewIndex);
   };
 
   const updateTerrainTypeDisplay = (nextValue) => {
@@ -1243,6 +1270,56 @@ export const initMapMaker3d = ({
     return getDoorMode();
   };
 
+  const resolvePreviewPath = () => {
+    const doorMode = resolveDoorMode();
+    if (doorMode === "place") {
+      return DOOR_MARKER_PATH;
+    }
+    if (doorMode === "remove") {
+      return null;
+    }
+    return resolveSelectedObjectPath();
+  };
+
+  const updateObjectPreview = async (index) => {
+    previewIndex = Number.isFinite(index) ? index : null;
+    const activeTab =
+      typeof getActiveTab === "function" ? getActiveTab() : null;
+    if (activeTab !== "objects") {
+      clearPreviewObject();
+      return;
+    }
+    const path = resolvePreviewPath();
+    if (!path || !Number.isFinite(index)) {
+      clearPreviewObject();
+      return;
+    }
+    const placement = buildObjectPlacement(index, path);
+    if (!placement) {
+      clearPreviewObject();
+      return;
+    }
+    if (!previewObject || previewPath !== path) {
+      previewToken += 1;
+      const token = previewToken;
+      const model = await loadModel(path);
+      if (token !== previewToken || !model) {
+        return;
+      }
+      objectPreviewGroup.clear();
+      const instance = cloneModel(model);
+      applyPreviewMaterial(instance);
+      previewObject = instance;
+      previewPath = path;
+      objectPreviewGroup.add(instance);
+    }
+    if (!previewObject) {
+      return;
+    }
+    applyObjectTransform(previewObject, placement);
+    objectPreviewGroup.visible = true;
+  };
+
   const placeObjectFromEvent = (event) => {
     if (typeof onPlaceObject !== "function") {
       return;
@@ -1332,7 +1409,9 @@ export const initMapMaker3d = ({
   };
 
   const handlePointerMove = (event) => {
-    updateBrushPreview(getCellIndexFromEvent(event));
+    const index = getCellIndexFromEvent(event);
+    updateBrushPreview(index);
+    void updateObjectPreview(index);
     if (isPointerDown) {
       paintFromEvent(event, { isStart: false });
     }
@@ -1355,6 +1434,7 @@ export const initMapMaker3d = ({
 
   const handlePointerLeave = () => {
     highlightMesh.visible = false;
+    clearPreviewObject();
   };
 
   canvas.addEventListener("pointerdown", handlePointerDown);
