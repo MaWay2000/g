@@ -974,6 +974,97 @@ export const initScene = (
   camera.position.set(0, 0, 8 * ROOM_SCALE_FACTOR);
 
   const textureLoader = new THREE.TextureLoader();
+  const TOWER_RADIO_SOUND_SOURCE = "sounds/radio.mp3";
+  const TOWER_RADIO_MIN_DISTANCE = 4;
+  const TOWER_RADIO_MAX_DISTANCE = 26;
+  const TOWER_RADIO_MAX_VOLUME = 0.55;
+  const towerRadioAudio = new Audio();
+  towerRadioAudio.preload = "auto";
+  towerRadioAudio.loop = true;
+  towerRadioAudio.src = TOWER_RADIO_SOUND_SOURCE;
+  towerRadioAudio.volume = 0;
+  towerRadioAudio.load();
+  let towerRadioUnlocked = false;
+  let towerRadioPlaying = false;
+  let operationsExteriorRadioTower = null;
+  const towerRadioWorldPosition = new THREE.Vector3();
+  const unlockTowerRadioAudio = () => {
+    if (towerRadioUnlocked) {
+      return;
+    }
+
+    towerRadioUnlocked = true;
+    const previousMutedState = towerRadioAudio.muted;
+    towerRadioAudio.muted = true;
+    const resetSound = () => {
+      towerRadioAudio.pause();
+      towerRadioAudio.currentTime = 0;
+      towerRadioAudio.muted = previousMutedState;
+    };
+    const unlockPromise = towerRadioAudio.play();
+    if (unlockPromise) {
+      unlockPromise.then(resetSound).catch(() => {
+        towerRadioAudio.muted = previousMutedState;
+      });
+    } else {
+      resetSound();
+    }
+  };
+  const startTowerRadioAudio = () => {
+    if (!towerRadioUnlocked || towerRadioPlaying) {
+      return;
+    }
+
+    towerRadioPlaying = true;
+    const playPromise = towerRadioAudio.play();
+    if (playPromise) {
+      playPromise.catch((error) => {
+        console.warn("Unable to play tower radio audio", error);
+      });
+    }
+  };
+  const stopTowerRadioAudio = () => {
+    if (!towerRadioPlaying) {
+      return;
+    }
+
+    towerRadioAudio.pause();
+    towerRadioPlaying = false;
+  };
+  const updateTowerRadioAudio = () => {
+    const activeFloor = getActiveLiftFloor();
+    const isExteriorActive = activeFloor?.id === "operations-exterior";
+    if (
+      !isExteriorActive ||
+      !controls.isLocked ||
+      !operationsExteriorRadioTower
+    ) {
+      towerRadioAudio.volume = 0;
+      stopTowerRadioAudio();
+      return;
+    }
+
+    operationsExteriorRadioTower.getWorldPosition(towerRadioWorldPosition);
+    const distance = towerRadioWorldPosition.distanceTo(playerObject.position);
+    if (distance >= TOWER_RADIO_MAX_DISTANCE) {
+      towerRadioAudio.volume = 0;
+      stopTowerRadioAudio();
+      return;
+    }
+
+    const normalized = (distance - TOWER_RADIO_MIN_DISTANCE) /
+      (TOWER_RADIO_MAX_DISTANCE - TOWER_RADIO_MIN_DISTANCE);
+    const clamped = THREE.MathUtils.clamp(normalized, 0, 1);
+    const falloff = 1 - clamped;
+    const volume = falloff * falloff * TOWER_RADIO_MAX_VOLUME;
+    towerRadioAudio.volume = volume;
+
+    if (volume > 0.01) {
+      startTowerRadioAudio();
+    } else {
+      stopTowerRadioAudio();
+    }
+  };
 
   const TIME_OF_DAY_REFRESH_SECONDS = 5;
 
@@ -5375,6 +5466,19 @@ export const initScene = (
     beacon.position.y = antennaHeight + 0.28;
     antennaTowerGroup.add(beacon);
     group.add(antennaTowerGroup);
+    operationsExteriorRadioTower = antennaTowerGroup;
+    const previousEnvironmentDispose = group.userData?.dispose;
+    group.userData.dispose = () => {
+      if (typeof previousEnvironmentDispose === "function") {
+        previousEnvironmentDispose();
+      }
+
+      if (operationsExteriorRadioTower === antennaTowerGroup) {
+        operationsExteriorRadioTower = null;
+      }
+
+      stopTowerRadioAudio();
+    };
     liftIndicatorLights.push({ mesh: beacon, phase: Math.PI / 2 });
 
     const adjustableEntries = [
@@ -9265,6 +9369,7 @@ export const initScene = (
   controls.addEventListener("lock", () => {
     resourceToolGroup.visible = true;
     resetResourceToolState();
+    unlockTowerRadioAudio();
 
     if (typeof onControlsLocked === "function") {
       onControlsLocked();
@@ -9275,6 +9380,7 @@ export const initScene = (
     cancelActiveResourceSession({ reason: "controls-unlocked" });
     resourceToolGroup.visible = false;
     resetResourceToolState();
+    stopTowerRadioAudio();
 
     if (typeof onControlsUnlocked === "function") {
       onControlsUnlocked();
@@ -10049,6 +10155,7 @@ export const initScene = (
     updateResourceTool(delta, elapsedTime);
     updateDroneMiner(delta, elapsedTime);
     updateResourceSessions(delta);
+    updateTowerRadioAudio();
     updateTimeOfDay();
     updateStarFieldPositions();
     updateSkyBackdrop();
