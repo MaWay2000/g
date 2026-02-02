@@ -1305,13 +1305,9 @@ export const initScene = (
       .copy(bottomColor)
       .lerp(topColor, 0.35)
       .multiplyScalar(gradientBrightness);
-    const horizonColor = bottomColor
-      .clone()
-      .lerp(topColor, 0.1)
-      .multiplyScalar(gradientBrightness);
     scene.background = skyBackgroundColor;
     if (scene.fog) {
-      scene.fog.color.copy(horizonColor);
+      scene.fog.color.copy(skyBackgroundColor);
     }
     renderer.toneMappingExposure = THREE.MathUtils.lerp(0.25, 1.15, brightness);
   };
