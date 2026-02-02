@@ -4798,6 +4798,7 @@ export const initScene = (
             object: tile,
             offset: tile.position.y - roomFloorY,
           });
+          terrainTiles.push(tile);
 
           if (isInsideMap) {
             tile.userData.terrainId = resolvedTerrain.id;
@@ -4826,7 +4827,6 @@ export const initScene = (
               tile.material = concealedTerrainMaterial;
             }
 
-            terrainTiles.push(tile);
           }
 
           const westIndex = column > 0 ? index - 1 : null;
