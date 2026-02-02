@@ -1291,6 +1291,9 @@ export const initScene = (
     skyGradientUniforms.brightness.value = gradientBrightness;
     skyGradientUniforms.opacity.value = gradientOpacity;
 
+    const toneMappingExposure = THREE.MathUtils.lerp(0.25, 1.15, brightness);
+    renderer.toneMappingExposure = toneMappingExposure;
+
     if (sunSprite.material) {
       sunSprite.material.opacity = sunVisibility;
     }
@@ -1301,15 +1304,19 @@ export const initScene = (
     const starVisibility = THREE.MathUtils.clamp(1 - sunVisibility * 1.05, 0, 1);
     setStarVisibilityForTimeOfDay(starVisibility);
 
+    const horizonBlend = THREE.MathUtils.clamp(
+      Math.pow(0.5, skyGradientUniforms.exponent.value),
+      0,
+      1
+    );
     skyBackgroundColor
       .copy(bottomColor)
-      .lerp(topColor, 0.35)
-      .multiplyScalar(gradientBrightness);
+      .lerp(topColor, horizonBlend)
+      .multiplyScalar(gradientBrightness * gradientOpacity);
     scene.background = skyBackgroundColor;
     if (scene.fog) {
       scene.fog.color.copy(skyBackgroundColor);
     }
-    renderer.toneMappingExposure = THREE.MathUtils.lerp(0.25, 1.15, brightness);
   };
 
   let lastTimeOfDayCheck = 0;
