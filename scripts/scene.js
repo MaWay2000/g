@@ -1615,7 +1615,12 @@ export const initScene = (
       }
 
       activeTerrainTiles.forEach((tile) => {
-        applyGeoVisorMaterialToTile(tile, true);
+        if (tile?.userData?.geoVisorPreviousMaterial) {
+          tile.material = tile.userData.geoVisorPreviousMaterial;
+          tile.userData.geoVisorPreviousMaterial = null;
+        } else {
+          applyGeoVisorMaterialToTile(tile, true);
+        }
       });
 
       geoVisorLastRow = null;
@@ -1629,6 +1634,9 @@ export const initScene = (
     }
 
     activeTerrainTiles.forEach((tile) => {
+      if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
+        tile.userData.geoVisorPreviousMaterial = tile.material;
+      }
       applyGeoVisorMaterialToTile(tile, true);
     });
 
