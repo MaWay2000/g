@@ -1312,7 +1312,7 @@ export const initScene = (
     skyBackgroundColor
       .copy(bottomColor)
       .lerp(topColor, horizonBlend)
-      .multiplyScalar(gradientBrightness * gradientOpacity);
+      .multiplyScalar(gradientBrightness);
     scene.background = skyBackgroundColor;
     if (scene.fog) {
       scene.fog.color.copy(skyBackgroundColor);
