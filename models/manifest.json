@@ -10,9 +10,5 @@
   {
     "path": "floor1.glb",
     "label": "Floor 1 (GLB)"
-  },
-  {
-    "path": "door-marker",
-    "label": "Door Marker"
   }
 ]
