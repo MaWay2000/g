@@ -722,13 +722,13 @@ export const initMapMaker3d = ({
           textureContext.save();
           textureContext.font = heightFont;
           textureContext.textBaseline = "top";
-          textureContext.textAlign = "left";
+          textureContext.textAlign = "right";
           const textWidth = textureContext.measureText(heightLabel).width;
-          const textX = drawX + labelPadding;
+          const textX = drawX + TEXTURE_TILE_SIZE - labelPadding;
           const textY = drawY + labelPadding;
           textureContext.fillStyle = "rgba(2, 6, 23, 0.45)";
           textureContext.fillRect(
-            textX - labelPadding * 0.6,
+            textX - textWidth - labelPadding * 0.6,
             textY - labelPadding * 0.4,
             textWidth + labelPadding * 1.2,
             heightFontSize + labelPadding
