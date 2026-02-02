@@ -49,6 +49,14 @@ const state = {
   isSelectionPointerDown: false,
 };
 
+const HISTORY_LIMIT = 50;
+const historyState = {
+  undoStack: [],
+  redoStack: [],
+  pendingSnapshot: null,
+  isDirty: false,
+};
+
 const UNKNOWN_HP_LABEL = "Unknown";
 const HEIGHT_MIN = 0;
 const HEIGHT_MAX = 255;
@@ -302,9 +310,103 @@ const elements = {
   heightCancelButton: document.getElementById("heightCancelButton"),
   showHeightButton: document.getElementById("showHeightButton"),
   doorModeButtons: Array.from(document.querySelectorAll("[data-door-mode]")),
+  undoButton: document.getElementById("undoBtn"),
+  redoButton: document.getElementById("redoBtn"),
 };
 
 let landscapeViewer = null;
+
+function cloneMapDefinition(map) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(map);
+  }
+  return JSON.parse(JSON.stringify(map));
+}
+
+function updateUndoRedoButtons() {
+  if (elements.undoButton) {
+    elements.undoButton.disabled = historyState.undoStack.length === 0;
+  }
+  if (elements.redoButton) {
+    elements.redoButton.disabled = historyState.redoStack.length === 0;
+  }
+}
+
+function pushUndoSnapshot(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+  historyState.undoStack.push(snapshot);
+  if (historyState.undoStack.length > HISTORY_LIMIT) {
+    historyState.undoStack.shift();
+  }
+  historyState.redoStack.length = 0;
+  updateUndoRedoButtons();
+}
+
+function beginHistoryEntry() {
+  if (historyState.pendingSnapshot) {
+    return;
+  }
+  historyState.pendingSnapshot = cloneMapDefinition(state.map);
+  historyState.isDirty = false;
+}
+
+function markHistoryDirty() {
+  if (!historyState.pendingSnapshot) {
+    return;
+  }
+  historyState.isDirty = true;
+}
+
+function commitHistoryEntry() {
+  if (!historyState.pendingSnapshot) {
+    return;
+  }
+  if (historyState.isDirty) {
+    pushUndoSnapshot(historyState.pendingSnapshot);
+  }
+  historyState.pendingSnapshot = null;
+  historyState.isDirty = false;
+}
+
+function applyMapSnapshot(snapshot) {
+  const normalized = normalizeMapDefinition(snapshot);
+  state.map = normalized;
+  clearSelection();
+  updateMetadataDisplays();
+  renderGrid();
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+}
+
+function undoLastChange() {
+  if (historyState.pendingSnapshot) {
+    commitHistoryEntry();
+  }
+  const snapshot = historyState.undoStack.pop();
+  if (!snapshot) {
+    updateUndoRedoButtons();
+    return;
+  }
+  historyState.redoStack.push(cloneMapDefinition(state.map));
+  applyMapSnapshot(snapshot);
+  updateUndoRedoButtons();
+}
+
+function redoLastChange() {
+  if (historyState.pendingSnapshot) {
+    commitHistoryEntry();
+  }
+  const snapshot = historyState.redoStack.pop();
+  if (!snapshot) {
+    updateUndoRedoButtons();
+    return;
+  }
+  historyState.undoStack.push(cloneMapDefinition(state.map));
+  applyMapSnapshot(snapshot);
+  updateUndoRedoButtons();
+}
 
 function normalizeObjectVector(source, fallback) {
   const fallbackValue = fallback ?? { x: 0, y: 0, z: 0 };
@@ -530,9 +632,11 @@ function removeDoorMarkersAtIndex(index) {
   if (nextObjects.length === existing.length) {
     return;
   }
+  const snapshot = cloneMapDefinition(state.map);
   state.map.objects = nextObjects;
   updateJsonPreview();
   landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  pushUndoSnapshot(snapshot);
 }
 
 function syncTerrainMenuButtons() {
@@ -849,6 +953,7 @@ function saveMapToLocalStorage() {
 function restoreMapFromLocalStorage({
   showAlertOnMissing = true,
   showFeedback = true,
+  pushHistory = true,
 } = {}) {
   const storage = getLocalStorage();
   if (!storage) {
@@ -883,7 +988,7 @@ function restoreMapFromLocalStorage({
 
   try {
     const parsed = JSON.parse(serialized);
-    void applyImportedMap(parsed);
+    void applyImportedMap(parsed, { pushHistory });
   } catch (error) {
     console.error("Saved map is invalid", error);
     storage.removeItem(LOCAL_STORAGE_KEY);
@@ -1002,6 +1107,7 @@ function resizeMap(width, height) {
     return;
   }
 
+  const snapshot = cloneMapDefinition(state.map);
   const newCells = Array.from(
     { length: clampedWidth * clampedHeight },
     (_, index) => {
@@ -1034,6 +1140,7 @@ function resizeMap(width, height) {
   updateMetadataDisplays();
   renderGrid();
   updateJsonPreview();
+  pushUndoSnapshot(snapshot);
 }
 
 function renderPalette() {
@@ -1154,6 +1261,7 @@ function paintCell(index, terrainId, tileId) {
     terrainId: terrain.id,
     tileId: resolvedTileId,
   };
+  markHistoryDirty();
   if (elements.mapGrid) {
     const cell = elements.mapGrid.querySelector(
       `.map-cell[data-index="${index}"]`
@@ -1182,6 +1290,7 @@ function beginPointerPaint(erase) {
     return;
   }
   state.isPointerDown = true;
+  beginHistoryEntry();
   const selection = getActiveTerrainSelection({ erase });
   state.pointerTerrainTypeId = selection.terrainId;
   state.pointerTerrainTileId = selection.tileId;
@@ -1228,6 +1337,7 @@ function updateHeightCell(index, heightValue) {
     return false;
   }
   state.map.heights[index] = clamped;
+  markHistoryDirty();
   if (elements.mapGrid) {
     const cell = elements.mapGrid.querySelector(
       `.map-cell[data-index="${index}"]`
@@ -1255,6 +1365,7 @@ function applyTerrainSelection({ erase = false } = {}) {
     return;
   }
 
+  const snapshot = cloneMapDefinition(state.map);
   const width = state.map.width;
   const startX = state.selectionStart % width;
   const startY = Math.floor(state.selectionStart / width);
@@ -1287,6 +1398,7 @@ function applyTerrainSelection({ erase = false } = {}) {
   if (didUpdate) {
     updateJsonPreview();
     updateLandscapeViewer();
+    pushUndoSnapshot(snapshot);
   }
   clearSelection();
 }
@@ -1299,6 +1411,7 @@ function applyHeightSelection() {
     return;
   }
 
+  const snapshot = cloneMapDefinition(state.map);
   const width = state.map.width;
   const startX = state.selectionStart % width;
   const startY = Math.floor(state.selectionStart / width);
@@ -1323,6 +1436,7 @@ function applyHeightSelection() {
   if (didUpdate) {
     updateJsonPreview();
     updateLandscapeViewer();
+    pushUndoSnapshot(snapshot);
   }
   clearSelection();
 }
@@ -1387,6 +1501,7 @@ function applyPointerPaint(index) {
 
 function beginHeightPaint() {
   state.isHeightPointerDown = true;
+  beginHistoryEntry();
 }
 
 function applyHeightPointerPaint(index) {
@@ -1437,12 +1552,14 @@ function applyHeightPointerPaint(index) {
 
 function endHeightPaint() {
   state.isHeightPointerDown = false;
+  commitHistoryEntry();
 }
 
 function endPointerPaint() {
   state.isPointerDown = false;
   state.pointerTerrainTypeId = null;
   state.pointerTerrainTileId = null;
+  commitHistoryEntry();
 }
 
 function handleCellPointerDown(event) {
@@ -1571,6 +1688,7 @@ function setActivePaletteTab(tabId) {
           if (!placement) {
             return;
           }
+          const snapshot = cloneMapDefinition(state.map);
           const existing = Array.isArray(state.map.objects)
             ? state.map.objects
             : [];
@@ -1584,6 +1702,7 @@ function setActivePaletteTab(tabId) {
           state.map.objects = [...baseObjects, placement];
           updateJsonPreview();
           landscapeViewer?.setObjectPlacements?.(state.map.objects);
+          pushUndoSnapshot(snapshot);
         },
         onRemoveObject: ({ index, path } = {}) => {
           if (path === DOOR_MARKER_PATH) {
@@ -1702,7 +1821,8 @@ function initPaletteTabs() {
   setActivePaletteTab(activeTab?.dataset.mapMakerTab ?? "terrain");
 }
 
-async function applyImportedMap(mapDefinition) {
+async function applyImportedMap(mapDefinition, { pushHistory = true } = {}) {
+  const snapshot = cloneMapDefinition(state.map);
   const resolved = await resolveExternalHeights(mapDefinition);
   const normalized = normalizeMapDefinition(resolved);
 
@@ -1713,9 +1833,13 @@ async function applyImportedMap(mapDefinition) {
   renderGrid();
   updateJsonPreview();
   landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  if (pushHistory) {
+    pushUndoSnapshot(snapshot);
+  }
 }
 
 function resetMap() {
+  const snapshot = cloneMapDefinition(state.map);
   state.map = { ...createDefaultOutsideMap(), objects: [] };
   setTerrain(TERRAIN_TYPES[1]);
   clearSelection();
@@ -1723,6 +1847,7 @@ function resetMap() {
   renderGrid();
   updateJsonPreview();
   landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  pushUndoSnapshot(snapshot);
 }
 
 function generateRandomMap() {
@@ -1731,6 +1856,7 @@ function generateRandomMap() {
     return;
   }
 
+  const snapshot = cloneMapDefinition(state.map);
   const { minHeight, maxHeight, hillsCount } = resolveGenerationSettings();
 
   state.map.cells = state.map.cells.map(() => {
@@ -1788,6 +1914,7 @@ function generateRandomMap() {
   clearSelection();
   renderGrid();
   updateJsonPreview();
+  pushUndoSnapshot(snapshot);
 }
 
 function setObjectsPaletteStatus(message, { isError = false } = {}) {
@@ -1974,6 +2101,7 @@ function initControls() {
   restoreMapFromLocalStorage({
     showAlertOnMissing: false,
     showFeedback: false,
+    pushHistory: false,
   });
 
   elements.mapNameInput.addEventListener("input", (event) => {
@@ -2202,7 +2330,45 @@ function initControls() {
 
   elements.fileInput.addEventListener("change", handleFileSelection);
 
+  if (elements.undoButton) {
+    elements.undoButton.addEventListener("click", () => {
+      undoLastChange();
+    });
+  }
+
+  if (elements.redoButton) {
+    elements.redoButton.addEventListener("click", () => {
+      redoLastChange();
+    });
+  }
+
   window.addEventListener("keydown", (event) => {
+    const target = event.target;
+    const isEditableTarget =
+      target instanceof HTMLElement &&
+      (target.isContentEditable ||
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA");
+
+    if (
+      !isEditableTarget &&
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey
+    ) {
+      const key = event.key.toLowerCase();
+      if (key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          redoLastChange();
+        } else {
+          undoLastChange();
+        }
+      } else if (key === "y") {
+        event.preventDefault();
+        redoLastChange();
+      }
+    }
+
     if (event.key === "Escape") {
       if (state.activeTab === "height" && state.heightMode === "draw") {
         clearSelection();
@@ -2236,6 +2402,8 @@ function initControls() {
       event.preventDefault();
     });
   }
+
+  updateUndoRedoButtons();
 }
 
 initControls();
