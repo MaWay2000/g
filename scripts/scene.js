@@ -5246,8 +5246,9 @@ export const initScene = (
 
     const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
     const entranceWidth = returnDoorWidth + 1.6;
-    const entranceHeight = returnDoorHeight * 1.05 * 2;
+    const entranceHeight = returnDoorHeight * 1.05 * 4;
     const entranceThickness = 0.16;
+    const entranceEmbeddedOffset = entranceHeight * 0.25;
     const entranceCenterZ = outsideMapCenterZ;
     const entranceRearZ = entranceCenterZ - entranceDepth / 2;
     const entranceFrontZ = entranceRearZ + entranceDepth;
@@ -5304,7 +5305,7 @@ export const initScene = (
     );
     entranceRoof.position.set(
       outsideMapCenterX,
-      entranceBaseY + entranceHeight / 2 + entranceThickness / 2,
+      entranceBaseY + entranceEmbeddedOffset + entranceThickness / 2,
       tunnelCenterZ
     );
     group.add(entranceRoof);
@@ -5321,7 +5322,7 @@ export const initScene = (
     );
     entranceLeftWall.position.set(
       outsideMapCenterX - (entranceWidth / 2 + entranceThickness / 2),
-      entranceBaseY,
+      entranceBaseY - entranceEmbeddedOffset,
       tunnelCenterZ
     );
     group.add(entranceLeftWall);
@@ -5343,7 +5344,7 @@ export const initScene = (
     );
     entranceBackWall.position.set(
       outsideMapCenterX,
-      entranceBaseY,
+      entranceBaseY - entranceEmbeddedOffset,
       tunnelRearWallZ
     );
     group.add(entranceBackWall);
@@ -5356,7 +5357,7 @@ export const initScene = (
     );
     entranceDoorBacker.position.set(
       outsideMapCenterX - returnDoorFrontOffset.x * (entranceDoorBackerDepth / 2 + 0.06),
-      entranceBaseY,
+      entranceBaseY - entranceEmbeddedOffset,
       returnDoorZ - returnDoorFrontOffset.z * (entranceDoorBackerDepth / 2 + 0.06)
     );
     group.add(entranceDoorBacker);
