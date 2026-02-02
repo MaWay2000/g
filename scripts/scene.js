@@ -5178,7 +5178,7 @@ export const initScene = (
     );
     entranceRoof.position.set(
       outsideMapCenterX,
-      entranceBaseY + entranceHeight + entranceThickness / 2,
+      entranceBaseY + entranceHeight / 2 + entranceThickness / 2,
       tunnelCenterZ
     );
     group.add(entranceRoof);
@@ -5195,7 +5195,7 @@ export const initScene = (
     );
     entranceLeftWall.position.set(
       outsideMapCenterX - (entranceWidth / 2 + entranceThickness / 2),
-      entranceBaseY + entranceHeight / 2,
+      entranceBaseY,
       tunnelCenterZ
     );
     group.add(entranceLeftWall);
@@ -5217,7 +5217,7 @@ export const initScene = (
     );
     entranceBackWall.position.set(
       outsideMapCenterX,
-      entranceBaseY + entranceHeight / 2,
+      entranceBaseY,
       tunnelRearWallZ
     );
     group.add(entranceBackWall);
