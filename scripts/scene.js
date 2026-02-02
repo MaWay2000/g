@@ -5120,7 +5120,7 @@ export const initScene = (
 
     const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
     const entranceWidth = returnDoorWidth + 1.6;
-    const entranceHeight = returnDoorHeight * 1.05;
+    const entranceHeight = returnDoorHeight * 1.05 * 2;
     const entranceThickness = 0.16;
     const entranceCenterZ = outsideMapCenterZ;
     const entranceRearZ = entranceCenterZ - entranceDepth / 2;
