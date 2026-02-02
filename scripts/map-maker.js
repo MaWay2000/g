@@ -310,6 +310,9 @@ const elements = {
   heightCancelButton: document.getElementById("heightCancelButton"),
   showHeightButton: document.getElementById("showHeightButton"),
   doorModeButtons: Array.from(document.querySelectorAll("[data-door-mode]")),
+  doorList: document.getElementById("doorList"),
+  doorListEmpty: document.getElementById("doorListEmpty"),
+  doorListCount: document.getElementById("doorListCount"),
   undoButton: document.getElementById("undoBtn"),
   redoButton: document.getElementById("redoBtn"),
 };
@@ -603,6 +606,99 @@ function getCellWorldPosition(index) {
     x: x - width / 2 + 0.5,
     z: y - height / 2 + 0.5,
   };
+}
+
+function getCellIndexFromWorldPosition(position) {
+  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) {
+    return null;
+  }
+  const width = state.map.width;
+  const height = state.map.height;
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+  const x = Math.round(position.x + width / 2 - 0.5);
+  const y = Math.round(position.z + height / 2 - 0.5);
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return null;
+  }
+  const worldX = x - width / 2 + 0.5;
+  const worldZ = y - height / 2 + 0.5;
+  if (
+    Math.abs(position.x - worldX) > DOOR_POSITION_EPSILON ||
+    Math.abs(position.z - worldZ) > DOOR_POSITION_EPSILON
+  ) {
+    return null;
+  }
+  return y * width + x;
+}
+
+function getDoorPlacements() {
+  const objects = Array.isArray(state.map.objects) ? state.map.objects : [];
+  return objects.filter((placement) => placement?.path === DOOR_MARKER_PATH);
+}
+
+function formatDoorListEntry(placement, order) {
+  const index = getCellIndexFromWorldPosition(placement?.position ?? null);
+  const width = state.map.width;
+  const nameFromPlacement =
+    typeof placement?.name === "string" && placement.name.trim().length > 0
+      ? placement.name.trim()
+      : null;
+  const idFromPlacement =
+    typeof placement?.id === "string" && placement.id.trim().length > 0
+      ? placement.id.trim()
+      : null;
+  if (Number.isFinite(index) && Number.isFinite(width)) {
+    const x = index % width;
+    const y = Math.floor(index / width);
+    return {
+      name: nameFromPlacement ?? `Door ${x + 1}, ${y + 1}`,
+      id: idFromPlacement ?? `door-${x + 1}-${y + 1}`,
+      sortIndex: index,
+    };
+  }
+  const fallbackIndex = order + 1;
+  return {
+    name: nameFromPlacement ?? `Door ${fallbackIndex}`,
+    id: idFromPlacement ?? `door-${fallbackIndex}`,
+    sortIndex: Number.POSITIVE_INFINITY,
+  };
+}
+
+function updateDoorList() {
+  if (!elements.doorList || !elements.doorListEmpty || !elements.doorListCount) {
+    return;
+  }
+  const placements = getDoorPlacements();
+  const entries = placements
+    .map((placement, order) => ({
+      ...formatDoorListEntry(placement, order),
+      order,
+    }))
+    .sort((a, b) => {
+      if (a.sortIndex !== b.sortIndex) {
+        return a.sortIndex - b.sortIndex;
+      }
+      return a.order - b.order;
+    });
+  elements.doorList.innerHTML = "";
+  entries.forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = "door-list-item";
+    const name = document.createElement("div");
+    name.className = "door-list-name";
+    name.textContent = entry.name;
+    const id = document.createElement("div");
+    id.className = "door-list-id";
+    id.textContent = `ID: ${entry.id}`;
+    item.append(name, id);
+    elements.doorList.appendChild(item);
+  });
+  const hasDoors = entries.length > 0;
+  elements.doorListEmpty.hidden = hasDoors;
+  elements.doorListEmpty.setAttribute("aria-hidden", String(hasDoors));
+  elements.doorListCount.textContent = String(entries.length);
 }
 
 function removeDoorMarkersAtPosition(placements, position) {
@@ -1634,6 +1730,7 @@ function handleCellPointerEnter(event) {
 function updateJsonPreview() {
   const json = JSON.stringify(state.map, null, 2);
   elements.jsonPreview.textContent = json;
+  updateDoorList();
 }
 
 function setActivePaletteTab(tabId) {
