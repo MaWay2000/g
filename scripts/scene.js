@@ -1564,10 +1564,30 @@ export const initScene = (
       return;
     }
 
+    if (!tile.userData.geoVisorRevealedMaterial) {
+      const terrainId = tile.userData.terrainId;
+      const tileId = tile.userData.tileId;
+      if (terrainId && tileId) {
+        const variantIndex = Number.isFinite(tile.userData.tileVariantIndex)
+          ? tile.userData.tileVariantIndex
+          : 0;
+        const baseMaterial = getRuntimeTerrainMaterial(
+          terrainId,
+          tileId,
+          variantIndex
+        );
+        if (baseMaterial) {
+          tile.userData.geoVisorRevealedMaterial = baseMaterial;
+        }
+      }
+    }
+
+    const fallbackMaterial =
+      tile.userData.geoVisorRevealedMaterial ??
+      tile.userData.geoVisorConcealedMaterial;
     const revealedMaterial = geoVisorEnabled
-      ? tile.userData.geoVisorVisorMaterial ??
-        tile.userData.geoVisorRevealedMaterial
-      : tile.userData.geoVisorRevealedMaterial;
+      ? tile.userData.geoVisorVisorMaterial ?? fallbackMaterial
+      : fallbackMaterial;
     const targetMaterial = shouldReveal
       ? revealedMaterial
       : tile.userData.geoVisorConcealedMaterial;
