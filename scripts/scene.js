@@ -4475,6 +4475,7 @@ export const initScene = (
         offset: eastWall.position.y - roomFloorY,
       });
       colliderDescriptors.push({ object: eastWall });
+      terrainTiles.push(northWall, southWall, westWall, eastWall);
 
       const getCellElevation = (column, row) => {
         if (column < 0 || column >= width || row < 0 || row >= height) {
