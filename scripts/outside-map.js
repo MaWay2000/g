@@ -406,6 +406,17 @@ const normalizeOutsideObjectPlacements = (placements) => {
       if (!path) {
         return null;
       }
+      const name =
+        typeof placement.name === "string" ? placement.name : undefined;
+      const id = typeof placement.id === "string" ? placement.id : undefined;
+      const destinationType =
+        typeof placement.destinationType === "string"
+          ? placement.destinationType
+          : undefined;
+      const destinationId =
+        typeof placement.destinationId === "string"
+          ? placement.destinationId
+          : undefined;
       return {
         path,
         position: normalizeOutsideObjectVector(
@@ -420,6 +431,10 @@ const normalizeOutsideObjectPlacements = (placements) => {
           placement.scale,
           DEFAULT_OUTSIDE_OBJECT_TRANSFORM.scale
         ),
+        ...(name ? { name } : {}),
+        ...(id ? { id } : {}),
+        ...(destinationType ? { destinationType } : {}),
+        ...(destinationId ? { destinationId } : {}),
       };
     })
     .filter(Boolean);
