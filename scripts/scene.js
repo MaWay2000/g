@@ -7027,7 +7027,88 @@ export const initScene = (
     lastDistance: null,
   };
   const viewDistanceCullingPosition = new THREE.Vector3();
-  const updateObjectViewDistance = (object, playerPosition, maxDistanceSquared) => {
+  const VIEW_DISTANCE_FADE_RATIO = 0.12;
+  const VIEW_DISTANCE_MIN_FADE = 12;
+  const VIEW_DISTANCE_MAX_FADE = 40;
+  const applyViewDistanceFade = (
+    object,
+    distance,
+    viewDistance,
+    fadeRange
+  ) => {
+    if (!object?.isObject3D) {
+      return;
+    }
+
+    if (
+      !object.material ||
+      Array.isArray(object.material) ||
+      !object.material.isMaterial
+    ) {
+      return;
+    }
+
+    if (!Number.isFinite(fadeRange) || fadeRange <= 0) {
+      return;
+    }
+
+    const fadeStart = Math.max(0, viewDistance - fadeRange);
+
+    if (distance <= fadeStart) {
+      if (
+        object.userData?.viewDistanceFadeMaterial &&
+        object.userData.viewDistanceBaseMaterial &&
+        object.material === object.userData.viewDistanceFadeMaterial
+      ) {
+        object.material = object.userData.viewDistanceBaseMaterial;
+      }
+
+      if (object.userData?.viewDistanceFadeMaterial) {
+        const baseOpacity = Number.isFinite(object.userData.viewDistanceBaseOpacity)
+          ? object.userData.viewDistanceBaseOpacity
+          : 1;
+        object.userData.viewDistanceFadeMaterial.opacity = baseOpacity;
+      }
+
+      return;
+    }
+
+    const progress = (distance - fadeStart) / fadeRange;
+    const alpha = THREE.MathUtils.clamp(1 - progress, 0, 1);
+
+    if (object.userData) {
+      if (!object.userData.viewDistanceBaseMaterial) {
+        object.userData.viewDistanceBaseMaterial = object.material;
+        object.userData.viewDistanceBaseOpacity = object.material.opacity ?? 1;
+      }
+
+      if (!object.userData.viewDistanceFadeMaterial) {
+        object.userData.viewDistanceFadeMaterial =
+          object.material.clone?.() ?? object.material;
+        if (object.userData.viewDistanceFadeMaterial.isMaterial) {
+          object.userData.viewDistanceFadeMaterial.transparent = true;
+        }
+      }
+    }
+
+    const fadeMaterial = object.userData?.viewDistanceFadeMaterial;
+    const baseOpacity = Number.isFinite(object.userData?.viewDistanceBaseOpacity)
+      ? object.userData.viewDistanceBaseOpacity
+      : 1;
+
+    if (fadeMaterial?.isMaterial) {
+      fadeMaterial.opacity = baseOpacity * alpha;
+      object.material = fadeMaterial;
+    }
+  };
+
+  const updateObjectViewDistance = (
+    object,
+    playerPosition,
+    maxDistanceSquared,
+    viewDistance,
+    fadeRange
+  ) => {
     if (!object?.isObject3D) {
       return;
     }
@@ -7055,6 +7136,11 @@ export const initScene = (
         object.userData.viewDistanceCulled = false;
       }
     }
+
+    if (shouldBeVisible) {
+      const distance = Math.sqrt(distanceSquared);
+      applyViewDistanceFade(object, distance, viewDistance, fadeRange);
+    }
   };
   updateViewDistanceCulling = ({ force = false } = {}) => {
     if (!playerObject?.position) {
@@ -7075,17 +7161,34 @@ export const initScene = (
 
     viewDistanceCullingState.lastDistance = viewDistance;
     const maxDistanceSquared = viewDistance * viewDistance;
+    const fadeRange = THREE.MathUtils.clamp(
+      viewDistance * VIEW_DISTANCE_FADE_RATIO,
+      VIEW_DISTANCE_MIN_FADE,
+      VIEW_DISTANCE_MAX_FADE
+    );
     const playerPosition = playerObject.position;
 
     if (Array.isArray(activeTerrainTiles)) {
       activeTerrainTiles.forEach((tile) => {
-        updateObjectViewDistance(tile, playerPosition, maxDistanceSquared);
+        updateObjectViewDistance(
+          tile,
+          playerPosition,
+          maxDistanceSquared,
+          viewDistance,
+          fadeRange
+        );
       });
     }
 
     if (Array.isArray(activeResourceTargets)) {
       activeResourceTargets.forEach((target) => {
-        updateObjectViewDistance(target, playerPosition, maxDistanceSquared);
+        updateObjectViewDistance(
+          target,
+          playerPosition,
+          maxDistanceSquared,
+          viewDistance,
+          fadeRange
+        );
       });
     }
   };
