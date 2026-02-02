@@ -5319,8 +5319,8 @@ export const initScene = (
     const antennaTowerGroup = new THREE.Group();
     const antennaHeight = Math.max(entranceHeight * 2.4, 9.5);
     const antennaBaseY = entranceRoof.position.y + entranceThickness / 2;
-    const antennaOffsetX = entranceWidth * 0.55;
-    const antennaOffsetZ = entranceDepth * 0.1;
+    const antennaOffsetX = 0;
+    const antennaOffsetZ = 0;
     antennaTowerGroup.position.set(
       outsideMapCenterX + antennaOffsetX,
       antennaBaseY,
