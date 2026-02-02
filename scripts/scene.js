@@ -9583,7 +9583,7 @@ export const initScene = (
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("keyup", onKeyUp);
 
-  function clampWithinActiveFloor(delta = 0) {
+  function clampWithinActiveFloor(delta = 0, previousPosition = null) {
     const player = controls.getObject().position;
     const activeFloor = getLiftFloorByIndex(liftState.currentIndex);
     const activeFloorId =
@@ -9637,6 +9637,28 @@ export const initScene = (
     const maxY = getPlayerCeilingHeight(player);
 
     if (player.y < minY) {
+      const previousGround = previousPosition
+        ? getPlayerGroundHeight(previousPosition)
+        : null;
+      const maxStepHeight = getMaxStepHeight();
+      const exceedsStepHeight =
+        Number.isFinite(previousGround) &&
+        minY - previousGround > maxStepHeight + STEP_HEIGHT_TOLERANCE;
+      const isAboveStepHeight =
+        Number.isFinite(previousGround) &&
+        player.y >= previousGround + maxStepHeight - STEP_HEIGHT_TOLERANCE;
+
+      if (exceedsStepHeight && !isAboveStepHeight) {
+        if (previousPosition) {
+          player.x = previousPosition.x;
+          player.y = previousPosition.y;
+          player.z = previousPosition.z;
+          velocity.x = 0;
+          velocity.z = 0;
+        }
+        return;
+      }
+
       const climbDistance = minY - player.y;
       const canSmoothClimb = Number.isFinite(delta) && delta > 0;
 
@@ -9861,7 +9883,7 @@ export const initScene = (
     }
     playerObject.position.y += verticalVelocity * delta;
 
-    clampWithinActiveFloor(delta);
+    clampWithinActiveFloor(delta, previousPlayerPosition);
 
     if (
       movementEnabled &&
