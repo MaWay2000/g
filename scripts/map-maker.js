@@ -821,11 +821,13 @@ function updateDoorList() {
       if (!value) {
         delete entry.placement.destinationType;
         delete entry.placement.destinationId;
+        delete entry.placement.destination;
       } else {
         const [type, ...rest] = value.split(":");
         const idValue = rest.join(":");
         entry.placement.destinationType = type;
         entry.placement.destinationId = idValue;
+        entry.placement.destination = value;
       }
       updateJsonPreview();
       pushUndoSnapshot(snapshot);
