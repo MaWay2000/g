@@ -878,7 +878,11 @@ export const initMapMaker3d = ({
     const x = index % mapWidth;
     const y = Math.floor(index / mapWidth);
     const worldX = x - mapWidth / 2 + 0.5;
-    const worldZ = y - mapHeight / 2 + 0.5;
+    const worldZ =
+      y -
+      mapHeight / 2 +
+      0.5 +
+      (path === DOOR_MARKER_PATH ? -0.5 : 0);
     const heightValue = lastMap.heights?.[index];
     const worldY = getTerrainHeight(heightValue);
     return {
