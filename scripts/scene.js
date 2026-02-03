@@ -4780,6 +4780,33 @@ export const initScene = (
         return material;
       };
 
+      const DOOR_POSITION_EPSILON = 0.01;
+
+      const resolveDoorPlacementId = (placement) => {
+        if (!placement || placement.path !== DOOR_MARKER_PATH) {
+          return null;
+        }
+        const position = placement.position ?? null;
+        if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) {
+          return null;
+        }
+        const xIndex = Math.round(position.x + width / 2 - 0.5);
+        const yIndex = Math.round(position.z + height / 2 - 0.5);
+        if (xIndex < 0 || yIndex < 0 || xIndex >= width || yIndex >= height) {
+          return null;
+        }
+        const worldX = xIndex - width / 2 + 0.5;
+        const worldZ = yIndex - height / 2 + 0.5;
+        const matchesX = Math.abs(position.x - worldX) <= DOOR_POSITION_EPSILON;
+        const matchesZ =
+          Math.abs(position.z - worldZ) <= DOOR_POSITION_EPSILON ||
+          Math.abs(position.z - (worldZ - 0.5)) <= DOOR_POSITION_EPSILON;
+        if (!matchesX || !matchesZ) {
+          return null;
+        }
+        return `door-${xIndex + 1}-${yIndex + 1}`;
+      };
+
       const getPlacementWorldPosition = (placement) => {
         const position = placement?.position ?? {};
         const placementX = Number.isFinite(position.x) ? position.x : 0;
@@ -5099,9 +5126,10 @@ export const initScene = (
             }
             const doorId =
               typeof placement.id === "string" ? placement.id.trim() : null;
-            if (doorId) {
-              door.userData.doorId = doorId;
-              doorMarkersById.set(doorId, door);
+            const resolvedDoorId = doorId || resolveDoorPlacementId(placement);
+            if (resolvedDoorId) {
+              door.userData.doorId = resolvedDoorId;
+              doorMarkersById.set(resolvedDoorId, door);
             }
             const destinationType =
               typeof placement.destinationType === "string"

@@ -474,7 +474,35 @@ function resolvePlacementDestination(placement) {
   return { destinationType, destinationId };
 }
 
-function normalizeObjectPlacements(placements) {
+function getDoorIdFromPlacement(placement, width, height) {
+  if (!placement || placement.path !== DOOR_MARKER_PATH) {
+    return null;
+  }
+  const position = placement.position ?? null;
+  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) {
+    return null;
+  }
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+  const xIndex = Math.round(position.x + width / 2 - 0.5);
+  const yIndex = Math.round(position.z + height / 2 - 0.5);
+  if (xIndex < 0 || yIndex < 0 || xIndex >= width || yIndex >= height) {
+    return null;
+  }
+  const worldX = xIndex - width / 2 + 0.5;
+  const worldZ = yIndex - height / 2 + 0.5;
+  const matchesX = Math.abs(position.x - worldX) <= DOOR_POSITION_EPSILON;
+  const matchesZ =
+    Math.abs(position.z - worldZ) <= DOOR_POSITION_EPSILON ||
+    Math.abs(position.z - (worldZ - 0.5)) <= DOOR_POSITION_EPSILON;
+  if (!matchesX || !matchesZ) {
+    return null;
+  }
+  return `door-${xIndex + 1}-${yIndex + 1}`;
+}
+
+function normalizeObjectPlacements(placements, { width, height } = {}) {
   if (!Array.isArray(placements)) {
     return [];
   }
@@ -489,7 +517,13 @@ function normalizeObjectPlacements(placements) {
       }
       const name =
         typeof placement.name === "string" ? placement.name : undefined;
-      const id = typeof placement.id === "string" ? placement.id : undefined;
+      let id = typeof placement.id === "string" ? placement.id : undefined;
+      if (!id && path === DOOR_MARKER_PATH) {
+        const resolvedId = getDoorIdFromPlacement(placement, width, height);
+        if (resolvedId) {
+          id = resolvedId;
+        }
+      }
       const destination = resolvePlacementDestination(placement);
       return {
         path,
@@ -520,7 +554,10 @@ function normalizeObjectPlacements(placements) {
 
 function normalizeMapDefinition(definition) {
   const normalized = normalizeOutsideMap(definition);
-  normalized.objects = normalizeObjectPlacements(definition?.objects);
+  normalized.objects = normalizeObjectPlacements(definition?.objects, {
+    width: normalized.width,
+    height: normalized.height,
+  });
   return normalized;
 }
 
