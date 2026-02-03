@@ -4423,6 +4423,7 @@ export const initScene = (
       const colliderDescriptors = [];
       const resourceTargets = [];
       const terrainTiles = [];
+      const liftDoors = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
       const geoVisorMaterials = new Map();
@@ -5055,6 +5056,7 @@ export const initScene = (
               object: door,
               offset: door.position.y - roomFloorY,
             });
+            liftDoors.push(door);
             return;
           }
 
@@ -5099,6 +5101,7 @@ export const initScene = (
         },
         adjustableEntries: adjustable,
         colliderDescriptors,
+        liftDoors,
         resourceTargets,
         terrainTiles,
       };
@@ -5194,6 +5197,9 @@ export const initScene = (
     if (Array.isArray(builtOutsideTerrain?.colliderDescriptors)) {
       mapColliderDescriptors.push(...builtOutsideTerrain.colliderDescriptors);
     }
+    const mapLiftDoors = Array.isArray(builtOutsideTerrain?.liftDoors)
+      ? builtOutsideTerrain.liftDoors.filter((door) => door && door.isObject3D)
+      : [];
     if (Array.isArray(builtOutsideTerrain?.resourceTargets)) {
       environmentResourceTargets.push(
         ...builtOutsideTerrain.resourceTargets.filter((target) =>
@@ -5600,7 +5606,7 @@ export const initScene = (
     return {
       group,
       liftDoor: returnDoor,
-      liftDoors: [returnDoor],
+      liftDoors: [returnDoor, ...mapLiftDoors],
       updateForRoomHeight,
       teleportOffset,
       bounds: resolvedEnvironmentBounds,
