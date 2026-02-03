@@ -5655,6 +5655,27 @@ export const initScene = (
     antennaCrossbar.position.y = antennaHeight * 0.75;
     antennaTowerGroup.add(antennaCrossbar);
 
+    const antennaLampGeometry = new THREE.SphereGeometry(0.18, 16, 16);
+    const antennaLampMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffd34d,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const createAntennaLamp = (x, phase) => {
+      const lamp = new THREE.Mesh(antennaLampGeometry, antennaLampMaterial.clone());
+      lamp.position.set(x, antennaCrossbar.position.y, 0);
+      antennaTowerGroup.add(lamp);
+      const lampLight = new THREE.PointLight(0xffe066, 1.6, 14, 2);
+      lampLight.position.copy(lamp.position);
+      antennaTowerGroup.add(lampLight);
+      liftIndicatorLights.push({ mesh: lamp, light: lampLight, phase });
+    };
+    const antennaLampOffsetX = 0.42;
+    createAntennaLamp(-antennaLampOffsetX, 0);
+    createAntennaLamp(antennaLampOffsetX, Math.PI);
+
     const beaconMaterial = new THREE.MeshBasicMaterial({
       color: 0xff2d2d,
       transparent: true,
