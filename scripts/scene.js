@@ -5055,6 +5055,18 @@ export const initScene = (
                 : null;
             if (destinationType === "area" && destinationId) {
               door.userData.liftFloorId = destinationId;
+              const liftControls = [
+                door.userData?.liftUi?.control,
+                ...(Array.isArray(door.userData?.liftUi?.controls)
+                  ? door.userData.liftUi.controls
+                  : []),
+              ].filter(Boolean);
+              liftControls.forEach((control) => {
+                if (!control.userData) {
+                  control.userData = {};
+                }
+                control.userData.liftFloorId = destinationId;
+              });
             }
             const doorHeight =
               door.userData?.height ?? BASE_DOOR_HEIGHT;
