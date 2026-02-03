@@ -4037,7 +4037,7 @@ export const initScene = (
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
       deckDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
     );
-    liftDoor.rotation.y = Math.PI;
+    liftDoor.rotation.y = 0;
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
