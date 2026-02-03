@@ -1645,6 +1645,8 @@ export const initScene = (
     geoVisorLastEnabled = true;
   };
 
+  const doorMarkersById = new Map();
+
   const registerEnvironmentHeightAdjuster = (adjuster) => {
     if (typeof adjuster !== "function") {
       return () => {};
@@ -4434,6 +4436,7 @@ export const initScene = (
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
       const geoVisorMaterials = new Map();
+      doorMarkersById.clear();
       const objectPlacements = Array.isArray(normalizedMap.objects)
         ? normalizedMap.objects
         : [];
@@ -5094,6 +5097,12 @@ export const initScene = (
             ) {
               door.userData.liftUi.updateState({ mapName: mapDisplayName });
             }
+            const doorId =
+              typeof placement.id === "string" ? placement.id.trim() : null;
+            if (doorId) {
+              door.userData.doorId = doorId;
+              doorMarkersById.set(doorId, door);
+            }
             const destinationType =
               typeof placement.destinationType === "string"
                 ? placement.destinationType
@@ -5115,6 +5124,20 @@ export const initScene = (
                   control.userData = {};
                 }
                 control.userData.liftFloorId = destinationId;
+              });
+            } else if (destinationType === "door" && destinationId) {
+              door.userData.doorDestinationId = destinationId;
+              const liftControls = [
+                door.userData?.liftUi?.control,
+                ...(Array.isArray(door.userData?.liftUi?.controls)
+                  ? door.userData.liftUi.controls
+                  : []),
+              ].filter(Boolean);
+              liftControls.forEach((control) => {
+                if (!control.userData) {
+                  control.userData = {};
+                }
+                control.userData.doorDestinationId = destinationId;
               });
             }
             const doorHeight = door.userData?.height ?? BASE_DOOR_HEIGHT;
@@ -9558,9 +9581,54 @@ export const initScene = (
     return intersection.object;
   };
 
+  const teleportToDoorById = (doorId) => {
+    if (!doorId) {
+      return false;
+    }
+
+    const door = doorMarkersById.get(doorId);
+    if (!door) {
+      return false;
+    }
+
+    door.updateMatrixWorld(true);
+
+    const doorPosition = new THREE.Vector3();
+    const doorQuaternion = new THREE.Quaternion();
+    door.getWorldPosition(doorPosition);
+    door.getWorldQuaternion(doorQuaternion);
+
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(doorQuaternion);
+    const doorWidth = Number.isFinite(door.userData?.width)
+      ? door.userData.width
+      : BASE_DOOR_WIDTH;
+    const offsetDistance = Math.max(doorWidth * 0.6, 0.9);
+    doorPosition.add(forward.multiplyScalar(offsetDistance));
+    doorPosition.y = Math.max(roomFloorY, doorPosition.y);
+
+    playerObject.position.copy(doorPosition);
+    clampWithinActiveFloor();
+    playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
+    previousPlayerPosition.copy(playerObject.position);
+    velocity.set(0, 0, 0);
+    verticalVelocity = 0;
+
+    if (Number.isFinite(forward.x) && Number.isFinite(forward.z)) {
+      controls.setYaw(Math.atan2(forward.x, forward.z));
+    }
+
+    savePlayerState(true);
+    return true;
+  };
+
   const activateLiftControl = (control, { viaKeyboard = false } = {}) => {
     if (!control || !liftInteractionsEnabled) {
       return false;
+    }
+
+    const destinationDoorId = control.userData?.doorDestinationId ?? null;
+    if (destinationDoorId && teleportToDoorById(destinationDoorId)) {
+      return true;
     }
 
     const destinationId = control.userData?.liftFloorId ?? null;
