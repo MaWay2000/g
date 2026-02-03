@@ -2809,14 +2809,24 @@ export const initScene = (
       };
 
       const drawDescription = (text, busyState) => {
-        const description =
-          typeof text === "string" ? text.trim().toUpperCase() : "";
+        const descriptionWords =
+          typeof text === "string"
+            ? text
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean)
+                .map((word) => word.toUpperCase())
+            : [];
 
-        if (!description) {
+        if (descriptionWords.length === 0) {
           return;
         }
 
-        const descriptionFontSize = fitText(description, {
+        const longestDescriptionWord = descriptionWords.reduce(
+          (longest, word) => (longest.length >= word.length ? longest : word),
+          descriptionWords[0]
+        );
+        const descriptionFontSize = fitText(longestDescriptionWord, {
           weight: "500",
           baseSize: 30,
           minSize: 20,
@@ -2825,7 +2835,13 @@ export const initScene = (
 
         context.font = `500 ${descriptionFontSize}px sans-serif`;
         context.fillStyle = busyState ? "#fbbf24" : "#38bdf8";
-        context.fillText(description, width / 2, height * 0.56);
+        const totalLines = descriptionWords.length;
+        descriptionWords.forEach((word, index) => {
+          const lineOffset = index - (totalLines - 1) / 2;
+          const lineY =
+            height * 0.58 + lineOffset * descriptionFontSize * 1.1;
+          context.fillText(word, width / 2, lineY);
+        });
       };
 
       const update = ({ current, next, busy, mapName }) => {
