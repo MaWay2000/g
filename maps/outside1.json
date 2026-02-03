@@ -4510,16 +4510,16 @@
       "tileId": "floor-4"
     },
     {
-      "terrainId": "noble-gas",
-      "tileId": "floor-10"
+      "terrainId": "void",
+      "tileId": "floor-11"
     },
     {
-      "terrainId": "nonmetal",
-      "tileId": "floor-1"
+      "terrainId": "void",
+      "tileId": "floor-11"
     },
     {
-      "terrainId": "nonmetal",
-      "tileId": "floor-1"
+      "terrainId": "void",
+      "tileId": "floor-11"
     },
     {
       "terrainId": "transition-metal",
@@ -12508,5 +12508,212 @@
     17,
     16
   ],
-  "objects": []
+  "objects": [
+    {
+      "path": "table1.glb",
+      "position": {
+        "x": -0.5,
+        "y": 0.23823529411764705,
+        "z": -9.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "path": "table2.glb",
+      "position": {
+        "x": -1.5,
+        "y": 0.3088235294117647,
+        "z": 13.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "path": "table2.glb",
+      "position": {
+        "x": -11.5,
+        "y": 0.4970588235294118,
+        "z": 0.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "path": "table2.glb",
+      "position": {
+        "x": 15.5,
+        "y": 0.5205882352941177,
+        "z": 10.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "path": "table2.glb",
+      "position": {
+        "x": -0.5,
+        "y": 0.3558823529411765,
+        "z": -11.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "path": "table1.glb",
+      "position": {
+        "x": -1.5,
+        "y": 0.37941176470588234,
+        "z": 9.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "path": "table1.glb",
+      "position": {
+        "x": -1.5,
+        "y": 0.16764705882352943,
+        "z": 10.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      }
+    },
+    {
+      "path": "door-marker",
+      "position": {
+        "x": -1.5,
+        "y": 0.40294117647058825,
+        "z": 6
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "destinationType": "door",
+      "destinationId": "door-20-35"
+    },
+    {
+      "path": "door-marker",
+      "position": {
+        "x": 3.5,
+        "y": 0.4264705882352941,
+        "z": 9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "destinationType": "door",
+      "destinationId": "door-24-32"
+    },
+    {
+      "path": "door-marker",
+      "position": {
+        "x": -5.5,
+        "y": 0.4264705882352941,
+        "z": 9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "destinationType": "door",
+      "destinationId": "door-24-32"
+    },
+    {
+      "path": "door-marker",
+      "position": {
+        "x": 0.5,
+        "y": 0.23823529411764705,
+        "z": 13
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "destinationType": "door",
+      "destinationId": "door-24-32"
+    }
+  ]
 }
