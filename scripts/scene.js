@@ -5045,6 +5045,17 @@ export const initScene = (
             ) {
               door.userData.liftUi.updateState({ mapName: mapDisplayName });
             }
+            const destinationType =
+              typeof placement.destinationType === "string"
+                ? placement.destinationType
+                : null;
+            const destinationId =
+              typeof placement.destinationId === "string"
+                ? placement.destinationId
+                : null;
+            if (destinationType === "area" && destinationId) {
+              door.userData.liftFloorId = destinationId;
+            }
             const doorHeight =
               door.userData?.height ?? BASE_DOOR_HEIGHT;
             applyPlacementTransform(door, placement, {
