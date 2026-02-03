@@ -5621,6 +5621,12 @@ export const initScene = (
     antennaBasePlate.position.y = 0.09;
     antennaTowerGroup.add(antennaBasePlate);
 
+    const rodPadGeometry = new THREE.CylinderGeometry(0.16, 0.18, 0.06, 14);
+    const rodPadOffsetY = 0.18 + 0.03;
+    const mastPad = new THREE.Mesh(rodPadGeometry, antennaMaterial);
+    mastPad.position.set(0, rodPadOffsetY, 0);
+    antennaTowerGroup.add(mastPad);
+
     const mast = new THREE.Mesh(
       new THREE.CylinderGeometry(0.08, 0.1, antennaHeight, 12),
       antennaMaterial
@@ -5632,10 +5638,16 @@ export const initScene = (
     for (let i = 0; i < 3; i += 1) {
       const support = new THREE.Mesh(supportGeometry, antennaMaterial);
       const angle = (i / 3) * Math.PI * 2;
-      support.position.set(Math.cos(angle) * 0.55, antennaHeight * 0.45, Math.sin(angle) * 0.55);
+      const supportX = Math.cos(angle) * 0.55;
+      const supportZ = Math.sin(angle) * 0.55;
+      support.position.set(supportX, antennaHeight * 0.45 + 0.18, supportZ);
       support.rotation.z = Math.sin(angle) * 0.15;
       support.rotation.x = Math.cos(angle) * 0.15;
       antennaTowerGroup.add(support);
+
+      const supportPad = new THREE.Mesh(rodPadGeometry, antennaMaterial);
+      supportPad.position.set(supportX, rodPadOffsetY, supportZ);
+      antennaTowerGroup.add(supportPad);
     }
 
     const antennaCrossbar = new THREE.Mesh(
