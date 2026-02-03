@@ -251,6 +251,7 @@ export const initScene = (
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
+  let godModeEnabled = settings?.godMode === true;
   const BASE_SUN_SCALE = 18;
   const MIN_SUN_SCALE = 6;
   let sunSprite = null;
@@ -9919,10 +9920,13 @@ export const initScene = (
     left: false,
     right: false,
     running: false,
+    up: false,
+    down: false,
   };
 
   const BASE_MOVEMENT_ACCELERATION = 20;
   const RUN_SPEED_MULTIPLIER = 1.75;
+  const GOD_MODE_VERTICAL_SPEED = 6;
 
   let movementEnabled = true;
 
@@ -9995,6 +9999,8 @@ export const initScene = (
       movementState.left = false;
       movementState.right = false;
       movementState.running = false;
+      movementState.up = false;
+      movementState.down = false;
       velocity.set(0, 0, 0);
       verticalVelocity = 0;
       jumpRequested = false;
@@ -10005,6 +10011,27 @@ export const initScene = (
         playerGroundedHeight = groundY;
       }
     }
+  };
+
+  const setGodModeEnabled = (enabled) => {
+    const nextState = Boolean(enabled);
+
+    if (godModeEnabled === nextState) {
+      return godModeEnabled;
+    }
+
+    godModeEnabled = nextState;
+    verticalVelocity = 0;
+    jumpRequested = false;
+    movementState.up = false;
+    movementState.down = false;
+
+    if (!godModeEnabled) {
+      clampWithinActiveFloor(0, null, { skipVerticalClamp: false });
+      playerGroundedHeight = getPlayerGroundHeight(playerObject.position);
+    }
+
+    return godModeEnabled;
   };
 
   const updateMovementState = (code, value) => {
@@ -10033,6 +10060,17 @@ export const initScene = (
       case "KeyD":
         movementState.right = value;
         break;
+      case "Space":
+        if (godModeEnabled) {
+          movementState.up = value;
+        }
+        break;
+      case "ControlLeft":
+      case "ControlRight":
+        if (godModeEnabled) {
+          movementState.down = value;
+        }
+        break;
       default:
         break;
     }
@@ -10046,7 +10084,9 @@ export const initScene = (
     updateMovementState(event.code, true);
 
     if (event.code === "Space" && !event.repeat && controls.isLocked) {
-      jumpRequested = true;
+      if (!godModeEnabled) {
+        jumpRequested = true;
+      }
     }
 
     if (
@@ -10101,7 +10141,11 @@ export const initScene = (
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("keyup", onKeyUp);
 
-  function clampWithinActiveFloor(delta = 0, previousPosition = null) {
+  function clampWithinActiveFloor(
+    delta = 0,
+    previousPosition = null,
+    options = {}
+  ) {
     const player = controls.getObject().position;
     const activeFloor = getLiftFloorByIndex(liftState.currentIndex);
     const activeFloorId =
@@ -10149,6 +10193,10 @@ export const initScene = (
     const zBounds = resolveAxisBounds("minZ", "maxZ");
     if (zBounds) {
       player.z = THREE.MathUtils.clamp(player.z, zBounds.min, zBounds.max);
+    }
+
+    if (options.skipVerticalClamp) {
+      return;
     }
 
     const minY = getPlayerGroundHeight(player);
@@ -10232,7 +10280,7 @@ export const initScene = (
     clampWithinActiveFloor();
   };
 
-  clampWithinActiveFloor();
+  clampWithinActiveFloor(0, null, { skipVerticalClamp: godModeEnabled });
 
   const updateResourceTool = (delta, elapsedTime) => {
     if (!resourceToolGroup) {
@@ -10360,7 +10408,19 @@ export const initScene = (
       currentPlayerHorizontalSpeed = 0;
     }
 
+    if (godModeEnabled && movementEnabled && controls.isLocked) {
+      const verticalDirection =
+        Number(movementState.up) - Number(movementState.down);
+
+      if (verticalDirection !== 0) {
+        const verticalSpeed =
+          GOD_MODE_VERTICAL_SPEED * speedSettings.playerSpeedMultiplier;
+        playerObject.position.y += verticalDirection * verticalSpeed * delta;
+      }
+    }
+
     if (
+      !godModeEnabled &&
       movementEnabled &&
       controls.isLocked &&
       jumpRequested &&
@@ -10373,37 +10433,44 @@ export const initScene = (
     jumpRequested = false;
     isGrounded = false;
 
-    verticalVelocity += GRAVITY * delta;
-    const apexVelocityThreshold = Math.max(
-      jumpSettings.jumpApexVelocity,
-      getJumpVelocity() * 0.4
-    );
-    if (
-      verticalVelocity > 0 &&
-      verticalVelocity < apexVelocityThreshold
-    ) {
-      const apexBlend = 1 - verticalVelocity / apexVelocityThreshold;
-      const smoothingStrength =
-        jumpSettings.jumpApexSmoothing * (1 + apexBlend * 2);
-      verticalVelocity -=
-        verticalVelocity * smoothingStrength * apexBlend * delta;
-      verticalVelocity += GRAVITY * apexBlend * 0.45 * delta;
-    }
-    const maxY = getPlayerCeilingHeight(playerObject.position);
-    if (verticalVelocity > 0 && Number.isFinite(maxY)) {
-      const distanceToCeiling = maxY - playerObject.position.y;
-      if (distanceToCeiling <= 0) {
-        verticalVelocity = 0;
-      } else if (distanceToCeiling < SOFT_CEILING_RANGE) {
-        const scale = distanceToCeiling / SOFT_CEILING_RANGE;
-        verticalVelocity *= THREE.MathUtils.clamp(scale, 0, 1);
+    if (!godModeEnabled) {
+      verticalVelocity += GRAVITY * delta;
+      const apexVelocityThreshold = Math.max(
+        jumpSettings.jumpApexVelocity,
+        getJumpVelocity() * 0.4
+      );
+      if (
+        verticalVelocity > 0 &&
+        verticalVelocity < apexVelocityThreshold
+      ) {
+        const apexBlend = 1 - verticalVelocity / apexVelocityThreshold;
+        const smoothingStrength =
+          jumpSettings.jumpApexSmoothing * (1 + apexBlend * 2);
+        verticalVelocity -=
+          verticalVelocity * smoothingStrength * apexBlend * delta;
+        verticalVelocity += GRAVITY * apexBlend * 0.45 * delta;
       }
+      const maxY = getPlayerCeilingHeight(playerObject.position);
+      if (verticalVelocity > 0 && Number.isFinite(maxY)) {
+        const distanceToCeiling = maxY - playerObject.position.y;
+        if (distanceToCeiling <= 0) {
+          verticalVelocity = 0;
+        } else if (distanceToCeiling < SOFT_CEILING_RANGE) {
+          const scale = distanceToCeiling / SOFT_CEILING_RANGE;
+          verticalVelocity *= THREE.MathUtils.clamp(scale, 0, 1);
+        }
+      }
+      playerObject.position.y += verticalVelocity * delta;
+    } else {
+      verticalVelocity = 0;
     }
-    playerObject.position.y += verticalVelocity * delta;
 
-    clampWithinActiveFloor(delta, previousPlayerPosition);
+    clampWithinActiveFloor(delta, previousPlayerPosition, {
+      skipVerticalClamp: godModeEnabled,
+    });
 
     if (
+      !godModeEnabled &&
       movementEnabled &&
       controls.isLocked &&
       previousPlayerPosition.distanceToSquared(playerObject.position) > 1e-8
@@ -10594,6 +10661,7 @@ export const initScene = (
       speedSettings.playerSpeedMultiplier = nextMultiplier;
       return speedSettings.playerSpeedMultiplier;
     },
+    setGodMode: (enabled = false) => setGodModeEnabled(enabled),
     setGeoVisorEnabled: (enabled = true) => {
       const nextState = Boolean(enabled);
 
