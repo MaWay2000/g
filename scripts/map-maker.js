@@ -689,7 +689,8 @@ function getCellIndexFromWorldPosition(position) {
   const worldZ = y - height / 2 + 0.5;
   if (
     Math.abs(position.x - worldX) > DOOR_POSITION_EPSILON ||
-    Math.abs(position.z - worldZ) > DOOR_POSITION_EPSILON
+    (Math.abs(position.z - worldZ) > DOOR_POSITION_EPSILON &&
+      Math.abs(position.z - (worldZ - 0.5)) > DOOR_POSITION_EPSILON)
   ) {
     return null;
   }
@@ -847,14 +848,21 @@ function removeDoorMarkersAtPosition(placements, position) {
   if (!position) {
     return placements;
   }
+  const targetIndex = getCellIndexFromWorldPosition(position);
   return placements.filter((placement) => {
     if (placement?.path !== DOOR_MARKER_PATH) {
       return true;
     }
-    const doorPosition = placement?.position ?? {};
-    const xDelta = Math.abs((doorPosition.x ?? 0) - position.x);
-    const zDelta = Math.abs((doorPosition.z ?? 0) - position.z);
-    return xDelta > DOOR_POSITION_EPSILON || zDelta > DOOR_POSITION_EPSILON;
+    if (!Number.isFinite(targetIndex)) {
+      return true;
+    }
+    const placementIndex = getCellIndexFromWorldPosition(
+      placement?.position ?? null
+    );
+    if (!Number.isFinite(placementIndex)) {
+      return true;
+    }
+    return placementIndex !== targetIndex;
   });
 }
 
