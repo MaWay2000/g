@@ -5658,13 +5658,16 @@ export const initScene = (
     const beaconMaterial = new THREE.MeshBasicMaterial({
       color: 0xff2d2d,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.75,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), beaconMaterial);
-    beacon.position.y = antennaHeight + 0.28;
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 18), beaconMaterial);
+    beacon.position.y = antennaHeight + 0.36;
     antennaTowerGroup.add(beacon);
+    const beaconLight = new THREE.PointLight(0xff4d4d, 2.2, 26, 2);
+    beaconLight.position.copy(beacon.position);
+    antennaTowerGroup.add(beaconLight);
     group.add(antennaTowerGroup);
     operationsExteriorRadioTower = antennaTowerGroup;
     const previousEnvironmentDispose = group.userData?.dispose;
@@ -5679,7 +5682,7 @@ export const initScene = (
 
       stopTowerRadioAudio();
     };
-    liftIndicatorLights.push({ mesh: beacon, phase: Math.PI / 2 });
+    liftIndicatorLights.push({ mesh: beacon, light: beaconLight, phase: Math.PI / 2 });
 
     const adjustableEntries = [
       { object: platform, offset: -platformThickness / 2 },
@@ -10602,16 +10605,19 @@ export const initScene = (
     updateStarDepthUniforms();
 
     if (liftIndicatorLights.length) {
-      liftIndicatorLights.forEach(({ mesh, phase }) => {
+      liftIndicatorLights.forEach(({ mesh, light, phase }) => {
         if (!mesh?.material) {
           return;
         }
         const pulse = Math.sin(elapsedTime * 4 + (phase ?? 0));
         const isOn = pulse > 0.1;
-        const targetOpacity = isOn ? 0.9 : 0.15;
+        const targetOpacity = isOn ? 0.95 : 0.2;
         mesh.material.opacity = targetOpacity;
-        const scale = isOn ? 1.15 : 0.9;
+        const scale = isOn ? 1.35 : 0.95;
         mesh.scale.setScalar(scale);
+        if (light) {
+          light.intensity = isOn ? 3.4 : 0.6;
+        }
       });
     }
 
