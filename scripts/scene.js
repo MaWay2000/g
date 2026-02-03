@@ -10189,14 +10189,16 @@ export const initScene = (
       return { min, max };
     };
 
-    const xBounds = resolveAxisBounds("minX", "maxX");
-    if (xBounds) {
-      player.x = THREE.MathUtils.clamp(player.x, xBounds.min, xBounds.max);
-    }
+    if (!options.skipHorizontalClamp) {
+      const xBounds = resolveAxisBounds("minX", "maxX");
+      if (xBounds) {
+        player.x = THREE.MathUtils.clamp(player.x, xBounds.min, xBounds.max);
+      }
 
-    const zBounds = resolveAxisBounds("minZ", "maxZ");
-    if (zBounds) {
-      player.z = THREE.MathUtils.clamp(player.z, zBounds.min, zBounds.max);
+      const zBounds = resolveAxisBounds("minZ", "maxZ");
+      if (zBounds) {
+        player.z = THREE.MathUtils.clamp(player.z, zBounds.min, zBounds.max);
+      }
     }
 
     if (options.skipVerticalClamp) {
@@ -10284,7 +10286,10 @@ export const initScene = (
     clampWithinActiveFloor();
   };
 
-  clampWithinActiveFloor(0, null, { skipVerticalClamp: godModeEnabled });
+  clampWithinActiveFloor(0, null, {
+    skipVerticalClamp: godModeEnabled,
+    skipHorizontalClamp: godModeEnabled,
+  });
 
   const updateResourceTool = (delta, elapsedTime) => {
     if (!resourceToolGroup) {
@@ -10513,6 +10518,7 @@ export const initScene = (
 
     clampWithinActiveFloor(delta, previousPlayerPosition, {
       skipVerticalClamp: godModeEnabled,
+      skipHorizontalClamp: godModeEnabled,
     });
 
     if (
