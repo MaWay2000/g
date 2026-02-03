@@ -9989,6 +9989,10 @@ export const initScene = (
   };
 
   const direction = new THREE.Vector3();
+  const flyForward = new THREE.Vector3();
+  const flyRight = new THREE.Vector3();
+  const flyMove = new THREE.Vector3();
+  const worldUp = new THREE.Vector3(0, 1, 0);
   const clock = new THREE.Clock();
   const setMovementEnabled = (enabled) => {
     movementEnabled = Boolean(enabled);
@@ -10369,40 +10373,82 @@ export const initScene = (
     }
 
     if (movementEnabled) {
-      velocity.x -= velocity.x * 8 * delta;
-      velocity.z -= velocity.z * 8 * delta;
+      if (godModeEnabled && controls.isLocked) {
+        const damping = Math.max(0, 1 - 8 * delta);
+        velocity.multiplyScalar(damping);
 
-      direction.z =
-        Number(movementState.forward) - Number(movementState.backward);
-      direction.x = Number(movementState.right) - Number(movementState.left);
+        const forwardInput =
+          Number(movementState.forward) - Number(movementState.backward);
+        const strafeInput =
+          Number(movementState.right) - Number(movementState.left);
 
-      if (direction.lengthSq() > 0) {
-        direction.normalize();
+        flyMove.set(0, 0, 0);
+
+        if (forwardInput !== 0 || strafeInput !== 0) {
+          camera.getWorldDirection(flyForward);
+          if (flyForward.lengthSq() > 0) {
+            flyForward.normalize();
+          }
+          flyRight.crossVectors(flyForward, worldUp);
+          if (flyRight.lengthSq() > 0) {
+            flyRight.normalize();
+          }
+
+          flyMove
+            .addScaledVector(flyForward, forwardInput)
+            .addScaledVector(flyRight, strafeInput);
+
+          if (flyMove.lengthSq() > 0) {
+            flyMove.normalize();
+          }
+
+          const appliedAcceleration = movementState.running
+            ? BASE_MOVEMENT_ACCELERATION * RUN_SPEED_MULTIPLIER
+            : BASE_MOVEMENT_ACCELERATION;
+          const speedMultiplier = speedSettings.playerSpeedMultiplier;
+          const adjustedAcceleration = appliedAcceleration * speedMultiplier;
+
+          velocity.addScaledVector(flyMove, adjustedAcceleration * delta);
+        }
+
+        playerObject.position.addScaledVector(velocity, delta);
+        currentPlayerHorizontalSpeed = velocity.length();
+      } else {
+        velocity.x -= velocity.x * 8 * delta;
+        velocity.z -= velocity.z * 8 * delta;
+
+        direction.z =
+          Number(movementState.forward) - Number(movementState.backward);
+        direction.x = Number(movementState.right) - Number(movementState.left);
+
+        if (direction.lengthSq() > 0) {
+          direction.normalize();
+        }
+
+        const appliedAcceleration = movementState.running
+          ? BASE_MOVEMENT_ACCELERATION * RUN_SPEED_MULTIPLIER
+          : BASE_MOVEMENT_ACCELERATION;
+        const speedMultiplier = speedSettings.playerSpeedMultiplier;
+        const adjustedAcceleration = appliedAcceleration * speedMultiplier;
+
+        if (movementState.forward || movementState.backward) {
+          velocity.z -= direction.z * adjustedAcceleration * delta;
+        }
+
+        if (movementState.left || movementState.right) {
+          velocity.x -= direction.x * adjustedAcceleration * delta;
+        }
+
+        if (controls.isLocked) {
+          controls.moveRight(-velocity.x * delta);
+          controls.moveForward(-velocity.z * delta);
+        }
+
+        currentPlayerHorizontalSpeed = Math.sqrt(
+          velocity.x * velocity.x +
+            velocity.z * velocity.z
+        );
       }
-
-      const appliedAcceleration = movementState.running
-        ? BASE_MOVEMENT_ACCELERATION * RUN_SPEED_MULTIPLIER
-        : BASE_MOVEMENT_ACCELERATION;
-      const speedMultiplier = speedSettings.playerSpeedMultiplier;
-      const adjustedAcceleration = appliedAcceleration * speedMultiplier;
-
-      if (movementState.forward || movementState.backward) {
-        velocity.z -= direction.z * adjustedAcceleration * delta;
-      }
-
-      if (movementState.left || movementState.right) {
-        velocity.x -= direction.x * adjustedAcceleration * delta;
-      }
-
-      if (controls.isLocked) {
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
-      }
-
-      currentPlayerHorizontalSpeed = Math.sqrt(
-        velocity.x * velocity.x +
-          velocity.z * velocity.z
-      );
     } else {
       velocity.set(0, 0, 0);
       currentPlayerHorizontalSpeed = 0;
