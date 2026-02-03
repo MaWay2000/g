@@ -7056,7 +7056,7 @@ export const initScene = (
     roomFloorY + MIRROR_VERTICAL_OFFSET + mirrorHeight / 2,
     6 * ROOM_SCALE_FACTOR
   );
-  wallMirror.rotation.y = Math.PI / 2;
+  wallMirror.rotation.y = -Math.PI / 2;
   hangarDeckEnvironmentGroup.add(wallMirror);
 
   const syncReflectiveSurfaces = () => {
