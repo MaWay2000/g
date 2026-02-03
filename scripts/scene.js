@@ -47,6 +47,7 @@ import { getTerrainLifeKey, loadStoredTerrainLife } from "./terrain-life-storage
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_ELEMENT_WEIGHT = 1;
 const TERRAIN_LAYER = 1;
+const REFLECTION_PLAYER_LAYER = 2;
 
 const getElementWeightFromAtomicNumber = (number) => {
   if (!Number.isFinite(number) || number <= 0) {
@@ -2064,6 +2065,7 @@ export const initScene = (
   const BASE_MIRROR_WIDTH = 12 * ROOM_SCALE_FACTOR;
   const BASE_MIRROR_HEIGHT = 12 * ROOM_SCALE_FACTOR;
   const MIRROR_VERTICAL_OFFSET = 0.7;
+  const MIRROR_WALL_INSET = 0.45 * ROOM_SCALE_FACTOR;
 
   const DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE = {
     roughness: 0.92,
@@ -6882,6 +6884,41 @@ export const initScene = (
         textureHeight: renderTargetSize.height,
       }
     );
+    const baseOnBeforeRender = reflector.onBeforeRender;
+    reflector.onBeforeRender = function (
+      rendererInstance,
+      sceneInstance,
+      cameraInstance,
+      geometryInstance,
+      materialInstance,
+      groupInstance
+    ) {
+      const cameraLayers = cameraInstance?.layers;
+      const hadPlayerLayer =
+        typeof cameraLayers?.isEnabled === "function"
+          ? cameraLayers.isEnabled(REFLECTION_PLAYER_LAYER)
+          : false;
+
+      if (cameraLayers?.enable) {
+        cameraLayers.enable(REFLECTION_PLAYER_LAYER);
+      }
+
+      if (typeof baseOnBeforeRender === "function") {
+        baseOnBeforeRender.call(
+          this,
+          rendererInstance,
+          sceneInstance,
+          cameraInstance,
+          geometryInstance,
+          materialInstance,
+          groupInstance
+        );
+      }
+
+      if (!hadPlayerLayer && cameraLayers?.disable) {
+        cameraLayers.disable(REFLECTION_PLAYER_LAYER);
+      }
+    };
     const reflectorUserData = reflector.userData || (reflector.userData = {});
     reflectorUserData.renderSurfaceDimensions = {
       width: mirrorWidth,
@@ -7068,7 +7105,7 @@ export const initScene = (
   const mirrorDimensions = wallMirror.userData?.dimensions;
   const mirrorHeight = mirrorDimensions?.height ?? BASE_MIRROR_HEIGHT;
   wallMirror.position.set(
-    roomWidth / 2 - 0.16 * ROOM_SCALE_FACTOR,
+    roomWidth / 2 - MIRROR_WALL_INSET,
     roomFloorY + MIRROR_VERTICAL_OFFSET + mirrorHeight / 2,
     6 * ROOM_SCALE_FACTOR
   );
@@ -7313,6 +7350,44 @@ export const initScene = (
     playerObject.rotation.order = "YXZ";
   }
   scene.add(playerObject);
+  camera.layers.disable(REFLECTION_PLAYER_LAYER);
+
+  const playerReflectionProxy = new THREE.Group();
+  playerReflectionProxy.name = "PlayerReflectionProxy";
+  playerReflectionProxy.layers.set(REFLECTION_PLAYER_LAYER);
+
+  const playerReflectionMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x1f2937),
+    metalness: 0.15,
+    roughness: 0.65,
+  });
+
+  const playerReflectionMesh = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.25, Math.max(0.1, playerHeight - 0.5), 6, 12),
+    playerReflectionMaterial
+  );
+  playerReflectionProxy.add(playerReflectionMesh);
+  playerObject.add(playerReflectionProxy);
+
+  const updatePlayerReflectionProxyDimensions = () => {
+    const heightScale = playerHeight / DEFAULT_PLAYER_HEIGHT;
+    const radius = Math.max(0.2, 0.25 * heightScale);
+    const bodyLength = Math.max(0.1, playerHeight - radius * 2);
+
+    if (playerReflectionMesh.geometry) {
+      playerReflectionMesh.geometry.dispose();
+    }
+
+    playerReflectionMesh.geometry = new THREE.CapsuleGeometry(
+      radius,
+      bodyLength,
+      6,
+      12
+    );
+    playerReflectionMesh.position.y = playerHeight / 2;
+  };
+
+  updatePlayerReflectionProxyDimensions();
 
   const viewDistanceCullingState = {
     lastDistance: null,
@@ -9178,6 +9253,7 @@ export const initScene = (
       playerHeight = clampedHeight;
       playerEyeLevel = playerHeight;
       updateEnvironmentForPlayerHeight();
+      updatePlayerReflectionProxyDimensions();
     }
 
     updateFirstPersonCameraOffset();
