@@ -1526,8 +1526,10 @@ export const initScene = (
   const environmentHeightAdjusters = [];
   const resourceTargetsByEnvironment = new Map();
   const terrainTilesByEnvironment = new Map();
+  const viewDistanceTargetsByEnvironment = new Map();
   let activeResourceTargets = [];
   let activeTerrainTiles = [];
+  let activeViewDistanceTargets = [];
   let hasStoredOutsideMap = false;
   let geoVisorEnabled = false;
   let geoVisorLastRow = null;
@@ -1561,6 +1563,18 @@ export const initScene = (
     return tiles;
   };
 
+  const getViewDistanceTargetsForFloor = (floorId) => {
+    if (!floorId) {
+      return [];
+    }
+
+    const targets = viewDistanceTargetsByEnvironment.get(floorId);
+    if (!Array.isArray(targets)) {
+      return [];
+    }
+
+    return targets;
+  };
   const applyGeoVisorMaterialToTile = (tile, shouldReveal) => {
     if (!tile?.userData) {
       return;
@@ -5246,6 +5260,7 @@ export const initScene = (
     const mapColliderDescriptors = [];
     const environmentResourceTargets = [];
     const environmentTerrainTiles = [];
+    const environmentViewDistanceTargets = [];
     let outsideMapBounds = null;
 
     const platformThickness = 0.42;
@@ -5663,13 +5678,17 @@ export const initScene = (
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    antennaLampMaterial.fog = false;
     const createAntennaLamp = (x, phase) => {
       const lamp = new THREE.Mesh(antennaLampGeometry, antennaLampMaterial.clone());
+      lamp.userData.viewDistanceMultiplier = 3;
       lamp.position.set(x, antennaCrossbar.position.y, 0);
       antennaTowerGroup.add(lamp);
       const lampLight = new THREE.PointLight(0xffe066, 1.6, 14, 2);
+      lampLight.userData.viewDistanceMultiplier = 3;
       lampLight.position.copy(lamp.position);
       antennaTowerGroup.add(lampLight);
+      environmentViewDistanceTargets.push(lamp, lampLight);
       liftIndicatorLights.push({ mesh: lamp, light: lampLight, phase });
     };
     const antennaLampOffsetX = 0.42;
@@ -5683,12 +5702,16 @@ export const initScene = (
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    beaconMaterial.fog = false;
     const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 18), beaconMaterial);
+    beacon.userData.viewDistanceMultiplier = 3;
     beacon.position.y = antennaHeight + 0.36;
     antennaTowerGroup.add(beacon);
     const beaconLight = new THREE.PointLight(0xff4d4d, 2.2, 26, 2);
+    beaconLight.userData.viewDistanceMultiplier = 3;
     beaconLight.position.copy(beacon.position);
     antennaTowerGroup.add(beaconLight);
+    environmentViewDistanceTargets.push(beacon, beaconLight);
     group.add(antennaTowerGroup);
     operationsExteriorRadioTower = antennaTowerGroup;
     const previousEnvironmentDispose = group.userData?.dispose;
@@ -5802,6 +5825,7 @@ export const initScene = (
       colliderDescriptors: mapColliderDescriptors,
       resourceTargets: environmentResourceTargets,
       terrainTiles: environmentTerrainTiles,
+      viewDistanceTargets: environmentViewDistanceTargets,
       starFields: [primaryStarField, distantStarField],
     };
   };
@@ -6647,6 +6671,11 @@ export const initScene = (
         ? environment.terrainTiles.filter((tile) => tile && tile.isObject3D)
         : [];
 
+      const viewDistanceTargets = Array.isArray(environment?.viewDistanceTargets)
+        ? environment.viewDistanceTargets.filter(
+            (target) => target && target.isObject3D
+          )
+        : [];
       enableTerrainLayerForTiles(terrainTiles);
 
       const starFields = Array.isArray(environment?.starFields)
@@ -6657,6 +6686,7 @@ export const initScene = (
 
       resourceTargetsByEnvironment.set(id, resourceTargets);
       terrainTilesByEnvironment.set(id, terrainTiles);
+      viewDistanceTargetsByEnvironment.set(id, viewDistanceTargets);
 
       state = {
         group,
@@ -6666,6 +6696,7 @@ export const initScene = (
         bounds: resolvedBounds,
         resourceTargets,
         terrainTiles,
+        viewDistanceTargets,
         starFields,
       };
 
@@ -6699,6 +6730,7 @@ export const initScene = (
 
       resourceTargetsByEnvironment.delete(id);
       terrainTilesByEnvironment.delete(id);
+      viewDistanceTargetsByEnvironment.delete(id);
 
       scene.remove(state.group);
       disposeObject3D(state.group);
@@ -7506,14 +7538,26 @@ export const initScene = (
   const updateObjectViewDistance = (
     object,
     playerPosition,
-    maxDistanceSquared,
-    viewDistance,
-    fadeRange
+    baseViewDistance
   ) => {
     if (!object?.isObject3D) {
       return;
     }
 
+    const distanceMultiplier = Number.isFinite(object.userData?.viewDistanceMultiplier)
+      ? Math.max(0.1, object.userData.viewDistanceMultiplier)
+      : 1;
+    const viewDistance = baseViewDistance * distanceMultiplier;
+    if (!Number.isFinite(viewDistance) || viewDistance <= 0) {
+      return;
+    }
+
+    const maxDistanceSquared = viewDistance * viewDistance;
+    const fadeRange = THREE.MathUtils.clamp(
+      viewDistance * VIEW_DISTANCE_FADE_RATIO,
+      VIEW_DISTANCE_MIN_FADE,
+      VIEW_DISTANCE_MAX_FADE
+    );
     object.getWorldPosition(viewDistanceCullingPosition);
     const distanceSquared = viewDistanceCullingPosition.distanceToSquared(
       playerPosition
@@ -7561,12 +7605,6 @@ export const initScene = (
     }
 
     viewDistanceCullingState.lastDistance = viewDistance;
-    const maxDistanceSquared = viewDistance * viewDistance;
-    const fadeRange = THREE.MathUtils.clamp(
-      viewDistance * VIEW_DISTANCE_FADE_RATIO,
-      VIEW_DISTANCE_MIN_FADE,
-      VIEW_DISTANCE_MAX_FADE
-    );
     const playerPosition = playerObject.position;
 
     if (Array.isArray(activeTerrainTiles)) {
@@ -7574,9 +7612,7 @@ export const initScene = (
         updateObjectViewDistance(
           tile,
           playerPosition,
-          maxDistanceSquared,
-          viewDistance,
-          fadeRange
+          viewDistance
         );
       });
     }
@@ -7586,9 +7622,17 @@ export const initScene = (
         updateObjectViewDistance(
           target,
           playerPosition,
-          maxDistanceSquared,
-          viewDistance,
-          fadeRange
+          viewDistance
+        );
+      });
+    }
+
+    if (Array.isArray(activeViewDistanceTargets)) {
+      activeViewDistanceTargets.forEach((target) => {
+        updateObjectViewDistance(
+          target,
+          playerPosition,
+          viewDistance
         );
       });
     }
@@ -9031,11 +9075,13 @@ export const initScene = (
     if (!resolvedFloorId) {
       activeResourceTargets = [];
       activeTerrainTiles = [];
+      activeViewDistanceTargets = [];
       return;
     }
 
     activeResourceTargets = getResourceTargetsForFloor(resolvedFloorId);
     activeTerrainTiles = getTerrainTilesForFloor(resolvedFloorId);
+    activeViewDistanceTargets = getViewDistanceTargetsForFloor(resolvedFloorId);
     updateGeoVisorTerrainVisibility({ force: true });
     updateViewDistanceCulling({ force: true });
   }
