@@ -2296,26 +2296,6 @@ export const initScene = (
     bottomFrame.position.y = -doorHeight / 2 - thresholdHeight / 2 + 0.12;
     group.add(bottomFrame);
 
-    const indicatorMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff1b1b,
-      transparent: true,
-      opacity: 0.15,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const indicatorGeometry = new THREE.CircleGeometry(0.16, 24);
-    const indicatorY = doorHeight / 2 + lintelHeight * 0.9;
-    const indicatorZ = frameDepth / 2 + 0.02;
-    const indicatorOffsetX = doorWidth * 0.28;
-
-    [-indicatorOffsetX, indicatorOffsetX].forEach((x, index) => {
-      const indicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial.clone());
-      indicator.position.set(x, indicatorY, indicatorZ);
-      indicator.renderOrder = 3;
-      group.add(indicator);
-      liftIndicatorLights.push({ mesh: indicator, phase: index * Math.PI });
-    });
-
     const sideFrameGeometry = new THREE.BoxGeometry(frameWidth, doorHeight + lintelHeight * 0.35, frameDepth);
     const leftFrame = new THREE.Mesh(sideFrameGeometry, frameMaterial);
     leftFrame.position.x = -doorWidth / 2 - frameWidth / 2;
