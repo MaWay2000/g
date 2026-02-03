@@ -5627,8 +5627,12 @@ export const initScene = (
     const rodPadOverlap = 0.01;
     const rodPadTopY = basePlateHeight - rodPadOverlap;
     const rodPadOffsetY = rodPadTopY - rodPadHeight / 2;
-    const mastPad = new THREE.Mesh(rodPadGeometry, antennaMaterial);
-    mastPad.position.set(0, rodPadOffsetY, 0);
+    const createRodPad = (x, z) => {
+      const pad = new THREE.Mesh(rodPadGeometry, antennaMaterial);
+      pad.position.set(x, rodPadOffsetY, z);
+      return pad;
+    };
+    const mastPad = createRodPad(0, 0);
     antennaTowerGroup.add(mastPad);
 
     const mast = new THREE.Mesh(
@@ -5654,10 +5658,8 @@ export const initScene = (
       support.position.set(supportX, rodPadTopY - supportBaseOffset.y, supportZ);
       antennaTowerGroup.add(support);
 
-      const supportPad = new THREE.Mesh(rodPadGeometry, antennaMaterial);
-      supportPad.position.set(
+      const supportPad = createRodPad(
         supportX + supportBaseOffset.x,
-        rodPadOffsetY,
         supportZ + supportBaseOffset.z
       );
       antennaTowerGroup.add(supportPad);
