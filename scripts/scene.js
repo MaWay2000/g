@@ -5463,6 +5463,24 @@ export const initScene = (
       emissive: new THREE.Color(0x07131a),
       emissiveIntensity: 0.2,
     });
+    const entranceWallTexturePath =
+      "images/textures/pack2/002_hex_plate_rot_baseColor.png";
+    const entranceWallTileSize = 1.1;
+    const createEntranceWallMaterial = (repeatX, repeatY) => {
+      const texture = loadClampedTexture(entranceWallTexturePath);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(repeatX, repeatY);
+      texture.needsUpdate = true;
+      return new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0xffffff),
+        roughness: 0.65,
+        metalness: 0.35,
+        emissive: new THREE.Color(0x07131a),
+        emissiveIntensity: 0.2,
+        map: texture,
+      });
+    };
 
     const entranceRoof = new THREE.Mesh(
       new THREE.BoxGeometry(
@@ -5485,9 +5503,11 @@ export const initScene = (
       entranceHeight,
       entranceDepth
     );
+    const entranceWallRepeatX = Math.max(1, entranceDepth / entranceWallTileSize);
+    const entranceWallRepeatY = Math.max(1, entranceHeight / entranceWallTileSize);
     const entranceLeftWall = new THREE.Mesh(
       entranceWallGeometry,
-      entranceMaterial
+      createEntranceWallMaterial(entranceWallRepeatX, entranceWallRepeatY)
     );
     entranceLeftWall.position.set(
       outsideMapCenterX - (entranceWidth / 2 + entranceThickness / 2),
@@ -5509,7 +5529,13 @@ export const initScene = (
         entranceHeight,
         entranceThickness
       ),
-      entranceMaterial
+      createEntranceWallMaterial(
+        Math.max(
+          1,
+          (entranceWidth + entranceThickness * 2) / entranceWallTileSize
+        ),
+        entranceWallRepeatY
+      )
     );
     entranceBackWall.position.set(
       outsideMapCenterX,
