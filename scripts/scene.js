@@ -4437,6 +4437,66 @@ export const initScene = (
       const objectPlacements = Array.isArray(normalizedMap.objects)
         ? normalizedMap.objects
         : [];
+      const doorPlacementsById = new Map();
+
+      const getDoorPlacementId = (placement) => {
+        if (!placement || typeof placement.id !== "string") {
+          return null;
+        }
+        const trimmed = placement.id.trim();
+        return trimmed ? trimmed : null;
+      };
+
+      objectPlacements.forEach((placement) => {
+        if (placement?.path !== DOOR_MARKER_PATH) {
+          return;
+        }
+        const doorId = getDoorPlacementId(placement);
+        if (doorId) {
+          doorPlacementsById.set(doorId, placement);
+        }
+      });
+
+      const resolveDoorDestinationId = (placement) => {
+        if (!placement) {
+          return null;
+        }
+        let current = placement;
+        const visited = new Set();
+
+        for (let depth = 0; depth < 8; depth += 1) {
+          const destinationType =
+            typeof current.destinationType === "string"
+              ? current.destinationType
+              : null;
+          const destinationId =
+            typeof current.destinationId === "string"
+              ? current.destinationId
+              : null;
+
+          if (destinationType === "area" && destinationId) {
+            return destinationId;
+          }
+
+          if (destinationType !== "door" || !destinationId) {
+            return null;
+          }
+
+          const nextId = destinationId.trim();
+          if (!nextId || visited.has(nextId)) {
+            return null;
+          }
+
+          visited.add(nextId);
+          const nextPlacement = doorPlacementsById.get(nextId);
+          if (!nextPlacement) {
+            return null;
+          }
+          current = nextPlacement;
+        }
+
+        return null;
+      };
 
       const concealedTerrainMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
@@ -5094,15 +5154,8 @@ export const initScene = (
             ) {
               door.userData.liftUi.updateState({ mapName: mapDisplayName });
             }
-            const destinationType =
-              typeof placement.destinationType === "string"
-                ? placement.destinationType
-                : null;
-            const destinationId =
-              typeof placement.destinationId === "string"
-                ? placement.destinationId
-                : null;
-            if (destinationType === "area" && destinationId) {
+            const destinationId = resolveDoorDestinationId(placement);
+            if (destinationId) {
               door.userData.liftFloorId = destinationId;
               const liftControls = [
                 door.userData?.liftUi?.control,
