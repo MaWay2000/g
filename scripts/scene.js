@@ -5636,12 +5636,13 @@ export const initScene = (
 
     const supportGeometry = new THREE.CylinderGeometry(0.05, 0.07, antennaHeight * 0.9, 10);
     const supportTilt = 0.15;
+    const supportRadius = 0.4;
     const supportHalfHeight = antennaHeight * 0.9 * 0.5;
     for (let i = 0; i < 3; i += 1) {
       const support = new THREE.Mesh(supportGeometry, antennaMaterial);
       const angle = (i / 3) * Math.PI * 2;
-      const supportX = Math.cos(angle) * 0.55;
-      const supportZ = Math.sin(angle) * 0.55;
+      const supportX = Math.cos(angle) * supportRadius;
+      const supportZ = Math.sin(angle) * supportRadius;
       support.position.set(supportX, antennaHeight * 0.45 + 0.18, supportZ);
       support.rotation.z = Math.sin(angle) * supportTilt;
       support.rotation.x = Math.cos(angle) * supportTilt;
