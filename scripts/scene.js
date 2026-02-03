@@ -2320,6 +2320,8 @@ export const initScene = (
     rightFrame.position.x = doorWidth / 2 + frameWidth / 2;
     group.add(rightFrame);
 
+    const backWallDepth = 0.18;
+
     if (includeBackWall) {
       const backWallMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(0x0b1113),
@@ -2329,7 +2331,6 @@ export const initScene = (
         roughnessMap: grungeTexture,
         metalnessMap: grungeTexture,
       });
-      const backWallDepth = 0.18;
       const backWall = new THREE.Mesh(
         new THREE.BoxGeometry(
           doorWidth + frameWidth * 2.2,
@@ -2981,7 +2982,13 @@ export const initScene = (
 
     group.userData.height = doorHeight;
     group.userData.width = doorWidth;
-    group.userData.baseDimensions = { height: doorHeight, width: doorWidth };
+    const baseDepth =
+      frameDepth + (includeBackWall ? backWallDepth + 0.02 : 0);
+    group.userData.baseDimensions = {
+      height: doorHeight,
+      width: doorWidth,
+      depth: baseDepth,
+    };
 
     return group;
   };
@@ -4882,6 +4889,48 @@ export const initScene = (
         );
         return roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + blendedY;
       };
+      const getSurfaceYForFootprint = (
+        centerX,
+        centerZ,
+        rotationY,
+        footprintWidth,
+        footprintDepth
+      ) => {
+        if (
+          !Number.isFinite(centerX) ||
+          !Number.isFinite(centerZ) ||
+          !Number.isFinite(footprintWidth) ||
+          !Number.isFinite(footprintDepth)
+        ) {
+          return getSurfaceYAtWorldPosition(centerX, centerZ);
+        }
+        const halfWidth = Math.max(0.01, footprintWidth / 2);
+        const halfDepth = Math.max(0.01, footprintDepth / 2);
+        const cosY = Math.cos(rotationY ?? 0);
+        const sinY = Math.sin(rotationY ?? 0);
+        const offsets = [
+          [-halfWidth, -halfDepth],
+          [halfWidth, -halfDepth],
+          [-halfWidth, halfDepth],
+          [halfWidth, halfDepth],
+        ];
+        let maxSurfaceY = -Infinity;
+        offsets.forEach(([offsetX, offsetZ]) => {
+          const rotatedX = offsetX * cosY - offsetZ * sinY;
+          const rotatedZ = offsetX * sinY + offsetZ * cosY;
+          const sampleY = getSurfaceYAtWorldPosition(
+            centerX + rotatedX,
+            centerZ + rotatedZ
+          );
+          if (Number.isFinite(sampleY)) {
+            maxSurfaceY = Math.max(maxSurfaceY, sampleY);
+          }
+        });
+        if (!Number.isFinite(maxSurfaceY)) {
+          return getSurfaceYAtWorldPosition(centerX, centerZ);
+        }
+        return maxSurfaceY;
+      };
 
       for (let row = -borderTiles; row < height + borderTiles; row += 1) {
         for (let column = -borderTiles; column < width + borderTiles; column += 1) {
@@ -5068,10 +5117,23 @@ export const initScene = (
                 control.userData.liftFloorId = destinationId;
               });
             }
-            const doorHeight =
-              door.userData?.height ?? BASE_DOOR_HEIGHT;
+            const doorHeight = door.userData?.height ?? BASE_DOOR_HEIGHT;
+            const doorBaseWidth =
+              door.userData?.baseDimensions?.width ?? BASE_DOOR_WIDTH;
+            const doorBaseDepth =
+              door.userData?.baseDimensions?.depth ?? doorBaseWidth * 0.05;
+            const doorRotationY = Number.isFinite(placement?.rotation?.y)
+              ? placement.rotation.y
+              : 0;
+            const doorSurfaceY = getSurfaceYForFootprint(
+              placementPosition.x,
+              placementPosition.z,
+              doorRotationY,
+              doorBaseWidth,
+              doorBaseDepth
+            );
             applyPlacementTransform(door, placement, {
-              surfaceY: placementPosition.surfaceY + doorHeight / 2,
+              surfaceY: doorSurfaceY + doorHeight / 2,
               alignToSurface: false,
             });
             mapObjectGroup.add(door);
