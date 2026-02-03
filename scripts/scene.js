@@ -5614,15 +5614,19 @@ export const initScene = (
       roughness: 0.55,
       metalness: 0.5,
     });
+    const basePlateHeight = 0.18;
     const antennaBasePlate = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.45, 0.5, 0.18, 16),
+      new THREE.CylinderGeometry(0.45, 0.5, basePlateHeight, 16),
       antennaMaterial
     );
     antennaBasePlate.position.y = 0.09;
     antennaTowerGroup.add(antennaBasePlate);
 
-    const rodPadGeometry = new THREE.CylinderGeometry(0.16, 0.18, 0.06, 14);
-    const rodPadOffsetY = 0.18 + 0.03;
+    const rodPadHeight = 0.06;
+    const rodPadGeometry = new THREE.CylinderGeometry(0.16, 0.18, rodPadHeight, 14);
+    const rodPadOverlap = 0.01;
+    const rodPadTopY = basePlateHeight - rodPadOverlap;
+    const rodPadOffsetY = rodPadTopY - rodPadHeight / 2;
     const mastPad = new THREE.Mesh(rodPadGeometry, antennaMaterial);
     mastPad.position.set(0, rodPadOffsetY, 0);
     antennaTowerGroup.add(mastPad);
@@ -5631,7 +5635,7 @@ export const initScene = (
       new THREE.CylinderGeometry(0.08, 0.1, antennaHeight, 12),
       antennaMaterial
     );
-    mast.position.y = antennaHeight / 2 + 0.18;
+    mast.position.y = antennaHeight / 2 + rodPadTopY;
     antennaTowerGroup.add(mast);
 
     const supportGeometry = new THREE.CylinderGeometry(0.05, 0.07, antennaHeight * 0.9, 10);
@@ -5643,14 +5647,14 @@ export const initScene = (
       const angle = (i / 3) * Math.PI * 2;
       const supportX = Math.cos(angle) * supportRadius;
       const supportZ = Math.sin(angle) * supportRadius;
-      support.position.set(supportX, antennaHeight * 0.45 + 0.18, supportZ);
       support.rotation.z = Math.sin(angle) * supportTilt;
       support.rotation.x = Math.cos(angle) * supportTilt;
+      const supportBaseOffset = new THREE.Vector3(0, -supportHalfHeight, 0);
+      supportBaseOffset.applyEuler(support.rotation);
+      support.position.set(supportX, rodPadTopY - supportBaseOffset.y, supportZ);
       antennaTowerGroup.add(support);
 
       const supportPad = new THREE.Mesh(rodPadGeometry, antennaMaterial);
-      const supportBaseOffset = new THREE.Vector3(0, -supportHalfHeight, 0);
-      supportBaseOffset.applyEuler(support.rotation);
       supportPad.position.set(
         supportX + supportBaseOffset.x,
         rodPadOffsetY,
