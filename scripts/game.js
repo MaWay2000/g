@@ -87,6 +87,7 @@ const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
 const reflectionsToggle = document.querySelector("[data-reflections-toggle]");
 const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
+const godModeToggle = document.querySelector("[data-god-mode-toggle]");
 const playerSpeedRange = document.querySelector("[data-player-speed-range]");
 const playerSpeedInput = document.querySelector("[data-player-speed-input]");
 const playerJumpRange = document.querySelector("[data-player-jump-range]");
@@ -689,6 +690,19 @@ const applyReflectionSettingsUiState = () => {
 };
 
 applyReflectionSettingsUiState();
+
+const applyGodModeUiState = () => {
+  const godModeEnabled = Boolean(currentSettings?.godMode);
+
+  if (godModeToggle instanceof HTMLInputElement) {
+    godModeToggle.checked = godModeEnabled;
+    godModeToggle.setAttribute("aria-pressed", String(godModeEnabled));
+  }
+
+  sceneController?.setGodMode?.(godModeEnabled);
+};
+
+applyGodModeUiState();
 
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
@@ -8978,6 +8992,7 @@ const bootstrapScene = () => {
 
   applyStarVisualUiState();
   applyReflectionSettingsUiState();
+  applyGodModeUiState();
   applyJumpSettingsUiState();
   applyViewSettingsUiState();
 
@@ -9022,6 +9037,15 @@ if (starFollowToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, starFollowPlayer: enabled };
     persistSettings(currentSettings);
     applyStarVisualUiState();
+  });
+}
+
+if (godModeToggle instanceof HTMLInputElement) {
+  godModeToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, godMode: enabled };
+    persistSettings(currentSettings);
+    applyGodModeUiState();
   });
 }
 
