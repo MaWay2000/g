@@ -4414,7 +4414,12 @@ export const initScene = (
         normalizedMap = normalizeOutsideMap(mapDefinition);
       } catch (error) {
         console.warn("Unable to normalize outside map definition", error);
-        return null;
+        try {
+          normalizedMap = createDefaultOutsideMap();
+        } catch (fallbackError) {
+          console.warn("Unable to create default outside map", fallbackError);
+          return null;
+        }
       }
 
       const width = Math.max(1, Number.parseInt(normalizedMap.width, 10));
