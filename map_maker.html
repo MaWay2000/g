@@ -318,6 +318,103 @@
         box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
       }
 
+      .object-list-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 0.75rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.65);
+      }
+
+      .object-list-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.6rem;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.2);
+        color: rgba(226, 232, 240, 0.92);
+        font-size: 0.75rem;
+      }
+
+      .object-list-empty {
+        margin: 0.45rem 0 0;
+        font-size: 0.8rem;
+        color: rgba(226, 232, 240, 0.6);
+      }
+
+      .object-list {
+        margin: 0.6rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+      }
+
+      .object-list-item {
+        display: flex;
+        align-items: stretch;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.65rem;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(15, 23, 42, 0.55);
+        box-shadow: inset 0 0 0 1px rgba(2, 6, 23, 0.55);
+      }
+
+      .object-list-focus {
+        flex: 1;
+        text-align: left;
+        border: none;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        padding: 0.25rem 0.35rem;
+      }
+
+      .object-list-focus:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+      }
+
+      .object-list-name {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: rgba(226, 232, 240, 0.9);
+      }
+
+      .object-list-id {
+        display: block;
+        margin-top: 0.15rem;
+        font-size: 0.75rem;
+        color: rgba(226, 232, 240, 0.6);
+      }
+
+      .object-list-remove {
+        border: 1px solid rgba(248, 113, 113, 0.45);
+        background: rgba(248, 113, 113, 0.16);
+        color: rgba(248, 113, 113, 0.95);
+        padding: 0 0.55rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 120ms ease, background 120ms ease;
+      }
+
+      .object-list-remove:hover,
+      .object-list-remove:focus-visible {
+        transform: translateY(-1px);
+        background: rgba(248, 113, 113, 0.28);
+        outline: none;
+      }
+
       .control-group {
         display: grid;
         gap: 0.65rem;
@@ -1275,6 +1372,16 @@
           </div>
           <p class="door-list-empty" id="doorListEmpty">No doors placed yet.</p>
           <ul class="door-list" id="doorList" aria-live="polite"></ul>
+        </section>
+        <section class="sidebar-section">
+          <h2>Placed Objects</h2>
+          <p class="hint">Click an object to center and highlight it on the map.</p>
+          <div class="object-list-header">
+            <span>Placed objects</span>
+            <span class="object-list-count" id="objectListCount">0</span>
+          </div>
+          <p class="object-list-empty" id="objectListEmpty">No objects placed yet.</p>
+          <ul class="object-list" id="objectList" aria-live="polite"></ul>
         </section>
         <section class="sidebar-section">
           <h2>Objects Palette</h2>

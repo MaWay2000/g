@@ -321,6 +321,9 @@ const elements = {
   doorList: document.getElementById("doorList"),
   doorListEmpty: document.getElementById("doorListEmpty"),
   doorListCount: document.getElementById("doorListCount"),
+  objectList: document.getElementById("objectList"),
+  objectListEmpty: document.getElementById("objectListEmpty"),
+  objectListCount: document.getElementById("objectListCount"),
   undoButton: document.getElementById("undoBtn"),
   redoButton: document.getElementById("redoBtn"),
 };
@@ -739,6 +742,55 @@ function getDoorPlacements() {
   return objects.filter((placement) => placement?.path === DOOR_MARKER_PATH);
 }
 
+function getPlacedObjects() {
+  const objects = Array.isArray(state.map.objects) ? state.map.objects : [];
+  return objects
+    .map((placement, index) => ({ placement, index }))
+    .filter(({ placement }) => placement?.path && placement?.path !== DOOR_MARKER_PATH);
+}
+
+function getObjectDisplayName(placement, order) {
+  if (typeof placement?.name === "string" && placement.name.trim().length > 0) {
+    return placement.name.trim();
+  }
+  const path = typeof placement?.path === "string" ? placement.path : "";
+  if (path) {
+    const parts = path.split("/");
+    const raw = parts[parts.length - 1] ?? "";
+    const cleaned = raw.replace(/\.[^.]+$/, "");
+    if (cleaned) {
+      return cleaned;
+    }
+  }
+  return `Object ${order + 1}`;
+}
+
+function getObjectDisplayId(placement, order) {
+  if (typeof placement?.id === "string" && placement.id.trim().length > 0) {
+    return placement.id.trim();
+  }
+  return `object-${order + 1}`;
+}
+
+function removeObjectPlacementAtIndex(index) {
+  const existing = Array.isArray(state.map.objects) ? state.map.objects : [];
+  if (!Number.isFinite(index) || index < 0 || index >= existing.length) {
+    return;
+  }
+  const snapshot = cloneMapDefinition(state.map);
+  state.map.objects = existing.filter((_, entryIndex) => entryIndex !== index);
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  pushUndoSnapshot(snapshot);
+}
+
+function focusPlacedObject(placement) {
+  if (!placement) {
+    return;
+  }
+  landscapeViewer?.focusObject?.(placement);
+}
+
 function formatDoorListEntry(placement, order) {
   const index = getCellIndexFromWorldPosition(placement?.position ?? null);
   const width = state.map.width;
@@ -879,6 +931,48 @@ function updateDoorList() {
   elements.doorListEmpty.hidden = hasDoors;
   elements.doorListEmpty.setAttribute("aria-hidden", String(hasDoors));
   elements.doorListCount.textContent = String(entries.length);
+}
+
+function updateObjectList() {
+  if (!elements.objectList || !elements.objectListEmpty || !elements.objectListCount) {
+    return;
+  }
+  const objects = getPlacedObjects();
+  elements.objectList.innerHTML = "";
+  objects.forEach(({ placement, index }, order) => {
+    const item = document.createElement("li");
+    item.className = "object-list-item";
+    const focusButton = document.createElement("button");
+    focusButton.type = "button";
+    focusButton.className = "object-list-focus";
+    const name = document.createElement("span");
+    name.className = "object-list-name";
+    name.textContent = getObjectDisplayName(placement, order);
+    const id = document.createElement("span");
+    id.className = "object-list-id";
+    id.textContent = `ID: ${getObjectDisplayId(placement, order)}`;
+    focusButton.append(name, id);
+    focusButton.addEventListener("click", () => {
+      focusPlacedObject(placement);
+    });
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "object-list-remove";
+    removeButton.setAttribute(
+      "aria-label",
+      `Remove ${getObjectDisplayName(placement, order)}`
+    );
+    removeButton.textContent = "×";
+    removeButton.addEventListener("click", () => {
+      removeObjectPlacementAtIndex(index);
+    });
+    item.append(focusButton, removeButton);
+    elements.objectList.appendChild(item);
+  });
+  const hasObjects = objects.length > 0;
+  elements.objectListEmpty.hidden = hasObjects;
+  elements.objectListEmpty.setAttribute("aria-hidden", String(hasObjects));
+  elements.objectListCount.textContent = String(objects.length);
 }
 
 function removeDoorMarkersAtPosition(placements, position) {
@@ -1918,6 +2012,7 @@ function updateJsonPreview() {
   const json = JSON.stringify(state.map, null, 2);
   elements.jsonPreview.textContent = json;
   updateDoorList();
+  updateObjectList();
 }
 
 function setActivePaletteTab(tabId) {
