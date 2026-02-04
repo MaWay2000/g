@@ -2913,19 +2913,21 @@ export const initScene = (
           .map((word) => word.toUpperCase());
         const resolvedTitleWords =
           titleWords.length > 0 ? titleWords : ["SURFACE", "ACCESS"];
-        const status = busy ? "TRANSIT" : "STATIONED";
+        const status = busy ? "TRANSIT" : "";
 
         context.textAlign = "center";
         context.textBaseline = "middle";
 
-        const statusFontSize = fitText(status, {
-          weight: "600",
-          baseSize: 36,
-          minSize: 24,
-        });
-        context.fillStyle = busy ? "#f97316" : "#22c55e";
-        context.font = `600 ${statusFontSize}px sans-serif`;
-        context.fillText(status, width / 2, height * 0.18);
+        if (status) {
+          const statusFontSize = fitText(status, {
+            weight: "600",
+            baseSize: 36,
+            minSize: 24,
+          });
+          context.fillStyle = busy ? "#f97316" : "#22c55e";
+          context.font = `600 ${statusFontSize}px sans-serif`;
+          context.fillText(status, width / 2, height * 0.18);
+        }
 
         const longestTitleWord = resolvedTitleWords.reduce(
           (longest, word) => (longest.length >= word.length ? longest : word),
