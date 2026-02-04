@@ -6887,16 +6887,6 @@ export const initScene = (
       createEnvironment: createOperationsConcourseEnvironment,
     }),
     createLazyDeckEnvironment({
-      id: "operations-exterior",
-      title: "Surface Access",
-      description: "Forward observation platform",
-      yaw: Math.PI,
-      groupPosition: operationsExteriorGroupPosition,
-      localFloorBounds: operationsExteriorLocalBounds,
-      teleportOffset: operationsExteriorTeleportOffset,
-      createEnvironment: createOperationsExteriorEnvironment,
-    }),
-    createLazyDeckEnvironment({
       id: "engineering-bay",
       title: "Engineering Bay",
       description: "Systems maintenance hub",
