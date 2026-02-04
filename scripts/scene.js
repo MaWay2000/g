@@ -2218,23 +2218,28 @@ export const initScene = (
     const thresholdHeight = 0.28;
     const seamGap = 0.22;
 
-    const createPanelLabelTexture = (textLines) => {
+    const createPanelLabelTexture = (textLines, options = {}) => {
+      const {
+        backgroundColor = "#0b1214",
+        borderColor = "#1f2937",
+        textColor = "#cbd5f5",
+      } = options;
       const canvasSize = 256;
       const canvas = document.createElement("canvas");
       canvas.width = canvasSize;
       canvas.height = canvasSize;
       const ctx = canvas.getContext("2d");
 
-      ctx.fillStyle = "#0b1214";
+      ctx.fillStyle = backgroundColor;
       ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-      ctx.strokeStyle = "#1f2937";
+      ctx.strokeStyle = borderColor;
       ctx.lineWidth = 12;
       ctx.strokeRect(10, 10, canvasSize - 20, canvasSize - 20);
 
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#cbd5f5";
+      ctx.fillStyle = textColor;
 
       const lines = Array.isArray(textLines) ? textLines : [textLines];
       const totalLines = lines.length;
@@ -2737,8 +2742,30 @@ export const initScene = (
     controlPanelGlow.renderOrder = 2;
     controlPanel.add(controlPanelGlow);
 
+    const liftAccessStyles = {
+      area: {
+        label: ["AREA", "SELECT"],
+        labelTextColor: "#bae6fd",
+        labelBorderColor: "#1e3a8a",
+        edgeColor: 0x38bdf8,
+        glowColor: 0x0ea5e9,
+        lightColor: 0x38bdf8,
+      },
+      direct: {
+        label: ["DIRECT", "ACCESS"],
+        labelTextColor: "#fda4af",
+        labelBorderColor: "#831843",
+        edgeColor: 0xf472b6,
+        glowColor: 0xec4899,
+        lightColor: 0xf472b6,
+      },
+    };
+
     const panelLabelMaterial = new THREE.MeshBasicMaterial({
-      map: createPanelLabelTexture(["LIFT", "ACCESS"]),
+      map: createPanelLabelTexture(liftAccessStyles.area.label, {
+        textColor: liftAccessStyles.area.labelTextColor,
+        borderColor: liftAccessStyles.area.labelBorderColor,
+      }),
       transparent: true,
     });
     panelLabelMaterial.toneMapped = false;
@@ -2966,7 +2993,7 @@ export const initScene = (
     group.add(doorSurfaceHitArea);
 
     const panelLight = new THREE.PointLight(
-      0x38bdf8,
+      liftAccessStyles.area.lightColor,
       0.85,
       5.5 * ROOM_SCALE_FACTOR,
       1.6
@@ -2989,10 +3016,32 @@ export const initScene = (
 
     applyLiftUiState({ busy: false });
 
+    const setLiftAccessType = (type) => {
+      const resolvedType =
+        typeof type === "string" && type in liftAccessStyles ? type : "area";
+      const style = liftAccessStyles[resolvedType];
+      panelLabelMaterial.map = createPanelLabelTexture(style.label, {
+        textColor: style.labelTextColor,
+        borderColor: style.labelBorderColor,
+      });
+      panelLabelMaterial.needsUpdate = true;
+      if (controlPanelEdges.material?.color) {
+        controlPanelEdges.material.color.setHex(style.edgeColor);
+      }
+      if (controlPanelGlow.material?.color) {
+        controlPanelGlow.material.color.setHex(style.glowColor);
+      }
+      panelLight.color.setHex(style.lightColor);
+      group.userData.liftAccessType = resolvedType;
+    };
+
+    setLiftAccessType("area");
+
     group.userData.liftUi = {
       control: liftControlHitArea,
       controls: [liftControlHitArea, doorSurfaceHitArea],
       updateState: applyLiftUiState,
+      setAccessType: setLiftAccessType,
     };
 
     group.userData.height = doorHeight;
@@ -5154,6 +5203,7 @@ export const initScene = (
                 : null;
             if (destinationType === "area" && destinationId) {
               door.userData.liftFloorId = destinationId;
+              door.userData?.liftUi?.setAccessType?.("area");
               const liftControls = [
                 door.userData?.liftUi?.control,
                 ...(Array.isArray(door.userData?.liftUi?.controls)
@@ -5168,6 +5218,7 @@ export const initScene = (
               });
             } else if (destinationType === "door" && destinationId) {
               door.userData.doorDestinationId = destinationId;
+              door.userData?.liftUi?.setAccessType?.("direct");
               const liftControls = [
                 door.userData?.liftUi?.control,
                 ...(Array.isArray(door.userData?.liftUi?.controls)
