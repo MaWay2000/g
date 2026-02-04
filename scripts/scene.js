@@ -2894,7 +2894,7 @@ export const initScene = (
           next?.title ||
           next?.id ||
           trimmedMapName ||
-          "Surface Access";
+          "Command Center";
         const titleWords = rawTitle
           .toString()
           .trim()
@@ -2902,7 +2902,7 @@ export const initScene = (
           .filter(Boolean)
           .map((word) => word.toUpperCase());
         const resolvedTitleWords =
-          titleWords.length > 0 ? titleWords : ["SURFACE", "ACCESS"];
+          titleWords.length > 0 ? titleWords : ["COMMAND", "CENTER"];
         const status = busy ? "TRANSIT" : "STATIONED";
 
         context.textAlign = "center";
@@ -9071,14 +9071,6 @@ export const initScene = (
       position: resolvedOperationsFloorPosition,
       yaw: Math.PI,
       bounds: resolvedOperationsFloorBounds,
-    },
-    {
-      id: "operations-exterior",
-      title: "Surface Access",
-      description: "Forward observation platform",
-      position: resolvedOperationsExteriorFloorPosition,
-      yaw: 0,
-      bounds: resolvedOperationsExteriorFloorBounds,
     },
     {
       id: "engineering-bay",
