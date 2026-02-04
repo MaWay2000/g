@@ -4541,11 +4541,13 @@ const renderLiftModalFloors = () => {
     return;
   }
 
+  const disabledLiftFloorIds = new Set(["operations-concourse"]);
+
   floors.forEach((floor) => {
     if (!floor) {
       return;
     }
-    if (floor.id === "operations-concourse") {
+    if (disabledLiftFloorIds.has(floor.id)) {
       return;
     }
 
