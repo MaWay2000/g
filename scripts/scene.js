@@ -5509,7 +5509,7 @@ export const initScene = (
       entranceBaseY + (returnDoor.userData.height ?? 0) / 2,
       returnDoorZ
     );
-    returnDoor.rotation.y = Math.PI;
+    returnDoor.rotation.y = 0;
     returnDoor.userData.floorOffset = entranceBaseY - roomFloorY;
     group.add(returnDoor);
     mapColliderDescriptors.push({ object: returnDoor });
