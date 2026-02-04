@@ -2128,7 +2128,8 @@ export const initScene = (
       return STEP_CLIMB_SPEED;
     }
 
-    const slowdownFactor = 1 + climbDistance / BASE_MAX_STEP_HEIGHT;
+    const climbRatio = climbDistance / BASE_MAX_STEP_HEIGHT;
+    const slowdownFactor = 1 + climbRatio * climbRatio * 6;
     return STEP_CLIMB_SPEED / slowdownFactor;
   };
 
