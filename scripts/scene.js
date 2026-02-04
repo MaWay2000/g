@@ -5497,13 +5497,18 @@ export const initScene = (
       });
     };
 
+    const entranceRoofRepeatX = Math.max(
+      1,
+      (entranceWidth + entranceThickness * 2) / entranceWallTileSize
+    );
+    const entranceRoofRepeatY = Math.max(1, entranceDepth / entranceWallTileSize);
     const entranceRoof = new THREE.Mesh(
       new THREE.BoxGeometry(
         entranceWidth + entranceThickness * 2,
         entranceThickness,
         entranceDepth
       ),
-      entranceMaterial
+      createEntranceWallMaterial(entranceRoofRepeatX, entranceRoofRepeatY)
     );
     entranceRoof.position.set(
       outsideMapCenterX,
@@ -5563,7 +5568,10 @@ export const initScene = (
     const entranceDoorBackerDepth = entranceThickness * 0.85;
     const entranceDoorBacker = new THREE.Mesh(
       new THREE.BoxGeometry(entranceWidth, entranceHeight, entranceDoorBackerDepth),
-      entranceMaterial
+      createEntranceWallMaterial(
+        Math.max(1, entranceWidth / entranceWallTileSize),
+        entranceWallRepeatY
+      )
     );
     entranceDoorBacker.position.set(
       outsideMapCenterX - returnDoorFrontOffset.x * (entranceDoorBackerDepth / 2 + 0.06),
