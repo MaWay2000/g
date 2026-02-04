@@ -4232,8 +4232,20 @@ export const initScene = (
     roof.position.set(0, roomFloorY + wallHeight + wallThickness / 2, 0);
     group.add(roof);
 
+    const exteriorExitLiftUi = exteriorExitDoor.userData?.liftUi ?? {};
+    if (typeof exteriorExitLiftUi.setAccessType === "function") {
+      exteriorExitLiftUi.setAccessType("direct");
+    }
+    const exteriorExitLiftControls = [
+      portalControl,
+      ...(Array.isArray(exteriorExitLiftUi.controls)
+        ? exteriorExitLiftUi.controls
+        : []),
+    ].filter(Boolean);
     exteriorExitDoor.userData.liftUi = {
+      ...exteriorExitLiftUi,
       control: portalControl,
+      controls: Array.from(new Set(exteriorExitLiftControls)),
       updateState: ({ current } = {}) => {
         const isActive = current?.id === "operations-exterior";
         portalGlowMaterial.opacity = isActive ? 0.46 : 0.22;
