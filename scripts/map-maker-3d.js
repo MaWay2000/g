@@ -418,6 +418,25 @@ export const initMapMaker3d = ({
   highlightMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   highlightMesh.renderOrder = 2;
   scene.add(highlightMesh);
+  const objectHighlightGeometry = new THREE.PlaneGeometry(1.15, 1.15);
+  objectHighlightGeometry.rotateX(-Math.PI / 2);
+  const objectHighlightMaterial = new THREE.MeshBasicMaterial({
+    color: "#fbbf24",
+    transparent: true,
+    opacity: 0.4,
+    depthTest: false,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const objectHighlightMesh = new THREE.Mesh(
+    objectHighlightGeometry,
+    objectHighlightMaterial
+  );
+  objectHighlightMesh.visible = false;
+  objectHighlightMesh.renderOrder = 3;
+  scene.add(objectHighlightMesh);
   const selectionMaterial = new THREE.MeshBasicMaterial({
     color: "#fbbf24",
     transparent: true,
@@ -463,6 +482,8 @@ export const initMapMaker3d = ({
   let previewPath = null;
   let previewToken = 0;
   let previewIndex = null;
+  let objectHighlightStart = null;
+  const OBJECT_HIGHLIGHT_DURATION = 1.8;
   const getTerrainToggleState = () => {
     if (!terrainTypeToggle) {
       return true;
@@ -1013,6 +1034,19 @@ export const initMapMaker3d = ({
         controls.target.add(moveVector);
       }
     }
+    if (objectHighlightStart !== null) {
+      const elapsed = clock.getElapsedTime() - objectHighlightStart;
+      if (elapsed > OBJECT_HIGHLIGHT_DURATION) {
+        objectHighlightStart = null;
+        objectHighlightMesh.visible = false;
+      } else {
+        const pulse = 0.5 + 0.5 * Math.sin(elapsed * Math.PI * 4);
+        objectHighlightMaterial.opacity = 0.18 + 0.5 * pulse;
+        const scale = 1 + 0.06 * Math.sin(elapsed * Math.PI * 2);
+        objectHighlightMesh.scale.set(scale, scale, scale);
+        objectHighlightMesh.visible = true;
+      }
+    }
     controls.update();
     renderer.render(scene, camera);
   };
@@ -1104,6 +1138,48 @@ export const initMapMaker3d = ({
     }
     const heightValue = lastMap.heights?.[index];
     return getTerrainHeight(heightValue) + offset;
+  };
+
+  const getCellIndexFromWorldPosition = (position) => {
+    if (
+      !position ||
+      !Number.isFinite(position.x) ||
+      !Number.isFinite(position.z) ||
+      !Number.isFinite(mapWidth) ||
+      !Number.isFinite(mapHeight)
+    ) {
+      return null;
+    }
+    const x = Math.round(position.x + mapWidth / 2 - 0.5);
+    const y = Math.round(position.z + mapHeight / 2 - 0.5);
+    if (x < 0 || y < 0 || x >= mapWidth || y >= mapHeight) {
+      return null;
+    }
+    return y * mapWidth + x;
+  };
+
+  const focusObject = (placement) => {
+    if (!placement?.position) {
+      return;
+    }
+    const { x, y, z } = placement.position;
+    if (!Number.isFinite(x) || !Number.isFinite(z)) {
+      return;
+    }
+    const target = new THREE.Vector3(x, 0, z);
+    const offset = new THREE.Vector3()
+      .copy(camera.position)
+      .sub(controls.target);
+    controls.target.copy(target);
+    camera.position.copy(target).add(offset);
+    controls.update();
+    const index = getCellIndexFromWorldPosition(placement.position);
+    const elevation = Number.isFinite(index)
+      ? getCellElevation(index, 0.12)
+      : (Number.isFinite(y) ? y + 0.12 : TERRAIN_HEIGHT + 0.12);
+    objectHighlightMesh.position.set(x, elevation, z);
+    objectHighlightStart = clock.getElapsedTime();
+    objectHighlightMesh.visible = true;
   };
 
   const updateBrushPreview = (index) => {
@@ -1489,6 +1565,8 @@ export const initMapMaker3d = ({
     terrainMarkerMaterial.dispose();
     highlightGeometry.dispose();
     highlightMaterial.dispose();
+    objectHighlightGeometry.dispose();
+    objectHighlightMaterial.dispose();
     selectionMaterial.dispose();
     objectGroup.clear();
     canvas.removeEventListener("pointerdown", handlePointerDown);
@@ -1513,6 +1591,7 @@ export const initMapMaker3d = ({
     setTileNumberVisibility: updateTileNumberDisplay,
     setHeightVisibility: updateHeightDisplay,
     setObjectPlacements: updateObjectPlacements,
+    focusObject,
     setSelection,
     resize: resizeRenderer,
     dispose,
