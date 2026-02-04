@@ -246,6 +246,7 @@ let sceneController = null;
 let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
 let pointerLockImmersiveModeEnabled = false;
+let liftModalActive = false;
 
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
@@ -2904,7 +2905,6 @@ terminalInteractionUnlockEvents.forEach((eventName) => {
 let quickAccessModalClose = null;
 let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
-let liftModalActive = false;
 let missionModalActive = false;
 let marketModalActive = false;
 
