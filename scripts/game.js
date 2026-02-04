@@ -4545,6 +4545,9 @@ const renderLiftModalFloors = () => {
     if (!floor) {
       return;
     }
+    if (floor.id === "operations-concourse") {
+      return;
+    }
 
     const item = document.createElement("li");
     item.className = "lift-selector__item";
