@@ -5509,7 +5509,7 @@ export const initScene = (
       entranceBaseY + (returnDoor.userData.height ?? 0) / 2,
       returnDoorZ
     );
-    returnDoor.rotation.y = Math.PI;
+    returnDoor.rotation.y = 0;
     returnDoor.userData.floorOffset = entranceBaseY - roomFloorY;
     group.add(returnDoor);
     mapColliderDescriptors.push({ object: returnDoor });
@@ -6068,7 +6068,7 @@ export const initScene = (
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
       -bayDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
     );
-    liftDoor.rotation.y = Math.PI;
+    liftDoor.rotation.y = 0;
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
@@ -6391,7 +6391,7 @@ export const initScene = (
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
       -plazaDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
     );
-    liftDoor.rotation.y = Math.PI;
+    liftDoor.rotation.y = 0;
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
