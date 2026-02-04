@@ -4100,7 +4100,7 @@ export const initScene = (
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
 
-    const exteriorExitDoor = createHangarDoor(EXTERIOR_PORTAL_DOOR_THEME);
+    const exteriorExitDoor = createHangarDoor();
     exteriorExitDoor.position.set(
       0,
       roomFloorY + (exteriorExitDoor.userData.height ?? 0) / 2,
