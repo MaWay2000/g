@@ -3844,7 +3844,8 @@ export const initScene = (
     const deckDepth = roomDepth * 0.85;
     const deckThickness = 0.45;
 
-    const wallHeight = roomHeight * 0.82;
+    const minimumWallHeight = BASE_DOOR_HEIGHT + 0.6;
+    const wallHeight = Math.max(roomHeight * 0.82, minimumWallHeight);
     const wallThickness = 0.18;
 
     const bulkheadMaterial = new THREE.MeshStandardMaterial({
