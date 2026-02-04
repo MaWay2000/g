@@ -69,7 +69,7 @@ const DOOR_MARKER_PATH = "door-marker";
 const DOOR_DESTINATION_AREAS = [
   { id: "hangar-deck", label: "Command Center" },
   { id: "operations-concourse", label: "Outside Exit" },
-  { id: "operations-exterior", label: "Surface Access" },
+  { id: "operations-exterior", label: "Surface Area" },
   { id: "engineering-bay", label: "Engineering Bay" },
   { id: "exterior-outpost", label: "Exterior Outpost" },
 ];
