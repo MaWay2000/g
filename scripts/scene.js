@@ -9113,14 +9113,6 @@ export const initScene = (
       bounds: resolvedOperationsFloorBounds,
     },
     {
-      id: "operations-exterior",
-      title: "Surface Area",
-      description: "Outside terrain access",
-      position: resolvedOperationsExteriorFloorPosition,
-      yaw: 0,
-      bounds: resolvedOperationsExteriorFloorBounds,
-    },
-    {
       id: "engineering-bay",
       title: "Engineering Bay",
       description: "Systems maintenance hub",
