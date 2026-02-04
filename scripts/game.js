@@ -4541,7 +4541,10 @@ const renderLiftModalFloors = () => {
     return;
   }
 
-  const disabledLiftFloorIds = new Set(["operations-concourse"]);
+  const disabledLiftFloorIds = new Set([
+    "operations-concourse",
+    "operations-exterior",
+  ]);
 
   floors.forEach((floor) => {
     if (!floor) {
