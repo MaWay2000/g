@@ -88,6 +88,7 @@ const starsToggle = document.querySelector("[data-stars-toggle]");
 const reflectionsToggle = document.querySelector("[data-reflections-toggle]");
 const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
 const godModeToggle = document.querySelector("[data-god-mode-toggle]");
+const liftDoorFilterToggle = document.querySelector("[data-lift-door-filter-toggle]");
 const playerSpeedRange = document.querySelector("[data-player-speed-range]");
 const playerSpeedInput = document.querySelector("[data-player-speed-input]");
 const playerJumpRange = document.querySelector("[data-player-jump-range]");
@@ -703,6 +704,21 @@ const applyGodModeUiState = () => {
 };
 
 applyGodModeUiState();
+
+const applyLiftDoorFilterUiState = () => {
+  const liftDoorFiltering = currentSettings?.liftDoorFiltering !== false;
+
+  if (liftDoorFilterToggle instanceof HTMLInputElement) {
+    liftDoorFilterToggle.checked = liftDoorFiltering;
+    liftDoorFilterToggle.setAttribute("aria-pressed", String(liftDoorFiltering));
+  }
+
+  if (liftModalActive) {
+    renderLiftModalFloors();
+  }
+};
+
+applyLiftDoorFilterUiState();
 
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
@@ -4541,13 +4557,16 @@ const renderLiftModalFloors = () => {
     return;
   }
 
-  const disabledLiftFloorIds = new Set(["operations-concourse"]);
+  const shouldFilterLiftDoors = currentSettings?.liftDoorFiltering !== false;
+  const disabledLiftFloorIds = shouldFilterLiftDoors
+    ? new Set(["operations-concourse"])
+    : null;
 
   floors.forEach((floor) => {
     if (!floor) {
       return;
     }
-    if (disabledLiftFloorIds.has(floor.id)) {
+    if (disabledLiftFloorIds?.has(floor.id)) {
       return;
     }
 
@@ -8998,6 +9017,7 @@ const bootstrapScene = () => {
   applyStarVisualUiState();
   applyReflectionSettingsUiState();
   applyGodModeUiState();
+  applyLiftDoorFilterUiState();
   applyJumpSettingsUiState();
   applyViewSettingsUiState();
 
@@ -9051,6 +9071,15 @@ if (godModeToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, godMode: enabled };
     persistSettings(currentSettings);
     applyGodModeUiState();
+  });
+}
+
+if (liftDoorFilterToggle instanceof HTMLInputElement) {
+  liftDoorFilterToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, liftDoorFiltering: enabled };
+    persistSettings(currentSettings);
+    applyLiftDoorFilterUiState();
   });
 }
 
