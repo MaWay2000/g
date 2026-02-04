@@ -119,7 +119,7 @@ export const initScene = (
   } = {}
 ) => {
   const BASE_MAX_STEP_HEIGHT = 2;
-  const BASE_JUMP_VELOCITY = 6.3;
+  const BASE_JUMP_VELOCITY = 7.2;
   const STEP_CLIMB_SPEED = 6;
   const STEP_HEIGHT_TOLERANCE = 0.05;
   const performanceSettings = {
@@ -273,8 +273,6 @@ export const initScene = (
     const normalizedDistance = normalizeViewDistance(distanceMultiplier);
     return Math.max(MIN_FOG_DENSITY, BASE_FOG_DENSITY / normalizedDistance);
   };
-  const getMaxStepHeight = () =>
-    BASE_MAX_STEP_HEIGHT * jumpSettings.playerJumpMultiplier;
   const getJumpVelocity = () =>
     BASE_JUMP_VELOCITY * jumpSettings.playerJumpMultiplier;
   const updateSunSpriteScale = () => {
@@ -2122,6 +2120,17 @@ export const initScene = (
   const OUTSIDE_HEIGHT_ELEVATION_MAX = getOutsideTerrainElevation(
     OUTSIDE_HEIGHT_MAX
   );
+
+  const getMaxStepHeight = () => OUTSIDE_HEIGHT_ELEVATION_MAX;
+  const getClimbSpeed = (distance) => {
+    const climbDistance = Number(distance);
+    if (!Number.isFinite(climbDistance) || climbDistance <= 0) {
+      return STEP_CLIMB_SPEED;
+    }
+
+    const slowdownFactor = 1 + climbDistance / BASE_MAX_STEP_HEIGHT;
+    return STEP_CLIMB_SPEED / slowdownFactor;
+  };
 
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
     ["default", DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE],
@@ -10379,7 +10388,8 @@ export const initScene = (
       const canSmoothClimb = Number.isFinite(delta) && delta > 0;
 
       if (canSmoothClimb) {
-        const climbStep = Math.min(climbDistance, STEP_CLIMB_SPEED * delta);
+        const climbSpeed = getClimbSpeed(climbDistance);
+        const climbStep = Math.min(climbDistance, climbSpeed * delta);
         player.y += climbStep;
       } else {
         player.y = minY;
