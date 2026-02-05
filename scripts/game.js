@@ -148,6 +148,7 @@ const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu
 const speedSettingsSubmenu = document.querySelector("[data-speed-settings-submenu]");
 const jumpSettingsSubmenu = document.querySelector("[data-jump-settings-submenu]");
 const viewSettingsSubmenu = document.querySelector("[data-view-settings-submenu]");
+const liftSettingsSubmenu = document.querySelector("[data-lift-settings-submenu]");
 const starSettingsToggleButton = settingsMenu?.querySelector(
   "[data-star-settings-toggle]"
 );
@@ -160,9 +161,13 @@ const jumpSettingsToggleButton = settingsMenu?.querySelector(
 const viewSettingsToggleButton = settingsMenu?.querySelector(
   "[data-view-settings-toggle]"
 );
+const liftSettingsToggleButton = settingsMenu?.querySelector(
+  "[data-lift-settings-toggle]"
+);
 const starSettingsToggleLabel = starSettingsToggleButton?.querySelector(
   "[data-star-settings-label]"
 );
+const liftAreaSettingsList = document.querySelector("[data-lift-area-settings-list]");
 const starSettingsInputs = [
   starFollowToggle,
   starSizeRange,
@@ -371,6 +376,7 @@ const setSettingsMenuOpen = (isOpen) => {
     setSpeedSettingsExpanded(false);
     setJumpSettingsExpanded(false);
     setViewSettingsExpanded(false);
+    setLiftSettingsExpanded(false);
   }
 };
 
@@ -436,11 +442,25 @@ const setViewSettingsExpanded = (isExpanded) => {
   }
 };
 
+const setLiftSettingsExpanded = (isExpanded) => {
+  const nextState = Boolean(isExpanded);
+
+  if (liftSettingsSubmenu instanceof HTMLElement) {
+    liftSettingsSubmenu.hidden = !nextState;
+    liftSettingsSubmenu.dataset.expanded = nextState ? "true" : "false";
+  }
+
+  if (liftSettingsToggleButton instanceof HTMLButtonElement) {
+    liftSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
+  }
+};
+
 setSettingsMenuOpen(false);
 setStarSettingsExpanded(false);
 setSpeedSettingsExpanded(false);
 setJumpSettingsExpanded(false);
 setViewSettingsExpanded(false);
+setLiftSettingsExpanded(false);
 
 if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLElement) {
   settingsTrigger.addEventListener("click", () => {
@@ -487,6 +507,7 @@ if (starSettingsToggleButton instanceof HTMLButtonElement) {
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
+      setLiftSettingsExpanded(false);
     }
 
     setStarSettingsExpanded(!isExpanded);
@@ -503,6 +524,7 @@ if (speedSettingsToggleButton instanceof HTMLButtonElement) {
       setStarSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
+      setLiftSettingsExpanded(false);
     }
 
     setSpeedSettingsExpanded(!isExpanded);
@@ -519,6 +541,7 @@ if (jumpSettingsToggleButton instanceof HTMLButtonElement) {
       setStarSettingsExpanded(false);
       setSpeedSettingsExpanded(false);
       setViewSettingsExpanded(false);
+      setLiftSettingsExpanded(false);
     }
 
     setJumpSettingsExpanded(!isExpanded);
@@ -535,9 +558,27 @@ if (viewSettingsToggleButton instanceof HTMLButtonElement) {
       setStarSettingsExpanded(false);
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
+      setLiftSettingsExpanded(false);
     }
 
     setViewSettingsExpanded(!isExpanded);
+  });
+}
+
+if (liftSettingsToggleButton instanceof HTMLButtonElement) {
+  liftSettingsToggleButton.addEventListener("click", () => {
+    const isExpanded =
+      liftSettingsSubmenu instanceof HTMLElement &&
+      liftSettingsSubmenu.hidden !== true;
+
+    if (!isExpanded) {
+      setStarSettingsExpanded(false);
+      setSpeedSettingsExpanded(false);
+      setJumpSettingsExpanded(false);
+      setViewSettingsExpanded(false);
+    }
+
+    setLiftSettingsExpanded(!isExpanded);
   });
 }
 
@@ -713,6 +754,8 @@ const applyLiftDoorFilterUiState = () => {
     liftDoorFilterToggle.checked = liftDoorFiltering;
     liftDoorFilterToggle.setAttribute("aria-pressed", String(liftDoorFiltering));
   }
+
+  renderLiftAreaSettings();
 
   if (liftModalActive) {
     renderLiftModalFloors();
@@ -4534,6 +4577,119 @@ const updateLiftModalActiveState = () => {
   });
 };
 
+const getLiftDoorFilteringOverrides = () => {
+  const overrides = currentSettings?.liftDoorFilterByArea;
+  return overrides && typeof overrides === "object" ? overrides : {};
+};
+
+const isLiftFloorDoorEnabled = (floorId) => {
+  if (typeof floorId !== "string" || floorId.trim() === "") {
+    return true;
+  }
+
+  const trimmedFloorId = floorId.trim();
+  const overrides = getLiftDoorFilteringOverrides();
+
+  if (Object.prototype.hasOwnProperty.call(overrides, trimmedFloorId)) {
+    return overrides[trimmedFloorId] !== false;
+  }
+
+  const shouldFilterLiftDoors = currentSettings?.liftDoorFiltering !== false;
+  if (!shouldFilterLiftDoors) {
+    return true;
+  }
+
+  return trimmedFloorId !== "operations-concourse";
+};
+
+const renderLiftAreaSettings = () => {
+  if (!(liftAreaSettingsList instanceof HTMLElement)) {
+    return;
+  }
+
+  liftAreaSettingsList.innerHTML = "";
+  const floors = sceneController?.getLiftFloors?.() ?? [];
+
+  if (!Array.isArray(floors) || floors.length === 0) {
+    const emptyState = document.createElement("p");
+    emptyState.className = "performance-toggle__hint";
+    emptyState.textContent = "No lift areas available.";
+    liftAreaSettingsList.appendChild(emptyState);
+    return;
+  }
+
+  floors.forEach((floor) => {
+    if (!floor || typeof floor.id !== "string") {
+      return;
+    }
+
+    const floorId = floor.id.trim();
+    if (!floorId) {
+      return;
+    }
+
+    const titleText =
+      typeof floor.title === "string" && floor.title.trim() !== ""
+        ? floor.title.trim()
+        : "Unlabeled deck";
+    const hintText =
+      typeof floor.description === "string" && floor.description.trim() !== ""
+        ? floor.description.trim()
+        : "Toggle this lift area in selector listings.";
+
+    const label = document.createElement("label");
+    label.className = "performance-toggle";
+
+    const input = document.createElement("input");
+    input.className = "performance-toggle__input";
+    input.type = "checkbox";
+    input.role = "switch";
+    input.checked = isLiftFloorDoorEnabled(floorId);
+    input.setAttribute("aria-label", `Toggle ${titleText} in lift selector`);
+    input.setAttribute("aria-pressed", String(input.checked));
+
+    input.addEventListener("change", (event) => {
+      const enabled = Boolean(event.target?.checked);
+      const nextOverrides = { ...getLiftDoorFilteringOverrides(), [floorId]: enabled };
+      currentSettings = { ...currentSettings, liftDoorFilterByArea: nextOverrides };
+      persistSettings(currentSettings);
+      renderLiftAreaSettings();
+      if (liftModalActive) {
+        renderLiftModalFloors();
+      }
+    });
+
+    const track = document.createElement("span");
+    track.className = "performance-toggle__track";
+    track.setAttribute("aria-hidden", "true");
+
+    const thumb = document.createElement("span");
+    thumb.className = "performance-toggle__thumb";
+    thumb.setAttribute("aria-hidden", "true");
+    track.appendChild(thumb);
+
+    const text = document.createElement("span");
+    text.className = "performance-toggle__text";
+
+    const title = document.createElement("span");
+    title.className = "performance-toggle__title";
+    title.textContent = titleText;
+
+    const hint = document.createElement("span");
+    hint.className = "performance-toggle__hint";
+    hint.textContent = hintText;
+
+    text.appendChild(title);
+    text.appendChild(hint);
+
+    label.appendChild(input);
+    label.appendChild(track);
+    label.appendChild(text);
+
+    liftAreaSettingsList.appendChild(label);
+  });
+};
+
 const renderLiftModalFloors = () => {
   if (!liftModalActive) {
     return;
@@ -4557,16 +4713,11 @@ const renderLiftModalFloors = () => {
     return;
   }
 
-  const shouldFilterLiftDoors = currentSettings?.liftDoorFiltering !== false;
-  const disabledLiftFloorIds = shouldFilterLiftDoors
-    ? new Set(["operations-concourse"])
-    : null;
-
   floors.forEach((floor) => {
     if (!floor) {
       return;
     }
-    if (disabledLiftFloorIds?.has(floor.id)) {
+    if (!isLiftFloorDoorEnabled(floor.id)) {
       return;
     }
 

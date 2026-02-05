@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS = {
   viewDistance: 1,
   godMode: false,
   liftDoorFiltering: true,
+  liftDoorFilterByArea: {},
   starFollowPlayer: true,
   starSize: 8.63,
   starDensity: 8.61,
@@ -105,6 +106,26 @@ const normalizeSettings = (settings = {}) => {
     return Math.max(0.25, Math.min(1, numericValue));
   };
 
+  const normalizeLiftDoorFilterByArea = (value) => {
+    if (!value || typeof value !== "object") {
+      return {};
+    }
+
+    return Object.entries(value).reduce((accumulator, [key, enabled]) => {
+      if (typeof key !== "string") {
+        return accumulator;
+      }
+
+      const trimmedKey = key.trim();
+      if (!trimmedKey) {
+        return accumulator;
+      }
+
+      accumulator[trimmedKey] = enabled !== false;
+      return accumulator;
+    }, {});
+  };
+
   return {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
@@ -121,6 +142,9 @@ const normalizeSettings = (settings = {}) => {
     viewDistance: normalizeViewDistance(settings.viewDistance),
     godMode: Boolean(settings.godMode),
     liftDoorFiltering: settings.liftDoorFiltering !== false,
+    liftDoorFilterByArea: normalizeLiftDoorFilterByArea(
+      settings.liftDoorFilterByArea
+    ),
     starFollowPlayer: settings.starFollowPlayer !== false,
     starSize: normalizeValue(settings.starSize, DEFAULT_SETTINGS.starSize),
     starDensity: normalizeValue(settings.starDensity, DEFAULT_SETTINGS.starDensity),

@@ -919,7 +919,8 @@
         }
 
         .settings-menu__panel,
-        .settings-menu__panel--stars {
+        .settings-menu__panel--stars,
+        .settings-menu__panel--lift {
           width: min(90vw, 360px);
         }
       }
@@ -941,6 +942,7 @@
       }
 
       .settings-menu__panel--stars[hidden],
+      .settings-menu__panel--lift[hidden],
       .settings-menu__panel--speed[hidden],
       .settings-menu__panel--jump[hidden],
       .settings-menu__panel--view[hidden] {
@@ -948,6 +950,11 @@
       }
 
       .settings-menu__panel--speed {
+        min-width: 320px;
+        gap: 0.75rem;
+      }
+
+      .settings-menu__panel--lift {
         min-width: 320px;
         gap: 0.75rem;
       }
@@ -3893,24 +3900,42 @@
                         </span>
                       </span>
                     </label>
-                    <label class="performance-toggle">
-                      <input
-                        class="performance-toggle__input"
-                        type="checkbox"
-                        role="switch"
-                        aria-label="Toggle lift door filtering"
-                        data-lift-door-filter-toggle
-                      />
-                      <span class="performance-toggle__track" aria-hidden="true">
-                        <span class="performance-toggle__thumb" aria-hidden="true"></span>
-                      </span>
-                      <span class="performance-toggle__text">
-                        <span class="performance-toggle__title">Filter lift doors</span>
-                        <span class="performance-toggle__hint">
-                          Hide door-only stops in the lift list.
+                    <div class="settings-menu__row">
+                      <label class="performance-toggle">
+                        <input
+                          class="performance-toggle__input"
+                          type="checkbox"
+                          role="switch"
+                          aria-label="Toggle lift door filtering"
+                          data-lift-door-filter-toggle
+                        />
+                        <span class="performance-toggle__track" aria-hidden="true">
+                          <span class="performance-toggle__thumb" aria-hidden="true"></span>
                         </span>
-                      </span>
-                    </label>
+                        <span class="performance-toggle__text">
+                          <span class="performance-toggle__title">Filter lift doors</span>
+                          <span class="performance-toggle__hint">
+                            Hide door-only stops in the lift list.
+                          </span>
+                        </span>
+                      </label>
+                      <button
+                        class="settings-menu__submenu-toggle"
+                        type="button"
+                        data-lift-settings-toggle
+                        aria-controls="liftSettingsPanel"
+                        aria-expanded="false"
+                        aria-label="Lift door area settings"
+                      >
+                        <img
+                          src="images/game/settings.png"
+                          alt=""
+                          aria-hidden="true"
+                          class="settings-menu__submenu-toggle-icon"
+                        />
+                        <span class="visually-hidden">Lift door area settings</span>
+                      </button>
+                    </div>
                   </div>
                   <div class="settings-menu__section" role="group" aria-label="Speed settings">
                     <div class="settings-menu__row">
@@ -3990,6 +4015,16 @@
                       </button>
                     </div>
                   </div>
+                </div>
+                <div
+                  class="settings-menu__panel settings-menu__panel--lift"
+                  id="liftSettingsPanel"
+                  role="menu"
+                  aria-label="Lift door area settings"
+                  data-lift-settings-submenu
+                >
+                  <p class="settings-menu__heading">Lift door areas</p>
+                  <div class="settings-menu__submenu" data-lift-area-settings-list></div>
                 </div>
                 <div
                   class="settings-menu__panel settings-menu__panel--stars"
