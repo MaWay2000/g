@@ -4593,14 +4593,18 @@ export const initScene = (
           firstCellWithData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
         return getOutsideTerrainTilePath(tileId, 0);
       })();
-      const getPerimeterFaceMaterial = (repeatU, repeatV) => {
+      const getPerimeterFaceMaterial = (
+        repeatU,
+        repeatV,
+        { rotateQuarterTurns = 0 } = {}
+      ) => {
         if (!perimeterTexturePath) {
           return perimeterMaterialBase;
         }
 
         const repeatX = Math.max(1, repeatU / cellSize);
         const repeatY = Math.max(1, repeatV / cellSize);
-        const materialKey = `${perimeterTexturePath}:${repeatX}:${repeatY}`;
+        const materialKey = `${perimeterTexturePath}:${repeatX}:${repeatY}:${rotateQuarterTurns}`;
 
         if (perimeterMaterials.has(materialKey)) {
           return perimeterMaterials.get(materialKey);
@@ -4610,6 +4614,10 @@ export const initScene = (
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(repeatX, repeatY);
+        if (rotateQuarterTurns) {
+          texture.center.set(0.5, 0.5);
+          texture.rotation = (Math.PI / 2) * rotateQuarterTurns;
+        }
         texture.needsUpdate = true;
 
         const material = new THREE.MeshStandardMaterial({
@@ -4624,7 +4632,12 @@ export const initScene = (
         perimeterMaterials.set(materialKey, material);
         return material;
       };
-      const getPerimeterBoxMaterials = (sizeX, sizeY, sizeZ) => {
+      const getPerimeterBoxMaterials = (
+        sizeX,
+        sizeY,
+        sizeZ,
+        { rotateFrontBackQuarterTurns = 0 } = {}
+      ) => {
         if (!perimeterTexturePath) {
           return perimeterMaterialBase;
         }
@@ -4634,8 +4647,12 @@ export const initScene = (
           getPerimeterFaceMaterial(sizeZ, sizeY),
           getPerimeterFaceMaterial(sizeX, sizeZ),
           getPerimeterFaceMaterial(sizeX, sizeZ),
-          getPerimeterFaceMaterial(sizeX, sizeY),
-          getPerimeterFaceMaterial(sizeX, sizeY),
+          getPerimeterFaceMaterial(sizeX, sizeY, {
+            rotateQuarterTurns: rotateFrontBackQuarterTurns,
+          }),
+          getPerimeterFaceMaterial(sizeX, sizeY, {
+            rotateQuarterTurns: rotateFrontBackQuarterTurns,
+          }),
         ];
       };
       const expandedHalfWidth = expandedWorldWidth / 2;
@@ -4653,7 +4670,8 @@ export const initScene = (
         getPerimeterBoxMaterials(
           expandedWorldWidth,
           perimeterHeight,
-          perimeterThickness
+          perimeterThickness,
+          { rotateFrontBackQuarterTurns: 1 }
         )
       );
       northWall.position.set(
