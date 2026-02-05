@@ -2047,6 +2047,8 @@ export const initScene = (
   const BASE_ROOM_DEPTH = 60 * ROOM_SCALE_FACTOR;
   const BASE_DOOR_WIDTH = 8.5 * ROOM_SCALE_FACTOR;
   const BASE_DOOR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
+  const OUTSIDE_DOOR_TERRAIN_PADDING = 1.4;
+  const OUTSIDE_DOOR_SURFACE_CLEARANCE = 0.28;
   const DEFAULT_DOOR_THEME = {
     accentColor: 0x991b1b,
     accentEmissiveColor: 0x240303,
@@ -5006,7 +5008,9 @@ export const initScene = (
         centerZ,
         rotationY,
         footprintWidth,
-        footprintDepth
+        footprintDepth,
+        footprintPadding = 0,
+        sampleSteps = 2
       ) => {
         if (
           !Number.isFinite(centerX) ||
@@ -5016,16 +5020,21 @@ export const initScene = (
         ) {
           return getSurfaceYAtWorldPosition(centerX, centerZ);
         }
-        const halfWidth = Math.max(0.01, footprintWidth / 2);
-        const halfDepth = Math.max(0.01, footprintDepth / 2);
+        const halfWidth = Math.max(0.01, footprintWidth / 2 + footprintPadding);
+        const halfDepth = Math.max(0.01, footprintDepth / 2 + footprintPadding);
         const cosY = Math.cos(rotationY ?? 0);
         const sinY = Math.sin(rotationY ?? 0);
-        const offsets = [
-          [-halfWidth, -halfDepth],
-          [halfWidth, -halfDepth],
-          [-halfWidth, halfDepth],
-          [halfWidth, halfDepth],
-        ];
+        const gridSteps = Math.max(1, Math.floor(sampleSteps));
+        const offsets = [];
+        for (let xStep = 0; xStep <= gridSteps; xStep += 1) {
+          const xBlend = xStep / gridSteps;
+          const offsetX = THREE.MathUtils.lerp(-halfWidth, halfWidth, xBlend);
+          for (let zStep = 0; zStep <= gridSteps; zStep += 1) {
+            const zBlend = zStep / gridSteps;
+            const offsetZ = THREE.MathUtils.lerp(-halfDepth, halfDepth, zBlend);
+            offsets.push([offsetX, offsetZ]);
+          }
+        }
         let maxSurfaceY = -Infinity;
         offsets.forEach(([offsetX, offsetZ]) => {
           const rotatedX = offsetX * cosY - offsetZ * sinY;
@@ -5265,10 +5274,13 @@ export const initScene = (
               placementPosition.z,
               doorRotationY,
               doorBaseWidth,
-              doorBaseDepth
+              doorBaseDepth,
+              OUTSIDE_DOOR_TERRAIN_PADDING,
+              4
             );
             applyPlacementTransform(door, placement, {
-              surfaceY: doorSurfaceY + doorHeight / 2,
+              surfaceY:
+                doorSurfaceY + doorHeight / 2 + OUTSIDE_DOOR_SURFACE_CLEARANCE,
               alignToSurface: false,
             });
             mapObjectGroup.add(door);
