@@ -2048,7 +2048,9 @@ export const initScene = (
   const BASE_DOOR_WIDTH = 8.5 * ROOM_SCALE_FACTOR;
   const BASE_DOOR_HEIGHT = 13.5 * ROOM_SCALE_FACTOR;
   const OUTSIDE_DOOR_TERRAIN_PADDING = 1.4;
-  const OUTSIDE_DOOR_SURFACE_CLEARANCE = 0.28;
+  // Keep exterior lift doors lifted above uneven terrain so they remain visible
+  // and interactive when placed against steep canyon walls.
+  const OUTSIDE_DOOR_SURFACE_CLEARANCE = 2.2;
   const DEFAULT_DOOR_THEME = {
     accentColor: 0x991b1b,
     accentEmissiveColor: 0x240303,
