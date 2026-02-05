@@ -7552,6 +7552,8 @@ export const initScene = (
   const viewDistanceCullingState = {
     lastDistance: null,
   };
+
+  let getManifestPlacements = () => [];
   const viewDistanceCullingPosition = new THREE.Vector3();
   const VIEW_DISTANCE_FADE_RATIO = 0.12;
   const VIEW_DISTANCE_MIN_FADE = 12;
@@ -9812,12 +9814,14 @@ export const initScene = (
     isManifestEditModeEnabled,
     placeModelFromManifestEntry,
     hasManifestPlacements,
-    getManifestPlacements,
+    getManifestPlacements: getManifestPlacementsFromManager,
     updateManifestEditModeHover,
     updateActivePlacementPreview,
     cancelActivePlacement,
     dispose: disposeManifestPlacements,
   } = manifestPlacementManager;
+
+  getManifestPlacements = getManifestPlacementsFromManager;
 
   controls.addEventListener("lock", () => {
     resourceToolGroup.visible = true;
