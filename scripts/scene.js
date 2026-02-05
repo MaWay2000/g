@@ -4484,7 +4484,7 @@ export const initScene = (
 
       const mapWorldWidth = width * cellSize;
       const mapWorldDepth = height * cellSize;
-      const borderTiles = 3;
+      const borderTiles = 0;
       const expandedWorldWidth = mapWorldWidth + borderTiles * 2 * cellSize;
       const expandedWorldDepth = mapWorldDepth + borderTiles * 2 * cellSize;
       const mapNearEdge = walkwayFrontEdge;
