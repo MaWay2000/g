@@ -5330,7 +5330,7 @@ export const initScene = (
     const mapColliderDescriptors = [];
     const environmentResourceTargets = [];
     const environmentTerrainTiles = [];
-    const environmentViewDistanceTargets = [];
+    let environmentViewDistanceTargets = [];
     let outsideMapBounds = null;
 
     const platformThickness = 0.42;
@@ -5433,11 +5433,9 @@ export const initScene = (
       );
     }
     if (Array.isArray(builtOutsideTerrain?.viewDistanceTargets)) {
-      environmentViewDistanceTargets.push(
-        ...builtOutsideTerrain.viewDistanceTargets.filter(
-          (target) => target && target.isObject3D
-        )
-      );
+      // Keep the same array reference so asynchronously loaded outside objects
+      // are automatically included in view-distance culling once they spawn.
+      environmentViewDistanceTargets = builtOutsideTerrain.viewDistanceTargets;
     }
     if (
       builtOutsideTerrain?.bounds &&
