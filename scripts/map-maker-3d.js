@@ -85,11 +85,15 @@ const buildTerrainGeometry = (map) => {
   };
 
   const getCellHeight = (index) => getTerrainHeight(map.heights?.[index]);
+  const isVoidCell = (index) => map.cells?.[index]?.terrainId === "void";
   const isHeightDrop = (fromHeight, toHeight) => fromHeight - toHeight > 0.001;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
+      if (isVoidCell(index)) {
+        continue;
+      }
       const elevation = getCellHeight(index);
 
       const x0 = x - xOffset;
@@ -123,13 +127,17 @@ const buildTerrainGeometry = (map) => {
       const southIndex = y < height - 1 ? index + width : null;
 
       const westHeight =
-        westIndex !== null ? getCellHeight(westIndex) : HEIGHT_FLOOR;
+        westIndex !== null && !isVoidCell(westIndex) ? getCellHeight(westIndex) : 0;
       const eastHeight =
-        eastIndex !== null ? getCellHeight(eastIndex) : HEIGHT_FLOOR;
+        eastIndex !== null && !isVoidCell(eastIndex) ? getCellHeight(eastIndex) : 0;
       const northHeight =
-        northIndex !== null ? getCellHeight(northIndex) : HEIGHT_FLOOR;
+        northIndex !== null && !isVoidCell(northIndex)
+          ? getCellHeight(northIndex)
+          : 0;
       const southHeight =
-        southIndex !== null ? getCellHeight(southIndex) : HEIGHT_FLOOR;
+        southIndex !== null && !isVoidCell(southIndex)
+          ? getCellHeight(southIndex)
+          : 0;
 
       if (isHeightDrop(elevation, westHeight)) {
         addQuad(
