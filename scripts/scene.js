@@ -4724,6 +4724,11 @@ export const initScene = (
 
         const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
         for (let index = 0; index < positions.count; index += 1) {
+          if (!isInsideMap) {
+            positions.setY(index, platformLocalY);
+            continue;
+          }
+
           const localX = positions.getX(index);
           const localZ = positions.getZ(index);
           const xBlend = THREE.MathUtils.clamp(
