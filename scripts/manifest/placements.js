@@ -1525,6 +1525,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     isManifestEditModeEnabled: () => manifestEditModeState.enabled,
     placeModelFromManifestEntry,
     hasManifestPlacements: () => manifestPlacements.size > 0,
+    getManifestPlacements: () => Array.from(manifestPlacements),
     updateManifestEditModeHover,
     updateActivePlacementPreview,
     cancelActivePlacement,
