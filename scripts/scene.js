@@ -7729,6 +7729,21 @@ export const initScene = (
         );
       });
     }
+
+    const manifestPlacementTargets =
+      typeof getManifestPlacements === "function"
+        ? getManifestPlacements()
+        : [];
+
+    if (Array.isArray(manifestPlacementTargets)) {
+      manifestPlacementTargets.forEach((target) => {
+        updateObjectViewDistance(
+          target,
+          playerPosition,
+          viewDistance
+        );
+      });
+    }
   };
 
   let currentPlayerHorizontalSpeed = 0;
@@ -9797,6 +9812,7 @@ export const initScene = (
     isManifestEditModeEnabled,
     placeModelFromManifestEntry,
     hasManifestPlacements,
+    getManifestPlacements,
     updateManifestEditModeHover,
     updateActivePlacementPreview,
     cancelActivePlacement,
