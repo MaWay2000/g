@@ -1030,7 +1030,7 @@ const quickSlotDefinitions = [
     id: "digger",
     label: "Digger",
     description: "Standard issue excavation module.",
-    icon: "🪓",
+    icon: "🛸",
   },
   {
     id: DRONE_QUICK_SLOT_ID,
