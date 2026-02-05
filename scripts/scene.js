@@ -4320,8 +4320,8 @@ export const initScene = (
     };
   };
 
-  const OPERATIONS_EXTERIOR_PLATFORM_WIDTH = roomWidth * 1.45;
-  const OPERATIONS_EXTERIOR_PLATFORM_DEPTH = roomDepth * 1.05;
+  const OPERATIONS_EXTERIOR_PLATFORM_WIDTH = roomWidth * 0.82;
+  const OPERATIONS_EXTERIOR_PLATFORM_DEPTH = roomDepth * 0.58;
   const operationsExteriorLocalBounds = createFloorBounds(
     OPERATIONS_EXTERIOR_PLATFORM_WIDTH,
     OPERATIONS_EXTERIOR_PLATFORM_DEPTH,
