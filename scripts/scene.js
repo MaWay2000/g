@@ -5938,21 +5938,6 @@ export const initScene = (
     floor.position.y = roomFloorY - floorThickness / 2;
     group.add(floor);
 
-    const pitMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0f172a),
-      roughness: 0.45,
-      metalness: 0.55,
-    });
-
-    const pitWidth = bayWidth * 0.5;
-    const pitDepth = bayDepth * 0.4;
-    const maintenancePit = new THREE.Mesh(
-      new THREE.BoxGeometry(pitWidth, 0.6, pitDepth),
-      pitMaterial
-    );
-    maintenancePit.position.set(0, roomFloorY - 0.3, 0);
-    group.add(maintenancePit);
-
     const catwalkMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x1f2937),
       roughness: 0.5,
@@ -6098,7 +6083,6 @@ export const initScene = (
 
     const adjustableEntries = [
       { object: floor, offset: -floorThickness / 2 },
-      { object: maintenancePit, offset: -0.3 },
       { object: gantry, offset: 0.18 },
       { object: generatorHousing, offset: 0.55 },
       { object: generatorCore, offset: 0.55 },
