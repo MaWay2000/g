@@ -4505,22 +4505,7 @@ export const initScene = (
       mapObjectGroup.name = "operations-exterior-outside-objects";
       mapGroup.add(mapObjectGroup);
 
-      const base = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          expandedWorldWidth,
-          0.08,
-          expandedWorldDepth
-        ),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x0b1220),
-          roughness: 0.88,
-          metalness: 0.06,
-        })
-      );
-      base.position.set(0, roomFloorY - 0.04, mapCenterZ);
-      mapGroup.add(base);
-
-      const adjustable = [{ object: base, offset: -0.04 }];
+      const adjustable = [];
       const colliderDescriptors = [];
       const resourceTargets = [];
       const terrainTiles = [];
