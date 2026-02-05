@@ -5348,7 +5348,6 @@ export const initScene = (
       platformMaterial
     );
     platform.position.y = roomFloorY - platformThickness / 2;
-    group.add(platform);
 
     const walkwayMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x1f2f33),
@@ -5368,7 +5367,6 @@ export const initScene = (
       roomFloorY + 0.06,
       -OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.08
     );
-    group.add(walkway);
 
     let storedOutsideMap = null;
     try {
@@ -5812,8 +5810,6 @@ export const initScene = (
     liftIndicatorLights.push({ mesh: beacon, light: beaconLight, phase: Math.PI / 2 });
 
     const adjustableEntries = [
-      { object: platform, offset: -platformThickness / 2 },
-      { object: walkway, offset: 0.06 },
       { object: returnDoor, offset: returnDoor.position.y - roomFloorY },
       { object: entranceRoof, offset: entranceRoof.position.y - roomFloorY },
       { object: entranceLeftWall, offset: entranceLeftWall.position.y - roomFloorY },
