@@ -1197,7 +1197,7 @@ export const initMapMaker3d = ({
     }
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
-    if (activeTab === "objects") {
+    if (activeTab === "objects" || activeTab === "doors") {
       highlightMesh.visible = false;
       return;
     }
@@ -1373,11 +1373,11 @@ export const initMapMaker3d = ({
     previewIndex = Number.isFinite(index) ? index : null;
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
-    if (activeTab !== "objects") {
+    if (activeTab !== "objects" && activeTab !== "doors") {
       clearPreviewObject();
       return;
     }
-    const path = resolvePreviewPath();
+    const path = activeTab === "doors" ? resolveDoorMode() === "place" ? DOOR_MARKER_PATH : null : resolveSelectedObjectPath();
     if (!path || !Number.isFinite(index)) {
       clearPreviewObject();
       return;
@@ -1459,7 +1459,7 @@ export const initMapMaker3d = ({
     }
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
-    if (activeTab === "objects") {
+    if (activeTab === "objects" || activeTab === "doors") {
       return;
     }
     const index = getCellIndexFromEvent(event);
@@ -1476,7 +1476,7 @@ export const initMapMaker3d = ({
     }
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
-    if (activeTab === "objects") {
+    if (activeTab === "doors") {
       const doorMode = resolveDoorMode();
       if (doorMode === "remove") {
         removeDoorFromEvent(event);
@@ -1484,8 +1484,10 @@ export const initMapMaker3d = ({
       }
       if (doorMode === "place") {
         placeDoorFromEvent(event);
-        return;
       }
+      return;
+    }
+    if (activeTab === "objects") {
       placeObjectFromEvent(event);
       return;
     }

@@ -1178,6 +1178,18 @@
           class="map-maker-tab"
           type="button"
           role="tab"
+          id="tab-doors"
+          aria-selected="false"
+          aria-controls="doorsPanel"
+          tabindex="-1"
+          data-map-maker-tab="doors"
+        >
+          Doors
+        </button>
+        <button
+          class="map-maker-tab"
+          type="button"
+          role="tab"
           id="tab-objects"
           aria-selected="false"
           aria-controls="objectsPanel"
@@ -1339,10 +1351,10 @@
       </div>
       <div
         class="tab-panel palette-panel"
-        id="objectsPanel"
+        id="doorsPanel"
         role="tabpanel"
-        aria-labelledby="tab-objects"
-        data-map-maker-panel="objects"
+        aria-labelledby="tab-doors"
+        data-map-maker-panel="doors"
         hidden
       >
         <section class="sidebar-section">
@@ -1373,6 +1385,15 @@
           <p class="door-list-empty" id="doorListEmpty">No doors placed yet.</p>
           <ul class="door-list" id="doorList" aria-live="polite"></ul>
         </section>
+      </div>
+      <div
+        class="tab-panel palette-panel"
+        id="objectsPanel"
+        role="tabpanel"
+        aria-labelledby="tab-objects"
+        data-map-maker-panel="objects"
+        hidden
+      >
         <section class="sidebar-section">
           <h2>Placed Objects</h2>
           <p class="hint">Click an object to center and highlight it on the map.</p>
