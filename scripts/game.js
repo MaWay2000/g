@@ -762,8 +762,6 @@ const applyLiftDoorFilterUiState = () => {
   }
 };
 
-applyLiftDoorFilterUiState();
-
 const applyStarVisualUiState = () => {
   const starSize = Number(currentSettings?.starSize ?? 1);
   const starDensity = Number(currentSettings?.starDensity ?? 1);
