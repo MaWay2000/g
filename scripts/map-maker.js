@@ -2044,7 +2044,7 @@ function setActivePaletteTab(tabId) {
     panel.classList.toggle("is-active", isActive);
   });
 
-  if (tabId === "landshaft" || tabId === "terrain" || tabId === "objects" || tabId === "height") {
+  if (tabId === "landshaft" || tabId === "terrain" || tabId === "doors" || tabId === "objects" || tabId === "height") {
     const needsInit = !landscapeViewer;
     if (!landscapeViewer) {
       landscapeViewer = initMapMaker3d({
