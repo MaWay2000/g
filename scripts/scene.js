@@ -4510,6 +4510,7 @@ export const initScene = (
       const resourceTargets = [];
       const terrainTiles = [];
       const liftDoors = [];
+      const viewDistanceTargets = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
       const geoVisorMaterials = new Map();
@@ -5272,6 +5273,7 @@ export const initScene = (
               offset: door.position.y - roomFloorY,
             });
             liftDoors.push(door);
+            viewDistanceTargets.push(door);
             return;
           }
 
@@ -5291,6 +5293,7 @@ export const initScene = (
               object: model,
               offset: model.position.y - roomFloorY,
             });
+            viewDistanceTargets.push(model);
           } catch (error) {
             console.warn(
               "Unable to load outside map object",
@@ -5319,6 +5322,7 @@ export const initScene = (
         liftDoors,
         resourceTargets,
         terrainTiles,
+        viewDistanceTargets,
       };
     };
 
@@ -5426,6 +5430,13 @@ export const initScene = (
     if (Array.isArray(builtOutsideTerrain?.terrainTiles)) {
       environmentTerrainTiles.push(
         ...builtOutsideTerrain.terrainTiles.filter((tile) => tile && tile.isObject3D)
+      );
+    }
+    if (Array.isArray(builtOutsideTerrain?.viewDistanceTargets)) {
+      environmentViewDistanceTargets.push(
+        ...builtOutsideTerrain.viewDistanceTargets.filter(
+          (target) => target && target.isObject3D
+        )
       );
     }
     if (
@@ -6735,21 +6746,29 @@ export const initScene = (
         };
       }
 
-      const resourceTargets = Array.isArray(environment?.resourceTargets)
-        ? environment.resourceTargets.filter(
-            (target) => target && target.isObject3D
-          )
-        : [];
+      const sanitizeObject3DTargetList = (targets) => {
+        if (!Array.isArray(targets)) {
+          return [];
+        }
 
-      const terrainTiles = Array.isArray(environment?.terrainTiles)
-        ? environment.terrainTiles.filter((tile) => tile && tile.isObject3D)
-        : [];
+        for (let index = targets.length - 1; index >= 0; index -= 1) {
+          if (!targets[index]?.isObject3D) {
+            targets.splice(index, 1);
+          }
+        }
 
-      const viewDistanceTargets = Array.isArray(environment?.viewDistanceTargets)
-        ? environment.viewDistanceTargets.filter(
-            (target) => target && target.isObject3D
-          )
-        : [];
+        return targets;
+      };
+
+      const resourceTargets = sanitizeObject3DTargetList(
+        environment?.resourceTargets
+      );
+
+      const terrainTiles = sanitizeObject3DTargetList(environment?.terrainTiles);
+
+      const viewDistanceTargets = sanitizeObject3DTargetList(
+        environment?.viewDistanceTargets
+      );
       enableTerrainLayerForTiles(terrainTiles);
 
       const starFields = Array.isArray(environment?.starFields)
