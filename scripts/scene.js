@@ -4636,15 +4636,22 @@ export const initScene = (
         sizeX,
         sizeY,
         sizeZ,
-        { rotateFrontBackQuarterTurns = 0 } = {}
+        {
+          rotateRightLeftQuarterTurns = 0,
+          rotateFrontBackQuarterTurns = 0,
+        } = {}
       ) => {
         if (!perimeterTexturePath) {
           return perimeterMaterialBase;
         }
 
         return [
-          getPerimeterFaceMaterial(sizeZ, sizeY),
-          getPerimeterFaceMaterial(sizeZ, sizeY),
+          getPerimeterFaceMaterial(sizeZ, sizeY, {
+            rotateQuarterTurns: rotateRightLeftQuarterTurns,
+          }),
+          getPerimeterFaceMaterial(sizeZ, sizeY, {
+            rotateQuarterTurns: rotateRightLeftQuarterTurns,
+          }),
           getPerimeterFaceMaterial(sizeX, sizeZ),
           getPerimeterFaceMaterial(sizeX, sizeZ),
           getPerimeterFaceMaterial(sizeX, sizeY, {
@@ -4710,7 +4717,8 @@ export const initScene = (
         getPerimeterBoxMaterials(
           perimeterThickness,
           perimeterHeight,
-          sideWallDepth
+          sideWallDepth,
+          { rotateRightLeftQuarterTurns: 1 }
         ),
       );
       westWall.position.set(
