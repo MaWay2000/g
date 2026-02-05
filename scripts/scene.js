@@ -4678,7 +4678,7 @@ export const initScene = (
           expandedWorldWidth,
           perimeterHeight,
           perimeterThickness,
-          { rotateFrontBackQuarterTurns: 1 }
+          { rotateFrontBackQuarterTurns: -1 }
         )
       );
       northWall.position.set(
@@ -4718,7 +4718,7 @@ export const initScene = (
           perimeterThickness,
           perimeterHeight,
           sideWallDepth,
-          { rotateRightLeftQuarterTurns: 1 }
+          { rotateRightLeftQuarterTurns: -1 }
         ),
       );
       westWall.position.set(
