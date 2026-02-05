@@ -4686,10 +4686,9 @@ export const initScene = (
       terrainTiles.push(northWall, southWall, westWall, eastWall);
 
       const getCellElevation = (column, row) => {
-        if (column < 0 || column >= width || row < 0 || row >= height) {
-          return outsideBorderElevation;
-        }
-        const index = row * width + column;
+        const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
+        const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
+        const index = clampedRow * width + clampedColumn;
         return getOutsideTerrainElevation(normalizedMap.heights?.[index]);
       };
 
