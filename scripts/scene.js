@@ -4657,13 +4657,18 @@ export const initScene = (
       });
       colliderDescriptors.push({ object: southWall });
 
+      const sideWallDepth = Math.max(
+        perimeterThickness,
+        expandedWorldDepth - perimeterThickness * 2
+      );
+
       const westWall = new THREE.Mesh(
         new THREE.BoxGeometry(
           perimeterThickness,
           perimeterHeight,
-          expandedWorldDepth
+          sideWallDepth
         ),
-        getPerimeterMaterial(expandedWorldDepth)
+        getPerimeterMaterial(sideWallDepth)
       );
       westWall.position.set(
         -expandedHalfWidth + perimeterThickness / 2,
