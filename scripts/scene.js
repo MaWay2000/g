@@ -4593,13 +4593,13 @@ export const initScene = (
           firstCellWithData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
         return getOutsideTerrainTilePath(tileId, 0);
       })();
-      const getPerimeterMaterial = (length) => {
+      const getPerimeterFaceMaterial = (repeatU, repeatV) => {
         if (!perimeterTexturePath) {
           return perimeterMaterialBase;
         }
 
-        const repeatX = Math.max(1, length / cellSize);
-        const repeatY = Math.max(1, perimeterHeight / cellSize);
+        const repeatX = Math.max(1, repeatU / cellSize);
+        const repeatY = Math.max(1, repeatV / cellSize);
         const materialKey = `${perimeterTexturePath}:${repeatX}:${repeatY}`;
 
         if (perimeterMaterials.has(materialKey)) {
@@ -4624,17 +4624,37 @@ export const initScene = (
         perimeterMaterials.set(materialKey, material);
         return material;
       };
+      const getPerimeterBoxMaterials = (sizeX, sizeY, sizeZ) => {
+        if (!perimeterTexturePath) {
+          return perimeterMaterialBase;
+        }
+
+        return [
+          getPerimeterFaceMaterial(sizeZ, sizeY),
+          getPerimeterFaceMaterial(sizeZ, sizeY),
+          getPerimeterFaceMaterial(sizeX, sizeZ),
+          getPerimeterFaceMaterial(sizeX, sizeZ),
+          getPerimeterFaceMaterial(sizeX, sizeY),
+          getPerimeterFaceMaterial(sizeX, sizeY),
+        ];
+      };
       const expandedHalfWidth = expandedWorldWidth / 2;
       const expandedHalfDepth = expandedWorldDepth / 2;
       const perimeterCenterY = (perimeterTopY + perimeterBottomY) / 2;
 
+      const northSouthWallGeometry = new THREE.BoxGeometry(
+        expandedWorldWidth,
+        perimeterHeight,
+        perimeterThickness
+      );
+
       const northWall = new THREE.Mesh(
-        new THREE.BoxGeometry(
+        northSouthWallGeometry,
+        getPerimeterBoxMaterials(
           expandedWorldWidth,
           perimeterHeight,
           perimeterThickness
-        ),
-        getPerimeterMaterial(expandedWorldWidth)
+        )
       );
       northWall.position.set(
         0,
@@ -4661,14 +4681,19 @@ export const initScene = (
         perimeterThickness,
         expandedWorldDepth - perimeterThickness * 2
       );
+      const eastWestWallGeometry = new THREE.BoxGeometry(
+        perimeterThickness,
+        perimeterHeight,
+        sideWallDepth
+      );
 
       const westWall = new THREE.Mesh(
-        new THREE.BoxGeometry(
+        eastWestWallGeometry,
+        getPerimeterBoxMaterials(
           perimeterThickness,
           perimeterHeight,
           sideWallDepth
         ),
-        getPerimeterMaterial(sideWallDepth)
       );
       westWall.position.set(
         -expandedHalfWidth + perimeterThickness / 2,
