@@ -1633,7 +1633,7 @@ export const initScene = (
           tile.material = tile.userData.geoVisorPreviousMaterial;
           tile.userData.geoVisorPreviousMaterial = null;
         } else {
-          applyGeoVisorMaterialToTile(tile, true);
+          applyGeoVisorMaterialToTile(tile, false);
         }
       });
 
