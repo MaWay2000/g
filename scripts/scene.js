@@ -5120,161 +5120,383 @@ export const initScene = (
       const terrainLowDetailSegments = Math.min(2, terrainPlaneSegments);
       const terrainDetailCenterX = 0;
       const terrainDetailCenterZ = mapCenterZ;
+      const tileMapBounds = {
+        minX: mapLeftEdge,
+        maxX: mapRightEdge,
+        minZ: Math.min(mapNearEdge, mapFarEdge),
+        maxZ: Math.max(mapNearEdge, mapFarEdge),
+      };
 
-      for (let row = -borderTiles; row < height + borderTiles; row += 1) {
-        for (let column = -borderTiles; column < width + borderTiles; column += 1) {
-          const isInsideMap =
-            column >= 0 && column < width && row >= 0 && row < height;
-          const tileCenterX = mapLeftEdge + column * cellSize + cellSize / 2;
-          const tileCenterZ = mapNearEdge + row * cellSize + cellSize / 2;
-          const distanceFromDetailCenter = Math.hypot(
-            tileCenterX - terrainDetailCenterX,
-            tileCenterZ - terrainDetailCenterZ
-          );
-          const tileSegments =
-            distanceFromDetailCenter > terrainDetailDistance
-              ? terrainLowDetailSegments
-              : terrainPlaneSegments;
-          const index = getCellIndex(column, row);
-          const cellData = rawCells[index] ?? {};
-          const terrainId = cellData?.terrainId ?? "void";
-          const tileId =
-            cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
-          const resolvedTerrain = getOutsideTerrainById(terrainId);
-          const elevation = getOutsideTerrainElevation(
-            normalizedMap.heights?.[index]
-          );
-          const surfaceHeight = tileHeight + elevation;
-          const tileGeometry = createTerrainTileGeometry(
-            column,
-            row,
-            tileHeight,
-            isInsideMap,
-            tileSegments
-          );
-          const tile = new THREE.Mesh(
-            tileGeometry,
-            getMaterialForTerrain(resolvedTerrain.id, tileId, index)
-          );
-          tile.position.set(
-            mapLeftEdge + column * cellSize + cellSize / 2,
-            roomFloorY + OUTSIDE_TERRAIN_CLEARANCE,
-            mapNearEdge + row * cellSize + cellSize / 2
-          );
-          tile.castShadow = false;
-          tile.receiveShadow = false;
-          mapGroup.add(tile);
-          adjustable.push({
-            object: tile,
-            offset: tile.position.y - roomFloorY,
+      const windowedTileRegistry = new Map();
+      const windowedTileColliders = new Map();
+      const windowedTileAdjustables = new Map();
+      const terrainWindowState = {
+        minColumn: null,
+        maxColumn: null,
+        minRow: null,
+        maxRow: null,
+      };
+      const cameraWorldPosition = new THREE.Vector3();
+      const cameraLocalPosition = new THREE.Vector3();
+
+      const getWindowViewDistance = () => {
+        const baseDistance =
+          BASE_VIEW_DISTANCE *
+          viewSettings.distanceMultiplier *
+          VIEW_DISTANCE_CULLING_BUFFER;
+        if (!Array.isArray(viewDistanceTargets) || viewDistanceTargets.length === 0) {
+          return baseDistance;
+        }
+
+        const maxMultiplier = viewDistanceTargets.reduce((maxDistance, target) => {
+          const multiplier = Number.isFinite(target?.userData?.viewDistanceMultiplier)
+            ? target.userData.viewDistanceMultiplier
+            : 1;
+          return Math.max(maxDistance, multiplier);
+        }, 1);
+
+        return baseDistance * maxMultiplier;
+      };
+
+      const registerTileColliderIfNeeded = (tile, surfaceHeight) => {
+        if (!tile || !Number.isFinite(surfaceHeight)) {
+          return;
+        }
+
+        if (surfaceHeight <= getMaxStepHeight() + 0.1) {
+          return;
+        }
+
+        const registered = registerColliderDescriptors([{ object: tile }]);
+        if (Array.isArray(registered) && registered.length > 0) {
+          windowedTileColliders.set(tile, registered);
+        }
+      };
+
+      const disposeTileChildren = (tile) => {
+        if (!tile) {
+          return;
+        }
+
+        tile.children.forEach((child) => {
+          if (!child) {
+            return;
+          }
+
+          if (child.geometry && typeof child.geometry.dispose === "function") {
+            child.geometry.dispose();
+          }
+
+          const { material } = child;
+          if (Array.isArray(material)) {
+            material.forEach((entry) => {
+              if (entry && typeof entry.dispose === "function") {
+                entry.dispose();
+              }
+            });
+          } else if (material && typeof material.dispose === "function") {
+            material.dispose();
+          }
+        });
+      };
+
+      const removeWindowedTile = (tileKey) => {
+        const tile = windowedTileRegistry.get(tileKey);
+        if (!tile) {
+          return false;
+        }
+
+        const colliderEntries = windowedTileColliders.get(tile);
+        if (Array.isArray(colliderEntries) && colliderEntries.length > 0) {
+          unregisterColliderDescriptors(colliderEntries);
+          windowedTileColliders.delete(tile);
+        }
+
+        const adjustableEntry = windowedTileAdjustables.get(tile);
+        if (adjustableEntry) {
+          const adjustableIndex = adjustable.indexOf(adjustableEntry);
+          if (adjustableIndex >= 0) {
+            adjustable.splice(adjustableIndex, 1);
+          }
+          windowedTileAdjustables.delete(tile);
+        }
+
+        const terrainIndex = terrainTiles.indexOf(tile);
+        if (terrainIndex >= 0) {
+          terrainTiles.splice(terrainIndex, 1);
+        }
+
+        const resourceIndex = resourceTargets.indexOf(tile);
+        if (resourceIndex >= 0) {
+          resourceTargets.splice(resourceIndex, 1);
+        }
+
+        mapGroup.remove(tile);
+        disposeTileChildren(tile);
+        if (tile.geometry && typeof tile.geometry.dispose === "function") {
+          tile.geometry.dispose();
+        }
+
+        windowedTileRegistry.delete(tileKey);
+        return true;
+      };
+
+      const createWindowedTile = (column, row) => {
+        const index = getCellIndex(column, row);
+        const cellData = rawCells[index] ?? {};
+        const terrainId = cellData?.terrainId ?? "void";
+        const tileId =
+          cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+        const resolvedTerrain = getOutsideTerrainById(terrainId);
+        const elevation = getOutsideTerrainElevation(
+          normalizedMap.heights?.[index]
+        );
+        const surfaceHeight = tileHeight + elevation;
+        const tileCenterX = mapLeftEdge + column * cellSize + cellSize / 2;
+        const tileCenterZ = mapNearEdge + row * cellSize + cellSize / 2;
+        const distanceFromDetailCenter = Math.hypot(
+          tileCenterX - terrainDetailCenterX,
+          tileCenterZ - terrainDetailCenterZ
+        );
+        const tileSegments =
+          distanceFromDetailCenter > terrainDetailDistance
+            ? terrainLowDetailSegments
+            : terrainPlaneSegments;
+        const tileGeometry = createTerrainTileGeometry(
+          column,
+          row,
+          tileHeight,
+          true,
+          tileSegments
+        );
+        const tile = new THREE.Mesh(
+          tileGeometry,
+          getMaterialForTerrain(resolvedTerrain.id, tileId, index)
+        );
+        tile.position.set(
+          tileCenterX,
+          roomFloorY + OUTSIDE_TERRAIN_CLEARANCE,
+          tileCenterZ
+        );
+        tile.castShadow = false;
+        tile.receiveShadow = false;
+        tile.userData.terrainId = resolvedTerrain.id;
+        tile.userData.terrainLabel =
+          typeof resolvedTerrain.label === "string"
+            ? resolvedTerrain.label
+            : resolvedTerrain.id;
+        tile.userData.tileId = tileId;
+        tile.userData.terrainHeight = surfaceHeight;
+        tile.userData.tileVariantIndex = index;
+        tile.userData.geoVisorRow = row;
+        tile.userData.geoVisorColumn = column;
+        tile.userData.geoVisorCellSize = cellSize;
+        tile.userData.geoVisorMapLeftEdge = mapLeftEdge;
+        tile.userData.geoVisorMapNearEdge = mapNearEdge;
+        tile.userData.geoVisorRevealedMaterial = tile.material;
+        tile.userData.geoVisorVisorMaterial = getGeoVisorMaterialForTerrain(
+          resolvedTerrain.id,
+          tileId,
+          index
+        );
+        tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
+        tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
+
+        if (geoVisorEnabled) {
+          tile.material = concealedTerrainMaterial;
+        }
+
+        if (resolvedTerrain.id !== "void") {
+          tile.userData.isResourceTarget = true;
+          resourceTargets.push(tile);
+        }
+
+        if (resolvedTerrain.id === "point") {
+          const markerMaterial = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
+            emissive: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
+            emissiveIntensity: (terrainStyle.emissiveIntensity ?? 0.45) * 1.2,
+            roughness: 0.35,
+            metalness: 0.75,
+            transparent: true,
+            opacity: 0.85,
           });
-          terrainTiles.push(tile);
+          const marker = new THREE.Mesh(
+            new THREE.ConeGeometry(cellSize * 0.28, cellSize * 0.9, 16),
+            markerMaterial
+          );
+          marker.position.set(0, surfaceHeight + cellSize * 0.5, 0);
+          tile.add(marker);
+        } else if (resolvedTerrain.id === "hazard") {
+          const beaconMaterial = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
+            emissive: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
+            emissiveIntensity: (terrainStyle.emissiveIntensity ?? 0.32) * 1.4,
+            roughness: 0.3,
+            metalness: 0.7,
+            transparent: true,
+            opacity: 0.8,
+          });
+          const beacon = new THREE.Mesh(
+            new THREE.CylinderGeometry(
+              cellSize * 0.14,
+              cellSize * 0.14,
+              cellSize * 0.9,
+              16
+            ),
+            beaconMaterial
+          );
+          beacon.position.set(0, surfaceHeight + cellSize * 0.45, 0);
+          tile.add(beacon);
 
-          if (isInsideMap) {
-            tile.userData.terrainId = resolvedTerrain.id;
-            tile.userData.terrainLabel =
-              typeof resolvedTerrain.label === "string"
-                ? resolvedTerrain.label
-                : resolvedTerrain.id;
-            tile.userData.tileId = tileId;
-            tile.userData.terrainHeight = surfaceHeight;
-            tile.userData.tileVariantIndex = index;
-            tile.userData.geoVisorRow = row;
-            tile.userData.geoVisorColumn = column;
-            tile.userData.geoVisorCellSize = cellSize;
-            tile.userData.geoVisorMapLeftEdge = mapLeftEdge;
-            tile.userData.geoVisorMapNearEdge = mapNearEdge;
-            tile.userData.geoVisorRevealedMaterial = tile.material;
-            tile.userData.geoVisorVisorMaterial = getGeoVisorMaterialForTerrain(
-              resolvedTerrain.id,
-              tileId,
-              index
-            );
-            tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
-            tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
+          const hazardGlow = new THREE.Mesh(
+            new THREE.PlaneGeometry(cellSize * 0.9, cellSize * 0.9),
+            new THREE.MeshBasicMaterial({
+              color: terrainStyle.emissive ?? 0xff6b6b,
+              transparent: true,
+              opacity: 0.3,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              side: THREE.DoubleSide,
+            })
+          );
+          hazardGlow.position.set(0, surfaceHeight + cellSize * 0.65, 0);
+          hazardGlow.rotation.x = -Math.PI / 2;
+          tile.add(hazardGlow);
+        }
 
-            if (geoVisorEnabled) {
-              tile.material = concealedTerrainMaterial;
+        mapGroup.add(tile);
+        terrainTiles.push(tile);
+        const adjustableEntry = {
+          object: tile,
+          offset: tile.position.y - roomFloorY,
+        };
+        adjustable.push(adjustableEntry);
+        windowedTileAdjustables.set(tile, adjustableEntry);
+        registerTileColliderIfNeeded(tile, surfaceHeight);
+
+        return tile;
+      };
+
+      const updateTerrainWindowing = ({ force = false } = {}) => {
+        if (!camera || !mapGroup?.isObject3D) {
+          return;
+        }
+
+        const viewDistance = getWindowViewDistance();
+        if (!Number.isFinite(viewDistance) || viewDistance <= 0) {
+          return;
+        }
+
+        const bufferTiles = Math.max(1, Math.round((viewDistance / cellSize) * 0.1));
+        const bufferDistance = bufferTiles * cellSize;
+
+        mapGroup.updateWorldMatrix(true, false);
+        camera.getWorldPosition(cameraWorldPosition);
+        cameraLocalPosition.copy(cameraWorldPosition);
+        mapGroup.worldToLocal(cameraLocalPosition);
+
+        const clampedCenterX = THREE.MathUtils.clamp(
+          cameraLocalPosition.x,
+          tileMapBounds.minX,
+          tileMapBounds.maxX
+        );
+        const clampedCenterZ = THREE.MathUtils.clamp(
+          cameraLocalPosition.z,
+          tileMapBounds.minZ,
+          tileMapBounds.maxZ
+        );
+
+        const minX = THREE.MathUtils.clamp(
+          clampedCenterX - viewDistance - bufferDistance,
+          tileMapBounds.minX,
+          tileMapBounds.maxX
+        );
+        const maxX = THREE.MathUtils.clamp(
+          clampedCenterX + viewDistance + bufferDistance,
+          tileMapBounds.minX,
+          tileMapBounds.maxX
+        );
+        const minZ = THREE.MathUtils.clamp(
+          clampedCenterZ - viewDistance - bufferDistance,
+          tileMapBounds.minZ,
+          tileMapBounds.maxZ
+        );
+        const maxZ = THREE.MathUtils.clamp(
+          clampedCenterZ + viewDistance + bufferDistance,
+          tileMapBounds.minZ,
+          tileMapBounds.maxZ
+        );
+
+        let minColumn = clampColumnIndex(
+          Math.floor((minX - mapLeftEdge) / cellSize)
+        );
+        let maxColumn = clampColumnIndex(
+          Math.ceil((maxX - mapLeftEdge) / cellSize) - 1
+        );
+        let minRow = clampRowIndex(
+          Math.floor((minZ - mapNearEdge) / cellSize)
+        );
+        let maxRow = clampRowIndex(
+          Math.ceil((maxZ - mapNearEdge) / cellSize) - 1
+        );
+
+        if (maxColumn < minColumn) {
+          maxColumn = minColumn;
+        }
+
+        if (maxRow < minRow) {
+          maxRow = minRow;
+        }
+
+        if (
+          !force &&
+          terrainWindowState.minColumn === minColumn &&
+          terrainWindowState.maxColumn === maxColumn &&
+          terrainWindowState.minRow === minRow &&
+          terrainWindowState.maxRow === maxRow
+        ) {
+          return;
+        }
+
+        const nextKeys = new Set();
+        let collidersChanged = false;
+
+        for (let row = minRow; row <= maxRow; row += 1) {
+          for (let column = minColumn; column <= maxColumn; column += 1) {
+            const key = `${column},${row}`;
+            nextKeys.add(key);
+            if (!windowedTileRegistry.has(key)) {
+              const tile = createWindowedTile(column, row);
+              windowedTileRegistry.set(key, tile);
+              collidersChanged = true;
             }
-
-          }
-
-          const westIndex = column > 0 ? index - 1 : null;
-          const eastIndex = column < width - 1 ? index + 1 : null;
-          const northIndex = row > 0 ? index - width : null;
-          const southIndex = row < height - 1 ? index + width : null;
-          const westHeight =
-            westIndex === null ? null : getSurfaceHeight(westIndex);
-          const eastHeight =
-            eastIndex === null ? null : getSurfaceHeight(eastIndex);
-          const northHeight =
-            northIndex === null ? null : getSurfaceHeight(northIndex);
-          const southHeight =
-            southIndex === null ? null : getSurfaceHeight(southIndex);
-          if (isInsideMap && surfaceHeight > getMaxStepHeight() + 0.1) {
-            colliderDescriptors.push({ object: tile });
-          }
-
-          if (isInsideMap && resolvedTerrain.id !== "void") {
-            tile.userData.isResourceTarget = true;
-            resourceTargets.push(tile);
-          }
-
-          if (isInsideMap && resolvedTerrain.id === "point") {
-            const markerMaterial = new THREE.MeshStandardMaterial({
-              color: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
-              emissive: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
-              emissiveIntensity: (terrainStyle.emissiveIntensity ?? 0.45) * 1.2,
-              roughness: 0.35,
-              metalness: 0.75,
-              transparent: true,
-              opacity: 0.85,
-            });
-            const marker = new THREE.Mesh(
-              new THREE.ConeGeometry(cellSize * 0.28, cellSize * 0.9, 16),
-              markerMaterial
-            );
-            marker.position.set(0, surfaceHeight + cellSize * 0.5, 0);
-            tile.add(marker);
-          } else if (isInsideMap && resolvedTerrain.id === "hazard") {
-            const beaconMaterial = new THREE.MeshStandardMaterial({
-              color: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
-              emissive: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
-              emissiveIntensity: (terrainStyle.emissiveIntensity ?? 0.32) * 1.4,
-              roughness: 0.3,
-              metalness: 0.7,
-              transparent: true,
-              opacity: 0.8,
-            });
-            const beacon = new THREE.Mesh(
-              new THREE.CylinderGeometry(
-                cellSize * 0.14,
-                cellSize * 0.14,
-                cellSize * 0.9,
-                16
-              ),
-              beaconMaterial
-            );
-            beacon.position.set(0, surfaceHeight + cellSize * 0.45, 0);
-            tile.add(beacon);
-
-            const hazardGlow = new THREE.Mesh(
-              new THREE.PlaneGeometry(cellSize * 0.9, cellSize * 0.9),
-              new THREE.MeshBasicMaterial({
-                color: terrainStyle.emissive ?? 0xff6b6b,
-                transparent: true,
-                opacity: 0.3,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-              })
-            );
-            hazardGlow.position.set(0, surfaceHeight + cellSize * 0.65, 0);
-            hazardGlow.rotation.x = -Math.PI / 2;
-            tile.add(hazardGlow);
           }
         }
-      }
+
+        Array.from(windowedTileRegistry.keys()).forEach((key) => {
+          if (!nextKeys.has(key)) {
+            if (removeWindowedTile(key)) {
+              collidersChanged = true;
+            }
+          }
+        });
+
+        terrainWindowState.minColumn = minColumn;
+        terrainWindowState.maxColumn = maxColumn;
+        terrainWindowState.minRow = minRow;
+        terrainWindowState.maxRow = maxRow;
+
+        if (collidersChanged) {
+          rebuildStaticColliders();
+        }
+      };
+
+      mapGroup.userData.dispose = () => {
+        Array.from(windowedTileRegistry.keys()).forEach((key) => {
+          removeWindowedTile(key);
+        });
+      };
 
       if (objectPlacements.length > 0) {
         const mapDisplayName =
@@ -5412,6 +5634,7 @@ export const initScene = (
           minZ: Math.min(mapNearEdge, mapFarEdge),
           maxZ: Math.max(mapNearEdge, mapFarEdge),
         },
+        updateTerrainWindowing,
         adjustableEntries: adjustable,
         colliderDescriptors,
         liftDoors,
@@ -5421,10 +5644,10 @@ export const initScene = (
       };
     };
 
-    const mapAdjustableEntries = [];
+    let mapAdjustableEntries = [];
     const mapColliderDescriptors = [];
-    const environmentResourceTargets = [];
-    const environmentTerrainTiles = [];
+    let environmentResourceTargets = [];
+    let environmentTerrainTiles = [];
     let environmentViewDistanceTargets = [];
     let outsideMapBounds = null;
 
@@ -5505,7 +5728,7 @@ export const initScene = (
       group.add(builtOutsideTerrain.group);
     }
     if (Array.isArray(builtOutsideTerrain?.adjustableEntries)) {
-      mapAdjustableEntries.push(...builtOutsideTerrain.adjustableEntries);
+      mapAdjustableEntries = builtOutsideTerrain.adjustableEntries;
     }
     if (Array.isArray(builtOutsideTerrain?.colliderDescriptors)) {
       mapColliderDescriptors.push(...builtOutsideTerrain.colliderDescriptors);
@@ -5514,16 +5737,10 @@ export const initScene = (
       ? builtOutsideTerrain.liftDoors.filter((door) => door && door.isObject3D)
       : [];
     if (Array.isArray(builtOutsideTerrain?.resourceTargets)) {
-      environmentResourceTargets.push(
-        ...builtOutsideTerrain.resourceTargets.filter((target) =>
-          target && target.isObject3D
-        )
-      );
+      environmentResourceTargets = builtOutsideTerrain.resourceTargets;
     }
     if (Array.isArray(builtOutsideTerrain?.terrainTiles)) {
-      environmentTerrainTiles.push(
-        ...builtOutsideTerrain.terrainTiles.filter((tile) => tile && tile.isObject3D)
-      );
+      environmentTerrainTiles = builtOutsideTerrain.terrainTiles;
     }
     if (Array.isArray(builtOutsideTerrain?.viewDistanceTargets)) {
       // Keep the same array reference so asynchronously loaded outside objects
@@ -5917,10 +6134,6 @@ export const initScene = (
       { object: distantStarField, offset: starYOffset },
     ];
 
-    if (mapAdjustableEntries.length > 0) {
-      adjustableEntries.push(...mapAdjustableEntries);
-    }
-
     const walkwayHalfWidth = OPERATIONS_EXTERIOR_PLATFORM_WIDTH / 2;
     const walkwayHalfDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH / 2;
 
@@ -5980,11 +6193,18 @@ export const initScene = (
         : operationsExteriorLocalBounds;
 
     const updateForRoomHeight = ({ roomFloorY }) => {
-      adjustableEntries.forEach(({ object, offset }) => {
-        if (object) {
-          object.position.y = roomFloorY + offset;
-        }
-      });
+      const applyAdjustments = (entries) => {
+        entries.forEach(({ object, offset }) => {
+          if (object) {
+            object.position.y = roomFloorY + offset;
+          }
+        });
+      };
+
+      applyAdjustments(adjustableEntries);
+      if (mapAdjustableEntries.length > 0) {
+        applyAdjustments(mapAdjustableEntries);
+      }
     };
 
     const teleportOffset = operationsExteriorTeleportOffset.clone();
@@ -5994,6 +6214,11 @@ export const initScene = (
       liftDoor: returnDoor,
       liftDoors: [returnDoor, ...mapLiftDoors],
       updateForRoomHeight,
+      update: () => {
+        if (typeof builtOutsideTerrain?.updateTerrainWindowing === "function") {
+          builtOutsideTerrain.updateTerrainWindowing();
+        }
+      },
       teleportOffset,
       bounds: resolvedEnvironmentBounds,
       colliderDescriptors: mapColliderDescriptors,
@@ -6864,6 +7089,7 @@ export const initScene = (
         terrainTiles,
         viewDistanceTargets,
         starFields,
+        update: typeof environment?.update === "function" ? environment.update : null,
       };
 
       updateEnvironmentForPlayerHeight();
@@ -6918,6 +7144,11 @@ export const initScene = (
       },
       load,
       unload,
+      update: (payload) => {
+        if (typeof state?.update === "function") {
+          state.update(payload);
+        }
+      },
       getGroup: () => state?.group ?? null,
       isLoaded: () => Boolean(state?.group),
     };
@@ -9269,6 +9500,24 @@ export const initScene = (
     updateViewDistanceCulling({ force: true });
   }
 
+  const updateActiveDeckEnvironment = (payload) => {
+    const activeFloor = getActiveLiftFloor();
+    if (!activeFloor?.id) {
+      return;
+    }
+
+    const environment = deckEnvironmentMap.get(activeFloor.id);
+    if (!environment || typeof environment.update !== "function") {
+      return;
+    }
+
+    try {
+      environment.update(payload);
+    } catch (error) {
+      console.warn("Unable to update active environment", error);
+    }
+  };
+
   const findTerrainTileAtPosition = (position) => {
     if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) ||
         !Number.isFinite(position.z)) {
@@ -10846,6 +11095,7 @@ export const initScene = (
     updateManifestEditModeHover();
     updateActivePlacementPreview();
     updateOperationsConcourseTeleport(delta);
+    updateActiveDeckEnvironment({ delta, elapsedTime });
     updateResourceTool(delta, elapsedTime);
     updateDroneMiner(delta, elapsedTime);
     updateResourceSessions(delta);
