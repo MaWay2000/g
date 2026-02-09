@@ -5117,7 +5117,7 @@ export const initScene = (
       };
 
       const terrainDetailDistance = cellSize * 6;
-      const terrainLowDetailSegments = Math.min(2, terrainPlaneSegments);
+      const terrainLowDetailSegments = terrainPlaneSegments;
       const terrainDetailCenterX = 0;
       const terrainDetailCenterZ = mapCenterZ;
       const tileMapBounds = {
