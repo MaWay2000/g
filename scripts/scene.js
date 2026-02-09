@@ -1630,11 +1630,10 @@ export const initScene = (
 
       activeTerrainTiles.forEach((tile) => {
         if (tile?.userData?.geoVisorPreviousMaterial) {
-          tile.material = tile.userData.geoVisorPreviousMaterial;
           tile.userData.geoVisorPreviousMaterial = null;
-        } else {
-          applyGeoVisorMaterialToTile(tile, false);
         }
+
+        applyGeoVisorMaterialToTile(tile, true);
       });
 
       geoVisorLastRow = null;
