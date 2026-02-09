@@ -4768,12 +4768,19 @@ export const initScene = (
         return THREE.MathUtils.lerp(northBlend, southBlend, zBlend);
       };
 
-      const createTerrainTileGeometry = (column, row, tileHeight, isInsideMap) => {
+      const createTerrainTileGeometry = (
+        column,
+        row,
+        tileHeight,
+        isInsideMap,
+        segments = terrainPlaneSegments
+      ) => {
+        const resolvedSegments = Math.max(1, Math.floor(segments));
         const geometry = new THREE.PlaneGeometry(
           cellSize,
           cellSize,
-          terrainPlaneSegments,
-          terrainPlaneSegments
+          resolvedSegments,
+          resolvedSegments
         );
         geometry.rotateX(-Math.PI / 2);
         const positions = geometry.attributes.position;
@@ -5109,10 +5116,25 @@ export const initScene = (
         return maxSurfaceY;
       };
 
+      const terrainDetailDistance = cellSize * 6;
+      const terrainLowDetailSegments = Math.min(2, terrainPlaneSegments);
+      const terrainDetailCenterX = 0;
+      const terrainDetailCenterZ = mapCenterZ;
+
       for (let row = -borderTiles; row < height + borderTiles; row += 1) {
         for (let column = -borderTiles; column < width + borderTiles; column += 1) {
           const isInsideMap =
             column >= 0 && column < width && row >= 0 && row < height;
+          const tileCenterX = mapLeftEdge + column * cellSize + cellSize / 2;
+          const tileCenterZ = mapNearEdge + row * cellSize + cellSize / 2;
+          const distanceFromDetailCenter = Math.hypot(
+            tileCenterX - terrainDetailCenterX,
+            tileCenterZ - terrainDetailCenterZ
+          );
+          const tileSegments =
+            distanceFromDetailCenter > terrainDetailDistance
+              ? terrainLowDetailSegments
+              : terrainPlaneSegments;
           const index = getCellIndex(column, row);
           const cellData = rawCells[index] ?? {};
           const terrainId = cellData?.terrainId ?? "void";
@@ -5127,7 +5149,8 @@ export const initScene = (
             column,
             row,
             tileHeight,
-            isInsideMap
+            isInsideMap,
+            tileSegments
           );
           const tile = new THREE.Mesh(
             tileGeometry,
