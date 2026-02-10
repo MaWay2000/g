@@ -8878,6 +8878,7 @@ const handleGeoVisorQuickSlotChange = (event) => {
   }
 
   const { slot, userInitiated } = event.detail ?? {};
+  const selectedSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
 
   if (slot?.activateOnly && GEO_VISOR_SLOT_IDS.has(slot?.id) && userInitiated) {
     const nextSlotId =
@@ -8886,7 +8887,10 @@ const handleGeoVisorQuickSlotChange = (event) => {
     return;
   }
 
-  const selectedSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
+  if (geoVisorState.activeSlotId && !GEO_VISOR_SLOT_IDS.has(selectedSlot?.id)) {
+    setGeoVisorActiveSlotId(null);
+    return;
+  }
 
   if (!geoVisorState.activeSlotId) {
     setGeoVisorActiveSlotId(
