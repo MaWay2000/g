@@ -10026,8 +10026,13 @@ export const initScene = (
 
   const resolvePlayerCollisions = (previousPosition) => {
     const playerPosition = controls.getObject().position;
-    const playerFeetY = playerPosition.y;
-    const playerHeadY = playerFeetY + playerHeight;
+    const currentFeetY = playerPosition.y;
+    const currentHeadY = currentFeetY + playerHeight;
+    const previousFeetY = previousPosition?.y ?? currentFeetY;
+    const previousHeadY = previousFeetY + playerHeight;
+
+    const sweptFeetY = Math.min(currentFeetY, previousFeetY);
+    const sweptHeadY = Math.max(currentHeadY, previousHeadY);
 
     const resolveSweptCollision = ({
       minX,
@@ -10144,7 +10149,7 @@ export const initScene = (
         return;
       }
 
-      if (playerHeadY <= box.min.y || playerFeetY >= box.max.y) {
+      if (sweptHeadY <= box.min.y || sweptFeetY >= box.max.y) {
         return;
       }
 
