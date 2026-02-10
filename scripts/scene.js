@@ -5835,7 +5835,12 @@ export const initScene = (
       walkway.position.y,
       platformCenterZ - OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.08
     );
-    operationsExteriorTeleportOffset.set(outsideMapCenterX, 0, platformCenterZ);
+    const entranceFloorOffset = entranceBaseY - roomFloorY;
+    operationsExteriorTeleportOffset.set(
+      outsideMapCenterX,
+      entranceFloorOffset,
+      platformCenterZ
+    );
 
     returnDoor.position.set(
       outsideMapCenterX,
@@ -6923,8 +6928,11 @@ export const initScene = (
     const floorPosition = new THREE.Vector3().copy(origin);
     if (teleport) {
       floorPosition.add(teleport);
+      const teleportY = Number.isFinite(teleport.y) ? teleport.y : 0;
+      floorPosition.y = roomFloorY + teleportY;
+    } else {
+      floorPosition.y = roomFloorY;
     }
-    floorPosition.y = roomFloorY;
 
     let state = null;
 
@@ -6950,6 +6958,17 @@ export const initScene = (
 
       if (!group) {
         return null;
+      }
+
+      if (environment?.teleportOffset instanceof THREE.Vector3) {
+        if (teleport instanceof THREE.Vector3) {
+          teleport.copy(environment.teleportOffset);
+        }
+        const teleportY = Number.isFinite(environment.teleportOffset.y)
+          ? environment.teleportOffset.y
+          : 0;
+        floorPosition.copy(origin).add(environment.teleportOffset);
+        floorPosition.y = roomFloorY + teleportY;
       }
 
       group.position.copy(origin);
@@ -9373,7 +9392,9 @@ export const initScene = (
 
   if (!storedPlayerState && hasStoredOutsideMap) {
     defaultPlayerPosition.copy(resolvedOperationsExteriorFloorPosition);
-    defaultPlayerPosition.y = roomFloorY;
+    defaultPlayerPosition.y = Number.isFinite(resolvedOperationsExteriorFloorPosition?.y)
+      ? Math.max(roomFloorY, resolvedOperationsExteriorFloorPosition.y)
+      : roomFloorY;
     playerObject.rotation.y = 0;
   }
 
