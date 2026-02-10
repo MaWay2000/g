@@ -121,6 +121,7 @@ export const initScene = (
   const BASE_MAX_STEP_HEIGHT = 2;
   const BASE_JUMP_VELOCITY = 7.2;
   const STEP_CLIMB_SPEED = 6;
+  const STEP_CLIMB_SPEED_MULTIPLIER = 10;
   const STEP_HEIGHT_TOLERANCE = 0.05;
   const performanceSettings = {
     maxPixelRatio: Number.isFinite(settings?.maxPixelRatio)
@@ -2126,12 +2127,12 @@ export const initScene = (
   const getClimbSpeed = (distance) => {
     const climbDistance = Number(distance);
     if (!Number.isFinite(climbDistance) || climbDistance <= 0) {
-      return STEP_CLIMB_SPEED;
+      return STEP_CLIMB_SPEED * STEP_CLIMB_SPEED_MULTIPLIER;
     }
 
     const climbRatio = climbDistance / BASE_MAX_STEP_HEIGHT;
     const slowdownFactor = 1 + climbRatio * climbRatio * 6;
-    return STEP_CLIMB_SPEED / slowdownFactor;
+    return (STEP_CLIMB_SPEED * STEP_CLIMB_SPEED_MULTIPLIER) / slowdownFactor;
   };
 
   const OUTSIDE_TERRAIN_TILE_STYLES = new Map([
