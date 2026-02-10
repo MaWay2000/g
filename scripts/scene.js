@@ -10029,6 +10029,106 @@ export const initScene = (
     const playerFeetY = playerPosition.y;
     const playerHeadY = playerFeetY + playerHeight;
 
+    const resolveSweptCollision = ({
+      minX,
+      maxX,
+      minZ,
+      maxZ,
+      previousX,
+      previousZ,
+      nextX,
+      nextZ,
+    }) => {
+      const deltaX = nextX - previousX;
+      const deltaZ = nextZ - previousZ;
+      const EPSILON = 1e-4;
+
+      if (
+        Math.abs(deltaX) <= EPSILON &&
+        Math.abs(deltaZ) <= EPSILON
+      ) {
+        return false;
+      }
+
+      let tMin = 0;
+      let tMax = 1;
+      let normalX = 0;
+      let normalZ = 0;
+
+      if (Math.abs(deltaX) <= EPSILON) {
+        if (previousX < minX || previousX > maxX) {
+          return false;
+        }
+      } else {
+        const inverseDeltaX = 1 / deltaX;
+        let t1 = (minX - previousX) * inverseDeltaX;
+        let t2 = (maxX - previousX) * inverseDeltaX;
+        let nearNormalX = -Math.sign(deltaX);
+
+        if (t1 > t2) {
+          [t1, t2] = [t2, t1];
+          nearNormalX = -nearNormalX;
+        }
+
+        if (t1 > tMin) {
+          tMin = t1;
+          normalX = nearNormalX;
+          normalZ = 0;
+        }
+
+        tMax = Math.min(tMax, t2);
+
+        if (tMin > tMax) {
+          return false;
+        }
+      }
+
+      if (Math.abs(deltaZ) <= EPSILON) {
+        if (previousZ < minZ || previousZ > maxZ) {
+          return false;
+        }
+      } else {
+        const inverseDeltaZ = 1 / deltaZ;
+        let t1 = (minZ - previousZ) * inverseDeltaZ;
+        let t2 = (maxZ - previousZ) * inverseDeltaZ;
+        let nearNormalZ = -Math.sign(deltaZ);
+
+        if (t1 > t2) {
+          [t1, t2] = [t2, t1];
+          nearNormalZ = -nearNormalZ;
+        }
+
+        if (t1 > tMin) {
+          tMin = t1;
+          normalX = 0;
+          normalZ = nearNormalZ;
+        }
+
+        tMax = Math.min(tMax, t2);
+
+        if (tMin > tMax) {
+          return false;
+        }
+      }
+
+      if (tMin < 0 || tMin > 1) {
+        return false;
+      }
+
+      const safeTravel = Math.max(0, tMin - EPSILON);
+      playerPosition.x = previousX + deltaX * safeTravel;
+      playerPosition.z = previousZ + deltaZ * safeTravel;
+
+      if (normalX !== 0) {
+        velocity.x = 0;
+      }
+      if (normalZ !== 0) {
+        velocity.z = 0;
+      }
+
+      return true;
+    };
+
     colliderDescriptors.forEach((descriptor) => {
       const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
       if (
@@ -10052,6 +10152,35 @@ export const initScene = (
       const maxX = box.max.x + playerColliderRadius;
       const minZ = box.min.z - playerColliderRadius;
       const maxZ = box.max.z + playerColliderRadius;
+
+      const previousX = previousPosition.x;
+      const previousZ = previousPosition.z;
+      const nextX = playerPosition.x;
+      const nextZ = playerPosition.z;
+
+      const wasInsideExpandedBounds =
+        previousX >= minX &&
+        previousX <= maxX &&
+        previousZ >= minZ &&
+        previousZ <= maxZ;
+      const isInsideExpandedBounds =
+        nextX >= minX &&
+        nextX <= maxX &&
+        nextZ >= minZ &&
+        nextZ <= maxZ;
+
+      if (!wasInsideExpandedBounds && !isInsideExpandedBounds) {
+        resolveSweptCollision({
+          minX,
+          maxX,
+          minZ,
+          maxZ,
+          previousX,
+          previousZ,
+          nextX,
+          nextZ,
+        });
+      }
 
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const playerX = playerPosition.x;
