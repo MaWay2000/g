@@ -1616,8 +1616,43 @@ export const initScene = (
     tile.userData.geoVisorRevealed = shouldReveal;
   };
 
+  const getAllTerrainTilesForGeoVisor = () => {
+    const allTiles = [];
+    const seenTiles = new Set();
+
+    terrainTilesByEnvironment.forEach((tiles) => {
+      if (!Array.isArray(tiles)) {
+        return;
+      }
+
+      tiles.forEach((tile) => {
+        if (!tile?.userData || seenTiles.has(tile)) {
+          return;
+        }
+
+        seenTiles.add(tile);
+        allTiles.push(tile);
+      });
+    });
+
+    if (Array.isArray(activeTerrainTiles)) {
+      activeTerrainTiles.forEach((tile) => {
+        if (!tile?.userData || seenTiles.has(tile)) {
+          return;
+        }
+
+        seenTiles.add(tile);
+        allTiles.push(tile);
+      });
+    }
+
+    return allTiles;
+  };
+
   const updateGeoVisorTerrainVisibility = ({ force = false } = {}) => {
-    if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
+    const allTerrainTiles = getAllTerrainTilesForGeoVisor();
+
+    if (allTerrainTiles.length === 0) {
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = geoVisorEnabled;
@@ -1629,12 +1664,38 @@ export const initScene = (
         return;
       }
 
-      activeTerrainTiles.forEach((tile) => {
-        if (tile?.userData?.geoVisorPreviousMaterial) {
+      allTerrainTiles.forEach((tile) => {
+        if (!tile?.userData) {
+          return;
+        }
+
+        if (tile.userData.geoVisorPreviousMaterial) {
           tile.userData.geoVisorPreviousMaterial = null;
         }
 
-        applyGeoVisorMaterialToTile(tile, true);
+        let revealedMaterial = tile.userData.geoVisorRevealedMaterial;
+        if (!revealedMaterial) {
+          const terrainId = tile.userData.terrainId;
+          const tileId = tile.userData.tileId;
+          const variantIndex = Number.isFinite(tile.userData.tileVariantIndex)
+            ? tile.userData.tileVariantIndex
+            : 0;
+          revealedMaterial = getRuntimeTerrainMaterial(
+            terrainId,
+            tileId,
+            variantIndex
+          );
+          if (revealedMaterial) {
+            tile.userData.geoVisorRevealedMaterial = revealedMaterial;
+          }
+        }
+
+        const targetMaterial =
+          revealedMaterial ?? tile.userData.geoVisorConcealedMaterial;
+        if (targetMaterial) {
+          tile.material = targetMaterial;
+        }
+        tile.userData.geoVisorRevealed = true;
       });
 
       geoVisorLastRow = null;
@@ -1657,6 +1718,32 @@ export const initScene = (
     geoVisorLastRow = null;
     geoVisorLastColumn = null;
     geoVisorLastEnabled = true;
+  };
+
+  const runGeoVisorTerrainVisibilityRegressionCheck = () => {
+    const initialState = geoVisorEnabled;
+    geoVisorEnabled = true;
+    updateGeoVisorTerrainVisibility({ force: true });
+    geoVisorEnabled = false;
+    updateGeoVisorTerrainVisibility({ force: true });
+
+    const terrainTiles = getAllTerrainTilesForGeoVisor();
+    const retainedVisorTiles = terrainTiles.filter((tile) => {
+      if (!tile?.userData?.geoVisorVisorMaterial) {
+        return false;
+      }
+
+      return tile.material === tile.userData.geoVisorVisorMaterial;
+    });
+
+    geoVisorEnabled = initialState;
+    updateGeoVisorTerrainVisibility({ force: true });
+
+    return {
+      ok: retainedVisorTiles.length === 0,
+      checkedTiles: terrainTiles.length,
+      retainedVisorTiles: retainedVisorTiles.length,
+    };
   };
 
   const doorMarkersById = new Map();
@@ -9641,7 +9728,8 @@ export const initScene = (
       : 0;
     const baseMaterial =
       getRuntimeTerrainMaterial("void", tileId, variantIndex) ??
-      tile.userData.geoVisorConcealedMaterial;
+      tile.userData.geoVisorConcealedMaterial ??
+      tile.material;
     const visorMaterial = getRuntimeGeoVisorMaterial("void", tileId, variantIndex);
 
     tile.userData.terrainId = "void";
@@ -11464,6 +11552,8 @@ export const initScene = (
       updateGeoVisorTerrainVisibility({ force: true });
       return geoVisorEnabled;
     },
+    runGeoVisorTerrainVisibilityRegressionCheck: () =>
+      runGeoVisorTerrainVisibilityRegressionCheck(),
     getTerrainScanTarget: () => findTerrainIntersection(),
     setTerrainVoidAtPosition,
     setJumpSettings: (nextSettings = {}) => {
