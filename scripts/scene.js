@@ -6016,6 +6016,46 @@ export const initScene = (
       },
     };
 
+    group.userData.returnDoor = returnDoor;
+    group.userData.resolveEntrySpawn = ({ fromFloorId } = {}) => {
+      if (fromFloorId !== "operations-concourse") {
+        return null;
+      }
+
+      returnDoor.updateMatrixWorld(true);
+
+      const spawnPosition = new THREE.Vector3();
+      const doorQuaternion = new THREE.Quaternion();
+      returnDoor.getWorldPosition(spawnPosition);
+      returnDoor.getWorldQuaternion(doorQuaternion);
+
+      const doorForward = new THREE.Vector3(0, 0, 1).applyQuaternion(
+        doorQuaternion
+      );
+      const doorWidth = Number.isFinite(returnDoor.userData?.width)
+        ? returnDoor.userData.width
+        : BASE_DOOR_WIDTH;
+      const spawnDistance = Math.max(doorWidth * 0.7, 1.15);
+      spawnPosition.add(doorForward.multiplyScalar(spawnDistance));
+
+      if (
+        typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
+      ) {
+        const surfaceY = builtOutsideTerrain.getSurfaceYAtWorldPosition(
+          spawnPosition.x,
+          spawnPosition.z
+        );
+        if (Number.isFinite(surfaceY)) {
+          spawnPosition.y = Math.max(roomFloorY, surfaceY);
+        }
+      }
+
+      return {
+        position: spawnPosition,
+        yaw: Math.atan2(doorForward.x, doorForward.z),
+      };
+    };
+
     const antennaTowerGroup = new THREE.Group();
     const antennaHeight = Math.max(entranceHeight * 2.4, 9.5);
     const antennaBaseY = entranceRoof.position.y + entranceThickness / 2;
@@ -9846,13 +9886,37 @@ export const initScene = (
     liftState.currentIndex = clampedIndex;
     refreshActiveResourceTargets(nextFloor.id ?? null);
 
-    if (nextFloor.position instanceof THREE.Vector3) {
+    let spawnPosition =
+      nextFloor.position instanceof THREE.Vector3
+        ? nextFloor.position
+        : null;
+    let spawnYaw = Number.isFinite(nextFloor.yaw) ? nextFloor.yaw : null;
+
+    const destinationEnvironment = nextFloor?.id
+      ? deckEnvironmentMap.get(nextFloor.id)
+      : null;
+    const destinationGroup = destinationEnvironment?.getGroup?.() ?? null;
+    const resolvedEntrySpawn =
+      typeof destinationGroup?.userData?.resolveEntrySpawn === "function"
+        ? destinationGroup.userData.resolveEntrySpawn({
+            fromFloorId: currentFloor?.id ?? null,
+            reason: options?.reason ?? "direct",
+          })
+        : null;
+
+    if (resolvedEntrySpawn?.position instanceof THREE.Vector3) {
+      spawnPosition = resolvedEntrySpawn.position;
+    }
+
+    if (Number.isFinite(resolvedEntrySpawn?.yaw)) {
+      spawnYaw = resolvedEntrySpawn.yaw;
+    }
+
+    if (spawnPosition instanceof THREE.Vector3) {
       playerObject.position.set(
-        nextFloor.position.x,
-        Number.isFinite(nextFloor.position.y)
-          ? nextFloor.position.y
-          : roomFloorY,
-        nextFloor.position.z
+        spawnPosition.x,
+        Number.isFinite(spawnPosition.y) ? spawnPosition.y : roomFloorY,
+        spawnPosition.z
       );
     }
 
@@ -9860,8 +9924,8 @@ export const initScene = (
     playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
     previousPlayerPosition.copy(playerObject.position);
 
-    if (Number.isFinite(nextFloor.yaw)) {
-      controls.setYaw(nextFloor.yaw);
+    if (Number.isFinite(spawnYaw)) {
+      controls.setYaw(spawnYaw);
     }
 
     velocity.set(0, 0, 0);
