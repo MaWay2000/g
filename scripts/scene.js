@@ -1769,7 +1769,7 @@ export const initScene = (
         Number.isInteger(tileRow) &&
         Number.isInteger(tileColumn)
           ? Math.hypot(tileRow - centerRow, tileColumn - centerColumn) <=
-            GEO_VISOR_REVEAL_RADIUS_TILES
+            GEO_VISOR_MAX_DISTANCE
           : false;
 
       applyGeoVisorMaterialToTile(tile, shouldReveal);
@@ -8402,8 +8402,7 @@ export const initScene = (
   const resourceToolLight = new THREE.PointLight(0x38bdf8, 0, 2.6, 2);
   resourceToolLight.position.set(0.28, -0.02, -0.24);
   const RESOURCE_TOOL_MAX_DISTANCE = 7;
-  const GEO_VISOR_TARGET_MAX_DISTANCE = 7;
-  const GEO_VISOR_REVEAL_RADIUS_TILES = 2;
+  const GEO_VISOR_MAX_DISTANCE = 2;
   const RESOURCE_TOOL_MIN_ACTION_DURATION = 3;
   const RESOURCE_TOOL_MAX_ACTION_DURATION = 10;
   const RESOURCE_TOOL_PLAYER_SUCCESS_PROBABILITY = 0.5;
@@ -8492,7 +8491,7 @@ export const initScene = (
     if (
       !intersection ||
       !Number.isFinite(intersection.distance) ||
-      intersection.distance > GEO_VISOR_TARGET_MAX_DISTANCE
+      intersection.distance > GEO_VISOR_MAX_DISTANCE
     ) {
       return null;
     }
