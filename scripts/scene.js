@@ -8497,7 +8497,9 @@ export const initScene = (
     return null;
   };
 
-  const findTerrainIntersection = () => {
+  const findTerrainIntersection = ({
+    allowRevealedBeyondGeoVisorDistance = false,
+  } = {}) => {
     if (!controls.isLocked) {
       return null;
     }
@@ -8517,11 +8519,7 @@ export const initScene = (
       findTerrainTile(candidate.object)
     );
 
-    if (
-      !intersection ||
-      !Number.isFinite(intersection.distance) ||
-      intersection.distance > GEO_VISOR_MAX_DISTANCE
-    ) {
+    if (!intersection || !Number.isFinite(intersection.distance)) {
       return null;
     }
 
@@ -8537,12 +8535,22 @@ export const initScene = (
       ? targetObject.userData.tileVariantIndex
       : null;
     const geoVisorRevealed = Boolean(targetObject.userData?.geoVisorRevealed);
+    const withinGeoVisorDistance =
+      intersection.distance <= GEO_VISOR_MAX_DISTANCE;
+
+    if (
+      !withinGeoVisorDistance &&
+      !(allowRevealedBeyondGeoVisorDistance && geoVisorRevealed)
+    ) {
+      return null;
+    }
 
     return {
       terrainId,
       terrainLabel,
       tileIndex,
       geoVisorRevealed,
+      withinGeoVisorDistance,
       position: intersection.point?.clone?.() ?? null,
     };
   };
@@ -11664,7 +11672,10 @@ export const initScene = (
     },
     runGeoVisorTerrainVisibilityRegressionCheck: () =>
       runGeoVisorTerrainVisibilityRegressionCheck(),
-    getTerrainScanTarget: () => findTerrainIntersection(),
+    getTerrainScanTarget: () =>
+      findTerrainIntersection({
+        allowRevealedBeyondGeoVisorDistance: true,
+      }),
     setTerrainVoidAtPosition,
     setJumpSettings: (nextSettings = {}) => {
       const nextMultiplier = normalizeJumpMultiplier(
