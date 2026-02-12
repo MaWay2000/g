@@ -2550,7 +2550,6 @@ const activateGeoVisorPulse = (slotId) => {
   updateGeoVisorBatteryIndicator();
 
   setGeoVisorActiveSlotId(slotId);
-  setGeoVisorActiveSlotId(null);
   return true;
 };
 
