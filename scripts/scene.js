@@ -1725,14 +1725,23 @@ export const initScene = (
           terrainId && tileId
             ? getRuntimeTerrainMaterial(terrainId, tileId, tileVariantIndex)
             : getNonVisorTerrainMaterialForTile(tile);
+        const fallbackNonVisorMaterial =
+          getNonVisorTerrainMaterialForTile(tile) ??
+          tile.userData.geoVisorRevealedMaterial ??
+          tile.userData.geoVisorConcealedMaterial;
         const nonVisorMaterial =
           recomputedBaseMaterial !== tile.userData.geoVisorVisorMaterial
-            ? recomputedBaseMaterial
-            : getNonVisorTerrainMaterialForTile(tile);
+            ? recomputedBaseMaterial ?? fallbackNonVisorMaterial
+            : fallbackNonVisorMaterial;
 
         tile.userData.geoVisorRevealedMaterial = nonVisorMaterial;
         if (nonVisorMaterial) {
           tile.material = nonVisorMaterial;
+        } else if (tile.material === tile.userData.geoVisorVisorMaterial) {
+          tile.material =
+            tile.userData.geoVisorConcealedMaterial ??
+            tile.userData.geoVisorRevealedMaterial ??
+            tile.material;
         }
 
         tile.userData.geoVisorPreviousMaterial = null;
