@@ -1534,6 +1534,7 @@ export const initScene = (
   let geoVisorLastRow = null;
   let geoVisorLastColumn = null;
   let geoVisorLastEnabled = null;
+  let geoVisorLastScanSignature = null;
 
   const getResourceTargetsForFloor = (floorId) => {
     if (!floorId) {
@@ -1702,6 +1703,7 @@ export const initScene = (
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = geoVisorEnabled;
+      geoVisorLastScanSignature = null;
       return;
     }
 
@@ -1751,23 +1753,101 @@ export const initScene = (
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = false;
+      geoVisorLastScanSignature = null;
       return;
     }
 
-    if (!force && geoVisorLastEnabled === true) {
+    const sampleTile = activeTerrainTiles.find(
+      (tile) => tile?.userData?.geoVisorCellSize > 0
+    );
+    const scanCellSize = Number.isFinite(sampleTile?.userData?.geoVisorCellSize)
+      ? sampleTile.userData.geoVisorCellSize
+      : null;
+    const mapLeftEdge = Number.isFinite(sampleTile?.userData?.geoVisorMapLeftEdge)
+      ? sampleTile.userData.geoVisorMapLeftEdge
+      : null;
+    const mapNearEdge = Number.isFinite(sampleTile?.userData?.geoVisorMapNearEdge)
+      ? sampleTile.userData.geoVisorMapNearEdge
+      : null;
+    const hasScanReference =
+      Number.isFinite(scanCellSize) &&
+      scanCellSize > 0 &&
+      Number.isFinite(mapLeftEdge) &&
+      Number.isFinite(mapNearEdge);
+
+    const currentScanColumn = hasScanReference
+      ? Math.max(0, Math.floor((playerObject.position.x - mapLeftEdge) / scanCellSize))
+      : null;
+    const currentScanRow = hasScanReference
+      ? Math.max(0, Math.floor((playerObject.position.z - mapNearEdge) / scanCellSize))
+      : null;
+
+    const localColumnProgress =
+      hasScanReference && Number.isFinite(currentScanColumn)
+        ? (playerObject.position.x - mapLeftEdge) / scanCellSize - currentScanColumn
+        : null;
+    const localRowProgress =
+      hasScanReference && Number.isFinite(currentScanRow)
+        ? (playerObject.position.z - mapNearEdge) / scanCellSize - currentScanRow
+        : null;
+
+    const scanColumnStart = Number.isFinite(currentScanColumn)
+      ? currentScanColumn + (localColumnProgress >= 0.5 ? 0 : -1)
+      : null;
+    const scanRowStart = Number.isFinite(currentScanRow)
+      ? currentScanRow + (localRowProgress >= 0.5 ? 0 : -1)
+      : null;
+    const scanSignature =
+      Number.isFinite(scanRowStart) && Number.isFinite(scanColumnStart)
+        ? `${scanRowStart}:${scanColumnStart}`
+        : "all";
+
+    if (
+      !force &&
+      geoVisorLastEnabled === true &&
+      geoVisorLastScanSignature === scanSignature
+    ) {
       return;
     }
 
-    activeTerrainTiles.forEach((tile) => {
+    allTerrainTiles.forEach((tile) => {
       if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
       }
-      applyGeoVisorMaterialToTile(tile, true);
+
+      const tileRow = Number.isFinite(tile?.userData?.geoVisorRow)
+        ? tile.userData.geoVisorRow
+        : null;
+      const tileColumn = Number.isFinite(tile?.userData?.geoVisorColumn)
+        ? tile.userData.geoVisorColumn
+        : null;
+
+      const isWithinCurrentScanWindow =
+        Number.isFinite(scanRowStart) &&
+        Number.isFinite(scanColumnStart) &&
+        Number.isFinite(tileRow) &&
+        Number.isFinite(tileColumn) &&
+        tileRow >= scanRowStart &&
+        tileRow < scanRowStart + 2 &&
+        tileColumn >= scanColumnStart &&
+        tileColumn < scanColumnStart + 2;
+
+      if (isWithinCurrentScanWindow) {
+        tile.userData.geoVisorOpened = true;
+      }
+
+      applyGeoVisorMaterialToTile(
+        tile,
+        Boolean(tile?.userData?.geoVisorOpened || isWithinCurrentScanWindow)
+      );
     });
 
-    geoVisorLastRow = null;
-    geoVisorLastColumn = null;
+    geoVisorLastRow = Number.isFinite(currentScanRow) ? currentScanRow : null;
+    geoVisorLastColumn = Number.isFinite(currentScanColumn)
+      ? currentScanColumn
+      : null;
     geoVisorLastEnabled = true;
+    geoVisorLastScanSignature = scanSignature;
   };
 
   const runGeoVisorTerrainVisibilityRegressionCheck = () => {
@@ -5441,6 +5521,7 @@ export const initScene = (
         );
         tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
         tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
+        tile.userData.geoVisorOpened = false;
 
         if (geoVisorEnabled) {
           tile.material = concealedTerrainMaterial;
@@ -9790,6 +9871,9 @@ export const initScene = (
     tile.userData.tileId = tileId;
     tile.userData.geoVisorRevealedMaterial = baseMaterial;
     tile.userData.geoVisorVisorMaterial = visorMaterial;
+    if (typeof tile.userData.geoVisorOpened !== "boolean") {
+      tile.userData.geoVisorOpened = false;
+    }
     tile.userData.isResourceTarget = false;
 
     if (geoVisorEnabled) {
