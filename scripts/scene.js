@@ -1735,7 +1735,7 @@ export const initScene = (
 
     const tileWorldPosition = new THREE.Vector3();
 
-    activeTerrainTiles.forEach((tile) => {
+    allTerrainTiles.forEach((tile) => {
       if (!tile || typeof tile.getWorldPosition !== "function") {
         return;
       }
