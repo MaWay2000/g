@@ -1706,13 +1706,46 @@ export const initScene = (
     }
 
     if (!geoVisorEnabled) {
+      if (force || geoVisorLastEnabled !== false) {
+        allTerrainTiles.forEach((tile) => {
+          applyGeoVisorMaterialToTile(tile, false);
+        });
+      }
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = false;
       return;
     }
 
-    if (!force && geoVisorLastEnabled === true) {
+    const playerPosition = playerObject?.position;
+    if (!playerPosition) {
+      return;
+    }
+
+    const sampleTile = activeTerrainTiles.find((tile) => tile?.userData);
+    const cellSize = sampleTile?.userData?.geoVisorCellSize;
+    const mapLeftEdge = sampleTile?.userData?.geoVisorMapLeftEdge;
+    const mapNearEdge = sampleTile?.userData?.geoVisorMapNearEdge;
+
+    let currentRow = null;
+    let currentColumn = null;
+    if (
+      Number.isFinite(cellSize) &&
+      cellSize > 0 &&
+      Number.isFinite(mapLeftEdge) &&
+      Number.isFinite(mapNearEdge)
+    ) {
+      currentColumn = Math.floor((playerPosition.x - mapLeftEdge) / cellSize);
+      currentRow = Math.floor((playerPosition.z - mapNearEdge) / cellSize);
+    }
+
+    const shouldSkipUpdate =
+      !force &&
+      geoVisorLastEnabled === true &&
+      currentRow === geoVisorLastRow &&
+      currentColumn === geoVisorLastColumn;
+
+    if (shouldSkipUpdate) {
       return;
     }
 
@@ -1720,50 +1753,123 @@ export const initScene = (
       if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
       }
-      applyGeoVisorMaterialToTile(tile, true);
+
+      const tilePosition = tile?.position;
+      const distance = tilePosition
+        ? Math.hypot(
+            playerPosition.x - tilePosition.x,
+            playerPosition.z - tilePosition.z
+          )
+        : Number.POSITIVE_INFINITY;
+      const shouldReveal = distance <= GEO_VISOR_MAX_DISTANCE;
+      applyGeoVisorMaterialToTile(tile, shouldReveal);
     });
 
-    geoVisorLastRow = null;
-    geoVisorLastColumn = null;
+    geoVisorLastRow = currentRow;
+    geoVisorLastColumn = currentColumn;
     geoVisorLastEnabled = true;
   };
 
   const runGeoVisorTerrainVisibilityRegressionCheck = () => {
     const initialState = geoVisorEnabled;
+    const initialRow = geoVisorLastRow;
+    const initialColumn = geoVisorLastColumn;
+    const initialEnabledState = geoVisorLastEnabled;
+    const initialPlayerPosition = playerObject?.position
+      ? playerObject.position.clone()
+      : null;
+
+    const terrainTiles = getAllTerrainTilesForGeoVisor();
+    if (!playerObject?.position || terrainTiles.length === 0) {
+      return {
+        ok: true,
+        checkedTiles: terrainTiles.length,
+        revealedNearbyTiles: 0,
+        revealedFarTiles: 0,
+        hiddenAfterDisableTiles: terrainTiles.length,
+        nearbyRevealOnly: true,
+        disableConcealsAll: true,
+      };
+    }
+
+    const sortedTiles = [...terrainTiles]
+      .filter((tile) => tile?.position)
+      .sort(
+        (left, right) =>
+          left.position.distanceToSquared(playerObject.position) -
+          right.position.distanceToSquared(playerObject.position)
+      );
+
+    if (sortedTiles.length > 0) {
+      playerObject.position.set(
+        sortedTiles[0].position.x,
+        playerObject.position.y,
+        sortedTiles[0].position.z
+      );
+    }
+
     geoVisorEnabled = true;
     updateGeoVisorTerrainVisibility({ force: true });
 
-    const terrainTiles = getAllTerrainTilesForGeoVisor();
-    const revealedBeforeDisable = terrainTiles.filter((tile) => {
-      if (!tile?.userData?.geoVisorVisorMaterial) {
+    const revealedNearbyTiles = terrainTiles.filter((tile) => {
+      if (!tile?.position || !tile?.userData?.geoVisorVisorMaterial) {
         return false;
       }
 
-      return tile.material === tile.userData.geoVisorVisorMaterial;
+      const distance = Math.hypot(
+        playerObject.position.x - tile.position.x,
+        playerObject.position.z - tile.position.z
+      );
+
+      return (
+        distance <= GEO_VISOR_MAX_DISTANCE &&
+        tile.material === tile.userData.geoVisorVisorMaterial
+      );
+    });
+
+    const revealedFarTiles = terrainTiles.filter((tile) => {
+      if (!tile?.position || !tile?.userData?.geoVisorVisorMaterial) {
+        return false;
+      }
+
+      const distance = Math.hypot(
+        playerObject.position.x - tile.position.x,
+        playerObject.position.z - tile.position.z
+      );
+
+      return (
+        distance > GEO_VISOR_MAX_DISTANCE &&
+        tile.material === tile.userData.geoVisorVisorMaterial
+      );
     });
 
     geoVisorEnabled = false;
     updateGeoVisorTerrainVisibility({ force: true });
 
-    const retainedVisorTiles = terrainTiles.filter((tile) => {
-      if (!tile?.userData?.geoVisorVisorMaterial) {
-        return false;
-      }
+    const hiddenAfterDisableTiles = terrainTiles.filter(
+      (tile) => tile?.material === tile?.userData?.geoVisorConcealedMaterial
+    );
 
-      return tile.material === tile.userData.geoVisorVisorMaterial;
-    });
-
-    const onToOffTransitionRetainedVisorMaterial =
-      retainedVisorTiles.length === revealedBeforeDisable.length;
+    const nearbyRevealOnly = revealedNearbyTiles.length > 0 && revealedFarTiles.length === 0;
+    const disableConcealsAll = hiddenAfterDisableTiles.length === terrainTiles.length;
 
     geoVisorEnabled = initialState;
+    if (initialPlayerPosition) {
+      playerObject.position.copy(initialPlayerPosition);
+    }
+    geoVisorLastRow = initialRow;
+    geoVisorLastColumn = initialColumn;
+    geoVisorLastEnabled = initialEnabledState;
     updateGeoVisorTerrainVisibility({ force: true });
 
     return {
-      ok: onToOffTransitionRetainedVisorMaterial,
+      ok: nearbyRevealOnly && disableConcealsAll,
       checkedTiles: terrainTiles.length,
-      retainedVisorTiles: retainedVisorTiles.length,
-      onToOffTransitionRetainedVisorMaterial,
+      revealedNearbyTiles: revealedNearbyTiles.length,
+      revealedFarTiles: revealedFarTiles.length,
+      hiddenAfterDisableTiles: hiddenAfterDisableTiles.length,
+      nearbyRevealOnly,
+      disableConcealsAll,
     };
   };
 
