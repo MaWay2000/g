@@ -1712,48 +1712,19 @@ export const initScene = (
       return;
     }
 
-    const playerPosition = playerObject?.position;
-    if (!playerPosition) {
+    if (!force && geoVisorLastEnabled === true) {
       return;
     }
-
-    const currentRow = Math.floor(playerPosition.z / GEO_VISOR_MAX_DISTANCE);
-    const currentColumn = Math.floor(playerPosition.x / GEO_VISOR_MAX_DISTANCE);
-
-    if (
-      !force &&
-      geoVisorLastEnabled === true &&
-      geoVisorLastRow === currentRow &&
-      geoVisorLastColumn === currentColumn
-    ) {
-      return;
-    }
-
-    const maxDistanceSquared = GEO_VISOR_MAX_DISTANCE * GEO_VISOR_MAX_DISTANCE;
 
     activeTerrainTiles.forEach((tile) => {
-      const tilePosition = tile?.position;
-
-      if (!tilePosition) {
-        return;
-      }
-
-      const deltaX = tilePosition.x - playerPosition.x;
-      const deltaZ = tilePosition.z - playerPosition.z;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-
-      if (!Number.isFinite(distanceSquared) || distanceSquared > maxDistanceSquared) {
-        return;
-      }
-
       if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
       }
       applyGeoVisorMaterialToTile(tile, true);
     });
 
-    geoVisorLastRow = currentRow;
-    geoVisorLastColumn = currentColumn;
+    geoVisorLastRow = null;
+    geoVisorLastColumn = null;
     geoVisorLastEnabled = true;
   };
 
