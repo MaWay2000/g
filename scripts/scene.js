@@ -1706,48 +1706,6 @@ export const initScene = (
     }
 
     if (!geoVisorEnabled) {
-      if (!force && geoVisorLastEnabled === false) {
-        return;
-      }
-
-      allTerrainTiles.forEach((tile) => {
-        if (!tile?.userData) {
-          return;
-        }
-
-        const terrainId = tile.userData.terrainId;
-        const tileId = tile.userData.tileId;
-        const tileVariantIndex = Number.isFinite(tile.userData.tileVariantIndex)
-          ? tile.userData.tileVariantIndex
-          : 0;
-
-        const recomputedBaseMaterial =
-          terrainId && tileId
-            ? getRuntimeTerrainMaterial(terrainId, tileId, tileVariantIndex)
-            : getNonVisorTerrainMaterialForTile(tile);
-        const fallbackNonVisorMaterial =
-          getNonVisorTerrainMaterialForTile(tile) ??
-          tile.userData.geoVisorRevealedMaterial ??
-          tile.userData.geoVisorConcealedMaterial;
-        const nonVisorMaterial =
-          recomputedBaseMaterial !== tile.userData.geoVisorVisorMaterial
-            ? recomputedBaseMaterial ?? fallbackNonVisorMaterial
-            : fallbackNonVisorMaterial;
-
-        tile.userData.geoVisorRevealedMaterial = nonVisorMaterial;
-        if (nonVisorMaterial) {
-          tile.material = nonVisorMaterial;
-        } else if (tile.material === tile.userData.geoVisorVisorMaterial) {
-          tile.material =
-            tile.userData.geoVisorConcealedMaterial ??
-            tile.userData.geoVisorRevealedMaterial ??
-            tile.material;
-        }
-
-        tile.userData.geoVisorPreviousMaterial = null;
-        tile.userData.geoVisorRevealed = false;
-      });
-
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = false;
@@ -1774,10 +1732,19 @@ export const initScene = (
     const initialState = geoVisorEnabled;
     geoVisorEnabled = true;
     updateGeoVisorTerrainVisibility({ force: true });
+
+    const terrainTiles = getAllTerrainTilesForGeoVisor();
+    const revealedBeforeDisable = terrainTiles.filter((tile) => {
+      if (!tile?.userData?.geoVisorVisorMaterial) {
+        return false;
+      }
+
+      return tile.material === tile.userData.geoVisorVisorMaterial;
+    });
+
     geoVisorEnabled = false;
     updateGeoVisorTerrainVisibility({ force: true });
 
-    const terrainTiles = getAllTerrainTilesForGeoVisor();
     const retainedVisorTiles = terrainTiles.filter((tile) => {
       if (!tile?.userData?.geoVisorVisorMaterial) {
         return false;
@@ -1786,16 +1753,17 @@ export const initScene = (
       return tile.material === tile.userData.geoVisorVisorMaterial;
     });
 
-    const onToOffTransitionClearedVisorMaterial = retainedVisorTiles.length === 0;
+    const onToOffTransitionRetainedVisorMaterial =
+      retainedVisorTiles.length === revealedBeforeDisable.length;
 
     geoVisorEnabled = initialState;
     updateGeoVisorTerrainVisibility({ force: true });
 
     return {
-      ok: onToOffTransitionClearedVisorMaterial,
+      ok: onToOffTransitionRetainedVisorMaterial,
       checkedTiles: terrainTiles.length,
       retainedVisorTiles: retainedVisorTiles.length,
-      onToOffTransitionClearedVisorMaterial,
+      onToOffTransitionRetainedVisorMaterial,
     };
   };
 

@@ -1134,7 +1134,6 @@ const quickSlotDefinitions = [
 
 const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter"]);
 const GEO_VISOR_PANEL_SLOT_ID = "photon-cutter";
-const GEO_VISOR_BATTERY_DRAIN_MS = 60 * 1000;
 const GEO_VISOR_BATTERY_RECHARGE_MS = 2 * 60 * 1000;
 const GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS = 200;
 const GEO_SCAN_MAX_HP = Math.max(
@@ -2507,16 +2506,13 @@ const updateGeoVisorBatteryState = () => {
   geoVisorBatteryState.lastUpdate = now;
 
   const isGeoVisorActive = Boolean(getActiveGeoVisorSlotId());
-  const duration = isGeoVisorActive
-    ? GEO_VISOR_BATTERY_DRAIN_MS
-    : GEO_VISOR_BATTERY_RECHARGE_MS;
+  const duration = GEO_VISOR_BATTERY_RECHARGE_MS;
   const deltaFraction = delta / duration;
   const nextLevel = Math.max(
     0,
     Math.min(
       1,
-      geoVisorBatteryState.level +
-        (isGeoVisorActive ? -deltaFraction : deltaFraction)
+      geoVisorBatteryState.level + deltaFraction
     )
   );
 
@@ -2541,6 +2537,21 @@ const setGeoVisorActiveSlotId = (slotId) => {
   updateGeoVisorQuickSlotState();
   updateGeoScanPanel();
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
+};
+
+const isGeoVisorBatteryFullyCharged = () => geoVisorBatteryState.level >= 0.999;
+
+const activateGeoVisorPulse = (slotId) => {
+  if (!GEO_VISOR_SLOT_IDS.has(slotId) || !isGeoVisorBatteryFullyCharged()) {
+    return false;
+  }
+
+  geoVisorBatteryState.level = 0;
+  updateGeoVisorBatteryIndicator();
+
+  setGeoVisorActiveSlotId(slotId);
+  setGeoVisorActiveSlotId(null);
+  return true;
 };
 
 const updateQuickSlotUi = () => {
@@ -8878,29 +8889,15 @@ const handleGeoVisorQuickSlotChange = (event) => {
   }
 
   const { slot, userInitiated } = event.detail ?? {};
-  const selectedSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
-
-  if (slot?.activateOnly && GEO_VISOR_SLOT_IDS.has(slot?.id) && userInitiated) {
-    const nextSlotId =
-      geoVisorState.activeSlotId === slot.id ? null : slot.id;
-    setGeoVisorActiveSlotId(nextSlotId);
-    return;
-  }
-
-  if (geoVisorState.activeSlotId && !GEO_VISOR_SLOT_IDS.has(selectedSlot?.id)) {
+  if (geoVisorState.activeSlotId) {
     setGeoVisorActiveSlotId(null);
+  }
+
+  if (!userInitiated || !GEO_VISOR_SLOT_IDS.has(slot?.id)) {
     return;
   }
 
-  if (!geoVisorState.activeSlotId) {
-    setGeoVisorActiveSlotId(
-      GEO_VISOR_SLOT_IDS.has(selectedSlot?.id) ? selectedSlot.id : null
-    );
-    return;
-  }
-
-  updateGeoVisorQuickSlotState();
-  sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
+  activateGeoVisorPulse(slot.id);
 };
 
 if (canvas instanceof HTMLElement) {
