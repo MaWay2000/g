@@ -8536,11 +8536,13 @@ export const initScene = (
     const tileIndex = Number.isFinite(targetObject.userData?.tileVariantIndex)
       ? targetObject.userData.tileVariantIndex
       : null;
+    const geoVisorRevealed = Boolean(targetObject.userData?.geoVisorRevealed);
 
     return {
       terrainId,
       terrainLabel,
       tileIndex,
+      geoVisorRevealed,
       position: intersection.point?.clone?.() ?? null,
     };
   };

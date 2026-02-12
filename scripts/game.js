@@ -2325,13 +2325,13 @@ const updateGeoScanPanel = () => {
 
   const activeGeoSlotId = getActiveGeoVisorSlotId();
   const isGeoScanActive = activeGeoSlotId === GEO_VISOR_PANEL_SLOT_ID;
+  const terrainDetail = sceneController?.getTerrainScanTarget?.() ?? null;
+  const canShowRevealedTerrainInfo = Boolean(terrainDetail?.geoVisorRevealed);
 
-  if (!isGeoScanActive) {
+  if (!isGeoScanActive && !canShowRevealedTerrainInfo) {
     hideGeoScanPanel();
     return;
   }
-
-  const terrainDetail = sceneController?.getTerrainScanTarget?.() ?? null;
 
   if (!terrainDetail?.terrainId) {
     hideGeoScanPanel();
