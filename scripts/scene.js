@@ -1695,6 +1695,21 @@ export const initScene = (
     return null;
   };
 
+  const getGeoVisorRevealCenter = () => {
+    const terrainDetail = findTerrainIntersection();
+
+    if (!terrainDetail) {
+      return { row: null, column: null };
+    }
+
+    return {
+      row: Number.isInteger(terrainDetail.row) ? terrainDetail.row : null,
+      column: Number.isInteger(terrainDetail.column)
+        ? terrainDetail.column
+        : null,
+    };
+  };
+
   const updateGeoVisorTerrainVisibility = ({ force = false } = {}) => {
     const allTerrainTiles = getAllTerrainTilesForGeoVisor();
 
@@ -1706,25 +1721,62 @@ export const initScene = (
     }
 
     if (!geoVisorEnabled) {
+      if (!force && geoVisorLastEnabled === false) {
+        return;
+      }
+
+      allTerrainTiles.forEach((tile) => {
+        if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
+          tile.userData.geoVisorPreviousMaterial = tile.material;
+        }
+        applyGeoVisorMaterialToTile(tile, true);
+      });
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = false;
       return;
     }
 
-    if (!force && geoVisorLastEnabled === true) {
+    const { row: centerRow, column: centerColumn } = getGeoVisorRevealCenter();
+
+    if (
+      !force &&
+      geoVisorLastEnabled === true &&
+      geoVisorLastRow === centerRow &&
+      geoVisorLastColumn === centerColumn
+    ) {
       return;
     }
 
-    activeTerrainTiles.forEach((tile) => {
-      if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
+    allTerrainTiles.forEach((tile) => {
+      if (!tile?.userData) {
+        return;
+      }
+
+      if (!tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
       }
-      applyGeoVisorMaterialToTile(tile, true);
+
+      const tileRow = Number.isInteger(tile.userData.geoVisorRow)
+        ? tile.userData.geoVisorRow
+        : null;
+      const tileColumn = Number.isInteger(tile.userData.geoVisorColumn)
+        ? tile.userData.geoVisorColumn
+        : null;
+      const shouldReveal =
+        Number.isInteger(centerRow) &&
+        Number.isInteger(centerColumn) &&
+        Number.isInteger(tileRow) &&
+        Number.isInteger(tileColumn)
+          ? Math.hypot(tileRow - centerRow, tileColumn - centerColumn) <=
+            GEO_VISOR_MAX_DISTANCE
+          : false;
+
+      applyGeoVisorMaterialToTile(tile, shouldReveal);
     });
 
-    geoVisorLastRow = null;
-    geoVisorLastColumn = null;
+    geoVisorLastRow = centerRow;
+    geoVisorLastColumn = centerColumn;
     geoVisorLastEnabled = true;
   };
 
@@ -8456,7 +8508,14 @@ export const initScene = (
       ? targetObject.userData.tileVariantIndex
       : null;
 
-    return { terrainId, terrainLabel, tileIndex };
+    const row = Number.isInteger(targetObject.userData?.geoVisorRow)
+      ? targetObject.userData.geoVisorRow
+      : null;
+    const column = Number.isInteger(targetObject.userData?.geoVisorColumn)
+      ? targetObject.userData.geoVisorColumn
+      : null;
+
+    return { terrainId, terrainLabel, tileIndex, row, column };
   };
 
   const prepareResourceCollection = ({ requireLockedControls = true } = {}) => {
