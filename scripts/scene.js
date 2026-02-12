@@ -1649,6 +1649,52 @@ export const initScene = (
     return allTiles;
   };
 
+  const getNonVisorTerrainMaterialForTile = (tile) => {
+    if (!tile?.userData) {
+      return null;
+    }
+
+    const terrainId = tile.userData.terrainId;
+    const tileId = tile.userData.tileId;
+    const tileVariantIndex = Number.isFinite(tile.userData.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : 0;
+
+    const runtimeMaterial =
+      terrainId && tileId
+        ? getRuntimeTerrainMaterial(terrainId, tileId, tileVariantIndex)
+        : null;
+
+    if (
+      runtimeMaterial &&
+      runtimeMaterial !== tile.userData.geoVisorVisorMaterial
+    ) {
+      return runtimeMaterial;
+    }
+
+    if (
+      tile.userData.geoVisorConcealedMaterial &&
+      tile.userData.geoVisorConcealedMaterial !==
+        tile.userData.geoVisorVisorMaterial
+    ) {
+      return tile.userData.geoVisorConcealedMaterial;
+    }
+
+    if (
+      tile.userData.geoVisorPreviousMaterial &&
+      tile.userData.geoVisorPreviousMaterial !==
+        tile.userData.geoVisorVisorMaterial
+    ) {
+      return tile.userData.geoVisorPreviousMaterial;
+    }
+
+    if (tile.material !== tile.userData.geoVisorVisorMaterial) {
+      return tile.material;
+    }
+
+    return null;
+  };
+
   const updateGeoVisorTerrainVisibility = ({ force = false } = {}) => {
     const allTerrainTiles = getAllTerrainTilesForGeoVisor();
 
@@ -1669,33 +1715,28 @@ export const initScene = (
           return;
         }
 
-        if (tile.userData.geoVisorPreviousMaterial) {
-          tile.userData.geoVisorPreviousMaterial = null;
+        const terrainId = tile.userData.terrainId;
+        const tileId = tile.userData.tileId;
+        const tileVariantIndex = Number.isFinite(tile.userData.tileVariantIndex)
+          ? tile.userData.tileVariantIndex
+          : 0;
+
+        const recomputedBaseMaterial =
+          terrainId && tileId
+            ? getRuntimeTerrainMaterial(terrainId, tileId, tileVariantIndex)
+            : getNonVisorTerrainMaterialForTile(tile);
+        const nonVisorMaterial =
+          recomputedBaseMaterial !== tile.userData.geoVisorVisorMaterial
+            ? recomputedBaseMaterial
+            : getNonVisorTerrainMaterialForTile(tile);
+
+        tile.userData.geoVisorRevealedMaterial = nonVisorMaterial;
+        if (nonVisorMaterial) {
+          tile.material = nonVisorMaterial;
         }
 
-        let revealedMaterial = tile.userData.geoVisorRevealedMaterial;
-        if (!revealedMaterial) {
-          const terrainId = tile.userData.terrainId;
-          const tileId = tile.userData.tileId;
-          const variantIndex = Number.isFinite(tile.userData.tileVariantIndex)
-            ? tile.userData.tileVariantIndex
-            : 0;
-          revealedMaterial = getRuntimeTerrainMaterial(
-            terrainId,
-            tileId,
-            variantIndex
-          );
-          if (revealedMaterial) {
-            tile.userData.geoVisorRevealedMaterial = revealedMaterial;
-          }
-        }
-
-        const targetMaterial =
-          revealedMaterial ?? tile.userData.geoVisorConcealedMaterial;
-        if (targetMaterial) {
-          tile.material = targetMaterial;
-        }
-        tile.userData.geoVisorRevealed = true;
+        tile.userData.geoVisorPreviousMaterial = null;
+        tile.userData.geoVisorRevealed = false;
       });
 
       geoVisorLastRow = null;
@@ -1736,13 +1777,16 @@ export const initScene = (
       return tile.material === tile.userData.geoVisorVisorMaterial;
     });
 
+    const onToOffTransitionClearedVisorMaterial = retainedVisorTiles.length === 0;
+
     geoVisorEnabled = initialState;
     updateGeoVisorTerrainVisibility({ force: true });
 
     return {
-      ok: retainedVisorTiles.length === 0,
+      ok: onToOffTransitionClearedVisorMaterial,
       checkedTiles: terrainTiles.length,
       retainedVisorTiles: retainedVisorTiles.length,
+      onToOffTransitionClearedVisorMaterial,
     };
   };
 
