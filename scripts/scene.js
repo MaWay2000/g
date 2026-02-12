@@ -1536,6 +1536,7 @@ export const initScene = (
   let geoVisorLastEnabled = null;
   const geoVisorPlayerWorldPosition = new THREE.Vector3();
   const geoVisorTileWorldPosition = new THREE.Vector3();
+  const geoVisorRevealOrigin = new THREE.Vector3();
 
   const getResourceTargetsForFloor = (floorId) => {
     if (!floorId) {
@@ -1722,6 +1723,21 @@ export const initScene = (
       geoVisorPlayerWorldPosition.set(0, 0, 0);
     }
 
+    const terrainIntersection = findTerrainIntersection();
+    const hasIntersectionPoint =
+      Number.isFinite(terrainIntersection?.position?.x) &&
+      Number.isFinite(terrainIntersection?.position?.z);
+
+    if (hasIntersectionPoint) {
+      geoVisorRevealOrigin.set(
+        terrainIntersection.position.x,
+        terrainIntersection.position.y ?? geoVisorPlayerWorldPosition.y,
+        terrainIntersection.position.z
+      );
+    } else {
+      geoVisorRevealOrigin.copy(geoVisorPlayerWorldPosition);
+    }
+
     const sampleTile = activeTerrainTiles.find(
       (tile) =>
         tile?.userData &&
@@ -1731,14 +1747,14 @@ export const initScene = (
     );
     const playerColumn = sampleTile
       ? Math.floor(
-          (geoVisorPlayerWorldPosition.x -
+          (geoVisorRevealOrigin.x -
             sampleTile.userData.geoVisorMapLeftEdge) /
             sampleTile.userData.geoVisorCellSize
         )
       : null;
     const playerRow = sampleTile
       ? Math.floor(
-          (geoVisorPlayerWorldPosition.z -
+          (geoVisorRevealOrigin.z -
             sampleTile.userData.geoVisorMapNearEdge) /
             sampleTile.userData.geoVisorCellSize
         )
@@ -1765,9 +1781,22 @@ export const initScene = (
       }
 
       tile.getWorldPosition(geoVisorTileWorldPosition);
-      const deltaX = geoVisorTileWorldPosition.x - geoVisorPlayerWorldPosition.x;
-      const deltaZ = geoVisorTileWorldPosition.z - geoVisorPlayerWorldPosition.z;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+      const tileSize =
+        Number.isFinite(tile.userData?.geoVisorCellSize) &&
+        tile.userData.geoVisorCellSize > 0
+          ? tile.userData.geoVisorCellSize
+          : 0;
+      const halfTileSize = tileSize * 0.5;
+      const deltaX =
+        Math.abs(geoVisorTileWorldPosition.x - geoVisorRevealOrigin.x) -
+        halfTileSize;
+      const deltaZ =
+        Math.abs(geoVisorTileWorldPosition.z - geoVisorRevealOrigin.z) -
+        halfTileSize;
+      const clampedDeltaX = Math.max(0, deltaX);
+      const clampedDeltaZ = Math.max(0, deltaZ);
+      const distanceSquared =
+        clampedDeltaX * clampedDeltaX + clampedDeltaZ * clampedDeltaZ;
       if (distanceSquared > maxDistanceSquared) {
         return;
       }
@@ -8508,7 +8537,12 @@ export const initScene = (
       ? targetObject.userData.tileVariantIndex
       : null;
 
-    return { terrainId, terrainLabel, tileIndex };
+    return {
+      terrainId,
+      terrainLabel,
+      tileIndex,
+      position: intersection.point?.clone?.() ?? null,
+    };
   };
 
   const prepareResourceCollection = ({ requireLockedControls = true } = {}) => {
