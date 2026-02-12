@@ -1534,6 +1534,7 @@ export const initScene = (
   let geoVisorLastRow = null;
   let geoVisorLastColumn = null;
   let geoVisorLastEnabled = null;
+  let geoVisorLastTileCount = 0;
 
   const getResourceTargetsForFloor = (floorId) => {
     if (!floorId) {
@@ -1697,11 +1698,13 @@ export const initScene = (
 
   const updateGeoVisorTerrainVisibility = ({ force = false } = {}) => {
     const allTerrainTiles = getAllTerrainTilesForGeoVisor();
+    const terrainTileCount = allTerrainTiles.length;
 
-    if (allTerrainTiles.length === 0) {
+    if (terrainTileCount === 0) {
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = geoVisorEnabled;
+      geoVisorLastTileCount = 0;
       return;
     }
 
@@ -1751,23 +1754,63 @@ export const initScene = (
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = false;
+      geoVisorLastTileCount = terrainTileCount;
       return;
     }
 
-    if (!force && geoVisorLastEnabled === true) {
+    const tileWithGridData = allTerrainTiles.find((tile) =>
+      Number.isFinite(tile?.userData?.geoVisorCellSize)
+    );
+    const geoCellSize = tileWithGridData?.userData?.geoVisorCellSize;
+    const geoMapLeftEdge = tileWithGridData?.userData?.geoVisorMapLeftEdge;
+    const geoMapNearEdge = tileWithGridData?.userData?.geoVisorMapNearEdge;
+
+    const hasGridCoordinates =
+      Number.isFinite(geoCellSize) &&
+      geoCellSize > 0 &&
+      Number.isFinite(geoMapLeftEdge) &&
+      Number.isFinite(geoMapNearEdge);
+
+    const playerRow = hasGridCoordinates
+      ? Math.floor((playerObject.position.z - geoMapNearEdge) / geoCellSize)
+      : null;
+    const playerColumn = hasGridCoordinates
+      ? Math.floor((playerObject.position.x - geoMapLeftEdge) / geoCellSize)
+      : null;
+
+    if (
+      !force &&
+      geoVisorLastEnabled === true &&
+      geoVisorLastRow === playerRow &&
+      geoVisorLastColumn === playerColumn &&
+      geoVisorLastTileCount === terrainTileCount
+    ) {
       return;
     }
 
-    activeTerrainTiles.forEach((tile) => {
+    allTerrainTiles.forEach((tile) => {
       if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
       }
-      applyGeoVisorMaterialToTile(tile, true);
+
+      const tileRow = tile?.userData?.geoVisorRow;
+      const tileColumn = tile?.userData?.geoVisorColumn;
+      const shouldReveal =
+        Number.isFinite(playerRow) &&
+        Number.isFinite(playerColumn) &&
+        Number.isFinite(tileRow) &&
+        Number.isFinite(tileColumn)
+          ? Math.abs(tileRow - playerRow) <= 1 &&
+            Math.abs(tileColumn - playerColumn) <= 1
+          : true;
+
+      applyGeoVisorMaterialToTile(tile, shouldReveal);
     });
 
-    geoVisorLastRow = null;
-    geoVisorLastColumn = null;
+    geoVisorLastRow = playerRow;
+    geoVisorLastColumn = playerColumn;
     geoVisorLastEnabled = true;
+    geoVisorLastTileCount = terrainTileCount;
   };
 
   const runGeoVisorTerrainVisibilityRegressionCheck = () => {
