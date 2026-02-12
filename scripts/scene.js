@@ -1712,12 +1712,10 @@ export const initScene = (
       return;
     }
 
-    if (!playerObject || typeof playerObject.getWorldPosition !== "function") {
+    const playerPosition = playerObject?.position;
+    if (!playerPosition) {
       return;
     }
-
-    const playerPosition = new THREE.Vector3();
-    playerObject.getWorldPosition(playerPosition);
 
     const currentRow = Math.floor(playerPosition.z / GEO_VISOR_MAX_DISTANCE);
     const currentColumn = Math.floor(playerPosition.x / GEO_VISOR_MAX_DISTANCE);
@@ -1733,17 +1731,15 @@ export const initScene = (
 
     const maxDistanceSquared = GEO_VISOR_MAX_DISTANCE * GEO_VISOR_MAX_DISTANCE;
 
-    const tileWorldPosition = new THREE.Vector3();
-
     activeTerrainTiles.forEach((tile) => {
-      if (!tile || typeof tile.getWorldPosition !== "function") {
+      const tilePosition = tile?.position;
+
+      if (!tilePosition) {
         return;
       }
 
-      tile.getWorldPosition(tileWorldPosition);
-
-      const deltaX = tileWorldPosition.x - playerPosition.x;
-      const deltaZ = tileWorldPosition.z - playerPosition.z;
+      const deltaX = tilePosition.x - playerPosition.x;
+      const deltaZ = tilePosition.z - playerPosition.z;
       const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
 
       if (!Number.isFinite(distanceSquared) || distanceSquared > maxDistanceSquared) {
