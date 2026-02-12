@@ -1534,6 +1534,8 @@ export const initScene = (
   let geoVisorLastRow = null;
   let geoVisorLastColumn = null;
   let geoVisorLastEnabled = null;
+  const geoVisorPlayerWorldPosition = new THREE.Vector3();
+  const geoVisorTileWorldPosition = new THREE.Vector3();
 
   const getResourceTargetsForFloor = (floorId) => {
     if (!floorId) {
@@ -1712,19 +1714,69 @@ export const initScene = (
       return;
     }
 
-    if (!force && geoVisorLastEnabled === true) {
+    if (playerObject?.isObject3D) {
+      playerObject.getWorldPosition(geoVisorPlayerWorldPosition);
+    } else if (camera?.isObject3D) {
+      camera.getWorldPosition(geoVisorPlayerWorldPosition);
+    } else {
+      geoVisorPlayerWorldPosition.set(0, 0, 0);
+    }
+
+    const sampleTile = activeTerrainTiles.find(
+      (tile) =>
+        tile?.userData &&
+        Number.isFinite(tile.userData.geoVisorCellSize) &&
+        Number.isFinite(tile.userData.geoVisorMapLeftEdge) &&
+        Number.isFinite(tile.userData.geoVisorMapNearEdge)
+    );
+    const playerColumn = sampleTile
+      ? Math.floor(
+          (geoVisorPlayerWorldPosition.x -
+            sampleTile.userData.geoVisorMapLeftEdge) /
+            sampleTile.userData.geoVisorCellSize
+        )
+      : null;
+    const playerRow = sampleTile
+      ? Math.floor(
+          (geoVisorPlayerWorldPosition.z -
+            sampleTile.userData.geoVisorMapNearEdge) /
+            sampleTile.userData.geoVisorCellSize
+        )
+      : null;
+
+    if (
+      !force &&
+      geoVisorLastEnabled === true &&
+      geoVisorLastRow === playerRow &&
+      geoVisorLastColumn === playerColumn
+    ) {
       return;
     }
+
+    const maxDistanceSquared = GEO_VISOR_MAX_DISTANCE ** 2;
 
     activeTerrainTiles.forEach((tile) => {
       if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
       }
+
+      if (!tile?.isObject3D) {
+        return;
+      }
+
+      tile.getWorldPosition(geoVisorTileWorldPosition);
+      const deltaX = geoVisorTileWorldPosition.x - geoVisorPlayerWorldPosition.x;
+      const deltaZ = geoVisorTileWorldPosition.z - geoVisorPlayerWorldPosition.z;
+      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+      if (distanceSquared > maxDistanceSquared) {
+        return;
+      }
+
       applyGeoVisorMaterialToTile(tile, true);
     });
 
-    geoVisorLastRow = null;
-    geoVisorLastColumn = null;
+    geoVisorLastRow = playerRow;
+    geoVisorLastColumn = playerColumn;
     geoVisorLastEnabled = true;
   };
 
