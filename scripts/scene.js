@@ -4939,22 +4939,31 @@ export const initScene = (
         return getOutsideTerrainElevation(normalizedMap.heights?.[index]);
       };
 
+      const getRoundedBlendFactor = (value) =>
+        THREE.MathUtils.smootherstep(
+          THREE.MathUtils.clamp(value, 0, 1),
+          0,
+          1
+        );
+
       const getBlendedElevation = (column, row, xBlend, zBlend) => {
         const elevation00 = getCellElevation(column, row);
         const elevation10 = getCellElevation(column + 1, row);
         const elevation01 = getCellElevation(column, row + 1);
         const elevation11 = getCellElevation(column + 1, row + 1);
+        const roundedXBlend = getRoundedBlendFactor(xBlend);
+        const roundedZBlend = getRoundedBlendFactor(zBlend);
         const northBlend = THREE.MathUtils.lerp(
           elevation00,
           elevation10,
-          xBlend
+          roundedXBlend
         );
         const southBlend = THREE.MathUtils.lerp(
           elevation01,
           elevation11,
-          xBlend
+          roundedXBlend
         );
-        return THREE.MathUtils.lerp(northBlend, southBlend, zBlend);
+        return THREE.MathUtils.lerp(northBlend, southBlend, roundedZBlend);
       };
 
       const createTerrainTileGeometry = (
