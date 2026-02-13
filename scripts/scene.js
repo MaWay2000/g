@@ -2167,6 +2167,7 @@ export const initScene = (
       emissive: new THREE.Color(terrainStyle.emissive),
       emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
       map: texture ?? null,
+      vertexColors: true,
       transparent: false,
       opacity: terrainStyle.opacity,
     });
@@ -2198,6 +2199,7 @@ export const initScene = (
         terrainStyle.emissiveIntensity ?? 0
       ),
       map: texture ?? null,
+      vertexColors: true,
       transparent: true,
       opacity: terrainStyle.opacity ?? 1,
     });
@@ -4944,6 +4946,29 @@ export const initScene = (
       const TERRAIN_CIRCULAR_BLEND_RADIUS = 1.65;
       const TERRAIN_CIRCULAR_BLEND_RADIUS_SQUARED =
         TERRAIN_CIRCULAR_BLEND_RADIUS * TERRAIN_CIRCULAR_BLEND_RADIUS;
+      const TERRAIN_EDGE_COLOR_TINT_STRENGTH = 0.44;
+      const TERRAIN_EDGE_COLOR_BLEND_STRENGTH = 0.34;
+      const TERRAIN_EDGE_COLOR_BLEND_INNER_RADIUS = 0.32;
+      const cellEdgeTintColors = rawCells.map((cell) => {
+        const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
+        const terrainColor = new THREE.Color(
+          resolvedTerrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR
+        );
+        return new THREE.Color(0xffffff).lerp(
+          terrainColor,
+          TERRAIN_EDGE_COLOR_TINT_STRENGTH
+        );
+      });
+      const getCellEdgeTintColor = (column, row, targetColor) => {
+        const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
+        const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
+        const index = clampedRow * width + clampedColumn;
+        const color = cellEdgeTintColors[index];
+        if (color && color.isColor) {
+          return targetColor.copy(color);
+        }
+        return targetColor.setRGB(1, 1, 1);
+      };
       const getRoundedBlendFactor = (value) => {
         const linearBlend = THREE.MathUtils.clamp(value, 0, 1);
         const easedBlend = THREE.MathUtils.smootherstep(linearBlend, 0, 1);
@@ -5012,6 +5037,81 @@ export const initScene = (
         return weightedElevationSum / totalWeight;
       };
 
+      const circularKernelColorScratch = new THREE.Color(0xffffff);
+      const getCircularKernelTerrainColor = (
+        sampleColumn,
+        sampleRow,
+        targetColor
+      ) => {
+        const baseColumn = Math.floor(sampleColumn);
+        const baseRow = Math.floor(sampleRow);
+        const sampleRadiusCells = Math.max(
+          1,
+          Math.ceil(TERRAIN_CIRCULAR_BLEND_RADIUS)
+        );
+        let weightedColorR = 0;
+        let weightedColorG = 0;
+        let weightedColorB = 0;
+        let totalWeight = 0;
+
+        for (
+          let rowOffset = -sampleRadiusCells;
+          rowOffset <= sampleRadiusCells;
+          rowOffset += 1
+        ) {
+          for (
+            let columnOffset = -sampleRadiusCells;
+            columnOffset <= sampleRadiusCells;
+            columnOffset += 1
+          ) {
+            const neighborColumn = baseColumn + columnOffset;
+            const neighborRow = baseRow + rowOffset;
+            const centerColumn = neighborColumn + 0.5;
+            const centerRow = neighborRow + 0.5;
+            const deltaColumn = sampleColumn - centerColumn;
+            const deltaRow = sampleRow - centerRow;
+            const normalizedDistanceSquared =
+              (deltaColumn * deltaColumn + deltaRow * deltaRow) /
+              TERRAIN_CIRCULAR_BLEND_RADIUS_SQUARED;
+
+            if (normalizedDistanceSquared >= 1) {
+              continue;
+            }
+
+            const radialFalloff = 1 - normalizedDistanceSquared;
+            const easedFalloff = THREE.MathUtils.smootherstep(
+              radialFalloff,
+              0,
+              1
+            );
+            const weight = easedFalloff * easedFalloff * easedFalloff;
+            if (weight <= 0) {
+              continue;
+            }
+
+            getCellEdgeTintColor(
+              neighborColumn,
+              neighborRow,
+              circularKernelColorScratch
+            );
+            weightedColorR += circularKernelColorScratch.r * weight;
+            weightedColorG += circularKernelColorScratch.g * weight;
+            weightedColorB += circularKernelColorScratch.b * weight;
+            totalWeight += weight;
+          }
+        }
+
+        if (totalWeight <= 0) {
+          return getCellEdgeTintColor(baseColumn, baseRow, targetColor);
+        }
+
+        return targetColor.setRGB(
+          weightedColorR / totalWeight,
+          weightedColorG / totalWeight,
+          weightedColorB / totalWeight
+        );
+      };
+
       const getBlendedElevation = (column, row, xBlend, zBlend) => {
         const clampedXBlend = THREE.MathUtils.clamp(xBlend, 0, 1);
         const clampedZBlend = THREE.MathUtils.clamp(zBlend, 0, 1);
@@ -5065,13 +5165,21 @@ export const initScene = (
         );
         geometry.rotateX(-Math.PI / 2);
         const positions = geometry.attributes.position;
+        const vertexColors = new Float32Array(positions.count * 3);
+        const sampledTerrainColor = new THREE.Color(0xffffff);
+        const blendedVertexColor = new THREE.Color(0xffffff);
         const centerX = mapLeftEdge + column * cellSize + cellSize / 2;
         const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
 
         const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
         for (let index = 0; index < positions.count; index += 1) {
+          const colorIndex = index * 3;
+
           if (!isInsideMap) {
             positions.setY(index, platformLocalY);
+            vertexColors[colorIndex] = 1;
+            vertexColors[colorIndex + 1] = 1;
+            vertexColors[colorIndex + 2] = 1;
             continue;
           }
 
@@ -5087,6 +5195,8 @@ export const initScene = (
             0,
             1
           );
+          const sampleColumn = column + xBlend;
+          const sampleRow = row + zBlend;
           const baseHeight =
             tileHeight + getBlendedElevation(column, row, xBlend, zBlend);
           const worldX = centerX + localX;
@@ -5112,8 +5222,35 @@ export const initScene = (
           );
 
           positions.setY(index, blendedY);
+          getCircularKernelTerrainColor(
+            sampleColumn,
+            sampleRow,
+            sampledTerrainColor
+          );
+          const radialEdgeDistance = THREE.MathUtils.clamp(
+            Math.hypot((xBlend - 0.5) * 2, (zBlend - 0.5) * 2),
+            0,
+            1
+          );
+          const edgeBlendMask = THREE.MathUtils.smootherstep(
+            radialEdgeDistance,
+            TERRAIN_EDGE_COLOR_BLEND_INNER_RADIUS,
+            1
+          );
+          const edgeBlendStrength =
+            edgeBlendMask * TERRAIN_EDGE_COLOR_BLEND_STRENGTH;
+          blendedVertexColor
+            .setRGB(1, 1, 1)
+            .lerp(sampledTerrainColor, edgeBlendStrength);
+          vertexColors[colorIndex] = blendedVertexColor.r;
+          vertexColors[colorIndex + 1] = blendedVertexColor.g;
+          vertexColors[colorIndex + 2] = blendedVertexColor.b;
         }
 
+        geometry.setAttribute(
+          "color",
+          new THREE.Float32BufferAttribute(vertexColors, 3)
+        );
         positions.needsUpdate = true;
         geometry.computeVertexNormals();
         return geometry;
@@ -5164,6 +5301,7 @@ export const initScene = (
           emissive: new THREE.Color(terrainStyle.emissive),
           emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
           map: texture ?? null,
+          vertexColors: true,
           side: THREE.DoubleSide,
           transparent: false,
           opacity: terrainStyle.opacity,
@@ -5200,6 +5338,7 @@ export const initScene = (
             terrainStyle.emissiveIntensity ?? 0
           ),
           map: texture ?? null,
+          vertexColors: true,
           side: THREE.DoubleSide,
           transparent: true,
           opacity: terrainStyle.opacity ?? 1,
