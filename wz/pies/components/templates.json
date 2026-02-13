@@ -1,7 +1,0 @@
-{
-  "ConstructionDroid": {
-    "body": "Body1REC",
-    "propulsion": "wheeled01",
-    "weapon": "DROID_CONSTRUCT"
-  }
-}
