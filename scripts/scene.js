@@ -4939,13 +4939,15 @@ export const initScene = (
         return getOutsideTerrainElevation(normalizedMap.heights?.[index]);
       };
 
-      const TERRAIN_BLEND_ROUNDING_PASSES = 2;
+      const TERRAIN_BLEND_ROUNDING_STRENGTH = 0.5;
       const getRoundedBlendFactor = (value) => {
-        let blend = THREE.MathUtils.clamp(value, 0, 1);
-        for (let pass = 0; pass < TERRAIN_BLEND_ROUNDING_PASSES; pass += 1) {
-          blend = THREE.MathUtils.smootherstep(blend, 0, 1);
-        }
-        return blend;
+        const linearBlend = THREE.MathUtils.clamp(value, 0, 1);
+        const easedBlend = THREE.MathUtils.smootherstep(linearBlend, 0, 1);
+        return THREE.MathUtils.lerp(
+          linearBlend,
+          easedBlend,
+          TERRAIN_BLEND_ROUNDING_STRENGTH
+        );
       };
 
       const getBlendedElevation = (column, row, xBlend, zBlend) => {
