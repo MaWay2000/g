@@ -4689,7 +4689,7 @@ export const initScene = (
         OUTSIDE_HEIGHT_ELEVATION_MAX * 0.35
       );
       const platformBlendDistance = cellSize * 0.85;
-      const terrainPlaneSegments = 6;
+      const terrainPlaneSegments = 10;
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
       const mapObjectGroup = new THREE.Group();
@@ -4939,7 +4939,11 @@ export const initScene = (
         return getOutsideTerrainElevation(normalizedMap.heights?.[index]);
       };
 
-      const TERRAIN_BLEND_ROUNDING_STRENGTH = 0.5;
+      const TERRAIN_BLEND_ROUNDING_STRENGTH = 0.35;
+      const TERRAIN_CIRCULAR_BLEND_STRENGTH = 0.65;
+      const TERRAIN_CIRCULAR_BLEND_RADIUS = 1.2;
+      const TERRAIN_CIRCULAR_BLEND_RADIUS_SQUARED =
+        TERRAIN_CIRCULAR_BLEND_RADIUS * TERRAIN_CIRCULAR_BLEND_RADIUS;
       const getRoundedBlendFactor = (value) => {
         const linearBlend = THREE.MathUtils.clamp(value, 0, 1);
         const easedBlend = THREE.MathUtils.smootherstep(linearBlend, 0, 1);
@@ -4950,13 +4954,61 @@ export const initScene = (
         );
       };
 
+      const getCircularKernelElevation = (sampleColumn, sampleRow) => {
+        const baseColumn = Math.floor(sampleColumn);
+        const baseRow = Math.floor(sampleRow);
+        let weightedElevationSum = 0;
+        let totalWeight = 0;
+
+        for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+          for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+            const neighborColumn = baseColumn + columnOffset;
+            const neighborRow = baseRow + rowOffset;
+            const centerColumn = neighborColumn + 0.5;
+            const centerRow = neighborRow + 0.5;
+            const deltaColumn = sampleColumn - centerColumn;
+            const deltaRow = sampleRow - centerRow;
+            const normalizedDistanceSquared =
+              (deltaColumn * deltaColumn + deltaRow * deltaRow) /
+              TERRAIN_CIRCULAR_BLEND_RADIUS_SQUARED;
+
+            if (normalizedDistanceSquared >= 1) {
+              continue;
+            }
+
+            const radialFalloff = 1 - normalizedDistanceSquared;
+            const easedFalloff = THREE.MathUtils.smootherstep(
+              radialFalloff,
+              0,
+              1
+            );
+            const weight = easedFalloff * easedFalloff;
+            if (weight <= 0) {
+              continue;
+            }
+
+            weightedElevationSum +=
+              getCellElevation(neighborColumn, neighborRow) * weight;
+            totalWeight += weight;
+          }
+        }
+
+        if (totalWeight <= 0) {
+          return getCellElevation(baseColumn, baseRow);
+        }
+
+        return weightedElevationSum / totalWeight;
+      };
+
       const getBlendedElevation = (column, row, xBlend, zBlend) => {
+        const clampedXBlend = THREE.MathUtils.clamp(xBlend, 0, 1);
+        const clampedZBlend = THREE.MathUtils.clamp(zBlend, 0, 1);
         const elevation00 = getCellElevation(column, row);
         const elevation10 = getCellElevation(column + 1, row);
         const elevation01 = getCellElevation(column, row + 1);
         const elevation11 = getCellElevation(column + 1, row + 1);
-        const roundedXBlend = getRoundedBlendFactor(xBlend);
-        const roundedZBlend = getRoundedBlendFactor(zBlend);
+        const roundedXBlend = getRoundedBlendFactor(clampedXBlend);
+        const roundedZBlend = getRoundedBlendFactor(clampedZBlend);
         const northBlend = THREE.MathUtils.lerp(
           elevation00,
           elevation10,
@@ -4967,7 +5019,22 @@ export const initScene = (
           elevation11,
           roundedXBlend
         );
-        return THREE.MathUtils.lerp(northBlend, southBlend, roundedZBlend);
+        const roundedBilinearElevation = THREE.MathUtils.lerp(
+          northBlend,
+          southBlend,
+          roundedZBlend
+        );
+        const sampleColumn = column + clampedXBlend;
+        const sampleRow = row + clampedZBlend;
+        const circularElevation = getCircularKernelElevation(
+          sampleColumn,
+          sampleRow
+        );
+        return THREE.MathUtils.lerp(
+          roundedBilinearElevation,
+          circularElevation,
+          TERRAIN_CIRCULAR_BLEND_STRENGTH
+        );
       };
 
       const createTerrainTileGeometry = (
@@ -5319,7 +5386,10 @@ export const initScene = (
       };
 
       const terrainDetailDistance = cellSize * 6;
-      const terrainLowDetailSegments = terrainPlaneSegments;
+      const terrainLowDetailSegments = Math.max(
+        6,
+        terrainPlaneSegments - 4
+      );
       const terrainDetailCenterX = 0;
       const terrainDetailCenterZ = mapCenterZ;
       const tileMapBounds = {
