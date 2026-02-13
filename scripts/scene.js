@@ -4689,7 +4689,7 @@ export const initScene = (
         OUTSIDE_HEIGHT_ELEVATION_MAX * 0.35
       );
       const platformBlendDistance = cellSize * 0.85;
-      const terrainPlaneSegments = 10;
+      const terrainPlaneSegments = 14;
       const mapGroup = new THREE.Group();
       mapGroup.name = "operations-exterior-outside-map";
       const mapObjectGroup = new THREE.Group();
@@ -4939,9 +4939,9 @@ export const initScene = (
         return getOutsideTerrainElevation(normalizedMap.heights?.[index]);
       };
 
-      const TERRAIN_BLEND_ROUNDING_STRENGTH = 0.35;
-      const TERRAIN_CIRCULAR_BLEND_STRENGTH = 0.65;
-      const TERRAIN_CIRCULAR_BLEND_RADIUS = 1.2;
+      const TERRAIN_BLEND_ROUNDING_STRENGTH = 0.28;
+      const TERRAIN_CIRCULAR_BLEND_STRENGTH = 0.82;
+      const TERRAIN_CIRCULAR_BLEND_RADIUS = 1.65;
       const TERRAIN_CIRCULAR_BLEND_RADIUS_SQUARED =
         TERRAIN_CIRCULAR_BLEND_RADIUS * TERRAIN_CIRCULAR_BLEND_RADIUS;
       const getRoundedBlendFactor = (value) => {
@@ -4957,11 +4957,23 @@ export const initScene = (
       const getCircularKernelElevation = (sampleColumn, sampleRow) => {
         const baseColumn = Math.floor(sampleColumn);
         const baseRow = Math.floor(sampleRow);
+        const sampleRadiusCells = Math.max(
+          1,
+          Math.ceil(TERRAIN_CIRCULAR_BLEND_RADIUS)
+        );
         let weightedElevationSum = 0;
         let totalWeight = 0;
 
-        for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
-          for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+        for (
+          let rowOffset = -sampleRadiusCells;
+          rowOffset <= sampleRadiusCells;
+          rowOffset += 1
+        ) {
+          for (
+            let columnOffset = -sampleRadiusCells;
+            columnOffset <= sampleRadiusCells;
+            columnOffset += 1
+          ) {
             const neighborColumn = baseColumn + columnOffset;
             const neighborRow = baseRow + rowOffset;
             const centerColumn = neighborColumn + 0.5;
@@ -4982,7 +4994,7 @@ export const initScene = (
               0,
               1
             );
-            const weight = easedFalloff * easedFalloff;
+            const weight = easedFalloff * easedFalloff * easedFalloff;
             if (weight <= 0) {
               continue;
             }
@@ -5387,8 +5399,8 @@ export const initScene = (
 
       const terrainDetailDistance = cellSize * 6;
       const terrainLowDetailSegments = Math.max(
-        6,
-        terrainPlaneSegments - 4
+        8,
+        terrainPlaneSegments - 6
       );
       const terrainDetailCenterX = 0;
       const terrainDetailCenterZ = mapCenterZ;
