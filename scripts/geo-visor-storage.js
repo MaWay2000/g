@@ -1,4 +1,5 @@
 const GEO_VISOR_STORAGE_KEY = "dustyNova.geoVisor";
+const GEO_VISOR_REVEAL_STORAGE_KEY = "dustyNova.geoVisor.reveals";
 
 const clampBatteryLevel = (value, fallback = 1) => {
   const numericValue = Number(value);
@@ -16,6 +17,32 @@ const normalizeUpdatedAt = (value) => {
   }
 
   return Math.floor(numericValue);
+};
+
+const normalizeRevealMapKey = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const sanitizeRevealIndices = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const unique = new Set();
+  value.forEach((entry) => {
+    const numericValue = Number(entry);
+    if (!Number.isInteger(numericValue) || numericValue < 0) {
+      return;
+    }
+    unique.add(numericValue);
+  });
+
+  return Array.from(unique).sort((a, b) => a - b);
 };
 
 const getGeoVisorStorage = (() => {
@@ -50,6 +77,7 @@ const getGeoVisorStorage = (() => {
 })();
 
 let lastSerializedGeoVisorState = null;
+let lastSerializedGeoVisorRevealState = null;
 
 export const clearStoredGeoVisorState = () => {
   const storage = getGeoVisorStorage();
@@ -60,7 +88,9 @@ export const clearStoredGeoVisorState = () => {
 
   try {
     storage.removeItem(GEO_VISOR_STORAGE_KEY);
+    storage.removeItem(GEO_VISOR_REVEAL_STORAGE_KEY);
     lastSerializedGeoVisorState = null;
+    lastSerializedGeoVisorRevealState = null;
     return true;
   } catch (error) {
     console.warn("Unable to clear stored Geo Visor state", error);
@@ -130,6 +160,80 @@ export const persistGeoVisorState = (state, { force = false } = {}) => {
     return true;
   } catch (error) {
     console.warn("Unable to persist Geo Visor state", error);
+  }
+
+  return false;
+};
+
+export const loadStoredGeoVisorRevealState = () => {
+  const storage = getGeoVisorStorage();
+
+  if (!storage) {
+    return null;
+  }
+
+  let serialized = null;
+
+  try {
+    serialized = storage.getItem(GEO_VISOR_REVEAL_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Unable to read stored Geo Visor reveal state", error);
+    return null;
+  }
+
+  if (typeof serialized !== "string" || serialized.trim() === "") {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(serialized);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const mapKey = normalizeRevealMapKey(parsed.mapKey);
+    if (!mapKey) {
+      return null;
+    }
+
+    const revealedIndices = sanitizeRevealIndices(parsed.revealedIndices);
+    lastSerializedGeoVisorRevealState = serialized;
+    return { mapKey, revealedIndices };
+  } catch (error) {
+    console.warn("Unable to parse stored Geo Visor reveal state", error);
+  }
+
+  return null;
+};
+
+export const persistGeoVisorRevealState = (state, { force = false } = {}) => {
+  const storage = getGeoVisorStorage();
+
+  if (!storage || !state || typeof state !== "object") {
+    return false;
+  }
+
+  const mapKey = normalizeRevealMapKey(state.mapKey);
+  if (!mapKey) {
+    return false;
+  }
+
+  const payload = {
+    mapKey,
+    revealedIndices: sanitizeRevealIndices(state.revealedIndices),
+  };
+  const serialized = JSON.stringify(payload);
+
+  if (!force && serialized === lastSerializedGeoVisorRevealState) {
+    return true;
+  }
+
+  try {
+    storage.setItem(GEO_VISOR_REVEAL_STORAGE_KEY, serialized);
+    lastSerializedGeoVisorRevealState = serialized;
+    return true;
+  } catch (error) {
+    console.warn("Unable to persist Geo Visor reveal state", error);
   }
 
   return false;
