@@ -9501,7 +9501,9 @@ export const initScene = (
     );
 
     const launchStartPosition = resolveDroneLaunchStartPosition();
-    if (launchStartPosition) {
+    const shouldStartFromLaunch =
+      !droneMinerState.active || !droneMinerState.hasBasePosition;
+    if (launchStartPosition && shouldStartFromLaunch) {
       droneMinerState.basePosition.copy(launchStartPosition);
       droneMinerState.hasBasePosition = true;
       droneMinerState.transitionStart.copy(launchStartPosition);
@@ -9774,10 +9776,6 @@ export const initScene = (
     const baseDetail = session.baseDetail;
     const eventDetail = session.eventDetail;
     const sessionSource = baseDetail?.source ?? session.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
-
-    if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
-      returnDroneMinerToPlayer();
-    }
 
     clearResourceSession(session);
 
@@ -10072,8 +10070,12 @@ export const initScene = (
       return true;
     }
 
-    if (droneMinerState.active && droneMinerState.returning) {
-      hideDroneMiner();
+    if (droneMinerState.active) {
+      if (reason === "manual" || reason === "fuel") {
+        returnDroneMinerToPlayer();
+      } else {
+        hideDroneMiner();
+      }
       return true;
     }
 

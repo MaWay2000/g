@@ -8904,21 +8904,24 @@ const deactivateDroneAutomation = () => {
   }
 
   droneState.active = false;
+  droneState.pendingShutdown = true;
   cancelDroneAutomationRetry();
-  updateDroneStatusUi();
+  const cancelled = typeof sceneController?.cancelDroneMinerSession === "function"
+    ? sceneController.cancelDroneMinerSession({ reason: "manual" })
+    : false;
 
-  if (droneState.inFlight) {
-    droneState.pendingShutdown = true;
-
-    const cancelled = typeof sceneController?.cancelDroneMinerSession === "function"
-      ? sceneController.cancelDroneMinerSession({ reason: "manual" })
-      : false;
-
-    if (!cancelled) {
-      finalizeDroneAutomationShutdown();
-      return;
+  if (cancelled) {
+    if (!droneState.awaitingReturn) {
+      droneState.awaitingReturn = true;
+      droneState.status = "returning";
+      if (
+        !Number.isFinite(droneState.returnSessionStartMs) ||
+        droneState.returnSessionStartMs <= 0
+      ) {
+        droneState.returnSessionStartMs = performance.now();
+      }
     }
-
+    updateDroneStatusUi();
     return;
   }
 
@@ -8992,9 +8995,9 @@ const handleDroneRefuelRequest = () => {
 
 const handleDroneResourceCollected = (detail) => {
   droneState.inFlight = false;
-  droneState.status = "returning";
-  droneState.awaitingReturn = true;
-  droneState.returnSessionStartMs = performance.now();
+  droneState.awaitingReturn = false;
+  droneState.returnSessionStartMs = 0;
+  droneState.status = droneState.active ? "idle" : "inactive";
   droneState.lastResult = detail ?? null;
 
   concludeDroneMiningSession(detail);
@@ -9011,7 +9014,20 @@ const handleDroneResourceCollected = (detail) => {
     showDroneTerminalToast({ title: "Drone miner", description });
   }
 
+  if (!droneState.pendingShutdown && droneState.fuelRemaining <= 0) {
+    tryAutomaticDroneRefill();
+  }
+
+  if (droneState.pendingShutdown || droneState.fuelRemaining <= 0) {
+    finalizeDroneAutomationShutdown();
+    return;
+  }
+
   updateDroneStatusUi();
+
+  if (droneState.active) {
+    attemptDroneLaunch();
+  }
 };
 
 const handleDroneSessionCancelled = (reason) => {
