@@ -5722,6 +5722,19 @@ export const initScene = (
 
         const registered = registerColliderDescriptors([{ object: tile }]);
         if (Array.isArray(registered) && registered.length > 0) {
+          registered.forEach((descriptor) => {
+            if (!descriptor?.object || !descriptor?.box) {
+              return;
+            }
+
+            descriptor.object.updateWorldMatrix(true, false);
+            descriptor.box.setFromObject(descriptor.object);
+
+            if (descriptor.padding) {
+              descriptor.box.min.sub(descriptor.padding);
+              descriptor.box.max.add(descriptor.padding);
+            }
+          });
           windowedTileColliders.set(tile, registered);
         }
       };
@@ -6016,8 +6029,6 @@ export const initScene = (
         }
 
         const nextKeys = new Set();
-        let collidersChanged = false;
-
         for (let row = minRow; row <= maxRow; row += 1) {
           for (let column = minColumn; column <= maxColumn; column += 1) {
             const key = `${column},${row}`;
@@ -6025,16 +6036,13 @@ export const initScene = (
             if (!windowedTileRegistry.has(key)) {
               const tile = createWindowedTile(column, row);
               windowedTileRegistry.set(key, tile);
-              collidersChanged = true;
             }
           }
         }
 
         Array.from(windowedTileRegistry.keys()).forEach((key) => {
           if (!nextKeys.has(key)) {
-            if (removeWindowedTile(key)) {
-              collidersChanged = true;
-            }
+            removeWindowedTile(key);
           }
         });
 
@@ -6043,9 +6051,6 @@ export const initScene = (
         terrainWindowState.minRow = minRow;
         terrainWindowState.maxRow = maxRow;
 
-        if (collidersChanged) {
-          rebuildStaticColliders();
-        }
       };
 
       mapGroup.userData.dispose = () => {
@@ -8403,6 +8408,8 @@ export const initScene = (
         console.warn("Unable to update environment for player height", error);
       }
     });
+
+    rebuildStaticColliders();
   };
 
   updateEnvironmentForPlayerHeight();
