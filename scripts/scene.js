@@ -6371,10 +6371,54 @@ export const initScene = (
 
     const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
     const entranceWidth = returnDoorWidth + 1.6;
-    const entranceHeight = returnDoorHeight * 1.05 * 4;
     const entranceThickness = 0.16;
-    const entranceEmbeddedOffset = entranceHeight * 0.25;
     const entranceCenterZ = outsideMapCenterZ;
+    const entranceTopY = entranceBaseY + returnDoorHeight * 1.05;
+    const sampleTunnelSurfaceY =
+      typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
+        ? builtOutsideTerrain.getSurfaceYAtWorldPosition
+        : null;
+    const sampleSteps = 4;
+    const tunnelHalfWidth = entranceWidth / 2 + entranceThickness + 0.45;
+    const tunnelHalfDepth = entranceDepth / 2 + 0.45;
+    let sampledTunnelMinSurfaceY = Infinity;
+    if (typeof sampleTunnelSurfaceY === "function") {
+      for (let xStep = 0; xStep <= sampleSteps; xStep += 1) {
+        const xBlend = sampleSteps > 0 ? xStep / sampleSteps : 0;
+        const sampleX = THREE.MathUtils.lerp(
+          outsideMapCenterX - tunnelHalfWidth,
+          outsideMapCenterX + tunnelHalfWidth,
+          xBlend
+        );
+
+        for (let zStep = 0; zStep <= sampleSteps; zStep += 1) {
+          const zBlend = sampleSteps > 0 ? zStep / sampleSteps : 0;
+          const sampleZ = THREE.MathUtils.lerp(
+            entranceCenterZ - tunnelHalfDepth,
+            entranceCenterZ + tunnelHalfDepth,
+            zBlend
+          );
+          const sampleY = sampleTunnelSurfaceY(sampleX, sampleZ);
+          if (Number.isFinite(sampleY)) {
+            sampledTunnelMinSurfaceY = Math.min(sampledTunnelMinSurfaceY, sampleY);
+          }
+        }
+      }
+    }
+    const minimumTunnelBottomY =
+      Number.isFinite(sampledTunnelMinSurfaceY)
+        ? sampledTunnelMinSurfaceY - OUTSIDE_TERRAIN_CLEARANCE
+        : roomFloorY - OUTSIDE_TERRAIN_CLEARANCE * 0.5;
+    const targetTunnelBottomY = Math.min(
+      roomFloorY - OUTSIDE_TERRAIN_CLEARANCE * 0.5,
+      minimumTunnelBottomY
+    );
+    const minimumEntranceHeight = returnDoorHeight * 1.05 * 4;
+    const entranceHeight = Math.max(
+      minimumEntranceHeight,
+      entranceTopY - targetTunnelBottomY
+    );
+    const entranceCenterY = entranceTopY - entranceHeight / 2;
     const entranceRearZ = entranceCenterZ - entranceDepth / 2;
     const entranceFrontZ = entranceRearZ + entranceDepth;
     const returnDoorZ = entranceFrontZ - 0.42;
@@ -6458,7 +6502,7 @@ export const initScene = (
     );
     entranceRoof.position.set(
       outsideMapCenterX,
-      entranceBaseY + entranceEmbeddedOffset + entranceThickness / 2,
+      entranceTopY + entranceThickness / 2,
       tunnelCenterZ
     );
     group.add(entranceRoof);
@@ -6477,7 +6521,7 @@ export const initScene = (
     );
     entranceLeftWall.position.set(
       outsideMapCenterX - (entranceWidth / 2 + entranceThickness / 2),
-      entranceBaseY - entranceEmbeddedOffset,
+      entranceCenterY,
       tunnelCenterZ
     );
     group.add(entranceLeftWall);
@@ -6505,7 +6549,7 @@ export const initScene = (
     );
     entranceBackWall.position.set(
       outsideMapCenterX,
-      entranceBaseY - entranceEmbeddedOffset,
+      entranceCenterY,
       tunnelRearWallZ
     );
     group.add(entranceBackWall);
@@ -6521,7 +6565,7 @@ export const initScene = (
     );
     entranceDoorBacker.position.set(
       outsideMapCenterX - returnDoorFrontOffset.x * (entranceDoorBackerDepth / 2 + 0.06),
-      entranceBaseY - entranceEmbeddedOffset,
+      entranceCenterY,
       returnDoorZ - returnDoorFrontOffset.z * (entranceDoorBackerDepth / 2 + 0.06)
     );
     group.add(entranceDoorBacker);
