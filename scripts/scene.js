@@ -9264,7 +9264,6 @@ export const initScene = (
   const DRONE_MINER_HOVER_LIFT = 0.4;
   const DRONE_MINER_SURFACE_MARGIN = 0.05;
   const DRONE_MINER_LAUNCH_START_DISTANCE = 1.4;
-  const DRONE_MINER_PLAYER_RETURN_OFFSET = 5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD = 0.35;
   const DRONE_MINER_MIN_RETURN_SPEED = 2.5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED =
@@ -9334,7 +9333,7 @@ export const initScene = (
   const droneLookDirectionHelper = new THREE.Vector3();
   const droneLookTarget = new THREE.Vector3();
   const droneReturnTarget = new THREE.Vector3();
-  const droneReturnOffset = new THREE.Vector3();
+  const droneReturnDirection = new THREE.Vector3();
   const droneLaunchDirection = new THREE.Vector3();
   const droneLaunchStartPosition = new THREE.Vector3();
   const resolveDroneSurfaceBaseHeight = (position, fallbackY = roomFloorY) => {
@@ -9512,24 +9511,6 @@ export const initScene = (
 
     if (droneMinerState.returning) {
       droneReturnTarget.copy(playerObject.position);
-      droneReturnOffset
-        .copy(droneMinerState.basePosition)
-        .sub(droneReturnTarget);
-      droneReturnOffset.y = 0;
-      const playerToDroneDistance = droneReturnOffset.length();
-      if (playerToDroneDistance > 1e-3) {
-        droneReturnOffset.multiplyScalar(
-          DRONE_MINER_PLAYER_RETURN_OFFSET / playerToDroneDistance,
-        );
-      } else {
-        camera.getWorldDirection(droneReturnOffset);
-        droneReturnOffset.y = 0;
-        if (droneReturnOffset.lengthSq() < 1e-3) {
-          droneReturnOffset.set(1, 0, 0);
-        }
-        droneReturnOffset.normalize().multiplyScalar(DRONE_MINER_PLAYER_RETURN_OFFSET);
-      }
-      droneReturnTarget.add(droneReturnOffset);
       const groundedReturnY = Number.isFinite(playerGroundedHeight)
         ? playerGroundedHeight
         : roomFloorY;
@@ -9544,10 +9525,10 @@ export const initScene = (
         DRONE_MINER_HOVER_LIFT +
         DRONE_MINER_SURFACE_MARGIN;
 
-      droneReturnOffset
+      droneReturnDirection
         .copy(droneReturnTarget)
         .sub(droneMinerState.basePosition);
-      const distanceToTarget = droneReturnOffset.length();
+      const distanceToTarget = droneReturnDirection.length();
       const playerMatchedSpeed = Math.max(
         currentPlayerHorizontalSpeed,
         DRONE_MINER_MIN_RETURN_SPEED
@@ -9557,8 +9538,8 @@ export const initScene = (
       if (distanceToTarget <= maxStep) {
         droneMinerState.basePosition.copy(droneReturnTarget);
       } else if (distanceToTarget > 0) {
-        droneReturnOffset.multiplyScalar(1 / distanceToTarget);
-        droneMinerState.basePosition.addScaledVector(droneReturnOffset, maxStep);
+        droneReturnDirection.multiplyScalar(1 / distanceToTarget);
+        droneMinerState.basePosition.addScaledVector(droneReturnDirection, maxStep);
       }
 
       if (
