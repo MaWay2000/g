@@ -3021,6 +3021,11 @@ const droneLaunchSound = new Audio();
 droneLaunchSound.preload = "auto";
 droneLaunchSound.src = droneLaunchSoundSource;
 droneLaunchSound.load();
+const geoVisorOutOfBatterySoundSource = "sounds/out_of_battery.mp3";
+const geoVisorOutOfBatterySound = new Audio();
+geoVisorOutOfBatterySound.preload = "auto";
+geoVisorOutOfBatterySound.src = geoVisorOutOfBatterySoundSource;
+geoVisorOutOfBatterySound.load();
 
 const playTerminalInteractionSound = () => {
   try {
@@ -3044,6 +3049,19 @@ const playDroneLaunchSound = () => {
     }
   } catch (error) {
     console.error("Unable to play drone launch sound", error);
+  }
+};
+
+const playGeoVisorOutOfBatterySound = () => {
+  try {
+    geoVisorOutOfBatterySound.pause();
+    geoVisorOutOfBatterySound.currentTime = 0;
+    const playPromise = geoVisorOutOfBatterySound.play();
+    if (playPromise instanceof Promise) {
+      playPromise.catch(() => {});
+    }
+  } catch (error) {
+    console.error("Unable to play Geo Visor out of battery sound", error);
   }
 };
 
@@ -9132,7 +9150,10 @@ const handleGeoVisorQuickSlotChange = (event) => {
     return;
   }
 
-  activateGeoVisorPulse(slot.id);
+  const pulseActivated = activateGeoVisorPulse(slot.id);
+  if (!pulseActivated && !isGeoVisorBatteryFullyCharged()) {
+    playGeoVisorOutOfBatterySound();
+  }
 };
 
 if (canvas instanceof HTMLElement) {
