@@ -11201,14 +11201,36 @@ export const initScene = (
   const terrainGroundRaycaster = new THREE.Raycaster();
   const terrainGroundRayDirection = new THREE.Vector3(0, -1, 0);
   const terrainGroundRayOrigin = new THREE.Vector3();
+  const getActiveFloorSurfaceHeight = (position) => {
+    if (!position) {
+      return null;
+    }
+
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (activeFloorId !== "operations-exterior") {
+      return null;
+    }
+
+    const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
+    const activeGroup = activeEnvironment?.getGroup?.() ?? null;
+    const surfaceSampler = activeGroup?.userData?.getSurfaceYAtWorldPosition;
+    if (typeof surfaceSampler !== "function") {
+      return null;
+    }
+
+    const sampledSurfaceY = surfaceSampler(position.x, position.z);
+    return Number.isFinite(sampledSurfaceY) ? sampledSurfaceY : null;
+  };
 
   const getTerrainGroundHeight = (position) => {
-    if (
-      !position ||
-      !Array.isArray(activeTerrainTiles) ||
-      activeTerrainTiles.length === 0
-    ) {
+    if (!position) {
       return null;
+    }
+
+    const sampledSurfaceHeight = getActiveFloorSurfaceHeight(position);
+
+    if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
+      return sampledSurfaceHeight;
     }
 
     const rayHeight =
@@ -11223,7 +11245,7 @@ export const initScene = (
     );
 
     if (intersections.length === 0) {
-      return null;
+      return sampledSurfaceHeight;
     }
 
     const intersection =
@@ -11231,10 +11253,19 @@ export const initScene = (
       intersections[0];
 
     if (!intersection?.point) {
-      return null;
+      return sampledSurfaceHeight;
     }
 
-    return intersection.point.y;
+    const intersectionY = intersection.point.y;
+    if (!Number.isFinite(intersectionY)) {
+      return sampledSurfaceHeight;
+    }
+
+    if (Number.isFinite(sampledSurfaceHeight)) {
+      return Math.max(intersectionY, sampledSurfaceHeight);
+    }
+
+    return intersectionY;
   };
 
   const getPlayerGroundHeight = (position) => {
