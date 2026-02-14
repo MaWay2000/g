@@ -5537,10 +5537,9 @@ export const initScene = (
       };
 
       const terrainDetailDistance = cellSize * 6;
-      const terrainLowDetailSegments = Math.max(
-        8,
-        terrainPlaneSegments - 6
-      );
+      // Keep consistent tessellation across neighboring tiles to avoid
+      // T-junction cracks on blended entrance slopes.
+      const terrainLowDetailSegments = terrainPlaneSegments;
       const terrainDetailCenterX = 0;
       const terrainDetailCenterZ = mapCenterZ;
       const tileMapBounds = {
