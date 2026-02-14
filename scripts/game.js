@@ -1487,7 +1487,8 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_RETURN_STALL_TIMEOUT_MS = 30000;
   const DRONE_STALL_CHECK_INTERVAL_MS = 2000;
   const DRONE_MINING_SOUND_UPDATE_INTERVAL_MS = 150;
-  const DRONE_MINING_SOUND_MAX_DISTANCE = 3;
+  const DRONE_MINING_SOUND_MAX_DISTANCE_TILES = 3;
+  const DRONE_MINING_SOUND_FALLBACK_TILE_SIZE = 15;
   const DRONE_MINING_SOUND_MAX_VOLUME = 1;
   const DRONE_PICKUP_DISTANCE_SQUARED = 9;
 
@@ -3105,11 +3106,18 @@ const getDroneMiningSoundVolumeForDistance = () => {
   const dz = playerPosition.z - dronePosition.z;
   const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-  if (!Number.isFinite(distance) || distance >= DRONE_MINING_SOUND_MAX_DISTANCE) {
+  const detectedTileSize = Number(sceneController?.getOutsideTerrainTileSize?.());
+  const tileSize =
+    Number.isFinite(detectedTileSize) && detectedTileSize > 0
+      ? detectedTileSize
+      : DRONE_MINING_SOUND_FALLBACK_TILE_SIZE;
+  const maxDistance = tileSize * DRONE_MINING_SOUND_MAX_DISTANCE_TILES;
+
+  if (!Number.isFinite(distance) || distance >= maxDistance) {
     return 0;
   }
 
-  const normalized = distance / DRONE_MINING_SOUND_MAX_DISTANCE;
+  const normalized = distance / maxDistance;
   const falloff = 1 - normalized;
   return Math.max(0, Math.min(1, falloff * falloff * DRONE_MINING_SOUND_MAX_VOLUME));
 };

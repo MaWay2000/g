@@ -12322,6 +12322,18 @@ export const initScene = (
       droneMinerState.hasBasePosition
         ? droneMinerState.basePosition.clone()
         : null,
+    getOutsideTerrainTileSize: () => {
+      if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
+        return null;
+      }
+
+      const sampleTile = activeTerrainTiles.find(
+        (tile) =>
+          Number.isFinite(tile?.userData?.geoVisorCellSize) &&
+          tile.userData.geoVisorCellSize > 0
+      );
+      return sampleTile?.userData?.geoVisorCellSize ?? null;
+    },
     setLiftInteractionsEnabled: (enabled) => setLiftInteractionsEnabled(enabled),
     setStarVisualSettings: (nextSettings) => {
       applyStarSettings(nextSettings ?? {});
