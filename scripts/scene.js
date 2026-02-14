@@ -9016,9 +9016,7 @@ export const initScene = (
     RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE ** 2;
   const RESOURCE_SESSION_PLAYER_SOURCE = "player";
   const RESOURCE_SESSION_DRONE_SOURCE = "drone-miner";
-  const DRONE_MINER_RANDOM_TARGET_RADIUS = 7;
-  const DRONE_MINER_RANDOM_TARGET_RADIUS_SQUARED =
-    DRONE_MINER_RANDOM_TARGET_RADIUS ** 2;
+  const DRONE_MINER_RANDOM_TARGET_RADIUS_TILES = 3;
   const createResourceSessionState = (source) => ({
     isActive: false,
     startPosition: new THREE.Vector3(),
@@ -9190,7 +9188,6 @@ export const initScene = (
 
     const uniqueTargets = new Set();
     const nearbyCandidates = [];
-    const fallbackCandidates = [];
 
     activeResourceTargets.forEach((candidateTarget) => {
       const targetObject = findResourceTarget(candidateTarget);
@@ -9212,25 +9209,21 @@ export const initScene = (
         return;
       }
 
-      const candidate = {
-        targetObject,
-        horizontalDistanceSquared,
-      };
-      fallbackCandidates.push(candidate);
-
-      if (horizontalDistanceSquared <= DRONE_MINER_RANDOM_TARGET_RADIUS_SQUARED) {
-        nearbyCandidates.push(candidate);
+      const cellSize = Number(targetObject.userData?.geoVisorCellSize);
+      const resolvedCellSize = Number.isFinite(cellSize) && cellSize > 0 ? cellSize : 1;
+      const maxDistance = resolvedCellSize * DRONE_MINER_RANDOM_TARGET_RADIUS_TILES;
+      const maxDistanceSquared = maxDistance * maxDistance;
+      if (horizontalDistanceSquared <= maxDistanceSquared) {
+        nearbyCandidates.push({ targetObject });
       }
     });
 
-    const candidatePool =
-      nearbyCandidates.length > 0 ? nearbyCandidates : fallbackCandidates;
-    if (candidatePool.length === 0) {
+    if (nearbyCandidates.length === 0) {
       return null;
     }
 
     const selectedCandidate =
-      candidatePool[Math.floor(Math.random() * candidatePool.length)] ?? null;
+      nearbyCandidates[Math.floor(Math.random() * nearbyCandidates.length)] ?? null;
     if (!selectedCandidate?.targetObject?.isObject3D) {
       return null;
     }
