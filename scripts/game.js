@@ -9010,34 +9010,40 @@ const resumeDroneAutomation = () => {
   }
 };
 
+const requestDroneReturnForShutdown = ({ reason = "manual" } = {}) => {
+  droneState.active = false;
+  droneState.pendingShutdown = true;
+  cancelDroneAutomationRetry();
+
+  const cancelled = typeof sceneController?.cancelDroneMinerSession === "function"
+    ? sceneController.cancelDroneMinerSession({ reason })
+    : false;
+
+  if (!cancelled) {
+    finalizeDroneAutomationShutdown();
+    return false;
+  }
+
+  if (!droneState.awaitingReturn) {
+    droneState.awaitingReturn = true;
+    droneState.status = "returning";
+    if (
+      !Number.isFinite(droneState.returnSessionStartMs) ||
+      droneState.returnSessionStartMs <= 0
+    ) {
+      droneState.returnSessionStartMs = performance.now();
+    }
+  }
+  updateDroneStatusUi();
+  return true;
+};
+
 const deactivateDroneAutomation = () => {
   if (!droneState.active) {
     return;
   }
 
-  droneState.active = false;
-  droneState.pendingShutdown = true;
-  cancelDroneAutomationRetry();
-  const cancelled = typeof sceneController?.cancelDroneMinerSession === "function"
-    ? sceneController.cancelDroneMinerSession({ reason: "manual" })
-    : false;
-
-  if (cancelled) {
-    if (!droneState.awaitingReturn) {
-      droneState.awaitingReturn = true;
-      droneState.status = "returning";
-      if (
-        !Number.isFinite(droneState.returnSessionStartMs) ||
-        droneState.returnSessionStartMs <= 0
-      ) {
-        droneState.returnSessionStartMs = performance.now();
-      }
-    }
-    updateDroneStatusUi();
-    return;
-  }
-
-  finalizeDroneAutomationShutdown();
+  requestDroneReturnForShutdown({ reason: "manual" });
 };
 
 const handleDroneToggleRequest = () => {
@@ -9131,7 +9137,8 @@ const handleDroneResourceCollected = (detail) => {
   }
 
   if (droneState.pendingShutdown || droneState.fuelRemaining <= 0) {
-    finalizeDroneAutomationShutdown();
+    const shutdownReason = droneState.fuelRemaining <= 0 ? "fuel" : "manual";
+    requestDroneReturnForShutdown({ reason: shutdownReason });
     return;
   }
 
