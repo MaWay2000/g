@@ -37,24 +37,30 @@ const safeStorageRemove = (storage, key) => {
   }
 };
 
-const safeStorageClear = (storage) => {
-  if (!storage || typeof storage.clear !== "function") {
-    return;
-  }
-
-  try {
-    storage.clear();
-  } catch (error) {
-    console.warn("Unable to clear storage", error);
-  }
-};
-
 const getStorageCandidates = () => {
   if (typeof window === "undefined") {
     return [];
   }
 
-  return [window.localStorage, window.sessionStorage];
+  const candidates = [];
+
+  try {
+    if (window.localStorage) {
+      candidates.push(window.localStorage);
+    }
+  } catch (error) {
+    console.warn("Unable to access localStorage", error);
+  }
+
+  try {
+    if (window.sessionStorage) {
+      candidates.push(window.sessionStorage);
+    }
+  } catch (error) {
+    console.warn("Unable to access sessionStorage", error);
+  }
+
+  return candidates;
 };
 
 const readFromStorages = (keys) => {
@@ -109,10 +115,6 @@ const getStoredCsrfToken = () => {
 export const clearStoredSession = () => {
   clearStoredKeys(AUTH_TOKEN_KEYS);
   clearStoredKeys(CSRF_TOKEN_KEYS);
-  const storageCandidates = getStorageCandidates();
-  for (const storage of storageCandidates) {
-    safeStorageClear(storage);
-  }
 };
 
 const parseErrorMessage = async (response) => {

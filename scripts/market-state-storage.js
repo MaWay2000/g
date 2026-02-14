@@ -92,8 +92,27 @@ const normalizeMarketItem = (item, fallback) => {
   return normalized;
 };
 
+const normalizeHoldingCount = (value) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numericValue));
+};
+
+const createDefaultMarketHoldings = (items) =>
+  items.reduce((accumulator, item) => {
+    if (item?.id) {
+      accumulator[item.id] = 0;
+    }
+    return accumulator;
+  }, {});
+
 const getDefaultMarketState = () => ({
   items: DEFAULT_MARKET_ITEMS.map((item) => normalizeMarketItem(item, item)),
+  holdings: createDefaultMarketHoldings(
+    DEFAULT_MARKET_ITEMS.map((item) => normalizeMarketItem(item, item))
+  ),
 });
 
 const sanitizeMarketState = (state) => {
@@ -102,15 +121,48 @@ const sanitizeMarketState = (state) => {
     return defaultState;
   }
 
-  const normalizedItems = state.items
-    .map((item, index) => normalizeMarketItem(item, defaultState.items[index]))
-    .filter(Boolean);
+  const defaultItemsById = new Map(
+    defaultState.items.map((item) => [item.id, item])
+  );
+  const normalizedItemsById = new Map();
+
+  state.items.forEach((item) => {
+    const itemId = typeof item?.id === "string" ? item.id.trim() : "";
+    const fallback = itemId ? defaultItemsById.get(itemId) : null;
+    const normalizedItem = normalizeMarketItem(item, fallback);
+    if (normalizedItem?.id) {
+      normalizedItemsById.set(normalizedItem.id, normalizedItem);
+    }
+  });
+
+  const normalizedItems = defaultState.items.map(
+    (defaultItem) => normalizedItemsById.get(defaultItem.id) ?? defaultItem
+  );
+
+  normalizedItemsById.forEach((item, itemId) => {
+    if (!defaultItemsById.has(itemId)) {
+      normalizedItems.push(item);
+    }
+  });
 
   if (normalizedItems.length === 0) {
     return defaultState;
   }
 
-  return { items: normalizedItems };
+  const rawHoldings =
+    state.holdings && typeof state.holdings === "object"
+      ? state.holdings
+      : {};
+  const holdings = normalizedItems.reduce((accumulator, item) => {
+    const itemId = item?.id;
+    if (!itemId) {
+      return accumulator;
+    }
+    accumulator[itemId] = normalizeHoldingCount(rawHoldings[itemId]);
+    return accumulator;
+  }, {});
+
+  return { items: normalizedItems, holdings };
 };
 
 export const loadMarketState = () => {

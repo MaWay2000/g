@@ -4856,6 +4856,7 @@ const formatMissionIndicatorLabel = (mission) => {
 const MARKET_PRICE_INCREASE_FACTOR = 1.05;
 const MARKET_PRICE_DECREASE_FACTOR = 0.97;
 const MARKET_MIN_PRICE = 1;
+const MARKET_SELL_RETURN_FACTOR = 0.9;
 
 let marketState = loadMarketState();
 let teardownMarketActionBinding = null;
@@ -4891,6 +4892,38 @@ const persistCurrentMarketState = () => {
   }
 };
 
+const getOwnedMarketQuantity = (itemId) => {
+  if (!itemId) {
+    return 0;
+  }
+
+  const quantity = Number(marketState?.holdings?.[itemId]);
+  if (!Number.isFinite(quantity)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(quantity));
+};
+
+const setOwnedMarketQuantity = (itemId, quantity) => {
+  if (!itemId) {
+    return;
+  }
+
+  if (!marketState || typeof marketState !== "object") {
+    marketState = loadMarketState();
+  }
+
+  if (!marketState.holdings || typeof marketState.holdings !== "object") {
+    marketState.holdings = {};
+  }
+
+  const normalizedQuantity = Number.isFinite(quantity)
+    ? Math.max(0, Math.floor(quantity))
+    : 0;
+  marketState.holdings[itemId] = normalizedQuantity;
+};
+
 const executeMarketTrade = (itemId, action) => {
   const item = marketState?.items?.find((entry) => entry?.id === itemId);
 
@@ -4910,10 +4943,21 @@ const executeMarketTrade = (itemId, action) => {
 
     item.stock -= 1;
     addMarsMoney(-item.price);
+    setOwnedMarketQuantity(item.id, getOwnedMarketQuantity(item.id) + 1);
     adjustMarketPrice(item, "buy");
   } else {
+    const ownedQuantity = getOwnedMarketQuantity(item.id);
+    if (ownedQuantity <= 0) {
+      return;
+    }
+
+    const salePrice = Math.max(
+      MARKET_MIN_PRICE,
+      Math.floor(item.price * MARKET_SELL_RETURN_FACTOR)
+    );
     item.stock += 1;
-    addMarsMoney(item.price);
+    addMarsMoney(salePrice);
+    setOwnedMarketQuantity(item.id, ownedQuantity - 1);
     adjustMarketPrice(item, "sell");
   }
 
@@ -4998,6 +5042,12 @@ const createMarketCard = (item) => {
   stock.textContent = `Available: ${item.stock}`;
   card.appendChild(stock);
 
+  const ownedQuantity = getOwnedMarketQuantity(item.id);
+  const owned = document.createElement("p");
+  owned.className = "mission-requirement";
+  owned.textContent = `Owned: ${ownedQuantity}`;
+  card.appendChild(owned);
+
   const actions = document.createElement("div");
   actions.className = "quick-access-modal__actions";
 
@@ -5016,6 +5066,7 @@ const createMarketCard = (item) => {
   sellButton.dataset.marketAction = "sell";
   sellButton.dataset.marketItemId = item.id;
   sellButton.textContent = "Sell";
+  sellButton.disabled = ownedQuantity <= 0;
   actions.appendChild(sellButton);
 
   card.appendChild(actions);

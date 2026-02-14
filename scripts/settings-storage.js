@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   starOpacity: 3.05,
   skyExtent: 13.35,
   skyDomeHeight: 0,
-  timeZoneOffsetHours: 3,
+  timeZoneOffsetHours: getDefaultTimeZoneOffsetHours(),
 };
 
 const normalizeSettings = (settings = {}) => {
