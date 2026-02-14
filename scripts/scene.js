@@ -4946,8 +4946,8 @@ export const initScene = (
       const TERRAIN_CIRCULAR_BLEND_RADIUS = 1.65;
       const TERRAIN_CIRCULAR_BLEND_RADIUS_SQUARED =
         TERRAIN_CIRCULAR_BLEND_RADIUS * TERRAIN_CIRCULAR_BLEND_RADIUS;
-      const TERRAIN_EDGE_COLOR_TINT_STRENGTH = 0.44;
-      const TERRAIN_EDGE_COLOR_BLEND_STRENGTH = 0.34;
+      const TERRAIN_EDGE_COLOR_TINT_STRENGTH = 0.36;
+      const TERRAIN_EDGE_COLOR_BLEND_STRENGTH = 0.46;
       const TERRAIN_EDGE_COLOR_BLEND_INNER_RADIUS = 0.32;
       const cellEdgeTintColors = rawCells.map((cell) => {
         const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
