@@ -3021,11 +3021,18 @@ const droneLaunchSound = new Audio();
 droneLaunchSound.preload = "auto";
 droneLaunchSound.src = droneLaunchSoundSource;
 droneLaunchSound.load();
+const droneMiningSoundSource = "sounds/drone_minning.mp3";
+const droneMiningSound = new Audio();
+droneMiningSound.preload = "auto";
+droneMiningSound.loop = true;
+droneMiningSound.src = droneMiningSoundSource;
+droneMiningSound.load();
 const geoVisorOutOfBatterySoundSource = "sounds/out_of_battery.mp3";
 const geoVisorOutOfBatterySound = new Audio();
 geoVisorOutOfBatterySound.preload = "auto";
 geoVisorOutOfBatterySound.src = geoVisorOutOfBatterySoundSource;
 geoVisorOutOfBatterySound.load();
+let droneMiningSoundPlaying = false;
 
 const playTerminalInteractionSound = () => {
   try {
@@ -3050,6 +3057,36 @@ const playDroneLaunchSound = () => {
   } catch (error) {
     console.error("Unable to play drone launch sound", error);
   }
+};
+
+const startDroneMiningSound = () => {
+  if (droneMiningSoundPlaying) {
+    return;
+  }
+
+  droneMiningSoundPlaying = true;
+  try {
+    droneMiningSound.currentTime = 0;
+    const playPromise = droneMiningSound.play();
+    if (playPromise instanceof Promise) {
+      playPromise.catch(() => {
+        droneMiningSoundPlaying = false;
+      });
+    }
+  } catch (error) {
+    droneMiningSoundPlaying = false;
+    console.error("Unable to play drone mining sound", error);
+  }
+};
+
+const stopDroneMiningSound = () => {
+  if (!droneMiningSoundPlaying && droneMiningSound.paused) {
+    return;
+  }
+
+  droneMiningSound.pause();
+  droneMiningSound.currentTime = 0;
+  droneMiningSoundPlaying = false;
 };
 
 const playGeoVisorOutOfBatterySound = () => {
@@ -8453,6 +8490,15 @@ const updateDroneInventoryTabVisibility = () => {
 function updateDroneStatusUi() {
   updateDroneQuickSlotState();
   updateDroneInventoryTabVisibility();
+  const shouldPlayMiningSound =
+    droneState.active &&
+    droneState.inFlight &&
+    droneState.status === "collecting";
+  if (shouldPlayMiningSound) {
+    startDroneMiningSound();
+  } else {
+    stopDroneMiningSound();
+  }
 
   if (droneStatusPanels.length === 0) {
     return;
