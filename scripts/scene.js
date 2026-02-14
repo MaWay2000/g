@@ -9016,6 +9016,9 @@ export const initScene = (
     RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE ** 2;
   const RESOURCE_SESSION_PLAYER_SOURCE = "player";
   const RESOURCE_SESSION_DRONE_SOURCE = "drone-miner";
+  const DRONE_MINER_RANDOM_TARGET_RADIUS = 7;
+  const DRONE_MINER_RANDOM_TARGET_RADIUS_SQUARED =
+    DRONE_MINER_RANDOM_TARGET_RADIUS ** 2;
   const createResourceSessionState = (source) => ({
     isActive: false,
     startPosition: new THREE.Vector3(),
@@ -9175,7 +9178,6 @@ export const initScene = (
   };
 
   const droneAutoScanTargetPosition = new THREE.Vector3();
-  const droneAutoScanBestPoint = new THREE.Vector3();
   const prepareDroneResourceCollection = () => {
     if (!Array.isArray(activeResourceTargets) || activeResourceTargets.length === 0) {
       return null;
@@ -9186,8 +9188,9 @@ export const initScene = (
       return null;
     }
 
-    let bestTargetObject = null;
-    let bestDistanceSquared = Infinity;
+    const uniqueTargets = new Set();
+    const nearbyCandidates = [];
+    const fallbackCandidates = [];
 
     activeResourceTargets.forEach((candidateTarget) => {
       const targetObject = findResourceTarget(candidateTarget);
@@ -9195,35 +9198,55 @@ export const initScene = (
         return;
       }
 
-      targetObject.getWorldPosition(droneAutoScanTargetPosition);
-      const distanceSquared = playerPosition.distanceToSquared(
-        droneAutoScanTargetPosition
-      );
+      if (uniqueTargets.has(targetObject)) {
+        return;
+      }
+      uniqueTargets.add(targetObject);
 
-      if (!Number.isFinite(distanceSquared) || distanceSquared >= bestDistanceSquared) {
+      targetObject.getWorldPosition(droneAutoScanTargetPosition);
+      const offsetX = droneAutoScanTargetPosition.x - playerPosition.x;
+      const offsetZ = droneAutoScanTargetPosition.z - playerPosition.z;
+      const horizontalDistanceSquared = offsetX * offsetX + offsetZ * offsetZ;
+
+      if (!Number.isFinite(horizontalDistanceSquared)) {
         return;
       }
 
-      bestDistanceSquared = distanceSquared;
-      bestTargetObject = targetObject;
-      droneAutoScanBestPoint.copy(droneAutoScanTargetPosition);
+      const candidate = {
+        targetObject,
+        horizontalDistanceSquared,
+      };
+      fallbackCandidates.push(candidate);
+
+      if (horizontalDistanceSquared <= DRONE_MINER_RANDOM_TARGET_RADIUS_SQUARED) {
+        nearbyCandidates.push(candidate);
+      }
     });
 
-    if (!bestTargetObject || !Number.isFinite(bestDistanceSquared)) {
+    const candidatePool =
+      nearbyCandidates.length > 0 ? nearbyCandidates : fallbackCandidates;
+    if (candidatePool.length === 0) {
       return null;
     }
 
-    const distance = Math.sqrt(bestDistanceSquared);
+    const selectedCandidate =
+      candidatePool[Math.floor(Math.random() * candidatePool.length)] ?? null;
+    if (!selectedCandidate?.targetObject?.isObject3D) {
+      return null;
+    }
+
+    selectedCandidate.targetObject.getWorldPosition(droneAutoScanTargetPosition);
+    const distance = playerPosition.distanceTo(droneAutoScanTargetPosition);
     if (!Number.isFinite(distance)) {
       return null;
     }
 
     return {
       intersection: {
-        point: droneAutoScanBestPoint.clone(),
+        point: droneAutoScanTargetPosition.clone(),
         distance,
       },
-      targetObject: bestTargetObject,
+      targetObject: selectedCandidate.targetObject,
     };
   };
 
@@ -10179,26 +10202,14 @@ export const initScene = (
       });
     }
 
-    let preparedSession = prepareResourceCollection({
-      requireLockedControls: false,
-      maxDistance: Number.POSITIVE_INFINITY,
-    });
-    if (!preparedSession) {
-      preparedSession = prepareDroneResourceCollection();
-    }
+    let preparedSession = prepareDroneResourceCollection();
 
     if (!preparedSession && activeFloorId === "operations-exterior") {
       updateActiveDeckEnvironment({
         reason: "drone-launch-retry",
         force: true,
       });
-      preparedSession = prepareResourceCollection({
-        requireLockedControls: false,
-        maxDistance: Number.POSITIVE_INFINITY,
-      });
-      if (!preparedSession) {
-        preparedSession = prepareDroneResourceCollection();
-      }
+      preparedSession = prepareDroneResourceCollection();
     }
 
     if (!preparedSession) {
