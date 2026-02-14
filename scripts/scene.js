@@ -6440,6 +6440,15 @@ export const initScene = (
     };
 
     group.userData.returnDoor = returnDoor;
+    group.userData.getSurfaceYAtWorldPosition = (worldX, worldZ) => {
+      if (
+        typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
+      ) {
+        return builtOutsideTerrain.getSurfaceYAtWorldPosition(worldX, worldZ);
+      }
+
+      return roomFloorY;
+    };
     group.userData.resolveEntrySpawn = () => {
       returnDoor.updateMatrixWorld(true);
 
@@ -10391,6 +10400,53 @@ export const initScene = (
 
     if (Number.isFinite(resolvedEntrySpawn?.yaw)) {
       spawnYaw = resolvedEntrySpawn.yaw;
+    }
+
+    if (
+      nextFloor?.id === "operations-exterior" &&
+      destinationGroup?.userData?.returnDoor?.isObject3D
+    ) {
+      const returnDoor = destinationGroup.userData.returnDoor;
+      const buildDoorSpawn = () => {
+        returnDoor.updateMatrixWorld(true);
+        const doorPosition = new THREE.Vector3();
+        const doorQuaternion = new THREE.Quaternion();
+        returnDoor.getWorldPosition(doorPosition);
+        returnDoor.getWorldQuaternion(doorQuaternion);
+        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(
+          doorQuaternion
+        );
+        const doorWidth = Number.isFinite(returnDoor.userData?.width)
+          ? returnDoor.userData.width
+          : BASE_DOOR_WIDTH;
+        const offsetDistance = Math.max(doorWidth * 0.7, 1.15);
+        doorPosition.add(forward.multiplyScalar(offsetDistance));
+
+        return {
+          position: doorPosition,
+          yaw: Math.atan2(forward.x, forward.z),
+        };
+      };
+
+      if (!(spawnPosition instanceof THREE.Vector3)) {
+        const fallbackSpawn = buildDoorSpawn();
+        spawnPosition = fallbackSpawn.position;
+        if (!Number.isFinite(spawnYaw)) {
+          spawnYaw = fallbackSpawn.yaw;
+        }
+      }
+
+      const surfaceSampler =
+        destinationGroup.userData?.getSurfaceYAtWorldPosition;
+      if (
+        spawnPosition instanceof THREE.Vector3 &&
+        typeof surfaceSampler === "function"
+      ) {
+        const sampledSurfaceY = surfaceSampler(spawnPosition.x, spawnPosition.z);
+        if (Number.isFinite(sampledSurfaceY)) {
+          spawnPosition.y = Math.max(roomFloorY, sampledSurfaceY);
+        }
+      }
     }
 
     if (spawnPosition instanceof THREE.Vector3) {
