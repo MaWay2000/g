@@ -3016,6 +3016,11 @@ const terminalInteractionSound = new Audio();
 terminalInteractionSound.preload = "auto";
 terminalInteractionSound.src = terminalInteractionSoundSource;
 terminalInteractionSound.load();
+const droneLaunchSoundSource = "sounds/robot_drone_lounch.mp3";
+const droneLaunchSound = new Audio();
+droneLaunchSound.preload = "auto";
+droneLaunchSound.src = droneLaunchSoundSource;
+droneLaunchSound.load();
 
 const playTerminalInteractionSound = () => {
   try {
@@ -3026,6 +3031,19 @@ const playTerminalInteractionSound = () => {
     }
   } catch (error) {
     console.error("Unable to play terminal interaction sound", error);
+  }
+};
+
+const playDroneLaunchSound = () => {
+  try {
+    droneLaunchSound.pause();
+    droneLaunchSound.currentTime = 0;
+    const playPromise = droneLaunchSound.play();
+    if (playPromise instanceof Promise) {
+      playPromise.catch(() => {});
+    }
+  } catch (error) {
+    console.error("Unable to play drone launch sound", error);
   }
 };
 
@@ -8785,6 +8803,7 @@ const attemptDroneLaunch = () => {
   droneState.returnSessionStartMs = 0;
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
+  playDroneLaunchSound();
   updateDroneStatusUi();
 };
 
