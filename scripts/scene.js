@@ -8980,7 +8980,10 @@ export const initScene = (
     };
   };
 
-  const prepareResourceCollection = ({ requireLockedControls = true } = {}) => {
+  const prepareResourceCollection = ({
+    requireLockedControls = true,
+    maxDistance = RESOURCE_TOOL_MAX_DISTANCE,
+  } = {}) => {
     if (requireLockedControls && !controls.isLocked) {
       return null;
     }
@@ -9004,10 +9007,11 @@ export const initScene = (
       return null;
     }
 
-    if (
-      !Number.isFinite(intersection.distance) ||
-      intersection.distance > RESOURCE_TOOL_MAX_DISTANCE
-    ) {
+    if (!Number.isFinite(intersection.distance)) {
+      return null;
+    }
+
+    if (Number.isFinite(maxDistance) && intersection.distance > maxDistance) {
       return null;
     }
 
@@ -9020,7 +9024,6 @@ export const initScene = (
     return { intersection, targetObject };
   };
 
-  const DRONE_AUTO_SCAN_MAX_DISTANCE = RESOURCE_TOOL_MAX_DISTANCE * 2;
   const droneAutoScanTargetPosition = new THREE.Vector3();
   const droneAutoScanBestPoint = new THREE.Vector3();
   const prepareDroneResourceCollection = () => {
@@ -9061,7 +9064,7 @@ export const initScene = (
     }
 
     const distance = Math.sqrt(bestDistanceSquared);
-    if (!Number.isFinite(distance) || distance > DRONE_AUTO_SCAN_MAX_DISTANCE) {
+    if (!Number.isFinite(distance)) {
       return null;
     }
 
@@ -10023,6 +10026,7 @@ export const initScene = (
 
     let preparedSession = prepareResourceCollection({
       requireLockedControls: false,
+      maxDistance: Number.POSITIVE_INFINITY,
     });
     if (!preparedSession) {
       preparedSession = prepareDroneResourceCollection();
@@ -10035,6 +10039,7 @@ export const initScene = (
       });
       preparedSession = prepareResourceCollection({
         requireLockedControls: false,
+        maxDistance: Number.POSITIVE_INFINITY,
       });
       if (!preparedSession) {
         preparedSession = prepareDroneResourceCollection();
