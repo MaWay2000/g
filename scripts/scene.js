@@ -1577,6 +1577,32 @@ export const initScene = (
 
     return targets;
   };
+  const syncViewDistanceBaseMaterial = (tile, baseMaterial) => {
+    if (!tile?.userData || !baseMaterial?.isMaterial) {
+      return;
+    }
+
+    if (tile.userData.viewDistanceBaseMaterial === baseMaterial) {
+      return;
+    }
+
+    tile.userData.viewDistanceBaseMaterial = baseMaterial;
+    tile.userData.viewDistanceBaseOpacity = Number.isFinite(baseMaterial.opacity)
+      ? baseMaterial.opacity
+      : 1;
+
+    const fadeMaterial = tile.userData.viewDistanceFadeMaterial;
+    if (
+      fadeMaterial?.isMaterial &&
+      fadeMaterial !== baseMaterial &&
+      typeof fadeMaterial.dispose === "function"
+    ) {
+      fadeMaterial.dispose();
+    }
+
+    tile.userData.viewDistanceFadeMaterial = null;
+  };
+
   const applyGeoVisorMaterialToTile = (tile, shouldReveal) => {
     if (!tile?.userData) {
       return;
@@ -1609,6 +1635,8 @@ export const initScene = (
     const targetMaterial = shouldReveal
       ? revealedMaterial
       : tile.userData.geoVisorConcealedMaterial;
+
+    syncViewDistanceBaseMaterial(tile, targetMaterial);
 
     if (!targetMaterial || tile.material === targetMaterial) {
       tile.userData.geoVisorRevealed = shouldReveal;
