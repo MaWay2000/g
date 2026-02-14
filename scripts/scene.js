@@ -1534,6 +1534,8 @@ export const initScene = (
   let geoVisorLastRow = null;
   let geoVisorLastColumn = null;
   let geoVisorLastEnabled = null;
+  let geoVisorRevealMapKey = null;
+  const geoVisorRevealedTileIndices = new Set();
   const geoVisorPlayerWorldPosition = new THREE.Vector3();
   const geoVisorTileWorldPosition = new THREE.Vector3();
   const geoVisorRevealOrigin = new THREE.Vector3();
@@ -1606,6 +1608,17 @@ export const initScene = (
   const applyGeoVisorMaterialToTile = (tile, shouldReveal) => {
     if (!tile?.userData) {
       return;
+    }
+
+    const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : null;
+    if (Number.isInteger(tileIndex) && tileIndex >= 0) {
+      if (shouldReveal) {
+        geoVisorRevealedTileIndices.add(tileIndex);
+      } else {
+        geoVisorRevealedTileIndices.delete(tileIndex);
+      }
     }
 
     if (!tile.userData.geoVisorRevealedMaterial) {
@@ -4670,6 +4683,13 @@ export const initScene = (
 
       const width = Math.max(1, Number.parseInt(normalizedMap.width, 10));
       const height = Math.max(1, Number.parseInt(normalizedMap.height, 10));
+      const normalizedMapName =
+        typeof normalizedMap?.name === "string" ? normalizedMap.name.trim() : "";
+      const nextGeoVisorMapKey = `${normalizedMapName}|${width}x${height}`;
+      if (geoVisorRevealMapKey !== nextGeoVisorMapKey) {
+        geoVisorRevealMapKey = nextGeoVisorMapKey;
+        geoVisorRevealedTileIndices.clear();
+      }
       const totalCells = width * height;
       const rawCells = Array.isArray(normalizedMap.cells)
         ? normalizedMap.cells.slice(0, totalCells)
@@ -5750,9 +5770,12 @@ export const initScene = (
           index
         );
         tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
-        tile.userData.geoVisorRevealed = Boolean(geoVisorEnabled);
+        const tileWasPreviouslyRevealed = geoVisorRevealedTileIndices.has(index);
+        tile.userData.geoVisorRevealed = tileWasPreviouslyRevealed;
 
-        if (geoVisorEnabled) {
+        if (tileWasPreviouslyRevealed) {
+          applyGeoVisorMaterialToTile(tile, true);
+        } else if (geoVisorEnabled) {
           tile.material = concealedTerrainMaterial;
         }
 
@@ -10180,6 +10203,10 @@ export const initScene = (
     const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
       : null;
+    if (Number.isInteger(tileIndex) && tileIndex >= 0) {
+      geoVisorRevealedTileIndices.delete(tileIndex);
+      tile.userData.geoVisorRevealed = false;
+    }
     if (
       Number.isInteger(tileIndex) &&
       storedOutsideMap &&
