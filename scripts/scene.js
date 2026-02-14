@@ -9068,6 +9068,7 @@ export const initScene = (
   const DRONE_MINER_HOVER_SPEED = 2.3;
   const DRONE_MINER_ROTOR_SPEED = 8;
   const DRONE_MINER_HOVER_LIFT = 0.4;
+  const DRONE_MINER_SURFACE_MARGIN = 0.05;
   const DRONE_MINER_PLAYER_RETURN_OFFSET = 5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD = 0.35;
   const DRONE_MINER_MIN_RETURN_SPEED = 2.5;
@@ -9139,6 +9140,34 @@ export const initScene = (
   const droneLookTarget = new THREE.Vector3();
   const droneReturnTarget = new THREE.Vector3();
   const droneReturnOffset = new THREE.Vector3();
+  const resolveDroneSurfaceBaseHeight = (position, fallbackY = roomFloorY) => {
+    const terrainHeight = getTerrainGroundHeight(position);
+    if (Number.isFinite(terrainHeight)) {
+      return Math.max(roomFloorY, terrainHeight);
+    }
+
+    return Math.max(
+      roomFloorY,
+      Number.isFinite(fallbackY) ? fallbackY : roomFloorY
+    );
+  };
+  const clampDroneBasePositionToSurface = () => {
+    if (!droneMinerState.hasBasePosition) {
+      return;
+    }
+
+    const minBaseY =
+      resolveDroneSurfaceBaseHeight(
+        droneMinerState.basePosition,
+        droneMinerState.basePosition.y
+      ) +
+      DRONE_MINER_HOVER_LIFT +
+      DRONE_MINER_SURFACE_MARGIN;
+
+    if (droneMinerState.basePosition.y < minBaseY) {
+      droneMinerState.basePosition.y = minBaseY;
+    }
+  };
 
   const hideDroneMiner = () => {
     if (!droneMinerState.active && !droneMinerGroup.visible) {
@@ -9172,8 +9201,15 @@ export const initScene = (
       return;
     }
 
-    droneMinerState.transitionTarget.copy(spawnPoint);
-    droneMinerState.transitionTarget.y += DRONE_MINER_HOVER_LIFT;
+    const spawnSurfaceBaseY = resolveDroneSurfaceBaseHeight(
+      spawnPoint,
+      spawnPoint.y
+    );
+    droneMinerState.transitionTarget.set(
+      spawnPoint.x,
+      spawnSurfaceBaseY + DRONE_MINER_HOVER_LIFT + DRONE_MINER_SURFACE_MARGIN,
+      spawnPoint.z
+    );
 
     if (!droneMinerState.hasBasePosition) {
       droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
@@ -9252,7 +9288,14 @@ export const initScene = (
         : roomFloorY;
       const playerBaseY = playerObject.position.y;
       const returnBaseY = Math.max(playerBaseY, groundedReturnY);
-      droneReturnTarget.y = returnBaseY + DRONE_MINER_HOVER_LIFT;
+      const returnSurfaceBaseY = resolveDroneSurfaceBaseHeight(
+        droneReturnTarget,
+        returnBaseY
+      );
+      droneReturnTarget.y =
+        Math.max(returnBaseY, returnSurfaceBaseY) +
+        DRONE_MINER_HOVER_LIFT +
+        DRONE_MINER_SURFACE_MARGIN;
 
       droneReturnOffset
         .copy(droneReturnTarget)
@@ -9304,6 +9347,8 @@ export const initScene = (
         droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
       }
     }
+
+    clampDroneBasePositionToSurface();
 
     const hoverOffset =
       Math.sin(elapsedTime * DRONE_MINER_HOVER_SPEED + droneMinerState.hoverPhase) *
