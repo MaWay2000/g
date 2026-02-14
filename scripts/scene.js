@@ -984,14 +984,24 @@ export const initScene = (
   const TOWER_RADIO_MIN_DISTANCE = 4;
   const TOWER_RADIO_MAX_DISTANCE = 78;
   const TOWER_RADIO_MAX_VOLUME = 0.55;
+  const PLAYER_DIGGING_SOUND_SOURCE = "sounds/digging.wav";
+  const PLAYER_DIGGING_MAX_VOLUME = 0.6;
   const towerRadioAudio = new Audio();
   towerRadioAudio.preload = "auto";
   towerRadioAudio.loop = true;
   towerRadioAudio.src = TOWER_RADIO_SOUND_SOURCE;
   towerRadioAudio.volume = 0;
   towerRadioAudio.load();
+  const playerDiggingAudio = new Audio();
+  playerDiggingAudio.preload = "auto";
+  playerDiggingAudio.loop = true;
+  playerDiggingAudio.src = PLAYER_DIGGING_SOUND_SOURCE;
+  playerDiggingAudio.volume = PLAYER_DIGGING_MAX_VOLUME;
+  playerDiggingAudio.load();
   let towerRadioUnlocked = false;
   let towerRadioPlaying = false;
+  let playerDiggingAudioUnlocked = false;
+  let playerDiggingAudioPlaying = false;
   let operationsExteriorRadioTower = null;
   const towerRadioWorldPosition = new THREE.Vector3();
   const unlockTowerRadioAudio = () => {
@@ -1070,6 +1080,57 @@ export const initScene = (
     } else {
       stopTowerRadioAudio();
     }
+  };
+  const unlockPlayerDiggingAudio = () => {
+    if (playerDiggingAudioUnlocked) {
+      return;
+    }
+
+    playerDiggingAudioUnlocked = true;
+    const previousMutedState = playerDiggingAudio.muted;
+    playerDiggingAudio.muted = true;
+    const resetSound = () => {
+      playerDiggingAudio.pause();
+      playerDiggingAudio.currentTime = 0;
+      playerDiggingAudio.muted = previousMutedState;
+      playerDiggingAudioPlaying = false;
+    };
+    const unlockPromise = playerDiggingAudio.play();
+    if (unlockPromise) {
+      unlockPromise.then(resetSound).catch(() => {
+        playerDiggingAudio.muted = previousMutedState;
+      });
+    } else {
+      resetSound();
+    }
+  };
+  const startPlayerDiggingAudio = () => {
+    if (playerDiggingAudioPlaying) {
+      return;
+    }
+
+    playerDiggingAudioPlaying = true;
+    const playPromise = playerDiggingAudio.play();
+    if (playPromise) {
+      playPromise.catch((error) => {
+        playerDiggingAudioPlaying = false;
+        console.warn("Unable to play player digging audio", error);
+      });
+    }
+  };
+  const stopPlayerDiggingAudio = ({ resetTime = false } = {}) => {
+    if (!playerDiggingAudioPlaying && playerDiggingAudio.paused) {
+      if (resetTime) {
+        playerDiggingAudio.currentTime = 0;
+      }
+      return;
+    }
+
+    playerDiggingAudio.pause();
+    if (resetTime) {
+      playerDiggingAudio.currentTime = 0;
+    }
+    playerDiggingAudioPlaying = false;
   };
 
   const TIME_OF_DAY_REFRESH_SECONDS = 5;
@@ -9750,6 +9811,10 @@ export const initScene = (
       eventDetail.actionDuration = actionDuration;
     }
 
+    if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+      startPlayerDiggingAudio();
+    }
+
     if (sessionSource === RESOURCE_SESSION_DRONE_SOURCE) {
       showDroneMiner(intersection ?? null);
     }
@@ -9784,6 +9849,7 @@ export const initScene = (
       resourceToolState.beamTimer = 0;
       resourceToolState.recoil = 0;
       resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+      stopPlayerDiggingAudio({ resetTime: true });
     }
 
     const successProbability =
@@ -9881,6 +9947,7 @@ export const initScene = (
       resourceToolState.beamTimer = 0;
       resourceToolState.recoil = 0;
       resourceToolState.actionDuration = RESOURCE_TOOL_BASE_ACTION_DURATION;
+      stopPlayerDiggingAudio({ resetTime: true });
       cancelScheduledResourceToolResume();
 
       primaryActionHeld = false;
@@ -9977,6 +10044,7 @@ export const initScene = (
     }
     resourceToolLight.intensity = 0;
     resourceToolLight.distance = 2.6;
+    stopPlayerDiggingAudio({ resetTime: true });
     resourceToolGroup.position.copy(resourceToolBasePosition);
     resourceToolGroup.rotation.copy(resourceToolBaseRotation);
   };
@@ -11262,6 +11330,7 @@ export const initScene = (
     resourceToolGroup.visible = true;
     resetResourceToolState();
     unlockTowerRadioAudio();
+    unlockPlayerDiggingAudio();
 
     if (typeof onControlsLocked === "function") {
       onControlsLocked();
@@ -11273,6 +11342,7 @@ export const initScene = (
     resourceToolGroup.visible = false;
     resetResourceToolState();
     stopTowerRadioAudio();
+    stopPlayerDiggingAudio({ resetTime: true });
 
     if (typeof onControlsUnlocked === "function") {
       onControlsUnlocked();
@@ -12507,6 +12577,8 @@ export const initScene = (
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       cancelScheduledResourceToolResume();
+      stopTowerRadioAudio();
+      stopPlayerDiggingAudio({ resetTime: true });
       updateTerminalInteractableState(false);
       updateLiftInteractableState(false);
       if (resourceToolGroup.parent) {
