@@ -856,7 +856,7 @@ const applyJumpSettingsUiState = () => {
 applyJumpSettingsUiState();
 
 const applyViewSettingsUiState = () => {
-  const viewDistance = Number(currentSettings?.viewDistance ?? 1);
+  const viewDistance = Number(currentSettings?.viewDistance ?? 0.2);
 
   setRangeInputValue(viewDistanceRange, viewDistance);
   setNumberInputValue(viewDistanceInput, viewDistance);

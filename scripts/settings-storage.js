@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = {
   playerJumpMultiplier: 1,
   jumpApexSmoothing: 6,
   jumpApexVelocity: 1.4,
-  viewDistance: 1,
+  viewDistance: 0.2,
   godMode: false,
   liftDoorFiltering: true,
   liftDoorFilterByArea: {},

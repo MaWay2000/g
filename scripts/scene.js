@@ -177,7 +177,7 @@ export const initScene = (
     const numericValue = Number(value);
 
     if (!Number.isFinite(numericValue)) {
-      return 1;
+      return 0.2;
     }
 
     return Math.max(0.01, Math.min(3, numericValue));
