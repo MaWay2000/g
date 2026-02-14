@@ -9020,6 +9020,60 @@ export const initScene = (
     return { intersection, targetObject };
   };
 
+  const DRONE_AUTO_SCAN_MAX_DISTANCE = RESOURCE_TOOL_MAX_DISTANCE * 2;
+  const droneAutoScanTargetPosition = new THREE.Vector3();
+  const droneAutoScanBestPoint = new THREE.Vector3();
+  const prepareDroneResourceCollection = () => {
+    if (!Array.isArray(activeResourceTargets) || activeResourceTargets.length === 0) {
+      return null;
+    }
+
+    const playerPosition = playerObject?.position;
+    if (!playerPosition) {
+      return null;
+    }
+
+    let bestTargetObject = null;
+    let bestDistanceSquared = Infinity;
+
+    activeResourceTargets.forEach((candidateTarget) => {
+      const targetObject = findResourceTarget(candidateTarget);
+      if (!targetObject?.isObject3D) {
+        return;
+      }
+
+      targetObject.getWorldPosition(droneAutoScanTargetPosition);
+      const distanceSquared = playerPosition.distanceToSquared(
+        droneAutoScanTargetPosition
+      );
+
+      if (!Number.isFinite(distanceSquared) || distanceSquared >= bestDistanceSquared) {
+        return;
+      }
+
+      bestDistanceSquared = distanceSquared;
+      bestTargetObject = targetObject;
+      droneAutoScanBestPoint.copy(droneAutoScanTargetPosition);
+    });
+
+    if (!bestTargetObject || !Number.isFinite(bestDistanceSquared)) {
+      return null;
+    }
+
+    const distance = Math.sqrt(bestDistanceSquared);
+    if (!Number.isFinite(distance) || distance > DRONE_AUTO_SCAN_MAX_DISTANCE) {
+      return null;
+    }
+
+    return {
+      intersection: {
+        point: droneAutoScanBestPoint.clone(),
+        distance,
+      },
+      targetObject: bestTargetObject,
+    };
+  };
+
   const notifyResourceUnavailable = (detail) => {
     if (typeof onResourceUnavailable !== "function") {
       return;
@@ -9970,6 +10024,9 @@ export const initScene = (
     let preparedSession = prepareResourceCollection({
       requireLockedControls: false,
     });
+    if (!preparedSession) {
+      preparedSession = prepareDroneResourceCollection();
+    }
 
     if (!preparedSession && activeFloorId === "operations-exterior") {
       updateActiveDeckEnvironment({
@@ -9979,6 +10036,9 @@ export const initScene = (
       preparedSession = prepareResourceCollection({
         requireLockedControls: false,
       });
+      if (!preparedSession) {
+        preparedSession = prepareDroneResourceCollection();
+      }
     }
 
     if (!preparedSession) {
