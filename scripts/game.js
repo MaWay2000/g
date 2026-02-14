@@ -15,6 +15,11 @@ import {
   loadStoredSettings,
   persistSettings,
 } from "./settings-storage.js";
+import {
+  clearStoredGeoVisorState,
+  loadStoredGeoVisorState,
+  persistGeoVisorState,
+} from "./geo-visor-storage.js";
 import { PERIODIC_ELEMENTS } from "./data/periodic-elements.js";
 import { OUTSIDE_TERRAIN_TYPES, getOutsideTerrainById } from "./outside-map.js";
 import {
@@ -1136,6 +1141,7 @@ const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter"]);
 const GEO_VISOR_PANEL_SLOT_ID = "photon-cutter";
 const GEO_VISOR_BATTERY_RECHARGE_MS = 2 * 60 * 1000;
 const GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS = 200;
+const GEO_VISOR_BATTERY_PERSIST_INTERVAL_MS = 1000;
 const GEO_SCAN_MAX_HP = Math.max(
   1,
   ...(Array.isArray(OUTSIDE_TERRAIN_TYPES)
@@ -1225,15 +1231,40 @@ const quickSlotState = {
 const geoVisorState = {
   activeSlotId: null,
 };
+const clampGeoVisorBatteryLevel = (value, fallback = 1) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.min(1, numericValue));
+};
+const initialGeoVisorTimestamp = Date.now();
+const storedGeoVisorState = loadStoredGeoVisorState();
+const storedGeoVisorLevel = clampGeoVisorBatteryLevel(
+  storedGeoVisorState?.level,
+  1
+);
+const storedGeoVisorUpdatedAt = Number.isFinite(storedGeoVisorState?.updatedAt)
+  ? storedGeoVisorState.updatedAt
+  : null;
+const geoVisorElapsedSinceStored =
+  Number.isFinite(storedGeoVisorUpdatedAt) &&
+  storedGeoVisorUpdatedAt <= initialGeoVisorTimestamp
+    ? initialGeoVisorTimestamp - storedGeoVisorUpdatedAt
+    : 0;
+const initialGeoVisorBatteryLevel = clampGeoVisorBatteryLevel(
+  storedGeoVisorLevel + geoVisorElapsedSinceStored / GEO_VISOR_BATTERY_RECHARGE_MS,
+  1
+);
 const geoVisorBatteryState = {
-  level: 1,
-  lastUpdate:
-    typeof performance !== "undefined" && typeof performance.now === "function"
-      ? performance.now()
-      : Date.now(),
+  level: initialGeoVisorBatteryLevel,
+  lastUpdate: initialGeoVisorTimestamp,
 };
 
 const quickSlotActivationTimeouts = new Map();
+let persistGeoVisorBatteryTimeoutId = 0;
+let geoVisorBatteryPersistenceEnabled = true;
 const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
   const GRAMS_PER_KILOGRAM = 1000;
@@ -2491,11 +2522,43 @@ const updateGeoVisorBatteryIndicator = () => {
   });
 };
 
+const persistGeoVisorBatterySnapshot = ({ force = false } = {}) =>
+  geoVisorBatteryPersistenceEnabled
+    ? persistGeoVisorState(
+        {
+          level: geoVisorBatteryState.level,
+          updatedAt: Date.now(),
+        },
+        { force }
+      )
+    : false;
+
+const schedulePersistGeoVisorBatteryState = ({ force = false } = {}) => {
+  if (!geoVisorBatteryPersistenceEnabled) {
+    return;
+  }
+
+  if (force) {
+    if (persistGeoVisorBatteryTimeoutId) {
+      window.clearTimeout(persistGeoVisorBatteryTimeoutId);
+      persistGeoVisorBatteryTimeoutId = 0;
+    }
+    persistGeoVisorBatterySnapshot({ force: true });
+    return;
+  }
+
+  if (persistGeoVisorBatteryTimeoutId) {
+    return;
+  }
+
+  persistGeoVisorBatteryTimeoutId = window.setTimeout(() => {
+    persistGeoVisorBatteryTimeoutId = 0;
+    persistGeoVisorBatterySnapshot();
+  }, GEO_VISOR_BATTERY_PERSIST_INTERVAL_MS);
+};
+
 const updateGeoVisorBatteryState = () => {
-  const now =
-    typeof performance !== "undefined" && typeof performance.now === "function"
-      ? performance.now()
-      : Date.now();
+  const now = Date.now();
   const delta = now - geoVisorBatteryState.lastUpdate;
 
   if (!Number.isFinite(delta) || delta <= 0) {
@@ -2523,6 +2586,7 @@ const updateGeoVisorBatteryState = () => {
   if (Math.abs(nextLevel - geoVisorBatteryState.level) >= 0.001) {
     geoVisorBatteryState.level = nextLevel;
     updateGeoVisorBatteryIndicator();
+    schedulePersistGeoVisorBatteryState();
   }
 };
 
@@ -2547,7 +2611,9 @@ const activateGeoVisorPulse = (slotId) => {
   }
 
   geoVisorBatteryState.level = 0;
+  geoVisorBatteryState.lastUpdate = Date.now();
   updateGeoVisorBatteryIndicator();
+  schedulePersistGeoVisorBatteryState({ force: true });
 
   setGeoVisorActiveSlotId(slotId);
   setGeoVisorActiveSlotId(null);
@@ -8990,6 +9056,16 @@ window.setInterval(
   updateGeoVisorBatteryState,
   GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS
 );
+document.addEventListener("visibilitychange", () => {
+  if (geoVisorBatteryPersistenceEnabled && document.visibilityState === "hidden") {
+    schedulePersistGeoVisorBatteryState({ force: true });
+  }
+});
+window.addEventListener("beforeunload", () => {
+  if (geoVisorBatteryPersistenceEnabled) {
+    schedulePersistGeoVisorBatteryState({ force: true });
+  }
+});
 
 const describeManifestEntry = (entry) => {
   if (typeof entry?.label === "string" && entry.label.trim() !== "") {
@@ -9462,6 +9538,11 @@ function handleReset(event) {
 
   setErrorMessage("");
   setButtonBusyState(resetButton, true);
+  geoVisorBatteryPersistenceEnabled = false;
+  if (persistGeoVisorBatteryTimeoutId) {
+    window.clearTimeout(persistGeoVisorBatteryTimeoutId);
+    persistGeoVisorBatteryTimeoutId = 0;
+  }
 
   let shouldReload = false;
   const persistenceSetter = sceneController?.setPlayerStatePersistenceEnabled;
@@ -9474,6 +9555,7 @@ function handleReset(event) {
     const clearedPlayerState = clearStoredPlayerState();
     const clearedDroneState = clearStoredDroneState();
     const clearedSettings = clearStoredSettings();
+    const clearedGeoVisorState = clearStoredGeoVisorState();
     const clearedTerrainLife = clearStoredTerrainLife();
     const clearedInventory = clearStoredInventoryState();
     const clearedTodos = clearStoredTodos();
@@ -9486,6 +9568,7 @@ function handleReset(event) {
       !clearedPlayerState ||
       !clearedDroneState ||
       !clearedSettings ||
+      !clearedGeoVisorState ||
       !clearedTerrainLife ||
       !clearedInventory ||
       !clearedTodos ||
@@ -9511,6 +9594,7 @@ function handleReset(event) {
     }
 
     if (!shouldReload) {
+      geoVisorBatteryPersistenceEnabled = true;
       setButtonBusyState(resetButton, false);
     }
   }
