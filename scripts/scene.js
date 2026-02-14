@@ -6869,9 +6869,11 @@ export const initScene = (
       liftDoor: returnDoor,
       liftDoors: [returnDoor, ...mapLiftDoors],
       updateForRoomHeight,
-      update: () => {
+      update: (payload = {}) => {
         if (typeof builtOutsideTerrain?.updateTerrainWindowing === "function") {
-          builtOutsideTerrain.updateTerrainWindowing();
+          builtOutsideTerrain.updateTerrainWindowing({
+            force: payload?.force === true,
+          });
         }
       },
       teleportOffset,
@@ -9957,9 +9959,27 @@ export const initScene = (
       return { started: false, reason: "busy" };
     }
 
-    const preparedSession = prepareResourceCollection({
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (activeFloorId === "operations-exterior") {
+      updateActiveDeckEnvironment({
+        reason: "drone-launch",
+        force: true,
+      });
+    }
+
+    let preparedSession = prepareResourceCollection({
       requireLockedControls: false,
     });
+
+    if (!preparedSession && activeFloorId === "operations-exterior") {
+      updateActiveDeckEnvironment({
+        reason: "drone-launch-retry",
+        force: true,
+      });
+      preparedSession = prepareResourceCollection({
+        requireLockedControls: false,
+      });
+    }
 
     if (!preparedSession) {
       return { started: false, reason: "no-target" };
