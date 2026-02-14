@@ -1486,6 +1486,9 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_MINING_STALL_TIMEOUT_MS = 15000;
   const DRONE_RETURN_STALL_TIMEOUT_MS = 30000;
   const DRONE_STALL_CHECK_INTERVAL_MS = 2000;
+  const DRONE_MINING_SOUND_UPDATE_INTERVAL_MS = 150;
+  const DRONE_MINING_SOUND_MAX_DISTANCE = 3;
+  const DRONE_MINING_SOUND_MAX_VOLUME = 1;
   const DRONE_PICKUP_DISTANCE_SQUARED = 9;
 
 const droneState = {
@@ -3025,6 +3028,7 @@ const droneMiningSoundSource = "sounds/drone_minning.mp3";
 const droneMiningSound = new Audio();
 droneMiningSound.preload = "auto";
 droneMiningSound.loop = true;
+droneMiningSound.volume = 0;
 droneMiningSound.src = droneMiningSoundSource;
 droneMiningSound.load();
 const geoVisorOutOfBatterySoundSource = "sounds/out_of_battery.mp3";
@@ -3087,6 +3091,48 @@ const stopDroneMiningSound = () => {
   droneMiningSound.pause();
   droneMiningSound.currentTime = 0;
   droneMiningSoundPlaying = false;
+};
+
+const getDroneMiningSoundVolumeForDistance = () => {
+  const playerPosition = getPlayerPosition();
+  const dronePosition = getDroneBasePosition();
+  if (!playerPosition || !dronePosition) {
+    return 0;
+  }
+
+  const dx = playerPosition.x - dronePosition.x;
+  const dy = playerPosition.y - dronePosition.y;
+  const dz = playerPosition.z - dronePosition.z;
+  const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+  if (!Number.isFinite(distance) || distance >= DRONE_MINING_SOUND_MAX_DISTANCE) {
+    return 0;
+  }
+
+  const normalized = distance / DRONE_MINING_SOUND_MAX_DISTANCE;
+  const falloff = 1 - normalized;
+  return Math.max(0, Math.min(1, falloff * falloff * DRONE_MINING_SOUND_MAX_VOLUME));
+};
+
+const updateDroneMiningSoundPlayback = () => {
+  const shouldPlayMiningSound =
+    droneState.active &&
+    droneState.inFlight &&
+    droneState.status === "collecting";
+
+  if (!shouldPlayMiningSound) {
+    stopDroneMiningSound();
+    return;
+  }
+
+  const volume = getDroneMiningSoundVolumeForDistance();
+  if (volume <= 0.0001) {
+    stopDroneMiningSound();
+    return;
+  }
+
+  droneMiningSound.volume = volume;
+  startDroneMiningSound();
 };
 
 const playGeoVisorOutOfBatterySound = () => {
@@ -8490,15 +8536,7 @@ const updateDroneInventoryTabVisibility = () => {
 function updateDroneStatusUi() {
   updateDroneQuickSlotState();
   updateDroneInventoryTabVisibility();
-  const shouldPlayMiningSound =
-    droneState.active &&
-    droneState.inFlight &&
-    droneState.status === "collecting";
-  if (shouldPlayMiningSound) {
-    startDroneMiningSound();
-  } else {
-    stopDroneMiningSound();
-  }
+  updateDroneMiningSoundPlayback();
 
   if (droneStatusPanels.length === 0) {
     return;
@@ -9236,6 +9274,10 @@ if (inventoryDroneAutoRefillToggle instanceof HTMLInputElement) {
 }
 
 window.setInterval(cancelStalledDroneMiningSession, DRONE_STALL_CHECK_INTERVAL_MS);
+window.setInterval(
+  updateDroneMiningSoundPlayback,
+  DRONE_MINING_SOUND_UPDATE_INTERVAL_MS
+);
 window.setInterval(updateGeoScanPanel, GEO_SCAN_PANEL_UPDATE_INTERVAL_MS);
 window.setInterval(
   updateGeoVisorBatteryState,
