@@ -11299,10 +11299,7 @@ export const initScene = (
       return sampledSurfaceHeight;
     }
 
-    if (Number.isFinite(sampledSurfaceHeight)) {
-      return Math.max(intersectionY, sampledSurfaceHeight);
-    }
-
+    // Prefer the actual rendered terrain surface when available.
     return intersectionY;
   };
 
