@@ -9948,12 +9948,17 @@ export const initScene = (
   const cancelDroneMinerSession = ({ reason = "manual" } = {}) => {
     const session = getResourceSession(RESOURCE_SESSION_DRONE_SOURCE);
 
-    if (!session?.isActive) {
-      return false;
+    if (session?.isActive) {
+      cancelResourceSessionInstance(session, { reason });
+      return true;
     }
 
-    cancelResourceSessionInstance(session, { reason });
-    return true;
+    if (droneMinerState.active && droneMinerState.returning) {
+      hideDroneMiner();
+      return true;
+    }
+
+    return false;
   };
 
   function continueResourceToolIfHeld() {

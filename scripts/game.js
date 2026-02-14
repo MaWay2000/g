@@ -1484,6 +1484,7 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_FUEL_PER_LAUNCH = 1;
   const DRONE_FUEL_RUNTIME_SECONDS_PER_UNIT = 200;
   const DRONE_MINING_STALL_TIMEOUT_MS = 15000;
+  const DRONE_RETURN_STALL_TIMEOUT_MS = 30000;
   const DRONE_STALL_CHECK_INTERVAL_MS = 2000;
   const DRONE_PICKUP_DISTANCE_SQUARED = 9;
 
@@ -1502,6 +1503,7 @@ const droneState = {
   fuelSlots: [],
   miningSecondsSinceFuelUse: 0,
   miningSessionStartMs: 0,
+  returnSessionStartMs: 0,
   autoRefillEnabled: false,
 };
 
@@ -1654,6 +1656,7 @@ const applyStoredDroneState = () => {
   }
 
   droneState.miningSessionStartMs = 0;
+  droneState.returnSessionStartMs = 0;
   let shouldRelaunchAfterRestore = false;
 
   if (stored.cargo) {
@@ -1720,6 +1723,7 @@ const applyStoredDroneState = () => {
     droneState.status = "idle";
     droneState.lastResult = null;
     droneState.miningSessionStartMs = 0;
+    droneState.returnSessionStartMs = 0;
     droneRelaunchPendingAfterRestore = true;
   }
 };
@@ -1785,7 +1789,25 @@ const isPlayerNearDroneForPickup = () => {
   return dx * dx + dy * dy + dz * dz <= DRONE_PICKUP_DISTANCE_SQUARED;
 };
 
-const isDronePickupRequired = () => false;
+const isDronePickupRequired = () => {
+  if (droneState.active || droneState.inFlight || droneState.awaitingReturn) {
+    dronePickupState.required = false;
+    dronePickupState.location = null;
+    return false;
+  }
+
+  const dronePosition = getDroneBasePosition();
+  dronePickupState.location = dronePosition;
+
+  if (!dronePosition) {
+    dronePickupState.required = false;
+    return false;
+  }
+
+  const required = !isPlayerNearDroneForPickup();
+  dronePickupState.required = required;
+  return required;
+};
 
 const persistDroneCargoSnapshot = () => {
   ensureDroneFuelSlots(droneState.fuelCapacity);
@@ -2098,6 +2120,46 @@ const concludeDroneMiningSession = (detail = null) => {
 };
 
 const cancelStalledDroneMiningSession = () => {
+  if (droneState.awaitingReturn && droneState.status === "returning") {
+    const returnStartMs = droneState.returnSessionStartMs;
+
+    if (!Number.isFinite(returnStartMs) || returnStartMs <= 0) {
+      return false;
+    }
+
+    const returnElapsedMs = performance.now() - returnStartMs;
+
+    if (returnElapsedMs <= DRONE_RETURN_STALL_TIMEOUT_MS) {
+      return false;
+    }
+
+    const cancelled = typeof sceneController?.cancelDroneMinerSession === "function"
+      ? sceneController.cancelDroneMinerSession({ reason: "timeout" })
+      : false;
+
+    if (!cancelled) {
+      if (droneState.pendingShutdown || droneState.fuelRemaining <= 0) {
+        finalizeDroneAutomationShutdown();
+      } else {
+        droneState.awaitingReturn = false;
+        droneState.returnSessionStartMs = 0;
+        droneState.status = droneState.active ? "idle" : "inactive";
+        updateDroneStatusUi();
+
+        if (droneState.active) {
+          scheduleDroneAutomationRetry();
+        }
+      }
+    }
+
+    showDroneTerminalToast({
+      title: "Drone return timeout",
+      description: "Return path stalled. Recovering drone control.",
+    });
+
+    return true;
+  }
+
   if (!droneState.inFlight || droneState.status !== "collecting") {
     return false;
   }
@@ -2123,6 +2185,7 @@ const cancelStalledDroneMiningSession = () => {
   droneState.lastResult = { found: false, reason: "timeout" };
   droneState.status = droneState.active ? "idle" : "inactive";
   droneState.miningSessionStartMs = 0;
+  droneState.returnSessionStartMs = 0;
   updateDroneStatusUi();
 
   if (droneState.active) {
@@ -8640,6 +8703,7 @@ const finalizeDroneAutomationShutdown = () => {
     Math.min(droneState.miningSecondsSinceFuelUse || 0, activeRuntimeSeconds)
   );
   droneState.miningSessionStartMs = 0;
+  droneState.returnSessionStartMs = 0;
   // Regression hook: ensures recalling the drone with unused fuel preserves remaining slots.
   document.dispatchEvent(
     new CustomEvent("drone:recall-with-remaining-fuel", {
@@ -8723,6 +8787,7 @@ const attemptDroneLaunch = () => {
   droneState.status = "collecting";
   droneState.inFlight = true;
   droneState.miningSessionStartMs = performance.now();
+  droneState.returnSessionStartMs = 0;
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
   updateDroneStatusUi();
@@ -8764,8 +8829,11 @@ const activateDroneAutomation = () => {
   droneState.active = true;
   droneState.pendingShutdown = false;
   droneState.awaitingReturn = false;
-  droneState.cargo = [];
-  droneState.payloadGrams = 0;
+  droneState.cargo = Array.isArray(droneState.cargo) ? droneState.cargo.slice() : [];
+  droneState.payloadGrams = droneState.cargo.reduce((total, sample) => {
+    const weight = getInventoryElementWeight(sample?.element);
+    return total + (Number.isFinite(weight) ? weight : 0);
+  }, 0);
   droneState.fuelCapacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
   droneState.fuelRemaining = Math.max(
     0,
@@ -8780,6 +8848,7 @@ const activateDroneAutomation = () => {
     ),
   );
   droneState.miningSessionStartMs = 0;
+  droneState.returnSessionStartMs = 0;
   droneState.status = "idle";
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
@@ -8832,6 +8901,15 @@ const deactivateDroneAutomation = () => {
       : false;
 
     if (!cancelled) {
+      droneState.awaitingReturn = true;
+      droneState.status = "returning";
+      if (
+        !Number.isFinite(droneState.returnSessionStartMs) ||
+        droneState.returnSessionStartMs <= 0
+      ) {
+        droneState.returnSessionStartMs = performance.now();
+      }
+      updateDroneStatusUi();
       showDroneTerminalToast({
         title: "Drone recall scheduled",
         description: "Drone will return after the current run.",
@@ -8913,6 +8991,7 @@ const handleDroneResourceCollected = (detail) => {
   droneState.inFlight = false;
   droneState.status = "returning";
   droneState.awaitingReturn = true;
+  droneState.returnSessionStartMs = performance.now();
   droneState.lastResult = detail ?? null;
 
   concludeDroneMiningSession(detail);
@@ -8933,11 +9012,30 @@ const handleDroneResourceCollected = (detail) => {
 };
 
 const handleDroneSessionCancelled = (reason) => {
+  const shouldAwaitVisualReturn =
+    droneState.pendingShutdown &&
+    (reason === "manual" || reason === "fuel");
+
   droneState.inFlight = false;
   droneState.lastResult = null;
-  droneState.awaitingReturn = false;
 
   concludeDroneMiningSession();
+
+  if (shouldAwaitVisualReturn) {
+    droneState.awaitingReturn = true;
+    droneState.status = "returning";
+    if (
+      !Number.isFinite(droneState.returnSessionStartMs) ||
+      droneState.returnSessionStartMs <= 0
+    ) {
+      droneState.returnSessionStartMs = performance.now();
+    }
+    updateDroneStatusUi();
+    return;
+  }
+
+  droneState.awaitingReturn = false;
+  droneState.returnSessionStartMs = 0;
 
   if (droneState.pendingShutdown) {
     finalizeDroneAutomationShutdown();
@@ -8965,6 +9063,7 @@ const handleDroneSessionCancelled = (reason) => {
 
 const handleDroneReturnComplete = () => {
   droneState.awaitingReturn = false;
+  droneState.returnSessionStartMs = 0;
 
   if (!droneState.pendingShutdown && droneState.fuelRemaining <= 0) {
     tryAutomaticDroneRefill();
