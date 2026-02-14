@@ -10341,6 +10341,7 @@ export const initScene = (
   let verticalVelocity = 0;
   let isGrounded = true;
   let jumpRequested = false;
+  let pendingExteriorSurfaceSnapFrames = 0;
   const GRAVITY = -9.81;
   const CEILING_CLEARANCE = 0.5;
   const SOFT_CEILING_RANGE = 0.4;
@@ -10386,6 +10387,20 @@ export const initScene = (
       ? deckEnvironmentMap.get(nextFloor.id)
       : null;
     const destinationGroup = destinationEnvironment?.getGroup?.() ?? null;
+    if (typeof destinationEnvironment?.update === "function") {
+      try {
+        // Force one immediate terrain-window refresh before resolving spawn.
+        destinationEnvironment.update({
+          delta: 0,
+          elapsedTime: 0,
+          reason: "entry-spawn",
+          force: true,
+        });
+      } catch (error) {
+        console.warn("Unable to refresh destination environment for spawn", error);
+      }
+      refreshActiveResourceTargets(nextFloor.id ?? null);
+    }
     const resolvedEntrySpawn =
       typeof destinationGroup?.userData?.resolveEntrySpawn === "function"
         ? destinationGroup.userData.resolveEntrySpawn({
@@ -10406,6 +10421,7 @@ export const initScene = (
       nextFloor?.id === "operations-exterior" &&
       destinationGroup?.userData?.returnDoor?.isObject3D
     ) {
+      pendingExteriorSurfaceSnapFrames = 20;
       const returnDoor = destinationGroup.userData.returnDoor;
       const buildDoorSpawn = () => {
         returnDoor.updateMatrixWorld(true);
@@ -10478,6 +10494,28 @@ export const initScene = (
     }
 
     return true;
+  };
+
+  const snapPlayerToExteriorSurface = () => {
+    if (pendingExteriorSurfaceSnapFrames <= 0) {
+      return;
+    }
+
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (activeFloorId !== "operations-exterior") {
+      pendingExteriorSurfaceSnapFrames = 0;
+      return;
+    }
+
+    const targetGroundY = getPlayerGroundHeight(playerObject.position);
+    if (Number.isFinite(targetGroundY) && playerObject.position.y < targetGroundY) {
+      playerObject.position.y = targetGroundY;
+      playerGroundedHeight = targetGroundY;
+      verticalVelocity = 0;
+      isGrounded = true;
+    }
+
+    pendingExteriorSurfaceSnapFrames -= 1;
   };
 
   const updateOperationsConcourseTeleport = (delta) => {
@@ -11880,6 +11918,7 @@ export const initScene = (
     updateActivePlacementPreview();
     updateOperationsConcourseTeleport(delta);
     updateActiveDeckEnvironment({ delta, elapsedTime });
+    snapPlayerToExteriorSurface();
     updateResourceTool(delta, elapsedTime);
     updateDroneMiner(delta, elapsedTime);
     updateResourceSessions(delta);
