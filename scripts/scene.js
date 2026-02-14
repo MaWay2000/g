@@ -10428,12 +10428,10 @@ export const initScene = (
         };
       };
 
-      if (!(spawnPosition instanceof THREE.Vector3)) {
-        const fallbackSpawn = buildDoorSpawn();
-        spawnPosition = fallbackSpawn.position;
-        if (!Number.isFinite(spawnYaw)) {
-          spawnYaw = fallbackSpawn.yaw;
-        }
+      const forcedDoorSpawn = buildDoorSpawn();
+      spawnPosition = forcedDoorSpawn.position;
+      if (Number.isFinite(forcedDoorSpawn.yaw)) {
+        spawnYaw = forcedDoorSpawn.yaw;
       }
 
       const surfaceSampler =
