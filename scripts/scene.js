@@ -1596,6 +1596,7 @@ export const initScene = (
   let activeTerrainTiles = [];
   let activeViewDistanceTargets = [];
   let hasStoredOutsideMap = false;
+  const depletedTerrainTileIndices = new Set();
   let geoVisorEnabled = false;
   let geoVisorLastRow = null;
   let geoVisorLastColumn = null;
@@ -2302,6 +2303,11 @@ export const initScene = (
   const runtimeTerrainTextures = new Map();
   const runtimeTerrainMaterials = new Map();
   const runtimeGeoVisorMaterials = new Map();
+  const runtimeDepletedTerrainMaterials = new Map();
+  const runtimeDepletedGeoVisorMaterials = new Map();
+  const DEPLETED_TERRAIN_BASE_COLOR = 0x5b6470;
+  const DEPLETED_TERRAIN_EMISSIVE_COLOR = 0x111827;
+  const DEPLETED_TERRAIN_EMISSIVE_INTENSITY = 0.08;
 
   const getRuntimeTerrainTexture = (tileId, variantIndex) => {
     const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
@@ -2385,6 +2391,61 @@ export const initScene = (
       opacity: terrainStyle.opacity ?? 1,
     });
     runtimeGeoVisorMaterials.set(materialKey, material);
+    return material;
+  };
+  const getRuntimeDepletedTerrainMaterial = (tileId, variantIndex) => {
+    if (CONCEAL_OUTSIDE_TERRAIN_TILES) {
+      return null;
+    }
+
+    const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
+    const materialKey = `depleted:${texturePath ?? "none"}`;
+
+    if (runtimeDepletedTerrainMaterials.has(materialKey)) {
+      return runtimeDepletedTerrainMaterials.get(materialKey);
+    }
+
+    const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
+      DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(DEPLETED_TERRAIN_BASE_COLOR),
+      roughness: Math.max(terrainStyle.roughness ?? 0.85, 0.85),
+      metalness: Math.min(terrainStyle.metalness ?? 0.05, 0.08),
+      emissive: new THREE.Color(DEPLETED_TERRAIN_EMISSIVE_COLOR),
+      emissiveIntensity: DEPLETED_TERRAIN_EMISSIVE_INTENSITY,
+      map: texture ?? null,
+      vertexColors: true,
+      transparent: false,
+      opacity: terrainStyle.opacity,
+    });
+    runtimeDepletedTerrainMaterials.set(materialKey, material);
+    return material;
+  };
+  const getRuntimeDepletedGeoVisorMaterial = (tileId, variantIndex) => {
+    const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
+    const materialKey = `depleted:${texturePath ?? "none"}`;
+
+    if (runtimeDepletedGeoVisorMaterials.has(materialKey)) {
+      return runtimeDepletedGeoVisorMaterials.get(materialKey);
+    }
+
+    const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
+      DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(DEPLETED_TERRAIN_BASE_COLOR),
+      roughness: Math.max(terrainStyle.roughness ?? 0.8, 0.8),
+      metalness: Math.min(terrainStyle.metalness ?? 0.04, 0.06),
+      emissive: new THREE.Color(DEPLETED_TERRAIN_EMISSIVE_COLOR),
+      emissiveIntensity: 0.15,
+      map: texture ?? null,
+      transparent: false,
+      opacity: terrainStyle.opacity,
+      depthWrite: true,
+      depthTest: true,
+    });
+    runtimeDepletedGeoVisorMaterials.set(materialKey, material);
     return material;
   };
 
@@ -4762,45 +4823,58 @@ export const initScene = (
   const operationsExteriorTeleportOffset =
     resolveOperationsExteriorTeleportOffset();
 
+  const syncDepletedTerrainIndicesFromLife = (mapDefinition) => {
+    depletedTerrainTileIndices.clear();
+
+    let normalizedMap = null;
+    try {
+      normalizedMap = normalizeOutsideMap(mapDefinition);
+    } catch (error) {
+      console.warn("Unable to normalize outside map for terrain life", error);
+      return { map: mapDefinition, changed: false };
+    }
+
+    const storedTerrainLife = loadStoredTerrainLife();
+    if (!(storedTerrainLife instanceof Map)) {
+      return { map: normalizedMap, changed: false };
+    }
+
+    normalizedMap.cells.forEach((cell, index) => {
+      const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
+      if (resolvedTerrain?.id === "void") {
+        return;
+      }
+
+      const cellKey = getTerrainLifeKey(index);
+      const terrainLife = cellKey ? storedTerrainLife.get(cellKey) : null;
+      if (Number.isFinite(terrainLife) && terrainLife <= 0) {
+        depletedTerrainTileIndices.add(index);
+      }
+    });
+
+    return { map: normalizedMap, changed: false };
+  };
+
+  const isTerrainTileDepleted = (terrainId, tileIndex) =>
+    terrainId !== "void" &&
+    Number.isInteger(tileIndex) &&
+    tileIndex >= 0 &&
+    depletedTerrainTileIndices.has(tileIndex);
+
+  const markTerrainTileDepleted = (tileIndex) => {
+    if (!Number.isInteger(tileIndex) || tileIndex < 0) {
+      return;
+    }
+
+    depletedTerrainTileIndices.add(tileIndex);
+  };
+
     const createOperationsExteriorEnvironment = () => {
       const group = new THREE.Group();
       const DOOR_MARKER_PATH = "door-marker";
 
       const applyDepletedTerrainLife = (mapDefinition) => {
-        const storedTerrainLife = loadStoredTerrainLife();
-        if (!(storedTerrainLife instanceof Map)) {
-          return { map: mapDefinition, changed: false };
-        }
-
-        let normalizedMap = null;
-        try {
-          normalizedMap = normalizeOutsideMap(mapDefinition);
-        } catch (error) {
-          console.warn("Unable to normalize outside map for terrain life", error);
-          return { map: mapDefinition, changed: false };
-        }
-
-        let changed = false;
-        normalizedMap.cells = normalizedMap.cells.map((cell, index) => {
-          const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
-          const terrainId = resolvedTerrain?.id ?? "void";
-          const cellKey = getTerrainLifeKey(index);
-          const terrainLife = cellKey ? storedTerrainLife.get(cellKey) : null;
-          if (
-            terrainId !== "void" &&
-            Number.isFinite(terrainLife) &&
-            terrainLife <= 0
-          ) {
-            changed = true;
-            return {
-              terrainId: "void",
-              tileId: getOutsideTerrainDefaultTileId("void"),
-            };
-          }
-          return cell;
-        });
-
-        return { map: normalizedMap, changed };
+        return syncDepletedTerrainIndicesFromLife(mapDefinition);
       };
 
       const buildOutsideTerrainFromMap = (mapDefinition, walkwayFrontEdge) => {
@@ -5927,6 +6001,16 @@ export const initScene = (
           index
         );
         tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
+        const tileIsDepleted = isTerrainTileDepleted(resolvedTerrain.id, index);
+        tile.userData.isTerrainDepleted = tileIsDepleted;
+        if (tileIsDepleted) {
+          tile.userData.geoVisorRevealedMaterial =
+            getRuntimeDepletedTerrainMaterial(tileId, index) ??
+            tile.userData.geoVisorRevealedMaterial;
+          tile.userData.geoVisorVisorMaterial =
+            getRuntimeDepletedGeoVisorMaterial(tileId, index) ??
+            tile.userData.geoVisorVisorMaterial;
+        }
         const tileWasPreviouslyRevealed = geoVisorRevealedTileIndices.has(index);
         tile.userData.geoVisorRevealed = tileWasPreviouslyRevealed;
 
@@ -5935,10 +6019,15 @@ export const initScene = (
         } else if (geoVisorEnabled) {
           tile.material = concealedTerrainMaterial;
         }
+        if (tileIsDepleted && !geoVisorEnabled && !tileWasPreviouslyRevealed) {
+          tile.material = tile.userData.geoVisorRevealedMaterial ?? tile.material;
+        }
 
-        if (resolvedTerrain.id !== "void") {
+        if (resolvedTerrain.id !== "void" && !tileIsDepleted) {
           tile.userData.isResourceTarget = true;
           resourceTargets.push(tile);
+        } else {
+          tile.userData.isResourceTarget = false;
         }
 
         if (resolvedTerrain.id === "point") {
@@ -10492,7 +10581,7 @@ export const initScene = (
     }
   };
 
-  const setTerrainTileToVoid = (tile) => {
+  const setTerrainTileToDepleted = (tile) => {
     if (!tile?.userData) {
       return false;
     }
@@ -10501,74 +10590,53 @@ export const initScene = (
       return false;
     }
 
-    const voidTerrain = getOutsideTerrainById("void");
-    const tileId = getOutsideTerrainDefaultTileId("void");
+    if (tile.userData.isTerrainDepleted) {
+      return false;
+    }
+
+    const tileId =
+      typeof tile.userData.tileId === "string" && tile.userData.tileId
+        ? tile.userData.tileId
+        : getOutsideTerrainDefaultTileId(tile.userData.terrainId);
     const variantIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
       : 0;
     const baseMaterial =
-      getRuntimeTerrainMaterial("void", tileId, variantIndex) ??
-      tile.userData.geoVisorConcealedMaterial ??
+      getRuntimeDepletedTerrainMaterial(tileId, variantIndex) ??
+      tile.userData.geoVisorRevealedMaterial ??
       tile.material;
-    const visorMaterial = getRuntimeGeoVisorMaterial("void", tileId, variantIndex);
+    const visorMaterial =
+      getRuntimeDepletedGeoVisorMaterial(tileId, variantIndex) ??
+      tile.userData.geoVisorVisorMaterial;
 
-    tile.userData.terrainId = "void";
-    tile.userData.terrainLabel = voidTerrain?.label ?? "Void";
-    tile.userData.tileId = tileId;
+    tile.userData.isTerrainDepleted = true;
     tile.userData.geoVisorRevealedMaterial = baseMaterial;
     tile.userData.geoVisorVisorMaterial = visorMaterial;
     tile.userData.isResourceTarget = false;
-
-    if (geoVisorEnabled) {
-      tile.material =
-        tile.userData.geoVisorVisorMaterial ??
-        tile.userData.geoVisorRevealedMaterial ??
-        baseMaterial;
-    } else {
-      tile.material = baseMaterial;
-    }
 
     const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
       : null;
     if (Number.isInteger(tileIndex) && tileIndex >= 0) {
-      const removedRevealState = geoVisorRevealedTileIndices.delete(tileIndex);
-      tile.userData.geoVisorRevealed = false;
-      if (removedRevealState) {
-        schedulePersistGeoVisorRevealState();
-      }
+      markTerrainTileDepleted(tileIndex);
     }
-    if (
-      Number.isInteger(tileIndex) &&
-      storedOutsideMap &&
-      Array.isArray(storedOutsideMap.cells)
-    ) {
-      const currentCell = storedOutsideMap.cells[tileIndex];
-      if (
-        !currentCell ||
-        currentCell.terrainId !== "void" ||
-        currentCell.tileId !== tileId
-      ) {
-        storedOutsideMap.cells[tileIndex] = { terrainId: "void", tileId };
-        try {
-          storedOutsideMap = saveOutsideMapToStorage(storedOutsideMap);
-          hasStoredOutsideMap = true;
-        } catch (error) {
-          console.warn("Unable to persist outside map terrain update", error);
-        }
-      }
+
+    if (geoVisorEnabled) {
+      applyGeoVisorMaterialToTile(tile, Boolean(tile.userData.geoVisorRevealed));
+    } else {
+      tile.material = baseMaterial;
     }
 
     return true;
   };
 
-  const setTerrainVoidAtPosition = (position) => {
+  const setTerrainDepletedAtPosition = (position) => {
     const tile = findTerrainTileAtPosition(position);
     if (!tile) {
       return false;
     }
 
-    const updated = setTerrainTileToVoid(tile);
+    const updated = setTerrainTileToDepleted(tile);
     if (!updated) {
       return false;
     }
@@ -10581,6 +10649,8 @@ export const initScene = (
     updateGeoVisorTerrainVisibility({ force: true });
     return true;
   };
+  const setTerrainVoidAtPosition = (position) =>
+    setTerrainDepletedAtPosition(position);
 
   const findLiftFloorIndexById = (floorId) => {
     if (!floorId || !Array.isArray(liftState.floors)) {
@@ -12475,6 +12545,7 @@ export const initScene = (
       findTerrainIntersection({
         allowRevealedBeyondGeoVisorDistance: true,
       }),
+    setTerrainDepletedAtPosition,
     setTerrainVoidAtPosition,
     setJumpSettings: (nextSettings = {}) => {
       const nextMultiplier = normalizeJumpMultiplier(

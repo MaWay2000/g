@@ -9362,7 +9362,8 @@ const applyTerrainLifeDrain = (detail) => {
   if (detail?.found === false) {
     const nextLife = decreaseTerrainLife(terrainId, tileIndex, 1);
     if (nextLife <= 0) {
-      sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
+      sceneController?.setTerrainDepletedAtPosition?.(detail?.position ?? null) ??
+        sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
     }
     return;
   }
@@ -9375,7 +9376,8 @@ const applyTerrainLifeDrain = (detail) => {
   if (Number.isFinite(drainAmount) && drainAmount > 0) {
     const nextLife = decreaseTerrainLife(terrainId, tileIndex, drainAmount);
     if (nextLife <= 0) {
-      sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
+      sceneController?.setTerrainDepletedAtPosition?.(detail?.position ?? null) ??
+        sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
     }
   }
 };
