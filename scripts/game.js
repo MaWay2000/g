@@ -9174,7 +9174,6 @@ const bootstrapScene = () => {
   updateDroneStatusUi();
   relaunchDroneAfterRestoreIfNeeded();
 
-  sceneController?.setPlayerHeight?.(DEFAULT_PLAYER_HEIGHT, { persist: true });
   sceneController?.setLiftInteractionsEnabled?.(!editModeActive);
 
 };
