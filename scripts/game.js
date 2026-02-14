@@ -8852,7 +8852,7 @@ const finalizeDroneAutomationShutdown = () => {
   });
 };
 
-const attemptDroneLaunch = () => {
+const attemptDroneLaunch = ({ playLaunchSound = false } = {}) => {
   cancelDroneAutomationRetry();
 
   if (!droneState.active || droneState.inFlight || droneState.awaitingReturn) {
@@ -8913,7 +8913,9 @@ const attemptDroneLaunch = () => {
   droneState.returnSessionStartMs = 0;
   droneState.lastResult = null;
   droneState.notifiedUnavailable = false;
-  playDroneLaunchSound();
+  if (playLaunchSound) {
+    playDroneLaunchSound();
+  }
   updateDroneStatusUi();
 };
 
@@ -8982,7 +8984,7 @@ const activateDroneAutomation = () => {
     title: "Drone automation engaged",
     description: "Press 2 again to recall the drone and unload cargo.",
   });
-  attemptDroneLaunch();
+  attemptDroneLaunch({ playLaunchSound: true });
 };
 
 const resumeDroneAutomation = () => {
@@ -9004,7 +9006,7 @@ const resumeDroneAutomation = () => {
   });
 
   if (!droneState.inFlight && !droneState.awaitingReturn) {
-    attemptDroneLaunch();
+    attemptDroneLaunch({ playLaunchSound: true });
   }
 };
 
