@@ -6440,11 +6440,7 @@ export const initScene = (
     };
 
     group.userData.returnDoor = returnDoor;
-    group.userData.resolveEntrySpawn = ({ fromFloorId } = {}) => {
-      if (fromFloorId !== "operations-concourse") {
-        return null;
-      }
-
+    group.userData.resolveEntrySpawn = () => {
       returnDoor.updateMatrixWorld(true);
 
       const spawnPosition = new THREE.Vector3();
