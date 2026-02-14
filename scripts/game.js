@@ -1791,22 +1791,17 @@ const isPlayerNearDroneForPickup = () => {
 
 const isDronePickupRequired = () => {
   if (droneState.active || droneState.inFlight || droneState.awaitingReturn) {
-    dronePickupState.required = false;
     dronePickupState.location = null;
     return false;
   }
 
-  const dronePosition = getDroneBasePosition();
-  dronePickupState.location = dronePosition;
+  dronePickupState.location = getDroneBasePosition();
 
-  if (!dronePosition) {
-    dronePickupState.required = false;
+  if (!dronePickupState.required) {
     return false;
   }
 
-  const required = !isPlayerNearDroneForPickup();
-  dronePickupState.required = required;
-  return required;
+  return !isPlayerNearDroneForPickup();
 };
 
 const persistDroneCargoSnapshot = () => {
@@ -8901,19 +8896,8 @@ const deactivateDroneAutomation = () => {
       : false;
 
     if (!cancelled) {
-      droneState.awaitingReturn = true;
-      droneState.status = "returning";
-      if (
-        !Number.isFinite(droneState.returnSessionStartMs) ||
-        droneState.returnSessionStartMs <= 0
-      ) {
-        droneState.returnSessionStartMs = performance.now();
-      }
-      updateDroneStatusUi();
-      showDroneTerminalToast({
-        title: "Drone recall scheduled",
-        description: "Drone will return after the current run.",
-      });
+      finalizeDroneAutomationShutdown();
+      return;
     }
 
     return;
