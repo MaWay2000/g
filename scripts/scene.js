@@ -9493,7 +9493,9 @@ export const initScene = (
   const DRONE_MINER_MIN_RETURN_SPEED = 2.5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED =
     DRONE_MINER_RETURN_DISTANCE_THRESHOLD * DRONE_MINER_RETURN_DISTANCE_THRESHOLD;
-  const DRONE_MINER_DEPLOY_TRANSITION_DURATION = 0.65;
+  const DRONE_MINER_TRAVEL_SPEED = 6;
+  const DRONE_MINER_MIN_TRANSITION_DURATION = 0.7;
+  const DRONE_MINER_MAX_TRANSITION_DURATION = 20;
   const droneMinerState = {
     active: false,
     basePosition: new THREE.Vector3(),
@@ -9506,6 +9508,7 @@ export const initScene = (
     hasBasePosition: false,
     transitionActive: false,
     transitionElapsed: 0,
+    transitionDuration: DRONE_MINER_MIN_TRANSITION_DURATION,
     transitionStart: new THREE.Vector3(),
     transitionTarget: new THREE.Vector3(),
   };
@@ -9623,6 +9626,31 @@ export const initScene = (
 
     return droneLaunchStartPosition;
   };
+  const beginDroneMinerTransition = () => {
+    const distanceToTargetSquared = droneMinerState.basePosition.distanceToSquared(
+      droneMinerState.transitionTarget
+    );
+
+    if (!Number.isFinite(distanceToTargetSquared) || distanceToTargetSquared < 1e-4) {
+      droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
+      droneMinerState.transitionElapsed = 0;
+      droneMinerState.transitionDuration = DRONE_MINER_MIN_TRANSITION_DURATION;
+      droneMinerState.transitionActive = false;
+      return;
+    }
+
+    const distanceToTarget = Math.sqrt(distanceToTargetSquared);
+    const transitionDuration = THREE.MathUtils.clamp(
+      distanceToTarget / DRONE_MINER_TRAVEL_SPEED,
+      DRONE_MINER_MIN_TRANSITION_DURATION,
+      DRONE_MINER_MAX_TRANSITION_DURATION
+    );
+
+    droneMinerState.transitionStart.copy(droneMinerState.basePosition);
+    droneMinerState.transitionElapsed = 0;
+    droneMinerState.transitionDuration = transitionDuration;
+    droneMinerState.transitionActive = true;
+  };
 
   const hideDroneMiner = () => {
     if (!droneMinerState.active && !droneMinerGroup.visible) {
@@ -9636,6 +9664,7 @@ export const initScene = (
     droneMinerGroup.visible = false;
     droneMinerState.transitionActive = false;
     droneMinerState.transitionElapsed = 0;
+    droneMinerState.transitionDuration = DRONE_MINER_MIN_TRANSITION_DURATION;
 
     if (wasReturning && typeof onDroneReturnComplete === "function") {
       try {
@@ -9672,34 +9701,13 @@ export const initScene = (
     if (launchStartPosition && shouldStartFromLaunch) {
       droneMinerState.basePosition.copy(launchStartPosition);
       droneMinerState.hasBasePosition = true;
-      droneMinerState.transitionStart.copy(launchStartPosition);
-
-      const distanceToTargetSquared = droneMinerState.transitionStart.distanceToSquared(
-        droneMinerState.transitionTarget
-      );
-      if (distanceToTargetSquared < 1e-4) {
-        droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
-        droneMinerState.transitionActive = false;
-      } else {
-        droneMinerState.transitionElapsed = 0;
-        droneMinerState.transitionActive = true;
-      }
+      beginDroneMinerTransition();
     } else if (!droneMinerState.hasBasePosition) {
       droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
       droneMinerState.hasBasePosition = true;
       droneMinerState.transitionActive = false;
     } else {
-      droneMinerState.transitionStart.copy(droneMinerState.basePosition);
-      const distanceToTargetSquared = droneMinerState.transitionStart.distanceToSquared(
-        droneMinerState.transitionTarget
-      );
-      if (distanceToTargetSquared < 1e-4) {
-        droneMinerState.basePosition.copy(droneMinerState.transitionTarget);
-        droneMinerState.transitionActive = false;
-      } else {
-        droneMinerState.transitionElapsed = 0;
-        droneMinerState.transitionActive = true;
-      }
+      beginDroneMinerTransition();
     }
 
     droneMinerGroup.position.copy(droneMinerState.basePosition);
@@ -9784,12 +9792,18 @@ export const initScene = (
     }
 
     if (!droneMinerState.returning && droneMinerState.transitionActive) {
+      const transitionDuration = Math.max(
+        DRONE_MINER_MIN_TRANSITION_DURATION,
+        Number.isFinite(droneMinerState.transitionDuration)
+          ? droneMinerState.transitionDuration
+          : DRONE_MINER_MIN_TRANSITION_DURATION
+      );
       droneMinerState.transitionElapsed = Math.min(
         droneMinerState.transitionElapsed + delta,
-        DRONE_MINER_DEPLOY_TRANSITION_DURATION,
+        transitionDuration
       );
       const transitionProgress =
-        droneMinerState.transitionElapsed / DRONE_MINER_DEPLOY_TRANSITION_DURATION;
+        droneMinerState.transitionElapsed / transitionDuration;
       const easedProgress = transitionProgress * transitionProgress * (3 - 2 * transitionProgress);
       droneMinerState.basePosition.lerpVectors(
         droneMinerState.transitionStart,
