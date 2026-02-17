@@ -2476,8 +2476,7 @@ export const initScene = (
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
     const isVoidTerrain = terrainId === "void";
-    const texture =
-      isVoidTerrain ? null : getRuntimeTerrainTexture(tileId, variantIndex);
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture
       ? 0xffffff
       : isVoidTerrain
@@ -2516,8 +2515,7 @@ export const initScene = (
     const terrain = getOutsideTerrainById(terrainId);
     const isVoidTerrain = terrainId === "void";
     const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-    const texture =
-      isVoidTerrain ? null : getRuntimeTerrainTexture(tileId, variantIndex);
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture ? 0xffffff : terrainColor;
     const opacity = isVoidTerrain
       ? VOID_TERRAIN_OPACITY
@@ -5700,8 +5698,7 @@ export const initScene = (
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
         const isVoidTerrain = terrainId === "void";
-        const texture =
-          isVoidTerrain ? null : getTextureForTerrainTile(tileId, variantIndex);
+        const texture = getTextureForTerrainTile(tileId, variantIndex);
         const baseColor = texture
           ? 0xffffff
           : isVoidTerrain
@@ -5745,8 +5742,7 @@ export const initScene = (
         const terrain = getOutsideTerrainById(terrainId);
         const isVoidTerrain = terrainId === "void";
         const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-        const texture =
-          isVoidTerrain ? null : getTextureForTerrainTile(tileId, variantIndex);
+        const texture = getTextureForTerrainTile(tileId, variantIndex);
         const baseColor = texture ? 0xffffff : terrainColor;
         const opacity = isVoidTerrain
           ? VOID_TERRAIN_OPACITY
