@@ -2475,7 +2475,8 @@ export const initScene = (
     const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
-    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const texture =
+      terrainId === "void" ? null : getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture
       ? 0xffffff
       : terrainId === "void"
@@ -2510,7 +2511,8 @@ export const initScene = (
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
     const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
+    const texture =
+      terrainId === "void" ? null : getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture ? 0xffffff : terrainColor;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
@@ -5688,7 +5690,8 @@ export const initScene = (
         const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
-        const texture = getTextureForTerrainTile(tileId, variantIndex);
+        const texture =
+          terrainId === "void" ? null : getTextureForTerrainTile(tileId, variantIndex);
         const baseColor = texture
           ? 0xffffff
           : terrainId === "void"
@@ -5728,7 +5731,8 @@ export const initScene = (
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
         const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-        const texture = getTextureForTerrainTile(tileId, variantIndex);
+        const texture =
+          terrainId === "void" ? null : getTextureForTerrainTile(tileId, variantIndex);
         const baseColor = texture ? 0xffffff : terrainColor;
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
@@ -6085,6 +6089,13 @@ export const initScene = (
         const tileId =
           cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
         const resolvedTerrain = getOutsideTerrainById(terrainId);
+        const tileIsDepleted = isTerrainTileDepleted(resolvedTerrain.id, index);
+        const terrainForTile = tileIsDepleted
+          ? getOutsideTerrainById("void")
+          : resolvedTerrain;
+        const tileIdForTile = tileIsDepleted
+          ? getOutsideTerrainDefaultTileId("void")
+          : tileId;
         const elevation = getOutsideTerrainElevation(
           normalizedMap.heights?.[index]
         );
@@ -6108,7 +6119,7 @@ export const initScene = (
         );
         const tile = new THREE.Mesh(
           tileGeometry,
-          getMaterialForTerrain(resolvedTerrain.id, tileId, index)
+          getMaterialForTerrain(terrainForTile.id, tileIdForTile, index)
         );
         tile.position.set(
           tileCenterX,
@@ -6117,12 +6128,12 @@ export const initScene = (
         );
         tile.castShadow = false;
         tile.receiveShadow = false;
-        tile.userData.terrainId = resolvedTerrain.id;
+        tile.userData.terrainId = terrainForTile.id;
         tile.userData.terrainLabel =
-          typeof resolvedTerrain.label === "string"
-            ? resolvedTerrain.label
-            : resolvedTerrain.id;
-        tile.userData.tileId = tileId;
+          typeof terrainForTile.label === "string"
+            ? terrainForTile.label
+            : terrainForTile.id;
+        tile.userData.tileId = tileIdForTile;
         tile.userData.terrainHeight = surfaceHeight;
         tile.userData.tileVariantIndex = index;
         tile.userData.geoVisorRow = row;
@@ -6132,19 +6143,22 @@ export const initScene = (
         tile.userData.geoVisorMapNearEdge = mapNearEdge;
         tile.userData.geoVisorRevealedMaterial = tile.material;
         tile.userData.geoVisorVisorMaterial = getGeoVisorMaterialForTerrain(
-          resolvedTerrain.id,
-          tileId,
+          terrainForTile.id,
+          tileIdForTile,
           index
         );
         tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
-        const tileIsDepleted = isTerrainTileDepleted(resolvedTerrain.id, index);
         tile.userData.isTerrainDepleted = tileIsDepleted;
         if (tileIsDepleted) {
           tile.userData.geoVisorRevealedMaterial =
-            getRuntimeDepletedTerrainMaterial(tileId, index) ??
+            getMaterialForTerrain(terrainForTile.id, tileIdForTile, index) ??
             tile.userData.geoVisorRevealedMaterial;
           tile.userData.geoVisorVisorMaterial =
-            getRuntimeDepletedGeoVisorMaterial(tileId, index) ??
+            getGeoVisorMaterialForTerrain(
+              terrainForTile.id,
+              tileIdForTile,
+              index
+            ) ??
             tile.userData.geoVisorVisorMaterial;
         }
         const tileWasPreviouslyRevealed = geoVisorRevealedTileIndices.has(index);
@@ -6159,14 +6173,14 @@ export const initScene = (
           tile.material = tile.userData.geoVisorRevealedMaterial ?? tile.material;
         }
 
-        if (resolvedTerrain.id !== "void" && !tileIsDepleted) {
+        if (tile.userData.terrainId !== "void" && !tileIsDepleted) {
           tile.userData.isResourceTarget = true;
           resourceTargets.push(tile);
         } else {
           tile.userData.isResourceTarget = false;
         }
 
-        if (resolvedTerrain.id === "point") {
+        if (tile.userData.terrainId === "point") {
           const markerMaterial = new THREE.MeshStandardMaterial({
             color: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
             emissive: new THREE.Color(terrainStyle.emissive ?? 0xdb2777),
@@ -6182,7 +6196,7 @@ export const initScene = (
           );
           marker.position.set(0, surfaceHeight + cellSize * 0.5, 0);
           tile.add(marker);
-        } else if (resolvedTerrain.id === "hazard") {
+        } else if (tile.userData.terrainId === "hazard") {
           const beaconMaterial = new THREE.MeshStandardMaterial({
             color: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
             emissive: new THREE.Color(terrainStyle.emissive ?? 0xff4d6d),
@@ -10748,22 +10762,24 @@ export const initScene = (
       return false;
     }
 
-    const tileId =
-      typeof tile.userData.tileId === "string" && tile.userData.tileId
-        ? tile.userData.tileId
-        : getOutsideTerrainDefaultTileId(tile.userData.terrainId);
+    const voidTerrain = getOutsideTerrainById("void");
+    const tileId = getOutsideTerrainDefaultTileId(voidTerrain.id);
     const variantIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
       : 0;
     const baseMaterial =
-      getRuntimeDepletedTerrainMaterial(tileId, variantIndex) ??
+      getRuntimeTerrainMaterial(voidTerrain.id, tileId, variantIndex) ??
       tile.userData.geoVisorRevealedMaterial ??
       tile.material;
     const visorMaterial =
-      getRuntimeDepletedGeoVisorMaterial(tileId, variantIndex) ??
+      getRuntimeGeoVisorMaterial(voidTerrain.id, tileId, variantIndex) ??
       tile.userData.geoVisorVisorMaterial;
 
     tile.userData.isTerrainDepleted = true;
+    tile.userData.terrainId = voidTerrain.id;
+    tile.userData.terrainLabel =
+      typeof voidTerrain.label === "string" ? voidTerrain.label : voidTerrain.id;
+    tile.userData.tileId = tileId;
     tile.userData.geoVisorRevealedMaterial = baseMaterial;
     tile.userData.geoVisorVisorMaterial = visorMaterial;
     tile.userData.isResourceTarget = false;
