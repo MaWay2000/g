@@ -2679,6 +2679,7 @@ const activateGeoVisorPulse = (slotId) => {
 
   setGeoVisorActiveSlotId(slotId);
   setGeoVisorActiveSlotId(null);
+  playGeoVisorScanSuccessSound();
   return true;
 };
 
@@ -3032,6 +3033,11 @@ droneMiningSound.loop = true;
 droneMiningSound.volume = 0;
 droneMiningSound.src = droneMiningSoundSource;
 droneMiningSound.load();
+const geoVisorScanSuccessSoundSource = "sounds/terrain scan.mp3";
+const geoVisorScanSuccessSound = new Audio();
+geoVisorScanSuccessSound.preload = "auto";
+geoVisorScanSuccessSound.src = geoVisorScanSuccessSoundSource;
+geoVisorScanSuccessSound.load();
 const geoVisorOutOfBatterySoundSource = "sounds/out_of_battery.mp3";
 const geoVisorOutOfBatterySound = new Audio();
 geoVisorOutOfBatterySound.preload = "auto";
@@ -3141,6 +3147,19 @@ const updateDroneMiningSoundPlayback = () => {
 
   droneMiningSound.volume = volume;
   startDroneMiningSound();
+};
+
+const playGeoVisorScanSuccessSound = () => {
+  try {
+    geoVisorScanSuccessSound.pause();
+    geoVisorScanSuccessSound.currentTime = 0;
+    const playPromise = geoVisorScanSuccessSound.play();
+    if (playPromise instanceof Promise) {
+      playPromise.catch(() => {});
+    }
+  } catch (error) {
+    console.error("Unable to play Geo Visor scan success sound", error);
+  }
 };
 
 const playGeoVisorOutOfBatterySound = () => {
