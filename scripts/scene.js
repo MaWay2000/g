@@ -1603,7 +1603,9 @@ export const initScene = (
   let geoVisorLastEnabled = null;
   let geoVisorRevealMapKey = null;
   const geoVisorRevealedTileIndices = new Set();
+  const geoVisorRevealFadeTiles = new Set();
   let geoVisorRevealPersistTimeoutId = 0;
+  const GEO_VISOR_REVEAL_FADE_DURATION = 1;
   const geoVisorPlayerWorldPosition = new THREE.Vector3();
   const geoVisorTileWorldPosition = new THREE.Vector3();
   const geoVisorRevealOrigin = new THREE.Vector3();
@@ -1740,10 +1742,114 @@ export const initScene = (
     tile.userData.viewDistanceFadeMaterial = null;
   };
 
+  const clearGeoVisorRevealFadeState = (tile, { disposeMaterial = true } = {}) => {
+    if (!tile?.userData) {
+      return;
+    }
+
+    const fadeMaterial = tile.userData.geoVisorRevealFadeMaterial;
+    const shouldDisposeFadeMaterial =
+      disposeMaterial &&
+      fadeMaterial?.isMaterial &&
+      fadeMaterial !== tile.userData.geoVisorRevealFadeTargetMaterial;
+
+    if (shouldDisposeFadeMaterial && typeof fadeMaterial.dispose === "function") {
+      fadeMaterial.dispose();
+    }
+
+    geoVisorRevealFadeTiles.delete(tile);
+    tile.userData.geoVisorRevealFadeMaterial = null;
+    tile.userData.geoVisorRevealFadeTargetMaterial = null;
+    tile.userData.geoVisorRevealFadeElapsed = 0;
+    tile.userData.geoVisorRevealFadeDuration = 0;
+    tile.userData.geoVisorRevealFadeTargetOpacity = 1;
+  };
+
+  const startGeoVisorRevealFade = (tile, targetMaterial) => {
+    if (!tile?.userData || !targetMaterial?.isMaterial) {
+      return false;
+    }
+
+    clearGeoVisorRevealFadeState(tile);
+
+    const fadeMaterial = targetMaterial.clone?.();
+    if (!fadeMaterial?.isMaterial) {
+      return false;
+    }
+
+    const targetOpacity = Number.isFinite(targetMaterial.opacity)
+      ? targetMaterial.opacity
+      : 1;
+
+    fadeMaterial.transparent = true;
+    fadeMaterial.opacity = 0;
+
+    tile.userData.geoVisorRevealFadeMaterial = fadeMaterial;
+    tile.userData.geoVisorRevealFadeTargetMaterial = targetMaterial;
+    tile.userData.geoVisorRevealFadeElapsed = 0;
+    tile.userData.geoVisorRevealFadeDuration = GEO_VISOR_REVEAL_FADE_DURATION;
+    tile.userData.geoVisorRevealFadeTargetOpacity = targetOpacity;
+    tile.material = fadeMaterial;
+    geoVisorRevealFadeTiles.add(tile);
+    return true;
+  };
+
+  const updateGeoVisorRevealFades = (delta = 0) => {
+    if (geoVisorRevealFadeTiles.size === 0) {
+      return;
+    }
+
+    const safeDelta = Number.isFinite(delta) && delta > 0 ? delta : 0;
+
+    geoVisorRevealFadeTiles.forEach((tile) => {
+      if (!tile?.userData || !tile.isObject3D || !tile.parent) {
+        clearGeoVisorRevealFadeState(tile);
+        return;
+      }
+
+      const fadeMaterial = tile.userData.geoVisorRevealFadeMaterial;
+      const targetMaterial = tile.userData.geoVisorRevealFadeTargetMaterial;
+      const fadeDuration = Number.isFinite(tile.userData.geoVisorRevealFadeDuration)
+        ? Math.max(1e-3, tile.userData.geoVisorRevealFadeDuration)
+        : GEO_VISOR_REVEAL_FADE_DURATION;
+      const targetOpacity = Number.isFinite(tile.userData.geoVisorRevealFadeTargetOpacity)
+        ? tile.userData.geoVisorRevealFadeTargetOpacity
+        : 1;
+
+      if (!fadeMaterial?.isMaterial || !targetMaterial) {
+        if (targetMaterial) {
+          tile.material = targetMaterial;
+        }
+        clearGeoVisorRevealFadeState(tile);
+        return;
+      }
+
+      const nextElapsed = Math.min(
+        fadeDuration,
+        (Number.isFinite(tile.userData.geoVisorRevealFadeElapsed)
+          ? tile.userData.geoVisorRevealFadeElapsed
+          : 0) + safeDelta
+      );
+      tile.userData.geoVisorRevealFadeElapsed = nextElapsed;
+
+      const progress = THREE.MathUtils.clamp(nextElapsed / fadeDuration, 0, 1);
+      const easedProgress = progress * progress * (3 - 2 * progress);
+      fadeMaterial.opacity = targetOpacity * easedProgress;
+      tile.material = fadeMaterial;
+
+      if (progress >= 1) {
+        tile.material = targetMaterial;
+        clearGeoVisorRevealFadeState(tile);
+      }
+    });
+  };
+
   const applyGeoVisorMaterialToTile = (tile, shouldReveal) => {
     if (!tile?.userData) {
       return;
     }
+
+    const wasRevealed = Boolean(tile.userData.geoVisorRevealed);
 
     const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
@@ -1792,11 +1898,38 @@ export const initScene = (
 
     syncViewDistanceBaseMaterial(tile, targetMaterial);
 
+    const activeFadeMaterial = tile.userData.geoVisorRevealFadeMaterial;
+    const activeFadeTargetMaterial = tile.userData.geoVisorRevealFadeTargetMaterial;
+    if (
+      activeFadeMaterial?.isMaterial &&
+      activeFadeTargetMaterial &&
+      activeFadeTargetMaterial !== targetMaterial
+    ) {
+      clearGeoVisorRevealFadeState(tile);
+    }
+
     if (!targetMaterial || tile.material === targetMaterial) {
       tile.userData.geoVisorRevealed = shouldReveal;
       return;
     }
 
+    if (
+      shouldReveal &&
+      activeFadeMaterial?.isMaterial &&
+      activeFadeTargetMaterial === targetMaterial
+    ) {
+      tile.userData.geoVisorRevealed = shouldReveal;
+      return;
+    }
+
+    if (shouldReveal && !wasRevealed && targetMaterial?.isMaterial) {
+      if (startGeoVisorRevealFade(tile, targetMaterial)) {
+        tile.userData.geoVisorRevealed = shouldReveal;
+        return;
+      }
+    }
+
+    clearGeoVisorRevealFadeState(tile);
     tile.material = targetMaterial;
     tile.userData.geoVisorRevealed = shouldReveal;
   };
@@ -1995,6 +2128,7 @@ export const initScene = (
     const initialState = geoVisorEnabled;
     geoVisorEnabled = true;
     updateGeoVisorTerrainVisibility({ force: true });
+    updateGeoVisorRevealFades(GEO_VISOR_REVEAL_FADE_DURATION);
 
     const terrainTiles = getAllTerrainTilesForGeoVisor();
     const revealedBeforeDisable = terrainTiles.filter((tile) => {
@@ -2007,6 +2141,7 @@ export const initScene = (
 
     geoVisorEnabled = false;
     updateGeoVisorTerrainVisibility({ force: true });
+    updateGeoVisorRevealFades(GEO_VISOR_REVEAL_FADE_DURATION);
 
     const retainedVisorTiles = terrainTiles.filter((tile) => {
       if (!tile?.userData?.geoVisorVisorMaterial) {
@@ -2021,6 +2156,7 @@ export const initScene = (
 
     geoVisorEnabled = initialState;
     updateGeoVisorTerrainVisibility({ force: true });
+    updateGeoVisorRevealFades(GEO_VISOR_REVEAL_FADE_DURATION);
 
     return {
       ok: onToOffTransitionRetainedVisorMaterial,
@@ -12405,6 +12541,7 @@ export const initScene = (
     updateSkyBackdrop();
     updateViewDistanceCulling();
     updateGeoVisorTerrainVisibility();
+    updateGeoVisorRevealFades(delta);
     updateTerrainDepthTexture();
     updateStarDepthUniforms();
 
@@ -12703,6 +12840,10 @@ export const initScene = (
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
+      geoVisorRevealFadeTiles.forEach((tile) => {
+        clearGeoVisorRevealFadeState(tile);
+      });
+      geoVisorRevealFadeTiles.clear();
       if (skyDome.parent) {
         skyDome.parent.remove(skyDome);
       }
