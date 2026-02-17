@@ -2475,15 +2475,19 @@ export const initScene = (
     const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
+    const isVoidTerrain = terrainId === "void";
     const texture =
-      terrainId === "void" ? null : getRuntimeTerrainTexture(tileId, variantIndex);
+      isVoidTerrain ? null : getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture
       ? 0xffffff
-      : terrainId === "void"
+      : isVoidTerrain
         ? terrainStyle.color ??
           terrain?.color ??
           DEFAULT_OUTSIDE_TERRAIN_COLOR
         : 0xffffff;
+    const opacity = isVoidTerrain
+      ? VOID_TERRAIN_OPACITY
+      : terrainStyle.opacity ?? 1;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
       roughness: terrainStyle.roughness,
@@ -2492,8 +2496,8 @@ export const initScene = (
       emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
       map: texture ?? null,
       vertexColors: true,
-      transparent: false,
-      opacity: terrainStyle.opacity,
+      transparent: isVoidTerrain || opacity < 1,
+      opacity,
     });
     runtimeTerrainMaterials.set(materialKey, material);
     return material;
@@ -2510,10 +2514,14 @@ export const initScene = (
     const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
+    const isVoidTerrain = terrainId === "void";
     const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
     const texture =
-      terrainId === "void" ? null : getRuntimeTerrainTexture(tileId, variantIndex);
+      isVoidTerrain ? null : getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture ? 0xffffff : terrainColor;
+    const opacity = isVoidTerrain
+      ? VOID_TERRAIN_OPACITY
+      : terrainStyle.opacity ?? 1;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
       roughness: terrainStyle.roughness,
@@ -2526,7 +2534,7 @@ export const initScene = (
       map: texture ?? null,
       vertexColors: true,
       transparent: true,
-      opacity: terrainStyle.opacity ?? 1,
+      opacity,
     });
     runtimeGeoVisorMaterials.set(materialKey, material);
     return material;
@@ -2665,6 +2673,7 @@ export const initScene = (
   const CONCEAL_OUTSIDE_TERRAIN_TILES = false;
   const CONCEALED_OUTSIDE_TERRAIN_COLOR = 0x202736;
   const DEFAULT_OUTSIDE_TERRAIN_COLOR = 0x1f2937;
+  const VOID_TERRAIN_OPACITY = 0.45;
 
   const OUTSIDE_TERRAIN_CLEARANCE = 0.05;
   const OUTSIDE_HEIGHT_MIN = 0;
@@ -5690,15 +5699,19 @@ export const initScene = (
         const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
+        const isVoidTerrain = terrainId === "void";
         const texture =
-          terrainId === "void" ? null : getTextureForTerrainTile(tileId, variantIndex);
+          isVoidTerrain ? null : getTextureForTerrainTile(tileId, variantIndex);
         const baseColor = texture
           ? 0xffffff
-          : terrainId === "void"
+          : isVoidTerrain
             ? terrainStyle.color ??
               terrain?.color ??
               DEFAULT_OUTSIDE_TERRAIN_COLOR
             : 0xffffff;
+        const opacity = isVoidTerrain
+          ? VOID_TERRAIN_OPACITY
+          : terrainStyle.opacity ?? 1;
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
           roughness: terrainStyle.roughness,
@@ -5708,8 +5721,8 @@ export const initScene = (
           map: texture ?? null,
           vertexColors: true,
           side: THREE.DoubleSide,
-          transparent: false,
-          opacity: terrainStyle.opacity,
+          transparent: isVoidTerrain || opacity < 1,
+          opacity,
         });
         terrainMaterials.set(materialKey, material);
         return material;
@@ -5730,10 +5743,14 @@ export const initScene = (
         const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
+        const isVoidTerrain = terrainId === "void";
         const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
         const texture =
-          terrainId === "void" ? null : getTextureForTerrainTile(tileId, variantIndex);
+          isVoidTerrain ? null : getTextureForTerrainTile(tileId, variantIndex);
         const baseColor = texture ? 0xffffff : terrainColor;
+        const opacity = isVoidTerrain
+          ? VOID_TERRAIN_OPACITY
+          : terrainStyle.opacity ?? 1;
         const material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
           roughness: terrainStyle.roughness,
@@ -5747,7 +5764,7 @@ export const initScene = (
           vertexColors: true,
           side: THREE.DoubleSide,
           transparent: true,
-          opacity: terrainStyle.opacity ?? 1,
+          opacity,
         });
         geoVisorMaterials.set(materialKey, material);
         return material;
