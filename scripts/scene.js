@@ -47,6 +47,10 @@ import {
   loadStoredGeoVisorRevealState,
   persistGeoVisorRevealState,
 } from "./geo-visor-storage.js";
+import {
+  loadStoredManifestPlacements,
+  persistManifestPlacementState,
+} from "./manifest-placement-storage.js";
 
 const PLAYER_STATE_SAVE_INTERVAL = 1; // seconds
 const DEFAULT_ELEMENT_WEIGHT = 1;
@@ -8835,6 +8839,42 @@ export const initScene = (
   };
 
   let getManifestPlacements = () => [];
+  let getManifestPlacementSnapshots = () => [];
+  let persistManifestPlacementTimeoutId = 0;
+  let queuedManifestPlacementSnapshots = null;
+  const flushManifestPlacementPersistence = ({ force = false } = {}) => {
+    const snapshots = Array.isArray(queuedManifestPlacementSnapshots)
+      ? queuedManifestPlacementSnapshots
+      : getManifestPlacementSnapshots();
+    queuedManifestPlacementSnapshots = null;
+    persistManifestPlacementState(snapshots, { force });
+  };
+  const scheduleManifestPlacementPersistence = (
+    snapshots,
+    { force = false } = {}
+  ) => {
+    if (Array.isArray(snapshots)) {
+      queuedManifestPlacementSnapshots = snapshots;
+    }
+
+    if (force) {
+      if (persistManifestPlacementTimeoutId) {
+        window.clearTimeout(persistManifestPlacementTimeoutId);
+        persistManifestPlacementTimeoutId = 0;
+      }
+      flushManifestPlacementPersistence({ force: true });
+      return;
+    }
+
+    if (persistManifestPlacementTimeoutId) {
+      return;
+    }
+
+    persistManifestPlacementTimeoutId = window.setTimeout(() => {
+      persistManifestPlacementTimeoutId = 0;
+      flushManifestPlacementPersistence();
+    }, 120);
+  };
   const viewDistanceCullingPosition = new THREE.Vector3();
   const VIEW_DISTANCE_FADE_RATIO = 0.12;
   const VIEW_DISTANCE_MIN_FADE = 12;
@@ -11519,6 +11559,7 @@ export const initScene = (
       return;
     }
 
+    scheduleManifestPlacementPersistence(null, { force: true });
     persistGeoVisorRevealStateNow(true);
     savePlayerState(true);
   };
@@ -11528,6 +11569,7 @@ export const initScene = (
       return;
     }
 
+    scheduleManifestPlacementPersistence(null, { force: true });
     persistGeoVisorRevealStateNow(true);
     savePlayerState(true);
   };
@@ -11551,6 +11593,9 @@ export const initScene = (
     onManifestPlacementHoverChange,
     onManifestEditModeChange,
     onManifestPlacementRemoved,
+    onManifestPlacementsChanged: (snapshots) => {
+      scheduleManifestPlacementPersistence(snapshots);
+    },
     getRoomWidth: () => roomWidth,
     getRoomDepth: () => roomDepth,
     getRoomFloorY: () => roomFloorY,
@@ -11576,6 +11621,8 @@ export const initScene = (
     placeModelFromManifestEntry,
     hasManifestPlacements,
     getManifestPlacements: getManifestPlacementsFromManager,
+    getManifestPlacementSnapshots: getManifestPlacementSnapshotsFromManager,
+    restoreManifestPlacements,
     updateManifestEditModeHover,
     updateActivePlacementPreview,
     cancelActivePlacement,
@@ -11583,6 +11630,22 @@ export const initScene = (
   } = manifestPlacementManager;
 
   getManifestPlacements = getManifestPlacementsFromManager;
+  getManifestPlacementSnapshots = getManifestPlacementSnapshotsFromManager;
+
+  const restoreStoredManifestPlacements = async () => {
+    const storedPlacements = loadStoredManifestPlacements();
+
+    if (!Array.isArray(storedPlacements) || storedPlacements.length === 0) {
+      return;
+    }
+
+    try {
+      await restoreManifestPlacements(storedPlacements);
+    } catch (error) {
+      console.warn("Unable to restore stored manifest placements", error);
+    }
+  };
+  void restoreStoredManifestPlacements();
 
   controls.addEventListener("lock", () => {
     resourceToolGroup.visible = true;
@@ -12946,6 +13009,7 @@ export const initScene = (
         geoVisorRevealPersistTimeoutId = 0;
       }
       if (isPlayerStatePersistenceEnabled) {
+        scheduleManifestPlacementPersistence(null, { force: true });
         persistGeoVisorRevealStateNow(true);
       }
       savePlayerState(true);

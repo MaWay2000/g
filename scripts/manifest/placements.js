@@ -23,6 +23,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     onManifestPlacementHoverChange,
     onManifestEditModeChange,
     onManifestPlacementRemoved,
+    onManifestPlacementsChanged,
     getRoomWidth,
     getRoomDepth,
     getRoomFloorY,
@@ -172,6 +173,69 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       MIN_MANIFEST_PLACEMENT_DISTANCE,
       referenceDepth / 2 - 0.5
     );
+  };
+
+  const normalizeManifestPlacementScalar = (value, fallback = 0) =>
+    Number.isFinite(value) ? value : fallback;
+
+  const normalizeManifestPlacementScale = (value, fallback = 1) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+  };
+
+  const serializeManifestPlacement = (container) => {
+    if (!container?.isObject3D) {
+      return null;
+    }
+
+    const manifestEntry = container.userData?.manifestEntry ?? null;
+    const rawPath =
+      typeof manifestEntry?.path === "string" ? manifestEntry.path.trim() : "";
+
+    if (!rawPath) {
+      return null;
+    }
+
+    const rawLabel =
+      typeof manifestEntry?.label === "string" ? manifestEntry.label.trim() : "";
+    const label = rawLabel || rawPath;
+
+    return {
+      path: rawPath,
+      label,
+      position: {
+        x: normalizeManifestPlacementScalar(container.position.x, 0),
+        y: normalizeManifestPlacementScalar(container.position.y, 0),
+        z: normalizeManifestPlacementScalar(container.position.z, 0),
+      },
+      rotation: {
+        x: normalizeManifestPlacementScalar(container.rotation.x, 0),
+        y: normalizeManifestPlacementScalar(container.rotation.y, 0),
+        z: normalizeManifestPlacementScalar(container.rotation.z, 0),
+      },
+      scale: {
+        x: normalizeManifestPlacementScale(container.scale.x, 1),
+        y: normalizeManifestPlacementScale(container.scale.y, 1),
+        z: normalizeManifestPlacementScale(container.scale.z, 1),
+      },
+    };
+  };
+
+  const getManifestPlacementSnapshots = () =>
+    Array.from(manifestPlacements)
+      .map((container) => serializeManifestPlacement(container))
+      .filter(Boolean);
+
+  const notifyManifestPlacementsChanged = () => {
+    if (typeof onManifestPlacementsChanged !== "function") {
+      return;
+    }
+
+    try {
+      onManifestPlacementsChanged(getManifestPlacementSnapshots());
+    } catch (error) {
+      console.warn("Unable to notify manifest placement persistence", error);
+    }
   };
 
   const getManifestPlacementRoot = (object) => {
@@ -874,6 +938,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       onManifestPlacementRemoved(manifestEntry);
     }
 
+    notifyManifestPlacementsChanged();
+
     return manifestEntry;
   };
 
@@ -1360,6 +1426,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       updateManifestEditModeHover();
     }
 
+    notifyManifestPlacementsChanged();
+
     if (typeof placement.resolve === "function") {
       placement.resolve(placement.container);
     }
@@ -1509,6 +1577,122 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return container;
   };
 
+  const applyManifestPlacementSnapshotTransform = (container, snapshot) => {
+    if (!container?.isObject3D || !snapshot || typeof snapshot !== "object") {
+      return;
+    }
+
+    const rotation = snapshot.rotation ?? null;
+    if (
+      Number.isFinite(rotation?.x) &&
+      Number.isFinite(rotation?.y) &&
+      Number.isFinite(rotation?.z)
+    ) {
+      container.rotation.set(rotation.x, rotation.y, rotation.z);
+    }
+
+    const scale = snapshot.scale ?? null;
+    container.scale.set(
+      normalizeManifestPlacementScale(scale?.x, container.scale.x),
+      normalizeManifestPlacementScale(scale?.y, container.scale.y),
+      normalizeManifestPlacementScale(scale?.z, container.scale.z)
+    );
+
+    container.updateMatrixWorld(true);
+  };
+
+  const restoreManifestPlacements = async (snapshots = []) => {
+    if (!Array.isArray(snapshots) || snapshots.length === 0) {
+      notifyManifestPlacementsChanged();
+      return { restored: 0, failed: 0 };
+    }
+
+    setManifestEditModeEnabled(false);
+
+    if (activePlacement) {
+      cancelActivePlacement(
+        new PlacementCancelledError("Placement superseded")
+      );
+    }
+
+    let restored = 0;
+    let failed = 0;
+    let shouldRebuildColliders = false;
+
+    for (const snapshot of snapshots) {
+      const rawPath =
+        typeof snapshot?.path === "string" ? snapshot.path.trim() : "";
+
+      if (!rawPath) {
+        failed += 1;
+        continue;
+      }
+
+      const rawLabel =
+        typeof snapshot?.label === "string" ? snapshot.label.trim() : "";
+      const manifestEntry = {
+        path: rawPath,
+        label: rawLabel || rawPath,
+      };
+
+      try {
+        const loadedObject = await loadModelFromManifestEntry(manifestEntry);
+
+        if (!loadedObject) {
+          throw new Error("Unable to load the requested model");
+        }
+
+        const container = createManifestPlacementContainer(
+          loadedObject,
+          manifestEntry
+        );
+        applyManifestPlacementSnapshotTransform(container, snapshot);
+
+        const containerBounds = computeManifestPlacementBounds(container);
+        const storedPosition = snapshot?.position ?? null;
+        const basePosition = new THREE.Vector3(
+          normalizeManifestPlacementScalar(storedPosition?.x, 0),
+          normalizeManifestPlacementScalar(storedPosition?.y, 0),
+          normalizeManifestPlacementScalar(storedPosition?.z, 0)
+        );
+        const computedPosition = computePlacementPosition(
+          { container, containerBounds },
+          basePosition
+        );
+
+        container.position.copy(computedPosition);
+        container.updateMatrixWorld(true);
+        scene?.add(container);
+
+        let colliderEntries = [];
+        if (typeof registerCollidersForImportedRoot === "function") {
+          colliderEntries = registerCollidersForImportedRoot(container, {
+            padding: manifestPlacementPadding,
+          });
+        }
+
+        registerManifestPlacement(container, colliderEntries);
+
+        if (Array.isArray(colliderEntries) && colliderEntries.length > 0) {
+          shouldRebuildColliders = true;
+        }
+
+        restored += 1;
+      } catch (error) {
+        failed += 1;
+        console.warn("Unable to restore manifest placement", error);
+      }
+    }
+
+    if (shouldRebuildColliders && typeof rebuildStaticColliders === "function") {
+      rebuildStaticColliders();
+    }
+
+    notifyManifestPlacementsChanged();
+
+    return { restored, failed };
+  };
+
   const placeModelFromManifestEntry = async (entry, options = {}) => {
     if (typeof loadModelFromManifestEntry !== "function") {
       throw new Error("Manifest model loader unavailable");
@@ -1629,6 +1813,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     placeModelFromManifestEntry,
     hasManifestPlacements: () => manifestPlacements.size > 0,
     getManifestPlacements: () => Array.from(manifestPlacements),
+    getManifestPlacementSnapshots,
+    restoreManifestPlacements,
     updateManifestEditModeHover,
     updateActivePlacementPreview,
     cancelActivePlacement,

@@ -50,6 +50,7 @@ import {
   loadStoredTerrainLife,
   persistTerrainLifeState,
 } from "./terrain-life-storage.js";
+import { clearStoredManifestPlacements } from "./manifest-placement-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -9822,6 +9823,7 @@ function handleReset(event) {
     const clearedSettings = clearStoredSettings();
     const clearedGeoVisorState = clearStoredGeoVisorState();
     const clearedTerrainLife = clearStoredTerrainLife();
+    const clearedManifestPlacements = clearStoredManifestPlacements();
     const clearedInventory = clearStoredInventoryState();
     const clearedTodos = clearStoredTodos();
     const resetMarketState = persistMarketState(getDefaultMarketState());
@@ -9835,6 +9837,7 @@ function handleReset(event) {
       !clearedSettings ||
       !clearedGeoVisorState ||
       !clearedTerrainLife ||
+      !clearedManifestPlacements ||
       !clearedInventory ||
       !clearedTodos ||
       !resetMarketState
