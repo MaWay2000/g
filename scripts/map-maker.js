@@ -47,21 +47,77 @@ const MAP_AREAS = [
 ];
 const DEFAULT_MAP_AREA_ID = "operations-exterior";
 const MAP_AREA_BY_ID = new Map(MAP_AREAS.map((area) => [area.id, area]));
+const MAP_AREA_TEMPLATE_PROFILES = new Map([
+  [
+    "hangar-deck",
+    { width: 5, height: 15, terrainId: "transition-metal", heightValue: 0 },
+  ],
+  [
+    "operations-concourse",
+    { width: 7, height: 13, terrainId: "transition-metal", heightValue: 0 },
+  ],
+  ["operations-exterior", { useOutsideDefault: true }],
+  [
+    "engineering-bay",
+    { width: 11, height: 18, terrainId: "transition-metal", heightValue: 0 },
+  ],
+  [
+    "exterior-outpost",
+    { width: 9, height: 17, terrainId: "transition-metal", heightValue: 0 },
+  ],
+]);
 
 function createDefaultMapForArea(areaId = DEFAULT_MAP_AREA_ID) {
   const area =
     MAP_AREA_BY_ID.get(areaId) ?? MAP_AREA_BY_ID.get(DEFAULT_MAP_AREA_ID) ?? null;
-  const map = { ...createDefaultOutsideMap(), objects: [] };
+  const profile =
+    MAP_AREA_TEMPLATE_PROFILES.get(area?.id ?? "") ??
+    MAP_AREA_TEMPLATE_PROFILES.get(DEFAULT_MAP_AREA_ID) ??
+    { useOutsideDefault: true };
+  const outsideDefaultMap = createDefaultOutsideMap();
+  let mapDefinition = {
+    ...outsideDefaultMap,
+    objects: [],
+  };
 
-  if (!area) {
-    return map;
+  if (profile.useOutsideDefault !== true) {
+    const width = clampOutsideMapDimension(profile.width ?? outsideDefaultMap.width);
+    const height = clampOutsideMapDimension(
+      profile.height ?? outsideDefaultMap.height
+    );
+    const resolvedTerrain = getTerrainById(profile.terrainId);
+    const terrainId = resolvedTerrain.id;
+    const tileId = getOutsideTerrainDefaultTileId(terrainId);
+    const nextCells = Array.from({ length: width * height }, () => ({
+      terrainId,
+      tileId,
+    }));
+    const defaultHeight = clampHeightValue(profile.heightValue ?? 0);
+    const nextHeights = Array.from({ length: width * height }, () => defaultHeight);
+
+    mapDefinition = {
+      ...mapDefinition,
+      width,
+      height,
+      cells: nextCells,
+      heights: nextHeights,
+      objects: [],
+    };
   }
 
-  map.name = area.label;
-  map.region = area.id;
-  map.notes =
-    typeof area.description === "string" ? area.description : map.notes ?? "";
-  return map;
+  const normalized = normalizeMapDefinition(mapDefinition);
+
+  if (!area) {
+    return normalized;
+  }
+
+  normalized.name = area.label;
+  normalized.region = area.id;
+  normalized.notes =
+    typeof area.description === "string"
+      ? area.description
+      : normalized.notes ?? "";
+  return normalized;
 }
 
 const state = {
