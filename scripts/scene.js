@@ -6507,10 +6507,13 @@ export const initScene = (
         const elevation = getOutsideTerrainElevation(
           normalizedMap.heights?.[index]
         );
+        const surfaceY = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation;
+        const baseY = Number.isFinite(position.y) ? position.y : surfaceY;
         return {
           x: placementX * cellSize,
           z: mapCenterZ + placementZ * cellSize,
-          surfaceY: roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation,
+          surfaceY,
+          baseY,
         };
       };
 
@@ -7178,7 +7181,7 @@ export const initScene = (
               return;
             }
             applyPlacementTransform(model, placement, {
-              surfaceY: placementPosition.surfaceY,
+              surfaceY: placementPosition.baseY,
               alignToSurface: true,
             });
             mapObjectGroup.add(model);
