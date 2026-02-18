@@ -11953,13 +11953,60 @@ export const initScene = (
     return intersectionY;
   };
 
-  const getPlayerGroundHeight = (position) => {
-    const terrainHeight = getTerrainGroundHeight(position);
-    if (!Number.isFinite(terrainHeight)) {
-      return roomFloorY;
+  const getColliderGroundHeight = (position) => {
+    if (!position || !Array.isArray(colliderDescriptors) || colliderDescriptors.length === 0) {
+      return null;
     }
 
-    return Math.max(roomFloorY, terrainHeight);
+    const probeX = Number.isFinite(position.x) ? position.x : 0;
+    const probeY = Number.isFinite(position.y) ? position.y : roomFloorY;
+    const probeZ = Number.isFinite(position.z) ? position.z : 0;
+    const maxSupportRise = BASE_MAX_STEP_HEIGHT + STEP_HEIGHT_TOLERANCE;
+    const maxSupportedTopY = probeY + maxSupportRise;
+    const footprintPadding = 0.02;
+    let bestSupportHeight = null;
+
+    colliderDescriptors.forEach((descriptor) => {
+      const box = descriptor?.box;
+      if (!box || box.isEmpty()) {
+        return;
+      }
+
+      const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
+      if (Number.isFinite(terrainHeight)) {
+        return;
+      }
+
+      if (
+        probeX < box.min.x - footprintPadding ||
+        probeX > box.max.x + footprintPadding ||
+        probeZ < box.min.z - footprintPadding ||
+        probeZ > box.max.z + footprintPadding
+      ) {
+        return;
+      }
+
+      const topY = box.max.y;
+      if (!Number.isFinite(topY) || topY > maxSupportedTopY) {
+        return;
+      }
+
+      if (!Number.isFinite(bestSupportHeight) || topY > bestSupportHeight) {
+        bestSupportHeight = topY;
+      }
+    });
+
+    return bestSupportHeight;
+  };
+
+  const getPlayerGroundHeight = (position) => {
+    const terrainHeight = getTerrainGroundHeight(position);
+    const colliderGroundHeight = getColliderGroundHeight(position);
+    return Math.max(
+      roomFloorY,
+      Number.isFinite(terrainHeight) ? terrainHeight : roomFloorY,
+      Number.isFinite(colliderGroundHeight) ? colliderGroundHeight : roomFloorY
+    );
   };
 
   const getPlayerCeilingHeight = (position) => {
