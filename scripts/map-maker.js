@@ -1445,6 +1445,15 @@ function selectArea(areaId) {
   resetHistoryState();
   updateMetadataDisplays();
   renderGrid();
+  if (landscapeViewer) {
+    landscapeViewer.setTextureVisibility?.(getTextureVisibility());
+    landscapeViewer.setTileNumberVisibility?.(getTileNumberVisibility());
+    landscapeViewer.setHeightVisibility?.(state.showHeights);
+    landscapeViewer.resize?.();
+    window.requestAnimationFrame(() => {
+      landscapeViewer?.resize?.();
+    });
+  }
   updateJsonPreview();
   landscapeViewer?.setObjectPlacements?.(state.map.objects);
   renderAreaList();

@@ -1087,6 +1087,7 @@ export const initMapMaker3d = ({
     const shouldShowHeights = showHeights;
     if (!shouldShowTextures && !shouldShowTileNumbers && !shouldShowHeights) {
       if (material.map) {
+        material.map.dispose();
         material.map = null;
         material.needsUpdate = true;
       }
@@ -1098,8 +1099,19 @@ export const initMapMaker3d = ({
 
     const nextToken = ++textureToken;
     const { width, height } = map;
-    textureCanvas.width = width * TEXTURE_TILE_SIZE;
-    textureCanvas.height = height * TEXTURE_TILE_SIZE;
+    const nextCanvasWidth = width * TEXTURE_TILE_SIZE;
+    const nextCanvasHeight = height * TEXTURE_TILE_SIZE;
+    const didCanvasSizeChange =
+      textureCanvas.width !== nextCanvasWidth ||
+      textureCanvas.height !== nextCanvasHeight;
+    textureCanvas.width = nextCanvasWidth;
+    textureCanvas.height = nextCanvasHeight;
+
+    if (didCanvasSizeChange && material.map) {
+      material.map.dispose();
+      material.map = null;
+      material.needsUpdate = true;
+    }
 
     const texturePaths = new Set();
     if (shouldShowTextures) {
@@ -1458,6 +1470,8 @@ export const initMapMaker3d = ({
     if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
       return;
     }
+    const didMapSizeChange =
+      map.width !== mapWidth || map.height !== mapHeight;
     lastMap = map;
     mapWidth = map.width;
     mapHeight = map.height;
@@ -1467,7 +1481,7 @@ export const initMapMaker3d = ({
     rebuildAreaReferenceEnvironment(map);
     updateTerrainMarkers(map);
     void renderTerrainTexture(map);
-    if (resetCamera) {
+    if (resetCamera || didMapSizeChange) {
       setCameraForMap(map.width, map.height);
     }
     resizeRenderer();
