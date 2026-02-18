@@ -2718,6 +2718,8 @@ export const initScene = (
 
   const roomWidth = BASE_ROOM_WIDTH;
   const roomDepth = BASE_ROOM_DEPTH;
+  const ENGINEERING_BAY_WIDTH_FACTOR = 2.1;
+  const ENGINEERING_BAY_DEPTH_FACTOR = 1.2;
   let roomHeight = BASE_ROOM_HEIGHT * (playerHeight / DEFAULT_PLAYER_HEIGHT);
   const terminalBackOffset = 4 * ROOM_SCALE_FACTOR;
   let roomFloorY = -roomHeight / 2;
@@ -7197,8 +7199,8 @@ export const initScene = (
   const createEngineeringBayEnvironment = () => {
     const group = new THREE.Group();
 
-    const bayWidth = roomWidth * 1.5;
-    const bayDepth = roomDepth * 0.8;
+    const bayWidth = roomWidth * ENGINEERING_BAY_WIDTH_FACTOR;
+    const bayDepth = roomDepth * ENGINEERING_BAY_DEPTH_FACTOR;
     const floorThickness = 0.5;
 
     const floorBounds = createFloorBounds(bayWidth, bayDepth, {
@@ -8160,8 +8162,8 @@ export const initScene = (
     0
   );
   const engineeringDeckLocalBounds = createFloorBounds(
-    roomWidth * 1.5,
-    roomDepth * 0.8,
+    roomWidth * ENGINEERING_BAY_WIDTH_FACTOR,
+    roomDepth * ENGINEERING_BAY_DEPTH_FACTOR,
     {
       paddingX: 0.75,
       paddingZ: 0.75,
@@ -8170,7 +8172,7 @@ export const initScene = (
   const engineeringDeckTeleportOffset = new THREE.Vector3(
     0,
     0,
-    -(roomDepth * 0.8) / 2 + 1.8
+    -(roomDepth * ENGINEERING_BAY_DEPTH_FACTOR) / 2 + 1.8
   );
 
   const exteriorDeckGroupPosition = new THREE.Vector3(
@@ -10631,10 +10633,14 @@ export const initScene = (
   const resolvedEngineeringFloorBounds =
     engineeringDeckFloorBounds ??
     translateBoundsToWorld(
-      createFloorBounds(roomWidth * 1.5, roomDepth * 0.8, {
-        paddingX: 0.75,
-        paddingZ: 0.75,
-      }),
+      createFloorBounds(
+        roomWidth * ENGINEERING_BAY_WIDTH_FACTOR,
+        roomDepth * ENGINEERING_BAY_DEPTH_FACTOR,
+        {
+          paddingX: 0.75,
+          paddingZ: 0.75,
+        }
+      ),
       engineeringDeckFloorPositionFallback
     ) ??
     hangarDeckFloorBounds;
