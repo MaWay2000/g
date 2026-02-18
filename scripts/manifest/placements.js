@@ -160,6 +160,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
   const STACKING_VERTICAL_TOLERANCE = 0.02;
   const STACKING_HORIZONTAL_TOLERANCE = 1e-3;
+  const MOVE_STACKED_DEPENDENTS_WITH_BASE = false;
 
   const getMaxManifestPlacementDistance = () => {
     const horizontalBounds = getHorizontalPlacementBounds();
@@ -1176,13 +1177,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     const stackedDependents = stackedDependentsRaw.map((dependent) => {
       const dependentContainer = dependent?.container ?? null;
-      const collidersCleared = clearManifestPlacementColliders(
-        dependentContainer
-      );
-
-      if (collidersCleared) {
-        collidersWereRemoved = true;
-      }
+      const collidersCleared = false;
 
       if (!dependentContainer) {
         return {
@@ -1249,6 +1244,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       dependents: stackedDependents,
       collidersWereRemoved,
       reparentedContainers,
+      moveDependentsWithPlacement: MOVE_STACKED_DEPENDENTS_WITH_BASE,
     };
 
     placement.pointerHandler = (event) => {
@@ -1738,7 +1734,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     placement.container.updateMatrixWorld(true);
 
-    if (Array.isArray(placement.dependents) && placement.dependents.length > 0) {
+    if (
+      placement.moveDependentsWithPlacement &&
+      Array.isArray(placement.dependents) &&
+      placement.dependents.length > 0
+    ) {
       const previewBasePosition =
         placement.previewBasePosition ??
         placement.previousState?.position ??
