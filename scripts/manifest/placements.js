@@ -1761,8 +1761,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     if (placement.isReposition) {
       const settledPlacements = settlePlacementsDownward(
-        getEditablePlacements(),
-        { exclude: placement.container }
+        getEditablePlacements()
       );
 
       if (
@@ -1772,9 +1771,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         rebuildStaticColliders();
       }
 
-      persistRealignedPlacementChanges(settledPlacements, {
-        excludeContainer: placement.container,
-      });
+      persistRealignedPlacementChanges(settledPlacements);
     }
 
     if (placement.isReposition) {
