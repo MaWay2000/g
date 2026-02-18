@@ -4483,6 +4483,69 @@ export const initScene = (
     }
   };
 
+  const saveStoredMapForArea = (areaId, mapDefinition) => {
+    const storage = tryGetOutsideMapStorage();
+    if (!storage) {
+      return null;
+    }
+
+    const storageKey = getMapMakerStorageKeyForArea(areaId);
+    let normalizedMap = null;
+    try {
+      normalizedMap = normalizeOutsideMap(mapDefinition);
+    } catch (error) {
+      console.warn(`Unable to normalize map for area "${areaId}"`, error);
+      return null;
+    }
+
+    try {
+      storage.setItem(storageKey, JSON.stringify(normalizedMap));
+    } catch (error) {
+      console.warn(`Unable to save map for area "${areaId}"`, error);
+      return null;
+    }
+
+    return normalizedMap;
+  };
+
+  const pendingExternalEditablePlacements = [];
+  let registerExternalEditablePlacementFn = null;
+  let unregisterExternalEditablePlacementFn = null;
+
+  const queueExternalEditablePlacement = (placementRecord) => {
+    if (!placementRecord?.container) {
+      return;
+    }
+
+    if (typeof registerExternalEditablePlacementFn === "function") {
+      registerExternalEditablePlacementFn(
+        placementRecord.container,
+        placementRecord.options ?? {}
+      );
+      return;
+    }
+
+    pendingExternalEditablePlacements.push(placementRecord);
+  };
+
+  const unqueueExternalEditablePlacement = (container) => {
+    if (!container) {
+      return;
+    }
+
+    if (typeof unregisterExternalEditablePlacementFn === "function") {
+      unregisterExternalEditablePlacementFn(container);
+      return;
+    }
+
+    const pendingIndex = pendingExternalEditablePlacements.findIndex(
+      (entry) => entry?.container === container
+    );
+    if (pendingIndex >= 0) {
+      pendingExternalEditablePlacements.splice(pendingIndex, 1);
+    }
+  };
+
   const createStoredAreaOverlay = ({ areaId, floorBounds, roomFloorY }) => {
     const storedMap = loadStoredMapForArea(areaId);
     if (!storedMap) {
@@ -4521,8 +4584,118 @@ export const initScene = (
     const liftDoors = [];
     const viewDistanceTargets = [];
     const registeredModelColliders = [];
+    const editableModelContainers = new Set();
     const tileMaterialCache = new Map();
     let disposed = false;
+    let shouldPersistGeneratedPlacementIds = false;
+
+    const generateAreaObjectPlacementId = (fallbackIndex = 0) =>
+      `${areaId}-obj-${Date.now().toString(36)}-${fallbackIndex.toString(36)}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+
+    const ensureAreaObjectPlacementId = (placement, fallbackIndex = 0) => {
+      const rawId =
+        typeof placement?.id === "string" ? placement.id.trim() : "";
+      if (rawId) {
+        return rawId;
+      }
+      const generatedId = generateAreaObjectPlacementId(fallbackIndex);
+      placement.id = generatedId;
+      shouldPersistGeneratedPlacementIds = true;
+      return generatedId;
+    };
+
+    const updateStoredAreaObjectPlacementById = (placementId, updater) => {
+      if (typeof placementId !== "string" || placementId.trim() === "") {
+        return false;
+      }
+      if (typeof updater !== "function") {
+        return false;
+      }
+
+      const latestMap = loadStoredMapForArea(areaId) ?? normalizedMap;
+      if (!latestMap || typeof latestMap !== "object") {
+        return false;
+      }
+
+      const latestObjects = Array.isArray(latestMap.objects)
+        ? latestMap.objects
+        : [];
+      const placementIndex = latestObjects.findIndex(
+        (entry) => entry?.id === placementId
+      );
+      if (placementIndex < 0) {
+        return false;
+      }
+
+      const nextObjects = latestObjects.slice();
+      const currentPlacement = nextObjects[placementIndex];
+      const nextPlacement = updater(currentPlacement);
+
+      if (nextPlacement === null) {
+        nextObjects.splice(placementIndex, 1);
+      } else if (nextPlacement && typeof nextPlacement === "object") {
+        nextObjects[placementIndex] = nextPlacement;
+      } else {
+        return false;
+      }
+
+      const savedMap = saveStoredMapForArea(areaId, {
+        ...latestMap,
+        objects: nextObjects,
+      });
+      if (!savedMap) {
+        return false;
+      }
+
+      normalizedMap = savedMap;
+      return true;
+    };
+
+    const persistStoredAreaObjectTransform = (placementId, container) => {
+      if (
+        !container?.isObject3D ||
+        typeof placementId !== "string" ||
+        placementId.trim() === ""
+      ) {
+        return;
+      }
+
+      const worldX = Number.isFinite(container.position?.x)
+        ? container.position.x
+        : 0;
+      const worldZ = Number.isFinite(container.position?.z)
+        ? container.position.z
+        : 0;
+      const mapX = worldX / cellSizeX;
+      const mapZ = worldZ / cellSizeZ;
+
+      updateStoredAreaObjectPlacementById(placementId, (currentPlacement) => {
+        const currentPosition = currentPlacement?.position ?? {};
+        return {
+          ...currentPlacement,
+          position: {
+            x: mapX,
+            y: Number.isFinite(currentPosition.y) ? currentPosition.y : 0,
+            z: mapZ,
+          },
+          rotation: {
+            x: Number.isFinite(container.rotation?.x) ? container.rotation.x : 0,
+            y: Number.isFinite(container.rotation?.y) ? container.rotation.y : 0,
+            z: Number.isFinite(container.rotation?.z) ? container.rotation.z : 0,
+          },
+          scale: {
+            x: Number.isFinite(container.scale?.x) ? container.scale.x : 1,
+            y: Number.isFinite(container.scale?.y) ? container.scale.y : 1,
+            z: Number.isFinite(container.scale?.z) ? container.scale.z : 1,
+          },
+        };
+      });
+    };
+
+    const removeStoredAreaObjectPlacement = (placementId) =>
+      updateStoredAreaObjectPlacementById(placementId, () => null);
 
     const getTerrainMaterial = (terrainId) => {
       const resolvedTerrain = getOutsideTerrainById(terrainId ?? "void");
@@ -4704,7 +4877,7 @@ export const initScene = (
       : [];
     const modelPlacements = [];
 
-    objectPlacements.forEach((placement) => {
+    objectPlacements.forEach((placement, placementIndex) => {
       if (!placement || typeof placement !== "object") {
         return;
       }
@@ -4782,11 +4955,22 @@ export const initScene = (
         return;
       }
 
-      modelPlacements.push(placement);
+      const placementId = ensureAreaObjectPlacementId(placement, placementIndex);
+      modelPlacements.push({
+        placement,
+        placementId,
+      });
     });
 
+    if (shouldPersistGeneratedPlacementIds) {
+      const savedMap = saveStoredMapForArea(areaId, normalizedMap);
+      if (savedMap) {
+        normalizedMap = savedMap;
+      }
+    }
+
     if (modelPlacements.length > 0) {
-      modelPlacements.forEach(async (placement) => {
+      modelPlacements.forEach(async ({ placement, placementId }) => {
         if (disposed) {
           return;
         }
@@ -4834,10 +5018,45 @@ export const initScene = (
         const descriptors = registerCollidersForImportedRoot(model, {
           padding: new THREE.Vector3(0.02, 0.02, 0.02),
         });
+        const modelUserData = model.userData || (model.userData = {});
+        modelUserData.manifestPlacementColliders = Array.isArray(descriptors)
+          ? descriptors
+          : [];
         if (Array.isArray(descriptors) && descriptors.length > 0) {
           registeredModelColliders.push(...descriptors);
           rebuildStaticColliders();
         }
+
+        editableModelContainers.add(model);
+        queueExternalEditablePlacement({
+          container: model,
+          options: {
+            entry: {
+              path: placement.path,
+              label:
+                typeof placement?.name === "string" && placement.name.trim()
+                  ? placement.name.trim()
+                  : placement.path,
+            },
+            onTransform: ({ container }) => {
+              persistStoredAreaObjectTransform(placementId, container);
+            },
+            onRemove: ({ container }) => {
+              removeStoredAreaObjectPlacement(placementId);
+              const removedIndex = viewDistanceTargets.indexOf(container);
+              if (removedIndex >= 0) {
+                viewDistanceTargets.splice(removedIndex, 1);
+              }
+              const adjustableIndex = adjustableEntries.findIndex(
+                (entry) => entry?.object === container
+              );
+              if (adjustableIndex >= 0) {
+                adjustableEntries.splice(adjustableIndex, 1);
+              }
+              editableModelContainers.delete(container);
+            },
+          },
+        });
       });
     }
 
@@ -4846,6 +5065,10 @@ export const initScene = (
         return;
       }
       disposed = true;
+      editableModelContainers.forEach((container) => {
+        unqueueExternalEditablePlacement(container);
+      });
+      editableModelContainers.clear();
       if (registeredModelColliders.length > 0) {
         unregisterColliderDescriptors(registeredModelColliders);
         registeredModelColliders.length = 0;
@@ -12185,6 +12408,8 @@ export const initScene = (
     getManifestPlacements: getManifestPlacementsFromManager,
     getManifestPlacementSnapshots: getManifestPlacementSnapshotsFromManager,
     restoreManifestPlacements,
+    registerExternalEditablePlacement,
+    unregisterExternalEditablePlacement,
     updateManifestEditModeHover,
     updateActivePlacementPreview,
     cancelActivePlacement,
@@ -12193,6 +12418,20 @@ export const initScene = (
 
   getManifestPlacements = getManifestPlacementsFromManager;
   getManifestPlacementSnapshots = getManifestPlacementSnapshotsFromManager;
+  registerExternalEditablePlacementFn = registerExternalEditablePlacement;
+  unregisterExternalEditablePlacementFn = unregisterExternalEditablePlacement;
+  if (pendingExternalEditablePlacements.length > 0) {
+    const pendingRegistrations = pendingExternalEditablePlacements.splice(
+      0,
+      pendingExternalEditablePlacements.length
+    );
+    pendingRegistrations.forEach((entry) => {
+      if (!entry?.container) {
+        return;
+      }
+      registerExternalEditablePlacement(entry.container, entry.options ?? {});
+    });
+  }
 
   const restoreStoredManifestPlacements = async () => {
     const storedPlacements = loadStoredManifestPlacements();
@@ -13494,6 +13733,9 @@ export const initScene = (
     cancelDroneMinerSession: (options) => cancelDroneMinerSession(options),
     dispose: () => {
       disposeManifestPlacements();
+      registerExternalEditablePlacementFn = null;
+      unregisterExternalEditablePlacementFn = null;
+      pendingExternalEditablePlacements.length = 0;
       window.removeEventListener("resize", handleResize);
       canvas.removeEventListener("click", attemptPointerLock);
       canvas.removeEventListener("click", handleCanvasClick);

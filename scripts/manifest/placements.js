@@ -129,6 +129,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
   let activePlacement = null;
   const manifestPlacements = new Set();
+  const externalEditablePlacements = new Set();
 
   const EDIT_MODE_HOVER_OPACITY = 0.25;
   const EDIT_MODE_SELECTED_OPACITY = 0.45;
@@ -182,6 +183,14 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
   };
+
+  const isEditablePlacement = (container) =>
+    manifestPlacements.has(container) || externalEditablePlacements.has(container);
+
+  const getEditablePlacements = () => [
+    ...manifestPlacements,
+    ...externalEditablePlacements,
+  ];
 
   const serializeManifestPlacement = (container) => {
     if (!container?.isObject3D) {
@@ -242,7 +251,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     let current = object;
 
     while (current && current !== scene) {
-      if (manifestPlacements.has(current)) {
+      if (isEditablePlacement(current)) {
         return current;
       }
 
@@ -410,7 +419,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       current.updateMatrixWorld(true);
       stackingBoundsBase.setFromObject(current);
 
-      manifestPlacements.forEach((candidate) => {
+      getEditablePlacements().forEach((candidate) => {
         if (!candidate || visited.has(candidate) || candidate === current) {
           return;
         }
@@ -876,25 +885,70 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return anyChanged;
   };
 
-  const registerManifestPlacement = (container, colliderEntries = []) => {
+  const applyPlacementColliderEntries = (container, colliderEntries = []) => {
     if (!container) {
       return;
     }
-
-    manifestPlacements.add(container);
 
     const userData = container.userData || (container.userData = {});
     userData.manifestPlacementColliders = Array.isArray(colliderEntries)
       ? colliderEntries
       : [];
-    userData.isManifestPlacement = true;
+
+    if (manifestPlacements.has(container)) {
+      userData.isManifestPlacement = true;
+      delete userData.externalEditablePlacement;
+      delete userData.externalEditablePlacementHandlers;
+    } else if (externalEditablePlacements.has(container)) {
+      userData.isManifestPlacement = false;
+      userData.externalEditablePlacement = true;
+    }
 
     updateManifestPlacementVisualState(container);
   };
 
-  const removeManifestPlacement = (container) => {
-    if (!container || !manifestPlacements.has(container)) {
-      return null;
+  const registerManifestPlacement = (container, colliderEntries = []) => {
+    if (!container) {
+      return;
+    }
+
+    externalEditablePlacements.delete(container);
+    manifestPlacements.add(container);
+    applyPlacementColliderEntries(container, colliderEntries);
+  };
+
+  const registerExternalEditablePlacement = (
+    container,
+    { entry = null, onRemove = null, onTransform = null } = {}
+  ) => {
+    if (!container) {
+      return false;
+    }
+
+    manifestPlacements.delete(container);
+    externalEditablePlacements.add(container);
+
+    const userData = container.userData || (container.userData = {});
+    if (entry && typeof entry === "object") {
+      userData.manifestEntry = entry;
+    }
+
+    const existingColliderEntries = Array.isArray(
+      userData.manifestPlacementColliders
+    )
+      ? userData.manifestPlacementColliders
+      : [];
+    userData.externalEditablePlacementHandlers = {
+      onRemove: typeof onRemove === "function" ? onRemove : null,
+      onTransform: typeof onTransform === "function" ? onTransform : null,
+    };
+    applyPlacementColliderEntries(container, existingColliderEntries);
+    return true;
+  };
+
+  const unregisterExternalEditablePlacement = (container) => {
+    if (!container || !externalEditablePlacements.has(container)) {
+      return false;
     }
 
     if (manifestEditModeState.hovered === container) {
@@ -905,7 +959,34 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       setSelectedManifestPlacement(null);
     }
 
+    externalEditablePlacements.delete(container);
+
+    const userData = container.userData || (container.userData = {});
+    delete userData.externalEditablePlacement;
+    delete userData.externalEditablePlacementHandlers;
+    updateManifestPlacementVisualState(container);
+
+    return true;
+  };
+
+  const removeManifestPlacement = (container) => {
+    if (!container || !isEditablePlacement(container)) {
+      return null;
+    }
+
+    const isStoredManifestPlacement = manifestPlacements.has(container);
+    const isExternalEditablePlacement = externalEditablePlacements.has(container);
+
+    if (manifestEditModeState.hovered === container) {
+      setHoveredManifestPlacement(null);
+    }
+
+    if (manifestEditModeState.selected === container) {
+      setSelectedManifestPlacement(null);
+    }
+
     manifestPlacements.delete(container);
+    externalEditablePlacements.delete(container);
 
     const colliders = Array.isArray(
       container.userData?.manifestPlacementColliders
@@ -933,12 +1014,30 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     const manifestEntry = container.userData?.manifestEntry ?? null;
+    const externalHandlers =
+      container.userData?.externalEditablePlacementHandlers ?? null;
+
+    if (
+      isExternalEditablePlacement &&
+      typeof externalHandlers?.onRemove === "function"
+    ) {
+      try {
+        externalHandlers.onRemove({
+          container,
+          entry: manifestEntry,
+        });
+      } catch (error) {
+        console.warn("Unable to persist external placement removal", error);
+      }
+    }
 
     if (typeof onManifestPlacementRemoved === "function") {
       onManifestPlacementRemoved(manifestEntry);
     }
 
-    notifyManifestPlacementsChanged();
+    if (isStoredManifestPlacement) {
+      notifyManifestPlacementsChanged();
+    }
 
     return manifestEntry;
   };
@@ -948,7 +1047,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return;
     }
 
-    if (!manifestPlacements.has(container)) {
+    if (!isEditablePlacement(container)) {
       return;
     }
 
@@ -1170,7 +1269,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return;
     }
 
-    if (!controls.isLocked || manifestPlacements.size === 0) {
+    const editablePlacements = getEditablePlacements();
+    if (!controls.isLocked || editablePlacements.length === 0) {
       if (manifestEditModeState.hovered) {
         setHoveredManifestPlacement(null);
       }
@@ -1179,7 +1279,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     const intersections = raycaster.intersectObjects(
-      Array.from(manifestPlacements),
+      editablePlacements,
       true
     );
 
@@ -1237,7 +1337,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       setSelectedManifestPlacement(null);
     }
 
-    manifestPlacements.forEach(updateManifestPlacementVisualState);
+    getEditablePlacements().forEach(updateManifestPlacementVisualState);
 
     if (typeof onManifestEditModeChange === "function") {
       onManifestEditModeChange(manifestEditModeState.enabled);
@@ -1310,7 +1410,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         const colliderEntries = registerCollidersForImportedRoot(container, {
           padding: manifestPlacementPadding,
         });
-        registerManifestPlacement(container, colliderEntries);
+        applyPlacementColliderEntries(container, colliderEntries);
 
         let shouldRebuildColliders = Boolean(placement.collidersWereRemoved);
 
@@ -1382,7 +1482,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         padding: manifestPlacementPadding,
       });
     }
-    registerManifestPlacement(placement.container, colliderEntries);
+    if (placement.isReposition) {
+      applyPlacementColliderEntries(placement.container, colliderEntries);
+    } else {
+      registerManifestPlacement(placement.container, colliderEntries);
+    }
 
     let shouldRebuildColliders = Boolean(placement.collidersWereRemoved);
 
@@ -1424,9 +1528,24 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       setSelectedManifestPlacement(null);
       setHoveredManifestPlacement(null);
       updateManifestEditModeHover();
+
+      const externalHandlers =
+        placement.container.userData?.externalEditablePlacementHandlers ?? null;
+      if (typeof externalHandlers?.onTransform === "function") {
+        try {
+          externalHandlers.onTransform({
+            container: placement.container,
+            entry: placement.container.userData?.manifestEntry ?? null,
+          });
+        } catch (error) {
+          console.warn("Unable to persist external placement transform", error);
+        }
+      }
     }
 
-    notifyManifestPlacementsChanged();
+    if (manifestPlacements.has(placement.container)) {
+      notifyManifestPlacementsChanged();
+    }
 
     if (typeof placement.resolve === "function") {
       placement.resolve(placement.container);
@@ -1805,16 +1924,20 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     cancelActivePlacement(new PlacementCancelledError("Scene disposed"));
     setManifestEditModeEnabled(false);
     manifestPlacements.clear();
+    externalEditablePlacements.clear();
   };
 
   return {
     setManifestEditModeEnabled,
     isManifestEditModeEnabled: () => manifestEditModeState.enabled,
     placeModelFromManifestEntry,
-    hasManifestPlacements: () => manifestPlacements.size > 0,
+    hasManifestPlacements: () =>
+      manifestPlacements.size + externalEditablePlacements.size > 0,
     getManifestPlacements: () => Array.from(manifestPlacements),
     getManifestPlacementSnapshots,
     restoreManifestPlacements,
+    registerExternalEditablePlacement,
+    unregisterExternalEditablePlacement,
     updateManifestEditModeHover,
     updateActivePlacementPreview,
     cancelActivePlacement,
