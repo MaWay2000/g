@@ -9669,6 +9669,7 @@ export const initScene = (
 
   let getManifestPlacements = () => [];
   let getManifestPlacementSnapshots = () => [];
+  let setManifestPlacementActiveFloorId = () => null;
   let persistManifestPlacementTimeoutId = 0;
   let queuedManifestPlacementSnapshots = null;
   const flushManifestPlacementPersistence = ({ force = false } = {}) => {
@@ -11878,6 +11879,7 @@ export const initScene = (
     activateDeckEnvironment(nextFloor.id ?? null);
 
     liftState.currentIndex = clampedIndex;
+    setManifestPlacementActiveFloorId(nextFloor.id ?? null);
     refreshActiveResourceTargets(nextFloor.id ?? null);
 
     let spawnPosition =
@@ -12446,6 +12448,7 @@ export const initScene = (
       );
     },
     getPlacementGroundHeight: (position) => getPlayerGroundHeight(position),
+    getActiveFloorId: () => getActiveLiftFloor()?.id ?? null,
   });
 
   const {
@@ -12456,6 +12459,7 @@ export const initScene = (
     getManifestPlacements: getManifestPlacementsFromManager,
     getManifestPlacementSnapshots: getManifestPlacementSnapshotsFromManager,
     restoreManifestPlacements,
+    setActiveFloorId: setManifestPlacementActiveFloorIdFromManager,
     registerExternalEditablePlacement,
     unregisterExternalEditablePlacement,
     updateManifestEditModeHover,
@@ -12466,6 +12470,8 @@ export const initScene = (
 
   getManifestPlacements = getManifestPlacementsFromManager;
   getManifestPlacementSnapshots = getManifestPlacementSnapshotsFromManager;
+  setManifestPlacementActiveFloorId = setManifestPlacementActiveFloorIdFromManager;
+  setManifestPlacementActiveFloorId(getActiveLiftFloor()?.id ?? null);
   registerExternalEditablePlacementFn = registerExternalEditablePlacement;
   unregisterExternalEditablePlacementFn = unregisterExternalEditablePlacement;
   if (pendingExternalEditablePlacements.length > 0) {
@@ -13781,6 +13787,7 @@ export const initScene = (
     cancelDroneMinerSession: (options) => cancelDroneMinerSession(options),
     dispose: () => {
       disposeManifestPlacements();
+      setManifestPlacementActiveFloorId = () => null;
       registerExternalEditablePlacementFn = null;
       unregisterExternalEditablePlacementFn = null;
       pendingExternalEditablePlacements.length = 0;

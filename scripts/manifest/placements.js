@@ -29,6 +29,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     getRoomFloorY,
     getPlacementBounds,
     getPlacementGroundHeight,
+    getActiveFloorId,
   } = sceneDependencies;
 
   const getRoomDimensions = () => ({
@@ -186,6 +187,39 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
   };
 
+  const normalizeManifestPlacementFloorId = (value) => {
+    if (typeof value !== "string") {
+      return null;
+    }
+
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  let activeManifestFloorId = normalizeManifestPlacementFloorId(
+    typeof getActiveFloorId === "function" ? getActiveFloorId() : null
+  );
+
+  const getPlacementFloorId = (container) =>
+    normalizeManifestPlacementFloorId(container?.userData?.manifestFloorId);
+
+  const setPlacementFloorId = (container, floorId) => {
+    if (!container) {
+      return null;
+    }
+
+    const userData = container.userData || (container.userData = {});
+    const normalizedFloorId = normalizeManifestPlacementFloorId(floorId);
+
+    if (normalizedFloorId) {
+      userData.manifestFloorId = normalizedFloorId;
+    } else {
+      delete userData.manifestFloorId;
+    }
+
+    return normalizedFloorId;
+  };
+
   const isEditablePlacement = (container) =>
     manifestPlacements.has(container) || externalEditablePlacements.has(container);
 
@@ -210,6 +244,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const rawLabel =
       typeof manifestEntry?.label === "string" ? manifestEntry.label.trim() : "";
     const label = rawLabel || rawPath;
+    const floorId = getPlacementFloorId(container);
 
     return {
       path: rawPath,
@@ -229,6 +264,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         y: normalizeManifestPlacementScale(container.scale.y, 1),
         z: normalizeManifestPlacementScale(container.scale.z, 1),
       },
+      ...(floorId ? { floorId } : {}),
     };
   };
 
@@ -454,6 +490,59 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       : [];
 
     return userData.manifestPlacementColliders;
+  };
+
+  const shouldShowPlacementOnActiveFloor = (container) => {
+    if (!container || !manifestPlacements.has(container)) {
+      return true;
+    }
+
+    const placementFloorId = getPlacementFloorId(container);
+    if (!placementFloorId || !activeManifestFloorId) {
+      return true;
+    }
+
+    return placementFloorId === activeManifestFloorId;
+  };
+
+  const syncManifestPlacementFloorVisibility = () => {
+    if (manifestPlacements.size === 0) {
+      return;
+    }
+
+    let shouldRebuild = false;
+
+    manifestPlacements.forEach((container) => {
+      if (!container) {
+        return;
+      }
+
+      const shouldBeVisible = shouldShowPlacementOnActiveFloor(container);
+      if (container.visible !== shouldBeVisible) {
+        container.visible = shouldBeVisible;
+      }
+
+      if (shouldBeVisible) {
+        const colliders = Array.isArray(
+          container.userData?.manifestPlacementColliders
+        )
+          ? container.userData.manifestPlacementColliders
+          : [];
+
+        if (colliders.length === 0) {
+          const entries = refreshManifestPlacementColliders(container);
+          if (Array.isArray(entries) && entries.length > 0) {
+            shouldRebuild = true;
+          }
+        }
+      } else if (clearManifestPlacementColliders(container)) {
+        shouldRebuild = true;
+      }
+    });
+
+    if (shouldRebuild && typeof rebuildStaticColliders === "function") {
+      rebuildStaticColliders();
+    }
   };
 
   const computeManifestPlacementBounds = (container) => {
@@ -1117,14 +1206,31 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     updateManifestPlacementVisualState(container);
   };
 
-  const registerManifestPlacement = (container, colliderEntries = []) => {
+  const registerManifestPlacement = (
+    container,
+    colliderEntries = [],
+    { floorId = null } = {}
+  ) => {
     if (!container) {
       return;
     }
 
     externalEditablePlacements.delete(container);
     manifestPlacements.add(container);
+    setPlacementFloorId(
+      container,
+      floorId ?? getPlacementFloorId(container) ?? activeManifestFloorId
+    );
     applyPlacementColliderEntries(container, colliderEntries);
+
+    const shouldBeVisible = shouldShowPlacementOnActiveFloor(container);
+    container.visible = shouldBeVisible;
+
+    if (!shouldBeVisible && clearManifestPlacementColliders(container)) {
+      if (typeof rebuildStaticColliders === "function") {
+        rebuildStaticColliders();
+      }
+    }
   };
 
   const registerExternalEditablePlacement = (
@@ -1813,6 +1919,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       placement.container.updateMatrixWorld(true);
     }
 
+    const resolvedPlacementFloorId =
+      getPlacementFloorId(placement.container) ?? activeManifestFloorId;
+    setPlacementFloorId(placement.container, resolvedPlacementFloorId);
+
     let colliderEntries = [];
     if (typeof registerCollidersForImportedRoot === "function") {
       colliderEntries = registerCollidersForImportedRoot(placement.container, {
@@ -1822,7 +1932,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     if (placement.isReposition) {
       applyPlacementColliderEntries(placement.container, colliderEntries);
     } else {
-      registerManifestPlacement(placement.container, colliderEntries);
+      registerManifestPlacement(placement.container, colliderEntries, {
+        floorId: resolvedPlacementFloorId,
+      });
     }
 
     let shouldRebuildColliders = Boolean(placement.collidersWereRemoved);
@@ -1849,6 +1961,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     if (shouldRebuildColliders && typeof rebuildStaticColliders === "function") {
       rebuildStaticColliders();
+    }
+
+    if (manifestPlacements.has(placement.container)) {
+      syncManifestPlacementFloorVisibility();
     }
 
     if (placement.isReposition) {
@@ -2155,6 +2271,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           loadedObject,
           manifestEntry
         );
+        const snapshotFloorId = normalizeManifestPlacementFloorId(
+          snapshot?.floorId
+        );
+        const resolvedFloorId = snapshotFloorId ?? activeManifestFloorId;
+        setPlacementFloorId(container, resolvedFloorId);
         applyManifestPlacementSnapshotTransform(container, snapshot);
 
         const containerBounds = computeManifestPlacementBounds(container);
@@ -2184,7 +2305,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           });
         }
 
-        registerManifestPlacement(container, colliderEntries);
+        registerManifestPlacement(container, colliderEntries, {
+          floorId: resolvedFloorId,
+        });
         restoredContainers.push(container);
 
         if (Array.isArray(colliderEntries) && colliderEntries.length > 0) {
@@ -2203,7 +2326,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     const settledRestoredPlacements = settlePlacementsDownward(
-      restoredContainers,
+      restoredContainers.filter((container) => container?.visible !== false),
       { maxIterations: 12 }
     );
     if (
@@ -2212,6 +2335,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     ) {
       rebuildStaticColliders();
     }
+
+    syncManifestPlacementFloorVisibility();
 
     notifyManifestPlacementsChanged();
 
@@ -2232,6 +2357,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       }
 
       const container = createManifestPlacementContainer(loadedObject, entry);
+      setPlacementFloorId(container, activeManifestFloorId);
       const containerBounds = computeManifestPlacementBounds(container);
 
       const requestedDistance = Number.isFinite(options?.distance)
@@ -2333,6 +2459,17 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     externalEditablePlacements.clear();
   };
 
+  const setActiveFloorId = (floorId) => {
+    const normalizedFloorId = normalizeManifestPlacementFloorId(floorId);
+    if (normalizedFloorId === activeManifestFloorId) {
+      return activeManifestFloorId;
+    }
+
+    activeManifestFloorId = normalizedFloorId;
+    syncManifestPlacementFloorVisibility();
+    return activeManifestFloorId;
+  };
+
   return {
     setManifestEditModeEnabled,
     isManifestEditModeEnabled: () => manifestEditModeState.enabled,
@@ -2342,6 +2479,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     getManifestPlacements: () => Array.from(manifestPlacements),
     getManifestPlacementSnapshots,
     restoreManifestPlacements,
+    setActiveFloorId,
     registerExternalEditablePlacement,
     unregisterExternalEditablePlacement,
     updateManifestEditModeHover,

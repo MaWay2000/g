@@ -39,6 +39,15 @@ const normalizePlacementScale = (value, fallback = 1) => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
 };
 
+const normalizePlacementFloorId = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
 const normalizeManifestPlacementSnapshot = (snapshot) => {
   if (!snapshot || typeof snapshot !== "object") {
     return null;
@@ -54,6 +63,7 @@ const normalizeManifestPlacementSnapshot = (snapshot) => {
   const rawLabel =
     typeof snapshot.label === "string" ? snapshot.label.trim() : "";
   const label = rawLabel || rawPath;
+  const floorId = normalizePlacementFloorId(snapshot.floorId);
 
   return {
     path: rawPath,
@@ -73,6 +83,7 @@ const normalizeManifestPlacementSnapshot = (snapshot) => {
       y: normalizePlacementScale(snapshot?.scale?.y, 1),
       z: normalizePlacementScale(snapshot?.scale?.z, 1),
     },
+    ...(floorId ? { floorId } : {}),
   };
 };
 
