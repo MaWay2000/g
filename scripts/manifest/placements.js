@@ -30,6 +30,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     getPlacementBounds,
     getPlacementGroundHeight,
     getActiveFloorId,
+    resolveFloorIdForPosition,
   } = sceneDependencies;
 
   const getRoomDimensions = () => ({
@@ -219,6 +220,13 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     return normalizedFloorId;
   };
+
+  const resolvePlacementFloorIdForPosition = (position) =>
+    normalizeManifestPlacementFloorId(
+      typeof resolveFloorIdForPosition === "function"
+        ? resolveFloorIdForPosition(position)
+        : null
+    );
 
   const isEditablePlacement = (container) =>
     manifestPlacements.has(container) || externalEditablePlacements.has(container);
@@ -2271,11 +2279,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           loadedObject,
           manifestEntry
         );
-        const snapshotFloorId = normalizeManifestPlacementFloorId(
-          snapshot?.floorId
-        );
-        const resolvedFloorId = snapshotFloorId ?? activeManifestFloorId;
-        setPlacementFloorId(container, resolvedFloorId);
         applyManifestPlacementSnapshotTransform(container, snapshot);
 
         const containerBounds = computeManifestPlacementBounds(container);
@@ -2285,6 +2288,14 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           normalizeManifestPlacementScalar(storedPosition?.y, 0),
           normalizeManifestPlacementScalar(storedPosition?.z, 0)
         );
+        const snapshotFloorId = normalizeManifestPlacementFloorId(
+          snapshot?.floorId
+        );
+        const resolvedFloorId =
+          snapshotFloorId ??
+          resolvePlacementFloorIdForPosition(basePosition) ??
+          activeManifestFloorId;
+        setPlacementFloorId(container, resolvedFloorId);
         const computedPosition = computePlacementPosition(
           { container, containerBounds },
           basePosition

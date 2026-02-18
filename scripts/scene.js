@@ -12449,6 +12449,15 @@ export const initScene = (
     },
     getPlacementGroundHeight: (position) => getPlayerGroundHeight(position),
     getActiveFloorId: () => getActiveLiftFloor()?.id ?? null,
+    resolveFloorIdForPosition: (position) => {
+      if (!position) {
+        return null;
+      }
+
+      const floorIndex = resolveLiftFloorIndexForPosition(position);
+      const floor = getLiftFloorByIndex(floorIndex);
+      return floor?.id ?? null;
+    },
   });
 
   const {
