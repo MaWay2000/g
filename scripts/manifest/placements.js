@@ -1376,6 +1376,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       previewPosition: container.position.clone(),
       previewBasePosition: container.position.clone(),
       pointerHandler: null,
+      wheelHandler: null,
       keydownHandler: null,
       isReposition: true,
       previousState,
@@ -1411,6 +1412,31 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       finalizeActivePlacement();
     };
 
+    placement.wheelHandler = (event) => {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+
+      if (!event.deltaY) {
+        return;
+      }
+
+      const delta =
+        Math.sign(event.deltaY) * MANIFEST_PLACEMENT_DISTANCE_STEP;
+      const nextDistance = THREE.MathUtils.clamp(
+        placement.distance + delta,
+        MIN_MANIFEST_PLACEMENT_DISTANCE,
+        getMaxManifestPlacementDistance()
+      );
+
+      if (nextDistance === placement.distance) {
+        return;
+      }
+
+      placement.distance = nextDistance;
+      updateActivePlacementPreview();
+    };
+
     placement.keydownHandler = (event) => {
       if (event.code === "Escape") {
         cancelActivePlacement(
@@ -1424,6 +1450,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     placementPointerEvents.forEach((eventName) => {
       canvas?.addEventListener(eventName, placement.pointerHandler);
+    });
+    canvas?.addEventListener("wheel", placement.wheelHandler, {
+      passive: false,
     });
     document.addEventListener("keydown", placement.keydownHandler, true);
 
