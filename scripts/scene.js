@@ -9672,10 +9672,22 @@ export const initScene = (
   let setManifestPlacementActiveFloorId = () => null;
   let persistManifestPlacementTimeoutId = 0;
   let queuedManifestPlacementSnapshots = null;
+  let manifestPlacementRestorePending = true;
+  let manifestPlacementHadStoredSnapshots = true;
   const flushManifestPlacementPersistence = ({ force = false } = {}) => {
     const snapshots = Array.isArray(queuedManifestPlacementSnapshots)
       ? queuedManifestPlacementSnapshots
       : getManifestPlacementSnapshots();
+    const snapshotCount = Array.isArray(snapshots) ? snapshots.length : 0;
+    const shouldSkipBootstrapEmptySave =
+      manifestPlacementRestorePending &&
+      manifestPlacementHadStoredSnapshots &&
+      snapshotCount === 0;
+
+    if (shouldSkipBootstrapEmptySave) {
+      return;
+    }
+
     queuedManifestPlacementSnapshots = null;
     persistManifestPlacementState(snapshots, { force });
   };
@@ -12498,8 +12510,12 @@ export const initScene = (
 
   const restoreStoredManifestPlacements = async () => {
     const storedPlacements = loadStoredManifestPlacements();
+    manifestPlacementHadStoredSnapshots =
+      Array.isArray(storedPlacements) && storedPlacements.length > 0;
+    manifestPlacementRestorePending = manifestPlacementHadStoredSnapshots;
 
-    if (!Array.isArray(storedPlacements) || storedPlacements.length === 0) {
+    if (!manifestPlacementHadStoredSnapshots) {
+      manifestPlacementRestorePending = false;
       return;
     }
 
@@ -12507,6 +12523,8 @@ export const initScene = (
       await restoreManifestPlacements(storedPlacements);
     } catch (error) {
       console.warn("Unable to restore stored manifest placements", error);
+    } finally {
+      manifestPlacementRestorePending = false;
     }
   };
   void restoreStoredManifestPlacements();
