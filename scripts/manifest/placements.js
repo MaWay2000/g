@@ -1042,6 +1042,72 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return manifestEntry;
   };
 
+  const reparentPlacementContainerForEditing = (container) => {
+    if (
+      !container?.isObject3D ||
+      !scene?.isObject3D ||
+      typeof scene.attach !== "function"
+    ) {
+      return null;
+    }
+
+    const parent = container.parent;
+    if (!parent || parent === scene) {
+      return null;
+    }
+
+    const previousIndex = Array.isArray(parent.children)
+      ? parent.children.indexOf(container)
+      : -1;
+    scene.attach(container);
+    return {
+      container,
+      parent,
+      previousIndex,
+    };
+  };
+
+  const restoreReparentedPlacementContainer = (record) => {
+    if (!record || typeof record !== "object") {
+      return;
+    }
+
+    const { container, parent, previousIndex } = record;
+    if (!container?.isObject3D || !parent?.isObject3D || container.parent === parent) {
+      return;
+    }
+
+    if (typeof parent.attach === "function") {
+      parent.attach(container);
+    } else if (typeof parent.add === "function") {
+      parent.add(container);
+    }
+
+    if (
+      Number.isInteger(previousIndex) &&
+      previousIndex >= 0 &&
+      Array.isArray(parent.children)
+    ) {
+      const children = parent.children;
+      const currentIndex = children.indexOf(container);
+      if (currentIndex >= 0 && currentIndex !== previousIndex) {
+        children.splice(currentIndex, 1);
+        children.splice(Math.min(previousIndex, children.length), 0, container);
+      }
+    }
+  };
+
+  const restoreReparentedPlacementContainers = (placement) => {
+    if (!Array.isArray(placement?.reparentedContainers)) {
+      return;
+    }
+
+    placement.reparentedContainers.forEach((record) => {
+      restoreReparentedPlacementContainer(record);
+    });
+    placement.reparentedContainers.length = 0;
+  };
+
   const beginManifestPlacementReposition = (container) => {
     if (!container || activePlacement) {
       return;
@@ -1057,55 +1123,68 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     const containerBounds = computeManifestPlacementBounds(container);
 
+    const previousState = {
+      position: container.position.clone(),
+      quaternion: container.quaternion.clone(),
+      scale: container.scale.clone(),
+    };
+
+    const reparentedContainers = [];
+    const reparentedContainer = reparentPlacementContainerForEditing(container);
+    if (reparentedContainer) {
+      reparentedContainers.push(reparentedContainer);
+      container.updateMatrixWorld(true);
+    }
+
     const playerPosition = controls.getObject().position;
     const distanceToPlayer = playerPosition.distanceTo(container.position);
     const placementDistance = Number.isFinite(distanceToPlayer)
       ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, distanceToPlayer)
       : MIN_MANIFEST_PLACEMENT_DISTANCE;
 
-    const stackedDependents = collectStackedManifestPlacements(container).map(
-      (dependent) => {
-        const dependentContainer = dependent?.container ?? null;
-        const collidersCleared = clearManifestPlacementColliders(
-          dependentContainer
-        );
+    const stackedDependents = reparentedContainer
+      ? []
+      : collectStackedManifestPlacements(container).map((dependent) => {
+          const dependentContainer = dependent?.container ?? null;
+          const collidersCleared = clearManifestPlacementColliders(
+            dependentContainer
+          );
 
-        if (collidersCleared) {
-          collidersWereRemoved = true;
-        }
+          if (collidersCleared) {
+            collidersWereRemoved = true;
+          }
 
-        if (!dependentContainer) {
+          if (!dependentContainer) {
+            return {
+              ...dependent,
+              collidersCleared,
+              containerBounds: null,
+              previewPlacement: null,
+              previewPosition: null,
+              lastResolvedPosition: null,
+            };
+          }
+
+          const dependentBounds = computeManifestPlacementBounds(
+            dependentContainer
+          );
+          const previewPlacement = dependentBounds?.isEmpty()
+            ? null
+            : {
+                container: dependentContainer,
+                containerBounds: dependentBounds,
+                dependents: [],
+              };
+
           return {
             ...dependent,
             collidersCleared,
-            containerBounds: null,
-            previewPlacement: null,
-            previewPosition: null,
-            lastResolvedPosition: null,
+            containerBounds: dependentBounds,
+            previewPlacement,
+            previewPosition: dependentContainer.position.clone(),
+            lastResolvedPosition: dependentContainer.position.clone(),
           };
-        }
-
-        const dependentBounds = computeManifestPlacementBounds(
-          dependentContainer
-        );
-        const previewPlacement = dependentBounds?.isEmpty()
-          ? null
-          : {
-              container: dependentContainer,
-              containerBounds: dependentBounds,
-              dependents: [],
-            };
-
-        return {
-          ...dependent,
-          collidersCleared,
-          containerBounds: dependentBounds,
-          previewPlacement,
-          previewPosition: dependentContainer.position.clone(),
-          lastResolvedPosition: dependentContainer.position.clone(),
-        };
-      }
-    );
+        });
 
     const userData = container.userData || (container.userData = {});
 
@@ -1121,14 +1200,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       pointerHandler: null,
       keydownHandler: null,
       isReposition: true,
-      previousState: {
-        position: container.position.clone(),
-        quaternion: container.quaternion.clone(),
-        scale: container.scale.clone(),
-      },
+      previousState,
       skipEventTypes: new Set(placementPointerEvents),
       dependents: stackedDependents,
       collidersWereRemoved,
+      reparentedContainers,
     };
 
     placement.pointerHandler = (event) => {
@@ -1384,6 +1460,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const restoreOnCancel =
       options.restoreOnCancel ?? (placement.isReposition ? true : false);
 
+    if (placement.isReposition) {
+      restoreReparentedPlacementContainers(placement);
+    }
+
     if (placement.isReposition && restoreOnCancel) {
       const container = placement.container;
       const previousState = placement.previousState;
@@ -1475,6 +1555,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     placement.previewPosition.copy(finalPosition);
     placement.container.position.copy(placement.previewPosition);
     placement.container.updateMatrixWorld(true);
+
+    if (placement.isReposition) {
+      restoreReparentedPlacementContainers(placement);
+      placement.container.updateMatrixWorld(true);
+    }
 
     let colliderEntries = [];
     if (typeof registerCollidersForImportedRoot === "function") {
