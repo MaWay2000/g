@@ -472,6 +472,11 @@ export const initMapMaker3d = ({
   scene.add(selectionMesh);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  const interactionPlane = new THREE.Plane(
+    new THREE.Vector3(0, 1, 0),
+    -HEIGHT_FLOOR
+  );
+  const interactionPoint = new THREE.Vector3();
   let isPointerDown = false;
   let lastPaintedIndex = null;
   let selectionStart = null;
@@ -1726,13 +1731,23 @@ export const initMapMaker3d = ({
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
     const intersects = raycaster.intersectObject(mesh, false);
-    if (!intersects.length) {
+    const topHit =
+      intersects.find((hit) => (hit.face?.normal?.y ?? 0) > 0.5) ?? null;
+    let point = topHit?.point ?? null;
+    if (!point) {
+      const planeHit = raycaster.ray.intersectPlane(
+        interactionPlane,
+        interactionPoint
+      );
+      if (planeHit) {
+        point = planeHit;
+      } else if (intersects.length > 0) {
+        point = intersects[0].point;
+      }
+    }
+    if (!point) {
       return null;
     }
-    const topHit =
-      intersects.find((hit) => (hit.face?.normal?.y ?? 0) > 0.5) ??
-      intersects[0];
-    const point = topHit.point;
     const xIndex = Math.floor(point.x + mapWidth / 2);
     const yIndex = Math.floor(point.z + mapHeight / 2);
     if (
