@@ -4583,6 +4583,7 @@ export const initScene = (
     const colliderSource = [];
     const liftDoors = [];
     const viewDistanceTargets = [];
+    const terrainTiles = [];
     const registeredModelColliders = [];
     const editableModelContainers = new Set();
     const tileMaterialCache = new Map();
@@ -4840,11 +4841,8 @@ export const initScene = (
       return `door-${xIndex + 1}-${yIndex + 1}`;
     };
 
-    const tileGeometry = new THREE.BoxGeometry(
-      Math.max(0.12, cellSizeX * 0.96),
-      MAP_MAKER_TILE_THICKNESS,
-      Math.max(0.12, cellSizeZ * 0.96)
-    );
+    const tileWidth = Math.max(0.12, cellSizeX * 0.96);
+    const tileDepth = Math.max(0.12, cellSizeZ * 0.96);
 
     for (let index = 0; index < width * height; index += 1) {
       const cell = normalizedMap.cells?.[index];
@@ -4857,11 +4855,15 @@ export const initScene = (
       const row = Math.floor(index / width);
       const worldX = (column - width / 2 + 0.5) * cellSizeX;
       const worldZ = (row - height / 2 + 0.5) * cellSizeZ;
-      const surfaceY = getCellSurfaceY(index);
-      const tile = new THREE.Mesh(tileGeometry, getTerrainMaterial(terrain.id));
+      const elevation = getMapMakerHeightElevation(normalizedMap.heights?.[index]);
+      const tileHeight = MAP_MAKER_TILE_THICKNESS + elevation;
+      const tile = new THREE.Mesh(
+        new THREE.BoxGeometry(tileWidth, tileHeight, tileDepth),
+        getTerrainMaterial(terrain.id)
+      );
       tile.position.set(
         worldX,
-        surfaceY - MAP_MAKER_TILE_THICKNESS / 2,
+        roomFloorY + MAP_MAKER_TILE_SURFACE_CLEARANCE + tileHeight / 2,
         worldZ
       );
       overlayGroup.add(tile);
@@ -4869,6 +4871,7 @@ export const initScene = (
         object: tile,
         offset: tile.position.y - roomFloorY,
       });
+      terrainTiles.push(tile);
       viewDistanceTargets.push(tile);
     }
 
@@ -5081,6 +5084,7 @@ export const initScene = (
       adjustableEntries,
       colliderDescriptors: colliderSource,
       liftDoors,
+      terrainTiles,
       viewDistanceTargets,
     };
   };
@@ -5545,6 +5549,9 @@ export const initScene = (
     const mapViewDistanceTargets = Array.isArray(mapOverlay?.viewDistanceTargets)
       ? mapOverlay.viewDistanceTargets
       : [];
+    const mapTerrainTiles = Array.isArray(mapOverlay?.terrainTiles)
+      ? mapOverlay.terrainTiles.filter((tile) => tile?.isObject3D)
+      : [];
     if (mapOverlay?.group) {
       group.add(mapOverlay.group);
     }
@@ -5585,6 +5592,7 @@ export const initScene = (
       teleportOffset,
       bounds: floorBounds,
       colliderDescriptors: mapColliderDescriptors,
+      terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
     };
   };
@@ -8082,6 +8090,9 @@ export const initScene = (
     const mapViewDistanceTargets = Array.isArray(mapOverlay?.viewDistanceTargets)
       ? mapOverlay.viewDistanceTargets
       : [];
+    const mapTerrainTiles = Array.isArray(mapOverlay?.terrainTiles)
+      ? mapOverlay.terrainTiles.filter((tile) => tile?.isObject3D)
+      : [];
     if (mapOverlay?.group) {
       group.add(mapOverlay.group);
     }
@@ -8109,6 +8120,7 @@ export const initScene = (
       starFields: [],
       bounds: floorBounds,
       colliderDescriptors: mapColliderDescriptors,
+      terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
     };
   };
@@ -8423,6 +8435,9 @@ export const initScene = (
     const mapViewDistanceTargets = Array.isArray(mapOverlay?.viewDistanceTargets)
       ? mapOverlay.viewDistanceTargets
       : [];
+    const mapTerrainTiles = Array.isArray(mapOverlay?.terrainTiles)
+      ? mapOverlay.terrainTiles.filter((tile) => tile?.isObject3D)
+      : [];
     if (mapOverlay?.group) {
       group.add(mapOverlay.group);
     }
@@ -8459,6 +8474,7 @@ export const initScene = (
       starFields: [nearStarField, farStarField],
       bounds: floorBounds,
       colliderDescriptors: mapColliderDescriptors,
+      terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
     };
   };
@@ -8630,6 +8646,26 @@ export const initScene = (
       .forEach((door) => {
         registerLiftDoor(door);
       });
+  }
+
+  if (Array.isArray(hangarDeckStoredAreaOverlay?.terrainTiles)) {
+    terrainTilesByEnvironment.set(
+      "hangar-deck",
+      hangarDeckStoredAreaOverlay.terrainTiles.filter((tile) => tile?.isObject3D)
+    );
+  } else {
+    terrainTilesByEnvironment.delete("hangar-deck");
+  }
+
+  if (Array.isArray(hangarDeckStoredAreaOverlay?.viewDistanceTargets)) {
+    viewDistanceTargetsByEnvironment.set(
+      "hangar-deck",
+      hangarDeckStoredAreaOverlay.viewDistanceTargets.filter(
+        (target) => target?.isObject3D
+      )
+    );
+  } else {
+    viewDistanceTargetsByEnvironment.delete("hangar-deck");
   }
 
   if (Array.isArray(hangarDeckStoredAreaOverlay?.adjustableEntries)) {
