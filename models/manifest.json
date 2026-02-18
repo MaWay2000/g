@@ -10,5 +10,9 @@
   {
     "path": "floor1.glb",
     "label": "Floor 1 (GLB)"
+  },
+  {
+    "path": "suit.glb",
+    "label": "Suit (GLB)"
   }
 ]
