@@ -1197,7 +1197,7 @@ export const initMapMaker3d = ({
     }
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
-    if (activeTab === "objects" || activeTab === "doors") {
+    if (activeTab !== "terrain" && activeTab !== "height") {
       highlightMesh.visible = false;
       return;
     }
@@ -1459,7 +1459,7 @@ export const initMapMaker3d = ({
     }
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
-    if (activeTab === "objects" || activeTab === "doors") {
+    if (activeTab !== "terrain" && activeTab !== "height") {
       return;
     }
     const index = getCellIndexFromEvent(event);
@@ -1489,6 +1489,9 @@ export const initMapMaker3d = ({
     }
     if (activeTab === "objects") {
       placeObjectFromEvent(event);
+      return;
+    }
+    if (activeTab !== "terrain" && activeTab !== "height") {
       return;
     }
     isPointerDown = true;

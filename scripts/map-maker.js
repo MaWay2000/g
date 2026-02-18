@@ -9,7 +9,6 @@ import {
   createDefaultOutsideMap,
   normalizeOutsideMap,
   tryGetOutsideMapStorage,
-  saveOutsideMapToStorage,
 } from "./outside-map.js";
 import { initMapMaker3d } from "./map-maker-3d.js";
 
@@ -19,12 +18,60 @@ const localSaveFeedbackTimers = {
   restore: null,
 };
 
+const MAP_AREAS = [
+  {
+    id: "hangar-deck",
+    label: "Command Center",
+    description: "Primary command deck and staging area.",
+  },
+  {
+    id: "operations-concourse",
+    label: "Outside Exit",
+    description: "Transfer concourse between command and the surface.",
+  },
+  {
+    id: "operations-exterior",
+    label: "Surface Area",
+    description: "Open outside terrain used for mining and traversal.",
+  },
+  {
+    id: "engineering-bay",
+    label: "Engineering Bay",
+    description: "Workshop bay for construction and object placement.",
+  },
+  {
+    id: "exterior-outpost",
+    label: "Exterior Outpost",
+    description: "Forward outpost zone beyond the main decks.",
+  },
+];
+const DEFAULT_MAP_AREA_ID = "operations-exterior";
+const MAP_AREA_BY_ID = new Map(MAP_AREAS.map((area) => [area.id, area]));
+
+function createDefaultMapForArea(areaId = DEFAULT_MAP_AREA_ID) {
+  const area =
+    MAP_AREA_BY_ID.get(areaId) ?? MAP_AREA_BY_ID.get(DEFAULT_MAP_AREA_ID) ?? null;
+  const map = { ...createDefaultOutsideMap(), objects: [] };
+
+  if (!area) {
+    return map;
+  }
+
+  map.name = area.label;
+  map.region = area.id;
+  map.notes =
+    typeof area.description === "string" ? area.description : map.notes ?? "";
+  return map;
+}
+
 const state = {
   selectedTerrainTypeId: TERRAIN_TYPES[1]?.id ?? TERRAIN_TYPES[0]?.id ?? "void",
   selectedTerrainTileId: getOutsideTerrainDefaultTileId(
     TERRAIN_TYPES[1]?.id ?? TERRAIN_TYPES[0]?.id ?? "void"
   ),
-  map: { ...createDefaultOutsideMap(), objects: [] },
+  map: createDefaultMapForArea(DEFAULT_MAP_AREA_ID),
+  selectedAreaId: DEFAULT_MAP_AREA_ID,
+  areaMapCache: new Map(),
   objectManifest: [],
   selectedObject: null,
   activeTab: "terrain",
@@ -66,13 +113,7 @@ const DEFAULT_GENERATE_HILLS = 8;
 const OBJECT_MANIFEST_URL = "models/manifest.json";
 const DOOR_MARKER_PATH = "door-marker";
 
-const DOOR_DESTINATION_AREAS = [
-  { id: "hangar-deck", label: "Command Center" },
-  { id: "operations-concourse", label: "Outside Exit" },
-  { id: "operations-exterior", label: "Surface Area" },
-  { id: "engineering-bay", label: "Engineering Bay" },
-  { id: "exterior-outpost", label: "Exterior Outpost" },
-];
+const DOOR_DESTINATION_AREAS = MAP_AREAS.map(({ id, label }) => ({ id, label }));
 const DOOR_POSITION_EPSILON = 0.01;
 const TERRAIN_TILE_BY_ID = new Map(
   OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, { tile, index }])
@@ -259,6 +300,10 @@ const elements = {
   mapNameInput: document.getElementById("mapNameInput"),
   regionInput: document.getElementById("regionInput"),
   notesInput: document.getElementById("mapNotesInput"),
+  areaList: document.getElementById("areaList"),
+  selectedAreaName: document.getElementById("selectedAreaName"),
+  selectedAreaId: document.getElementById("selectedAreaId"),
+  selectedAreaDescription: document.getElementById("selectedAreaDescription"),
   widthInput: document.getElementById("widthInput"),
   heightInput: document.getElementById("heightInput"),
   resizeButton: document.getElementById("resizeButton"),
@@ -1228,12 +1273,168 @@ function populateTerrainTileSelect() {
   });
 }
 
+function resolveMapArea(areaId) {
+  if (typeof areaId !== "string") {
+    return MAP_AREA_BY_ID.get(DEFAULT_MAP_AREA_ID) ?? MAP_AREAS[0] ?? null;
+  }
+  const trimmed = areaId.trim();
+  if (!trimmed) {
+    return MAP_AREA_BY_ID.get(DEFAULT_MAP_AREA_ID) ?? MAP_AREAS[0] ?? null;
+  }
+  return (
+    MAP_AREA_BY_ID.get(trimmed) ??
+    MAP_AREA_BY_ID.get(DEFAULT_MAP_AREA_ID) ??
+    MAP_AREAS[0] ??
+    null
+  );
+}
+
+function getAreaStorageKey(areaId = state.selectedAreaId) {
+  const resolvedArea = resolveMapArea(areaId);
+  const resolvedId = resolvedArea?.id ?? DEFAULT_MAP_AREA_ID;
+  return resolvedId === DEFAULT_MAP_AREA_ID
+    ? LOCAL_STORAGE_KEY
+    : `${LOCAL_STORAGE_KEY}.${resolvedId}`;
+}
+
+function resetHistoryState() {
+  historyState.undoStack.length = 0;
+  historyState.redoStack.length = 0;
+  historyState.pendingSnapshot = null;
+  historyState.isDirty = false;
+  updateUndoRedoButtons();
+}
+
+function cacheCurrentAreaMap() {
+  const resolvedArea = resolveMapArea(state.selectedAreaId);
+  const areaId = resolvedArea?.id;
+  if (!areaId) {
+    return;
+  }
+  state.areaMapCache.set(areaId, cloneMapDefinition(state.map));
+}
+
+function applyAreaSummary(area = resolveMapArea(state.selectedAreaId)) {
+  if (elements.selectedAreaName) {
+    elements.selectedAreaName.value = area?.label ?? "";
+  }
+  if (elements.selectedAreaId) {
+    elements.selectedAreaId.value = area?.id ?? "";
+  }
+  if (elements.selectedAreaDescription) {
+    elements.selectedAreaDescription.value = area?.description ?? "";
+  }
+}
+
+function renderAreaList() {
+  if (!elements.areaList) {
+    applyAreaSummary();
+    return;
+  }
+
+  elements.areaList.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+  MAP_AREAS.forEach((area) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "object-card";
+    button.dataset.active = String(area.id === state.selectedAreaId);
+    button.dataset.areaId = area.id;
+    button.setAttribute(
+      "aria-label",
+      `${area.label}. ${area.description ?? "Select area."}`
+    );
+
+    const label = document.createElement("span");
+    label.className = "object-card-label";
+    label.textContent = area.label;
+
+    const description = document.createElement("span");
+    description.className = "object-card-path";
+    description.textContent = area.id;
+
+    button.append(label, description);
+    button.addEventListener("click", () => {
+      selectArea(area.id);
+    });
+    fragment.appendChild(button);
+  });
+
+  elements.areaList.appendChild(fragment);
+  applyAreaSummary();
+}
+
+function selectArea(areaId) {
+  const area = resolveMapArea(areaId);
+  if (!area) {
+    return;
+  }
+
+  if (area.id === state.selectedAreaId) {
+    renderAreaList();
+    updateLocalSaveButtonsState();
+    return;
+  }
+
+  cacheCurrentAreaMap();
+  state.selectedAreaId = area.id;
+  const cachedMap = state.areaMapCache.get(area.id);
+  const storedMap = cachedMap ? null : loadMapFromStorageForArea(area.id);
+  state.map = cachedMap
+    ? cloneMapDefinition(cachedMap)
+    : storedMap ?? createDefaultMapForArea(area.id);
+  clearSelection();
+  resetHistoryState();
+  updateMetadataDisplays();
+  renderGrid();
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  renderAreaList();
+  updateLocalSaveButtonsState();
+}
+
 function getLocalStorage() {
   if (cachedLocalStorage !== undefined) {
     return cachedLocalStorage;
   }
   cachedLocalStorage = tryGetOutsideMapStorage();
   return cachedLocalStorage;
+}
+
+function loadMapFromStorageForArea(areaId, { removeInvalid = true } = {}) {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return null;
+  }
+
+  const storageKey = getAreaStorageKey(areaId);
+  let serialized = null;
+  try {
+    serialized = storage.getItem(storageKey);
+  } catch (error) {
+    console.warn("Unable to read area map from local storage", error);
+    return null;
+  }
+
+  if (!serialized) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(serialized);
+    return normalizeMapDefinition(parsed);
+  } catch (error) {
+    console.warn("Stored area map is invalid", error);
+    if (removeInvalid) {
+      try {
+        storage.removeItem(storageKey);
+      } catch (removeError) {
+        console.warn("Unable to remove invalid saved area map", removeError);
+      }
+    }
+  }
+
+  return null;
 }
 
 function resetButtonLabel(button, timerKey) {
@@ -1279,10 +1480,11 @@ function updateLocalSaveButtonsState() {
   const storage = getLocalStorage();
   let hasStorage = Boolean(storage);
   let hasSavedMap = false;
+  const storageKey = getAreaStorageKey();
 
   if (hasStorage) {
     try {
-      hasSavedMap = Boolean(storage.getItem(LOCAL_STORAGE_KEY));
+      hasSavedMap = Boolean(storage.getItem(storageKey));
     } catch (error) {
       console.warn("Unable to read saved map from local storage", error);
       hasStorage = false;
@@ -1314,7 +1516,10 @@ function saveMapToLocalStorage() {
     return false;
   }
   try {
-    saveOutsideMapToStorage(state.map, storage);
+    const normalized = normalizeMapDefinition(state.map);
+    storage.setItem(getAreaStorageKey(), JSON.stringify(normalized));
+    state.map = normalized;
+    state.areaMapCache.set(state.selectedAreaId, cloneMapDefinition(state.map));
   } catch (error) {
     console.error("Failed to save map locally", error);
     alert("Unable to save the map locally. Check storage permissions or space.");
@@ -1343,19 +1548,10 @@ function restoreMapFromLocalStorage({
     return false;
   }
 
-  let serialized = null;
-  try {
-    serialized = storage.getItem(LOCAL_STORAGE_KEY);
-  } catch (error) {
-    console.error("Unable to read saved map", error);
-    if (showAlertOnMissing) {
-      alert("Unable to access the saved map. Storage may be restricted.");
-    }
-    updateLocalSaveButtonsState();
-    return false;
-  }
-
-  if (!serialized) {
+  const parsedMap = loadMapFromStorageForArea(state.selectedAreaId, {
+    removeInvalid: false,
+  });
+  if (!parsedMap) {
     if (showAlertOnMissing) {
       alert("No saved map found. Save a map locally first.");
     }
@@ -1363,17 +1559,16 @@ function restoreMapFromLocalStorage({
     return false;
   }
 
-  try {
-    const parsed = JSON.parse(serialized);
-    void applyImportedMap(parsed, { pushHistory });
-  } catch (error) {
-    console.error("Saved map is invalid", error);
-    storage.removeItem(LOCAL_STORAGE_KEY);
-    if (showAlertOnMissing) {
-      alert("Unable to load the saved map. The data may be corrupted.");
-    }
-    updateLocalSaveButtonsState();
-    return false;
+  const snapshot = cloneMapDefinition(state.map);
+  state.map = parsedMap;
+  clearSelection();
+  updateMetadataDisplays();
+  renderGrid();
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  state.areaMapCache.set(state.selectedAreaId, cloneMapDefinition(state.map));
+  if (pushHistory) {
+    pushUndoSnapshot(snapshot);
   }
 
   if (showFeedback) {
@@ -1434,6 +1629,7 @@ function updateMetadataDisplays() {
   if (elements.heightInput) {
     elements.heightInput.value = state.map.height;
   }
+  applyAreaSummary();
 }
 
 function updateSelectionPreview() {
@@ -1944,6 +2140,11 @@ function handleCellPointerDown(event) {
   if (event.button !== 0) {
     return;
   }
+  const isTerrainEditingTab =
+    state.activeTab === "terrain" || state.activeTab === "height";
+  if (!isTerrainEditingTab) {
+    return;
+  }
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
   const isHeightTab = state.activeTab === "height";
@@ -1986,6 +2187,11 @@ function handleCellPointerDown(event) {
 }
 
 function handleCellPointerEnter(event) {
+  const isTerrainEditingTab =
+    state.activeTab === "terrain" || state.activeTab === "height";
+  if (!isTerrainEditingTab) {
+    return;
+  }
   const cell = event.currentTarget;
   const index = Number.parseInt(cell.dataset.index, 10);
   const isHeightTab = state.activeTab === "height";
@@ -2044,7 +2250,14 @@ function setActivePaletteTab(tabId) {
     panel.classList.toggle("is-active", isActive);
   });
 
-  if (tabId === "landshaft" || tabId === "terrain" || tabId === "doors" || tabId === "objects" || tabId === "height") {
+  if (
+    tabId === "areas" ||
+    tabId === "landshaft" ||
+    tabId === "terrain" ||
+    tabId === "doors" ||
+    tabId === "objects" ||
+    tabId === "height"
+  ) {
     const needsInit = !landscapeViewer;
     if (!landscapeViewer) {
       landscapeViewer = initMapMaker3d({
@@ -2092,6 +2305,11 @@ function setActivePaletteTab(tabId) {
           if (!Number.isFinite(index)) {
             return;
           }
+          const isTerrainEditingTab =
+            state.activeTab === "terrain" || state.activeTab === "height";
+          if (!isTerrainEditingTab) {
+            return;
+          }
           const isHeightTab = state.activeTab === "height";
           if (isStart) {
             if (isHeightTab && state.heightMode === "draw") {
@@ -2115,6 +2333,11 @@ function setActivePaletteTab(tabId) {
           }
         },
         onPaintEnd: () => {
+          const isTerrainEditingTab =
+            state.activeTab === "terrain" || state.activeTab === "height";
+          if (!isTerrainEditingTab) {
+            return;
+          }
           if (state.activeTab === "height" && state.heightMode === "draw") {
             if (Number.isFinite(state.selectionStart)) {
               updateSelection(state.selectionEnd ?? state.selectionStart, {
@@ -2219,7 +2442,7 @@ async function applyImportedMap(mapDefinition, { pushHistory = true } = {}) {
 
 function resetMap() {
   const snapshot = cloneMapDefinition(state.map);
-  state.map = { ...createDefaultOutsideMap(), objects: [] };
+  state.map = createDefaultMapForArea(state.selectedAreaId);
   setTerrain(TERRAIN_TYPES[1]);
   clearSelection();
   updateMetadataDisplays();
@@ -2396,7 +2619,8 @@ function downloadJson() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  const fileName = `${state.map.name || "outside-map"}.json`;
+  const area = resolveMapArea(state.selectedAreaId);
+  const fileName = `${state.map.name || area?.label || "outside-map"}.json`;
   anchor.download = fileName.replace(/[^a-z0-9-_]+/gi, "-");
   document.body.appendChild(anchor);
   anchor.click();
@@ -2445,6 +2669,8 @@ function initControls() {
   renderGrid();
   updateMetadataDisplays();
   updateJsonPreview();
+  state.areaMapCache.set(state.selectedAreaId, cloneMapDefinition(state.map));
+  renderAreaList();
   populateTerrainTypeSelect();
   populateTerrainTileSelect();
   updateTerrainMenu();
@@ -2757,11 +2983,13 @@ function initControls() {
         endHeightPaint();
         return;
       }
-      if (state.terrainMode === "draw") {
+      if (state.activeTab === "terrain" && state.terrainMode === "draw") {
         clearSelection();
         return;
       }
-      endPointerPaint();
+      if (state.activeTab === "terrain") {
+        endPointerPaint();
+      }
     }
     if (event.code === "Space") {
       if (state.activeTab === "height" && state.heightMode === "draw") {
@@ -2769,7 +2997,7 @@ function initControls() {
         applyHeightSelection();
         return;
       }
-      if (state.terrainMode === "draw") {
+      if (state.activeTab === "terrain" && state.terrainMode === "draw") {
         event.preventDefault();
         applyTerrainSelection({ erase: event.shiftKey });
       }

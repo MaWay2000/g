@@ -1142,6 +1142,18 @@
           class="map-maker-tab"
           type="button"
           role="tab"
+          id="tab-areas"
+          aria-selected="false"
+          aria-controls="areasPanel"
+          tabindex="-1"
+          data-map-maker-tab="areas"
+        >
+          Select area
+        </button>
+        <button
+          class="map-maker-tab"
+          type="button"
+          role="tab"
           id="tab-landshaft"
           aria-selected="false"
           aria-controls="landshaftPanel"
@@ -1244,6 +1256,40 @@
     </header>
 
     <aside class="sidebar">
+      <div
+        class="tab-panel palette-panel"
+        id="areasPanel"
+        role="tabpanel"
+        aria-labelledby="tab-areas"
+        data-map-maker-panel="areas"
+        hidden
+      >
+        <section class="sidebar-section">
+          <h2>Select Area</h2>
+          <p class="hint">
+            Pick which game area map to edit. Save/load, import, and download actions apply
+            to the selected area.
+          </p>
+          <div class="objects-palette" id="areaList" role="list"></div>
+        </section>
+        <section class="sidebar-section">
+          <h2>Current Area</h2>
+          <div class="control-group">
+            <div class="control">
+              <label for="selectedAreaName">Area name</label>
+              <input id="selectedAreaName" type="text" readonly />
+            </div>
+            <div class="control">
+              <label for="selectedAreaId">Area id</label>
+              <input id="selectedAreaId" type="text" readonly />
+            </div>
+            <div class="control">
+              <label for="selectedAreaDescription">Description</label>
+              <textarea id="selectedAreaDescription" readonly></textarea>
+            </div>
+          </div>
+        </section>
+      </div>
       <div
         class="tab-panel palette-panel is-active"
         id="terrainPanel"
