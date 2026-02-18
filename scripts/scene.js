@@ -4669,16 +4669,22 @@ export const initScene = (
       const worldZ = Number.isFinite(container.position?.z)
         ? container.position.z
         : 0;
+      container.updateMatrixWorld(true);
+      const containerBounds = new THREE.Box3().setFromObject(container);
+      const worldBottomY = Number.isFinite(containerBounds.min.y)
+        ? containerBounds.min.y
+        : Number.isFinite(container.position?.y)
+          ? container.position.y
+          : 0;
       const mapX = worldX / cellSizeX;
       const mapZ = worldZ / cellSizeZ;
 
       updateStoredAreaObjectPlacementById(placementId, (currentPlacement) => {
-        const currentPosition = currentPlacement?.position ?? {};
         return {
           ...currentPlacement,
           position: {
             x: mapX,
-            y: Number.isFinite(currentPosition.y) ? currentPosition.y : 0,
+            y: worldBottomY,
             z: mapZ,
           },
           rotation: {
@@ -4755,10 +4761,13 @@ export const initScene = (
       const placementX = Number.isFinite(position.x) ? position.x : 0;
       const placementZ = Number.isFinite(position.z) ? position.z : 0;
       const index = getCellIndexFromPlacement(position);
+      const surfaceY = getCellSurfaceY(index);
+      const baseY = Number.isFinite(position.y) ? position.y : surfaceY;
       return {
         x: placementX * cellSizeX,
         z: placementZ * cellSizeZ,
-        surfaceY: getCellSurfaceY(index),
+        surfaceY,
+        baseY,
       };
     };
 
@@ -5002,7 +5011,7 @@ export const initScene = (
 
         const placementPosition = getPlacementWorldPosition(placement);
         applyPlacementTransform(model, placement, {
-          surfaceY: placementPosition.surfaceY,
+          surfaceY: placementPosition.baseY,
           alignToSurface: true,
         });
 
