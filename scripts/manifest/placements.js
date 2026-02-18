@@ -2126,6 +2126,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     let restored = 0;
     let failed = 0;
     let shouldRebuildColliders = false;
+    const restoredContainers = [];
 
     for (const snapshot of snapshots) {
       const rawPath =
@@ -2167,8 +2168,12 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           { container, containerBounds },
           basePosition
         );
-
-        container.position.copy(computedPosition);
+        const hasStoredY = Number.isFinite(storedPosition?.y);
+        container.position.set(
+          computedPosition.x,
+          hasStoredY ? storedPosition.y : computedPosition.y,
+          computedPosition.z
+        );
         container.updateMatrixWorld(true);
         scene?.add(container);
 
@@ -2180,6 +2185,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         }
 
         registerManifestPlacement(container, colliderEntries);
+        restoredContainers.push(container);
 
         if (Array.isArray(colliderEntries) && colliderEntries.length > 0) {
           shouldRebuildColliders = true;
@@ -2193,6 +2199,17 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     if (shouldRebuildColliders && typeof rebuildStaticColliders === "function") {
+      rebuildStaticColliders();
+    }
+
+    const settledRestoredPlacements = settlePlacementsDownward(
+      restoredContainers,
+      { maxIterations: 12 }
+    );
+    if (
+      settledRestoredPlacements.length > 0 &&
+      typeof rebuildStaticColliders === "function"
+    ) {
       rebuildStaticColliders();
     }
 
