@@ -3052,7 +3052,14 @@ const geoVisorOutOfBatterySound = new Audio();
 geoVisorOutOfBatterySound.preload = "auto";
 geoVisorOutOfBatterySound.src = geoVisorOutOfBatterySoundSource;
 geoVisorOutOfBatterySound.load();
+const elevatorTravelSoundSource = "sounds/elevator.mp3";
+const elevatorTravelSound = new Audio();
+elevatorTravelSound.preload = "auto";
+elevatorTravelSound.loop = true;
+elevatorTravelSound.src = elevatorTravelSoundSource;
+elevatorTravelSound.load();
 let droneMiningSoundPlaying = false;
+let elevatorTravelSoundPlaying = false;
 
 const playTerminalInteractionSound = () => {
   try {
@@ -3107,6 +3114,36 @@ const stopDroneMiningSound = () => {
   droneMiningSound.pause();
   droneMiningSound.currentTime = 0;
   droneMiningSoundPlaying = false;
+};
+
+const startElevatorTravelSound = () => {
+  if (elevatorTravelSoundPlaying) {
+    return;
+  }
+
+  elevatorTravelSoundPlaying = true;
+  try {
+    elevatorTravelSound.currentTime = 0;
+    const playPromise = elevatorTravelSound.play();
+    if (playPromise instanceof Promise) {
+      playPromise.catch(() => {
+        elevatorTravelSoundPlaying = false;
+      });
+    }
+  } catch (error) {
+    elevatorTravelSoundPlaying = false;
+    console.error("Unable to play elevator travel sound", error);
+  }
+};
+
+const stopElevatorTravelSound = () => {
+  if (!elevatorTravelSoundPlaying && elevatorTravelSound.paused) {
+    return;
+  }
+
+  elevatorTravelSound.pause();
+  elevatorTravelSound.currentTime = 0;
+  elevatorTravelSoundPlaying = false;
 };
 
 const getDroneMiningSoundVolumeForDistance = () => {
@@ -9465,6 +9502,7 @@ const bootstrapScene = () => {
 
   hideRenderingErrorMessage();
   setAreaLoadingOverlayState({ active: false });
+  stopElevatorTravelSound();
   sceneController?.dispose?.();
 
   try {
@@ -9538,6 +9576,11 @@ const bootstrapScene = () => {
           title: `Loading ${floorTitle}`,
           description: floorDescription,
         });
+        if (event?.active) {
+          startElevatorTravelSound();
+        } else {
+          stopElevatorTravelSound();
+        }
       },
       onManifestPlacementHoverChange: handleManifestPlacementHoverChange,
       onManifestEditModeChange: handleManifestEditModeChange,
