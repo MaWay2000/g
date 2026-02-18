@@ -14,5 +14,9 @@
   {
     "path": "suit.glb",
     "label": "Suit (GLB)"
+  },
+  {
+    "path": "wall.glb",
+    "label": "Wall (GLB)"
   }
 ]
