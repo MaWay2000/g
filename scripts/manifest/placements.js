@@ -27,6 +27,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     getRoomDepth,
     getRoomFloorY,
     getPlacementBounds,
+    getPlacementGroundHeight,
   } = sceneDependencies;
 
   const getRoomDimensions = () => ({
@@ -34,6 +35,24 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     depth: typeof getRoomDepth === "function" ? getRoomDepth() : 0,
     floorY: typeof getRoomFloorY === "function" ? getRoomFloorY() : 0,
   });
+
+  const resolvePlacementGroundHeight = (position) => {
+    if (typeof getPlacementGroundHeight !== "function") {
+      return null;
+    }
+
+    if (!position) {
+      return null;
+    }
+
+    const samplePosition = {
+      x: Number.isFinite(position.x) ? position.x : 0,
+      y: Number.isFinite(position.y) ? position.y : 0,
+      z: Number.isFinite(position.z) ? position.z : 0,
+    };
+    const resolvedHeight = getPlacementGroundHeight(samplePosition);
+    return Number.isFinite(resolvedHeight) ? resolvedHeight : null;
+  };
 
   const normalizeHorizontalBounds = (rawBounds) => {
     const rawMinX = Number.isFinite(rawBounds?.minX) ? rawBounds.minX : null;
@@ -480,7 +499,12 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     const boundsHeight = bounds.max.y - bounds.min.y;
 
-    let supportHeight = roomFloorY;
+    const sampledGroundHeight = resolvePlacementGroundHeight(
+      placementComputedPosition
+    );
+    let supportHeight = Number.isFinite(sampledGroundHeight)
+      ? Math.max(roomFloorY, sampledGroundHeight)
+      : roomFloorY;
     let currentTop = supportHeight + boundsHeight;
 
     colliderDescriptors.forEach((descriptor) => {

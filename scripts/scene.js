@@ -11567,6 +11567,7 @@ export const initScene = (
         hangarDeckFloorBounds
       );
     },
+    getPlacementGroundHeight: (position) => getPlayerGroundHeight(position),
   });
 
   const {
