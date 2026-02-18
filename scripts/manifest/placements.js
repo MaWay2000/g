@@ -149,6 +149,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const placementDependentOffset = new THREE.Vector3();
   const placementDependentPreviousPosition = new THREE.Vector3();
   const placementPreviousPreviewPosition = new THREE.Vector3();
+  const realignWorldBasePosition = new THREE.Vector3();
+  const realignWorldTargetPosition = new THREE.Vector3();
+  const realignLocalTargetPosition = new THREE.Vector3();
   const placementCollisionBox = new THREE.Box3();
   const placementPreviousCollisionBox = new THREE.Box3();
   const stackingBoundsBase = new THREE.Box3();
@@ -950,14 +953,32 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           return;
         }
 
-        const computedPosition = computePlacementPosition(
+        container.getWorldPosition(realignWorldBasePosition);
+
+        const computedWorldPosition = computePlacementPosition(
           { container, containerBounds: bounds },
-          container.position,
+          realignWorldBasePosition,
           { allowRaise: false }
         );
+        realignWorldTargetPosition.copy(computedWorldPosition);
 
-        if (!container.position.equals(computedPosition)) {
-          container.position.copy(computedPosition);
+        const parent = container.parent;
+        const hasTransformedParent =
+          parent?.isObject3D && parent !== scene;
+        const targetLocalPosition = hasTransformedParent
+          ? realignLocalTargetPosition.copy(realignWorldTargetPosition)
+          : realignWorldTargetPosition;
+
+        if (hasTransformedParent) {
+          parent.updateWorldMatrix(true, false);
+          parent.worldToLocal(targetLocalPosition);
+        }
+
+        if (
+          container.position.distanceToSquared(targetLocalPosition) >
+          1e-10
+        ) {
+          container.position.copy(targetLocalPosition);
           container.updateMatrixWorld(true);
           if (!changedSet.has(container)) {
             changedSet.add(container);
