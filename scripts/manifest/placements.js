@@ -1422,7 +1422,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       }
 
       const delta =
-        Math.sign(event.deltaY) * MANIFEST_PLACEMENT_DISTANCE_STEP;
+        -Math.sign(event.deltaY) * MANIFEST_PLACEMENT_DISTANCE_STEP;
       const nextDistance = THREE.MathUtils.clamp(
         placement.distance + delta,
         MIN_MANIFEST_PLACEMENT_DISTANCE,
@@ -2264,7 +2264,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           }
 
           const delta =
-            Math.sign(event.deltaY) * MANIFEST_PLACEMENT_DISTANCE_STEP;
+            -Math.sign(event.deltaY) * MANIFEST_PLACEMENT_DISTANCE_STEP;
           const nextDistance = THREE.MathUtils.clamp(
             placement.distance + delta,
             MIN_MANIFEST_PLACEMENT_DISTANCE,
