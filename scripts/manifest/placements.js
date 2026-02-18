@@ -164,7 +164,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const ROOM_BOUNDARY_PADDING = 1e-3;
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
-  const MANIFEST_PLACEMENT_ROTATION_STEP = Math.PI / 12;
+  const MANIFEST_PLACEMENT_ROTATION_STEP = Math.PI / 2;
   const STACKING_VERTICAL_TOLERANCE = 0.02;
   const getMaxManifestPlacementDistance = () => {
     const horizontalBounds = getHorizontalPlacementBounds();
@@ -188,6 +188,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
   };
+
+  const snapManifestPlacementRotation = (value) =>
+    Math.round((Number.isFinite(value) ? value : 0) / (Math.PI / 2)) *
+    (Math.PI / 2);
 
   const normalizeManifestPlacementFloorId = (value) => {
     if (typeof value !== "string") {
@@ -1556,10 +1560,13 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       if (event.code === "KeyQ" || event.code === "KeyE") {
         event.preventDefault();
         event.stopPropagation();
-        placement.container.rotation.y +=
+        const rotationDelta =
           event.code === "KeyQ"
             ? MANIFEST_PLACEMENT_ROTATION_STEP
             : -MANIFEST_PLACEMENT_ROTATION_STEP;
+        placement.container.rotation.y = snapManifestPlacementRotation(
+          placement.container.rotation.y + rotationDelta
+        );
         placement.container.updateMatrixWorld(true);
         placement.containerBounds = computeManifestPlacementBounds(
           placement.container
@@ -2453,10 +2460,13 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           if (event.code === "KeyQ" || event.code === "KeyE") {
             event.preventDefault();
             event.stopPropagation();
-            placement.container.rotation.y +=
+            const rotationDelta =
               event.code === "KeyQ"
                 ? MANIFEST_PLACEMENT_ROTATION_STEP
                 : -MANIFEST_PLACEMENT_ROTATION_STEP;
+            placement.container.rotation.y = snapManifestPlacementRotation(
+              placement.container.rotation.y + rotationDelta
+            );
             placement.container.updateMatrixWorld(true);
             placement.containerBounds = computeManifestPlacementBounds(
               placement.container
