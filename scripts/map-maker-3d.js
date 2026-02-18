@@ -668,7 +668,12 @@ export const initMapMaker3d = ({
       metalness: 0.35,
     });
 
-    if (areaId !== "operations-exterior") {
+    const AREA_IDS_WITH_PERIMETER_WALLS = new Set([
+      "hangar-deck",
+      "operations-concourse",
+    ]);
+
+    if (AREA_IDS_WITH_PERIMETER_WALLS.has(areaId)) {
       addPerimeterWalls(
         {
           halfWidth,
