@@ -26,6 +26,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     getRoomWidth,
     getRoomDepth,
     getRoomFloorY,
+    getPlacementBounds,
   } = sceneDependencies;
 
   const getRoomDimensions = () => ({
@@ -33,6 +34,78 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     depth: typeof getRoomDepth === "function" ? getRoomDepth() : 0,
     floorY: typeof getRoomFloorY === "function" ? getRoomFloorY() : 0,
   });
+
+  const normalizeHorizontalBounds = (rawBounds) => {
+    const rawMinX = Number.isFinite(rawBounds?.minX) ? rawBounds.minX : null;
+    const rawMaxX = Number.isFinite(rawBounds?.maxX) ? rawBounds.maxX : null;
+    const rawMinZ = Number.isFinite(rawBounds?.minZ) ? rawBounds.minZ : null;
+    const rawMaxZ = Number.isFinite(rawBounds?.maxZ) ? rawBounds.maxZ : null;
+
+    if (
+      !Number.isFinite(rawMinX) ||
+      !Number.isFinite(rawMaxX) ||
+      !Number.isFinite(rawMinZ) ||
+      !Number.isFinite(rawMaxZ)
+    ) {
+      return null;
+    }
+
+    let minX = Math.min(rawMinX, rawMaxX);
+    let maxX = Math.max(rawMinX, rawMaxX);
+    let minZ = Math.min(rawMinZ, rawMaxZ);
+    let maxZ = Math.max(rawMinZ, rawMaxZ);
+
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX)) {
+      return null;
+    }
+
+    if (!Number.isFinite(minZ) || !Number.isFinite(maxZ)) {
+      return null;
+    }
+
+    const paddedMinX = minX + ROOM_BOUNDARY_PADDING;
+    const paddedMaxX = maxX - ROOM_BOUNDARY_PADDING;
+    if (paddedMaxX > paddedMinX) {
+      minX = paddedMinX;
+      maxX = paddedMaxX;
+    }
+
+    const paddedMinZ = minZ + ROOM_BOUNDARY_PADDING;
+    const paddedMaxZ = maxZ - ROOM_BOUNDARY_PADDING;
+    if (paddedMaxZ > paddedMinZ) {
+      minZ = paddedMinZ;
+      maxZ = paddedMaxZ;
+    }
+
+    return { minX, maxX, minZ, maxZ };
+  };
+
+  const getHorizontalPlacementBounds = () => {
+    if (typeof getPlacementBounds === "function") {
+      const customBounds = normalizeHorizontalBounds(getPlacementBounds());
+      if (customBounds) {
+        return customBounds;
+      }
+    }
+
+    const { width, depth } = getRoomDimensions();
+    const hasRoomSize =
+      Number.isFinite(width) &&
+      width > 0 &&
+      Number.isFinite(depth) &&
+      depth > 0;
+
+    if (!hasRoomSize) {
+      return null;
+    }
+
+    return normalizeHorizontalBounds({
+      minX: -width / 2,
+      maxX: width / 2,
+      minZ: -depth / 2,
+      maxZ: depth / 2,
+    });
+  };
 
   let activePlacement = null;
   const manifestPlacements = new Set();
@@ -68,8 +141,18 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const STACKING_HORIZONTAL_TOLERANCE = 1e-3;
 
   const getMaxManifestPlacementDistance = () => {
+    const horizontalBounds = getHorizontalPlacementBounds();
+    const boundsDepth = horizontalBounds
+      ? horizontalBounds.maxZ - horizontalBounds.minZ
+      : NaN;
     const { depth } = getRoomDimensions();
-    return Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, depth / 2 - 0.5);
+    const referenceDepth = Number.isFinite(boundsDepth) && boundsDepth > 0
+      ? boundsDepth
+      : depth;
+    return Math.max(
+      MIN_MANIFEST_PLACEMENT_DISTANCE,
+      referenceDepth / 2 - 0.5
+    );
   };
 
   const getManifestPlacementRoot = (object) => {
@@ -337,8 +420,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return placementComputedPosition;
     }
 
-    const { width: roomWidth, depth: roomDepth, floorY: roomFloorY } =
-      getRoomDimensions();
+    const { floorY: roomFloorY } = getRoomDimensions();
     const container = placement.container ?? null;
     const bounds = placement.containerBounds;
 
@@ -359,34 +441,33 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         : 0;
     }
 
-    const roomMinX = -roomWidth / 2 + ROOM_BOUNDARY_PADDING;
-    const roomMaxX = roomWidth / 2 - ROOM_BOUNDARY_PADDING;
-    const roomMinZ = -roomDepth / 2 + ROOM_BOUNDARY_PADDING;
-    const roomMaxZ = roomDepth / 2 - ROOM_BOUNDARY_PADDING;
+    const horizontalBounds = getHorizontalPlacementBounds();
 
     let footprintMinX = placementComputedPosition.x + bounds.min.x;
     let footprintMaxX = placementComputedPosition.x + bounds.max.x;
     let footprintMinZ = placementComputedPosition.z + bounds.min.z;
     let footprintMaxZ = placementComputedPosition.z + bounds.max.z;
 
-    if (footprintMinX < roomMinX) {
-      placementComputedPosition.x += roomMinX - footprintMinX;
-      footprintMinX = roomMinX;
-      footprintMaxX = placementComputedPosition.x + bounds.max.x;
-    } else if (footprintMaxX > roomMaxX) {
-      placementComputedPosition.x += roomMaxX - footprintMaxX;
-      footprintMaxX = roomMaxX;
-      footprintMinX = placementComputedPosition.x + bounds.min.x;
-    }
+    if (horizontalBounds) {
+      if (footprintMinX < horizontalBounds.minX) {
+        placementComputedPosition.x += horizontalBounds.minX - footprintMinX;
+        footprintMinX = horizontalBounds.minX;
+        footprintMaxX = placementComputedPosition.x + bounds.max.x;
+      } else if (footprintMaxX > horizontalBounds.maxX) {
+        placementComputedPosition.x += horizontalBounds.maxX - footprintMaxX;
+        footprintMaxX = horizontalBounds.maxX;
+        footprintMinX = placementComputedPosition.x + bounds.min.x;
+      }
 
-    if (footprintMinZ < roomMinZ) {
-      placementComputedPosition.z += roomMinZ - footprintMinZ;
-      footprintMinZ = roomMinZ;
-      footprintMaxZ = placementComputedPosition.z + bounds.max.z;
-    } else if (footprintMaxZ > roomMaxZ) {
-      placementComputedPosition.z += roomMaxZ - footprintMaxZ;
-      footprintMaxZ = roomMaxZ;
-      footprintMinZ = placementComputedPosition.z + bounds.min.z;
+      if (footprintMinZ < horizontalBounds.minZ) {
+        placementComputedPosition.z += horizontalBounds.minZ - footprintMinZ;
+        footprintMinZ = horizontalBounds.minZ;
+        footprintMaxZ = placementComputedPosition.z + bounds.max.z;
+      } else if (footprintMaxZ > horizontalBounds.maxZ) {
+        placementComputedPosition.z += horizontalBounds.maxZ - footprintMaxZ;
+        footprintMaxZ = horizontalBounds.maxZ;
+        footprintMinZ = placementComputedPosition.z + bounds.min.z;
+      }
     }
 
     const baseY = Number.isFinite(basePosition.y)
@@ -476,7 +557,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return false;
     }
 
-    const { width: roomWidth, depth: roomDepth } = getRoomDimensions();
+    const horizontalBounds = getHorizontalPlacementBounds();
     const container = placement.container;
     const position = container.position;
     const dependents = Array.isArray(placement.dependents)
@@ -497,11 +578,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       previousBox = placementPreviousCollisionBox;
     }
 
-    const roomMinX = -roomWidth / 2 + ROOM_BOUNDARY_PADDING;
-    const roomMaxX = roomWidth / 2 - ROOM_BOUNDARY_PADDING;
-    const roomMinZ = -roomDepth / 2 + ROOM_BOUNDARY_PADDING;
-    const roomMaxZ = roomDepth / 2 - ROOM_BOUNDARY_PADDING;
-
     const applyOffset = (offsetX, offsetZ) => {
       if (offsetX) {
         position.x += offsetX;
@@ -517,21 +593,25 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     };
 
     const clampToRoomBounds = () => {
+      if (!horizontalBounds) {
+        return false;
+      }
+
       let adjusted = false;
 
-      if (placementCollisionBox.min.x < roomMinX) {
-        applyOffset(roomMinX - placementCollisionBox.min.x, 0);
+      if (placementCollisionBox.min.x < horizontalBounds.minX) {
+        applyOffset(horizontalBounds.minX - placementCollisionBox.min.x, 0);
         adjusted = true;
-      } else if (placementCollisionBox.max.x > roomMaxX) {
-        applyOffset(roomMaxX - placementCollisionBox.max.x, 0);
+      } else if (placementCollisionBox.max.x > horizontalBounds.maxX) {
+        applyOffset(horizontalBounds.maxX - placementCollisionBox.max.x, 0);
         adjusted = true;
       }
 
-      if (placementCollisionBox.min.z < roomMinZ) {
-        applyOffset(0, roomMinZ - placementCollisionBox.min.z);
+      if (placementCollisionBox.min.z < horizontalBounds.minZ) {
+        applyOffset(0, horizontalBounds.minZ - placementCollisionBox.min.z);
         adjusted = true;
-      } else if (placementCollisionBox.max.z > roomMaxZ) {
-        applyOffset(0, roomMaxZ - placementCollisionBox.max.z);
+      } else if (placementCollisionBox.max.z > horizontalBounds.maxZ) {
+        applyOffset(0, horizontalBounds.maxZ - placementCollisionBox.max.z);
         adjusted = true;
       }
 
@@ -1285,20 +1365,19 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       .copy(playerPosition)
       .addScaledVector(directionVector, placement.distance);
 
-    const { width: roomWidth, depth: roomDepth } = getRoomDimensions();
-    const halfWidth = roomWidth / 2 - 1;
-    const halfDepth = roomDepth / 2 - 1;
-
-    placementPreviewBasePosition.x = THREE.MathUtils.clamp(
-      placementPreviewBasePosition.x,
-      -halfWidth,
-      halfWidth
-    );
-    placementPreviewBasePosition.z = THREE.MathUtils.clamp(
-      placementPreviewBasePosition.z,
-      -halfDepth,
-      halfDepth
-    );
+    const horizontalBounds = getHorizontalPlacementBounds();
+    if (horizontalBounds) {
+      placementPreviewBasePosition.x = THREE.MathUtils.clamp(
+        placementPreviewBasePosition.x,
+        horizontalBounds.minX,
+        horizontalBounds.maxX
+      );
+      placementPreviewBasePosition.z = THREE.MathUtils.clamp(
+        placementPreviewBasePosition.z,
+        horizontalBounds.minZ,
+        horizontalBounds.maxZ
+      );
+    }
 
     const computedPosition = computePlacementPosition(
       placement,

@@ -11554,6 +11554,19 @@ export const initScene = (
     getRoomWidth: () => roomWidth,
     getRoomDepth: () => roomDepth,
     getRoomFloorY: () => roomFloorY,
+    getPlacementBounds: () => {
+      const activeFloor = getActiveLiftFloor();
+      const activeFloorId =
+        typeof activeFloor?.id === "string" ? activeFloor.id : null;
+      const activeEnvironment = activeFloorId
+        ? deckEnvironmentMap.get(activeFloorId)
+        : null;
+      return (
+        activeEnvironment?.bounds ??
+        activeFloor?.bounds ??
+        hangarDeckFloorBounds
+      );
+    },
   });
 
   const {
