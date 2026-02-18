@@ -149,22 +149,19 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const placementDependentOffset = new THREE.Vector3();
   const placementDependentPreviousPosition = new THREE.Vector3();
   const placementPreviousPreviewPosition = new THREE.Vector3();
-  const realignWorldBasePosition = new THREE.Vector3();
-  const realignWorldTargetPosition = new THREE.Vector3();
-  const realignLocalTargetPosition = new THREE.Vector3();
+  const settleWorldPosition = new THREE.Vector3();
+  const settleWorldTargetPosition = new THREE.Vector3();
+  const settleLocalTargetPosition = new THREE.Vector3();
+  const settleSortPositionA = new THREE.Vector3();
+  const settleSortPositionB = new THREE.Vector3();
   const placementCollisionBox = new THREE.Box3();
   const placementPreviousCollisionBox = new THREE.Box3();
-  const stackingBoundsBase = new THREE.Box3();
-  const stackingBoundsCandidate = new THREE.Box3();
 
   const PLACEMENT_VERTICAL_TOLERANCE = 1e-3;
   const ROOM_BOUNDARY_PADDING = 1e-3;
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
   const STACKING_VERTICAL_TOLERANCE = 0.02;
-  const STACKING_HORIZONTAL_TOLERANCE = 1e-3;
-  const MOVE_STACKED_DEPENDENTS_WITH_BASE = false;
-
   const getMaxManifestPlacementDistance = () => {
     const horizontalBounds = getHorizontalPlacementBounds();
     const boundsDepth = horizontalBounds
@@ -458,70 +455,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return userData.manifestPlacementColliders;
   };
 
-  const collectStackedManifestPlacements = (rootContainer) => {
-    if (!rootContainer) {
-      return [];
-    }
-
-    const dependents = [];
-    const visited = new Set([rootContainer]);
-    const toProcess = [rootContainer];
-
-    while (toProcess.length > 0) {
-      const current = toProcess.pop();
-
-      if (!current) {
-        continue;
-      }
-
-      current.updateMatrixWorld(true);
-      stackingBoundsBase.setFromObject(current);
-
-      getEditablePlacements().forEach((candidate) => {
-        if (!candidate || visited.has(candidate) || candidate === current) {
-          return;
-        }
-
-        candidate.updateMatrixWorld(true);
-        stackingBoundsCandidate.setFromObject(candidate);
-
-        if (stackingBoundsCandidate.isEmpty()) {
-          return;
-        }
-
-        const verticalGap =
-          stackingBoundsCandidate.min.y - stackingBoundsBase.max.y;
-
-        if (Math.abs(verticalGap) > STACKING_VERTICAL_TOLERANCE) {
-          return;
-        }
-
-        const overlapsHorizontally =
-          stackingBoundsCandidate.max.x >
-            stackingBoundsBase.min.x - STACKING_HORIZONTAL_TOLERANCE &&
-          stackingBoundsCandidate.min.x <
-            stackingBoundsBase.max.x + STACKING_HORIZONTAL_TOLERANCE &&
-          stackingBoundsCandidate.max.z >
-            stackingBoundsBase.min.z - STACKING_HORIZONTAL_TOLERANCE &&
-          stackingBoundsCandidate.min.z <
-            stackingBoundsBase.max.z + STACKING_HORIZONTAL_TOLERANCE;
-
-        if (!overlapsHorizontally) {
-          return;
-        }
-
-        visited.add(candidate);
-        dependents.push({
-          container: candidate,
-          initialPosition: candidate.position.clone(),
-        });
-        toProcess.push(candidate);
-      });
-    }
-
-    return dependents;
-  };
-
   const computeManifestPlacementBounds = (container) => {
     const bounds = new THREE.Box3();
 
@@ -714,6 +647,227 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     placementComputedPosition.y = supportHeight - bounds.min.y;
     return placementComputedPosition;
+  };
+
+  const gatherPlacementContainers = (candidates = [], { exclude = null } = {}) => {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return [];
+    }
+
+    const unique = new Set();
+    const collected = [];
+
+    candidates.forEach((candidate) => {
+      const container = candidate?.container ?? candidate;
+      if (!container || container === exclude || unique.has(container)) {
+        return;
+      }
+      if (!isEditablePlacement(container)) {
+        return;
+      }
+      unique.add(container);
+      collected.push(container);
+    });
+
+    return collected;
+  };
+
+  const getContainerWorldPosition = (container, target) => {
+    if (!container?.isObject3D || !(target instanceof THREE.Vector3)) {
+      return null;
+    }
+
+    container.updateMatrixWorld(true);
+    container.getWorldPosition(target);
+    return target;
+  };
+
+  const setContainerWorldPosition = (container, worldPosition) => {
+    if (!container?.isObject3D || !(worldPosition instanceof THREE.Vector3)) {
+      return false;
+    }
+
+    const parent = container.parent;
+    if (parent?.isObject3D && parent !== scene) {
+      parent.updateWorldMatrix(true, false);
+      settleLocalTargetPosition.copy(worldPosition);
+      parent.worldToLocal(settleLocalTargetPosition);
+      container.position.copy(settleLocalTargetPosition);
+    } else {
+      container.position.copy(worldPosition);
+    }
+
+    container.updateMatrixWorld(true);
+    return true;
+  };
+
+  const isDescriptorOwnedByContainer = (descriptor, container) => {
+    if (!descriptor || !container) {
+      return false;
+    }
+
+    if (descriptor.root === container) {
+      return true;
+    }
+
+    const descriptorObject = descriptor.object;
+    if (!descriptorObject || typeof descriptorObject !== "object") {
+      return false;
+    }
+
+    return isObjectDescendantOf(descriptorObject, container);
+  };
+
+  const resolvePlacementSupportHeight = (
+    container,
+    bounds,
+    worldPosition
+  ) => {
+    const { floorY: roomFloorY } = getRoomDimensions();
+    const fallbackHeight = Number.isFinite(roomFloorY) ? roomFloorY : 0;
+
+    if (!container || !bounds || bounds.isEmpty() || !worldPosition) {
+      return fallbackHeight;
+    }
+
+    const currentBottom = worldPosition.y + bounds.min.y;
+    const currentTop = worldPosition.y + bounds.max.y;
+    let supportHeight = fallbackHeight;
+
+    const sampledGroundHeight = resolvePlacementGroundHeight(worldPosition);
+    if (
+      Number.isFinite(sampledGroundHeight) &&
+      sampledGroundHeight <= currentBottom + STACKING_VERTICAL_TOLERANCE
+    ) {
+      supportHeight = Math.max(supportHeight, sampledGroundHeight);
+    }
+
+    const footprintMinX = worldPosition.x + bounds.min.x;
+    const footprintMaxX = worldPosition.x + bounds.max.x;
+    const footprintMinZ = worldPosition.z + bounds.min.z;
+    const footprintMaxZ = worldPosition.z + bounds.max.z;
+
+    colliderDescriptors.forEach((descriptor) => {
+      const box = descriptor?.box;
+      if (!box || box.isEmpty()) {
+        return;
+      }
+
+      if (isDescriptorOwnedByContainer(descriptor, container)) {
+        return;
+      }
+
+      if (
+        footprintMaxX <= box.min.x ||
+        footprintMinX >= box.max.x ||
+        footprintMaxZ <= box.min.z ||
+        footprintMinZ >= box.max.z
+      ) {
+        return;
+      }
+
+      const paddingY =
+        descriptor.padding instanceof THREE.Vector3
+          ? descriptor.padding.y
+          : 0;
+      const colliderBottom = box.min.y + paddingY;
+      const colliderTop = box.max.y - paddingY;
+
+      if (!Number.isFinite(colliderTop)) {
+        return;
+      }
+
+      if (
+        !Number.isFinite(colliderBottom) ||
+        colliderBottom >= currentTop - PLACEMENT_VERTICAL_TOLERANCE
+      ) {
+        return;
+      }
+
+      if (colliderTop > currentBottom + STACKING_VERTICAL_TOLERANCE) {
+        return;
+      }
+
+      if (colliderTop > supportHeight) {
+        supportHeight = colliderTop;
+      }
+    });
+
+    return supportHeight;
+  };
+
+  const settlePlacementsDownward = (
+    candidates = [],
+    { exclude = null, maxIterations = 10 } = {}
+  ) => {
+    const placements = gatherPlacementContainers(candidates, { exclude });
+    if (placements.length === 0) {
+      return [];
+    }
+
+    const changedContainers = [];
+    const changedSet = new Set();
+    const epsilon = 1e-4;
+    const iterationLimit = Math.max(1, Math.floor(maxIterations));
+
+    for (let iteration = 0; iteration < iterationLimit; iteration += 1) {
+      let iterationChanged = false;
+
+      placements.sort((first, second) => {
+        const firstPosition =
+          getContainerWorldPosition(first, settleSortPositionA) ?? settleSortPositionA.set(0, 0, 0);
+        const secondPosition =
+          getContainerWorldPosition(second, settleSortPositionB) ?? settleSortPositionB.set(0, 0, 0);
+        return firstPosition.y - secondPosition.y;
+      });
+
+      if (typeof rebuildStaticColliders === "function") {
+        rebuildStaticColliders();
+      }
+
+      placements.forEach((container) => {
+        const bounds = computeManifestPlacementBounds(container);
+        if (bounds.isEmpty()) {
+          return;
+        }
+
+        const worldPosition = getContainerWorldPosition(container, settleWorldPosition);
+        if (!worldPosition) {
+          return;
+        }
+
+        const supportHeight = resolvePlacementSupportHeight(
+          container,
+          bounds,
+          worldPosition
+        );
+        const targetWorldY = supportHeight - bounds.min.y;
+
+        if (targetWorldY >= worldPosition.y - epsilon) {
+          return;
+        }
+
+        settleWorldTargetPosition.copy(worldPosition);
+        settleWorldTargetPosition.y = targetWorldY;
+        setContainerWorldPosition(container, settleWorldTargetPosition);
+
+        if (!changedSet.has(container)) {
+          changedSet.add(container);
+          changedContainers.push(container);
+        }
+        iterationChanged = true;
+
+        if (typeof rebuildStaticColliders === "function") {
+          rebuildStaticColliders();
+        }
+      });
+
+      if (!iterationChanged) {
+        break;
+      }
+    }
+
+    return changedContainers;
   };
 
   const resolvePlacementPreviewCollisions = (placement, previousPosition) => {
@@ -929,73 +1083,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return collisionResolved;
   };
 
-  const realignManifestPlacements = ({ exclude } = {}) => {
-    const changedContainers = [];
-    const changedSet = new Set();
-    const placements = getEditablePlacements().filter(
-      (container) => container && container !== exclude
-    );
-
-    placements.sort((first, second) => {
-      const firstY = Number.isFinite(first?.position?.y) ? first.position.y : 0;
-      const secondY = Number.isFinite(second?.position?.y) ? second.position.y : 0;
-      return firstY - secondY;
-    });
-
-    const maxIterations = 4;
-    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
-      let iterationChanged = false;
-
-      placements.forEach((container) => {
-        const bounds = computeManifestPlacementBounds(container);
-
-        if (bounds.isEmpty()) {
-          return;
-        }
-
-        container.getWorldPosition(realignWorldBasePosition);
-
-        const computedWorldPosition = computePlacementPosition(
-          { container, containerBounds: bounds },
-          realignWorldBasePosition,
-          { allowRaise: false }
-        );
-        realignWorldTargetPosition.copy(computedWorldPosition);
-
-        const parent = container.parent;
-        const hasTransformedParent =
-          parent?.isObject3D && parent !== scene;
-        const targetLocalPosition = hasTransformedParent
-          ? realignLocalTargetPosition.copy(realignWorldTargetPosition)
-          : realignWorldTargetPosition;
-
-        if (hasTransformedParent) {
-          parent.updateWorldMatrix(true, false);
-          parent.worldToLocal(targetLocalPosition);
-        }
-
-        if (
-          container.position.distanceToSquared(targetLocalPosition) >
-          1e-10
-        ) {
-          container.position.copy(targetLocalPosition);
-          container.updateMatrixWorld(true);
-          if (!changedSet.has(container)) {
-            changedSet.add(container);
-            changedContainers.push(container);
-          }
-          iterationChanged = true;
-        }
-      });
-
-      if (!iterationChanged) {
-        break;
-      }
-    }
-
-    return changedContainers;
-  };
-
   const applyPlacementColliderEntries = (container, colliderEntries = []) => {
     if (!container) {
       return;
@@ -1118,13 +1205,15 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       rebuildStaticColliders();
     }
 
-    const realignedPlacements = realignManifestPlacements();
+    const settledPlacements = settlePlacementsDownward(getEditablePlacements(), {
+      exclude: container,
+    });
 
-    if (realignedPlacements.length > 0 && typeof rebuildStaticColliders === "function") {
+    if (settledPlacements.length > 0 && typeof rebuildStaticColliders === "function") {
       rebuildStaticColliders();
     }
     const { manifestChanged: realignedManifestChanged } =
-      persistRealignedPlacementChanges(realignedPlacements);
+      persistRealignedPlacementChanges(settledPlacements);
 
     const manifestEntry = container.userData?.manifestEntry ?? null;
     const externalHandlers =
@@ -1232,8 +1321,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     setHoveredManifestPlacement(null);
 
-    let collidersWereRemoved = clearManifestPlacementColliders(container);
-    const stackedDependentsRaw = collectStackedManifestPlacements(container);
+    const collidersWereRemoved = clearManifestPlacementColliders(container);
 
     const containerBounds = computeManifestPlacementBounds(container);
 
@@ -1256,55 +1344,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, distanceToPlayer)
       : MIN_MANIFEST_PLACEMENT_DISTANCE;
 
-    const stackedDependents = stackedDependentsRaw.map((dependent) => {
-      const dependentContainer = dependent?.container ?? null;
-      const collidersCleared = false;
-
-      if (!dependentContainer) {
-        return {
-          ...dependent,
-          collidersCleared,
-          containerBounds: null,
-          previewPlacement: null,
-          previewBasePosition: null,
-          previewPosition: null,
-          lastResolvedPosition: null,
-        };
-      }
-
-      if (reparentedContainer) {
-        const reparentedDependent = reparentPlacementContainerForEditing(
-          dependentContainer
-        );
-        if (reparentedDependent) {
-          reparentedContainers.push(reparentedDependent);
-          dependentContainer.updateMatrixWorld(true);
-        }
-      }
-
-      const dependentBounds = computeManifestPlacementBounds(
-        dependentContainer
-      );
-      const previewPlacement = dependentBounds?.isEmpty()
-        ? null
-        : {
-            container: dependentContainer,
-            containerBounds: dependentBounds,
-            dependents: [],
-          };
-      const previewBasePosition = dependentContainer.position.clone();
-
-      return {
-        ...dependent,
-        collidersCleared,
-        containerBounds: dependentBounds,
-        previewPlacement,
-        previewBasePosition,
-        previewPosition: previewBasePosition.clone(),
-        lastResolvedPosition: previewBasePosition.clone(),
-      };
-    });
-
     const userData = container.userData || (container.userData = {});
 
     const placement = {
@@ -1322,10 +1361,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       isReposition: true,
       previousState,
       skipEventTypes: new Set(placementPointerEvents),
-      dependents: stackedDependents,
+      dependents: [],
       collidersWereRemoved,
       reparentedContainers,
-      moveDependentsWithPlacement: MOVE_STACKED_DEPENDENTS_WITH_BASE,
+      moveDependentsWithPlacement: false,
     };
 
     placement.pointerHandler = (event) => {
@@ -1721,18 +1760,19 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     if (placement.isReposition) {
-      const realignedPlacements = realignManifestPlacements({
-        exclude: placement.container,
-      });
+      const settledPlacements = settlePlacementsDownward(
+        getEditablePlacements(),
+        { exclude: placement.container }
+      );
 
       if (
-        realignedPlacements.length > 0 &&
+        settledPlacements.length > 0 &&
         typeof rebuildStaticColliders === "function"
       ) {
         rebuildStaticColliders();
       }
 
-      persistRealignedPlacementChanges(realignedPlacements, {
+      persistRealignedPlacementChanges(settledPlacements, {
         excludeContainer: placement.container,
       });
     }
