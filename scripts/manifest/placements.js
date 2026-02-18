@@ -156,6 +156,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const settleSortPositionB = new THREE.Vector3();
   const placementCollisionBox = new THREE.Box3();
   const placementPreviousCollisionBox = new THREE.Box3();
+  const placementPreviewSupportBox = new THREE.Box3();
 
   const PLACEMENT_VERTICAL_TOLERANCE = 1e-3;
   const ROOM_BOUNDARY_PADDING = 1e-3;
@@ -721,7 +722,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const resolvePlacementSupportHeight = (
     container,
     bounds,
-    worldPosition
+    worldPosition,
+    { extraSupportDescriptors = null } = {}
   ) => {
     const { floorY: roomFloorY } = getRoomDimensions();
     const fallbackHeight = Number.isFinite(roomFloorY) ? roomFloorY : 0;
@@ -747,7 +749,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const footprintMinZ = worldPosition.z + bounds.min.z;
     const footprintMaxZ = worldPosition.z + bounds.max.z;
 
-    colliderDescriptors.forEach((descriptor) => {
+    const evaluateSupportDescriptor = (descriptor) => {
       const box = descriptor?.box;
       if (!box || box.isEmpty()) {
         return;
@@ -791,14 +793,23 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       if (colliderTop > supportHeight) {
         supportHeight = colliderTop;
       }
-    });
+    };
+
+    colliderDescriptors.forEach(evaluateSupportDescriptor);
+
+    if (
+      Array.isArray(extraSupportDescriptors) &&
+      extraSupportDescriptors.length > 0
+    ) {
+      extraSupportDescriptors.forEach(evaluateSupportDescriptor);
+    }
 
     return supportHeight;
   };
 
   const settlePlacementsDownward = (
     candidates = [],
-    { exclude = null, maxIterations = 10 } = {}
+    { exclude = null, maxIterations = 10, extraSupportDescriptors = null } = {}
   ) => {
     const placements = gatherPlacementContainers(candidates, { exclude });
     if (placements.length === 0) {
@@ -839,7 +850,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         const supportHeight = resolvePlacementSupportHeight(
           container,
           bounds,
-          worldPosition
+          worldPosition,
+          { extraSupportDescriptors }
         );
         const targetWorldY = supportHeight - bounds.min.y;
 
@@ -1330,6 +1342,13 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       quaternion: container.quaternion.clone(),
       scale: container.scale.clone(),
     };
+    const previewBaselinePositions = new Map();
+    getEditablePlacements().forEach((candidate) => {
+      if (!candidate || candidate === container) {
+        return;
+      }
+      previewBaselinePositions.set(candidate, candidate.position.clone());
+    });
 
     const reparentedContainers = [];
     const reparentedContainer = reparentPlacementContainerForEditing(container);
@@ -1365,6 +1384,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       collidersWereRemoved,
       reparentedContainers,
       moveDependentsWithPlacement: false,
+      previewBaselinePositions,
     };
 
     placement.pointerHandler = (event) => {
@@ -1608,6 +1628,43 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
   };
 
+  const restoreRepositionPreviewBaseline = (placement) => {
+    if (!placement?.isReposition) {
+      return false;
+    }
+
+    const baselinePositions = placement.previewBaselinePositions;
+    if (!(baselinePositions instanceof Map) || baselinePositions.size === 0) {
+      return false;
+    }
+
+    let restoredAny = false;
+
+    baselinePositions.forEach((baselinePosition, container) => {
+      if (
+        !container?.isObject3D ||
+        container === placement.container ||
+        !(baselinePosition instanceof THREE.Vector3)
+      ) {
+        return;
+      }
+
+      if (container.position.distanceToSquared(baselinePosition) <= 1e-10) {
+        return;
+      }
+
+      container.position.copy(baselinePosition);
+      container.updateMatrixWorld(true);
+      restoredAny = true;
+    });
+
+    if (restoredAny && typeof rebuildStaticColliders === "function") {
+      rebuildStaticColliders();
+    }
+
+    return restoredAny;
+  };
+
   const cancelActivePlacement = (reason, options = {}) => {
     if (!activePlacement) {
       return;
@@ -1621,6 +1678,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       options.restoreOnCancel ?? (placement.isReposition ? true : false);
 
     if (placement.isReposition) {
+      restoreRepositionPreviewBaseline(placement);
       restoreReparentedPlacementContainers(placement);
     }
 
@@ -1706,6 +1764,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const placement = activePlacement;
     clearPlacementEventListeners(placement);
     activePlacement = null;
+
+    if (placement.isReposition) {
+      restoreRepositionPreviewBaseline(placement);
+      placement.container.updateMatrixWorld(true);
+    }
 
     const finalPosition = computePlacementPosition(
       placement,
@@ -1797,6 +1860,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     const placement = activePlacement;
+    if (placement.isReposition) {
+      restoreRepositionPreviewBaseline(placement);
+    }
     const playerPosition = controls.getObject().position;
     const directionVector = placement.previewDirection;
 
@@ -1926,6 +1992,47 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         dependent.lastResolvedPosition.copy(dependent.container.position);
         dependent.container.updateMatrixWorld(true);
       });
+    }
+
+    if (placement.isReposition) {
+      const previewSupportDescriptors = [];
+      const supportBounds = computeManifestPlacementBounds(placement.container);
+      const supportWorldPosition = getContainerWorldPosition(
+        placement.container,
+        settleWorldPosition
+      );
+
+      if (supportWorldPosition && !supportBounds.isEmpty()) {
+        placementPreviewSupportBox.min
+          .copy(supportBounds.min)
+          .add(supportWorldPosition);
+        placementPreviewSupportBox.max
+          .copy(supportBounds.max)
+          .add(supportWorldPosition);
+        previewSupportDescriptors.push({
+          root: placement.container,
+          object: placement.container,
+          box: placementPreviewSupportBox,
+          padding: manifestPlacementPadding,
+        });
+      }
+
+      const previewSettledPlacements = settlePlacementsDownward(
+        getEditablePlacements(),
+        {
+          maxIterations: 6,
+          extraSupportDescriptors: previewSupportDescriptors,
+        }
+      );
+
+      if (
+        previewSettledPlacements.length > 0 &&
+        typeof rebuildStaticColliders === "function"
+      ) {
+        rebuildStaticColliders();
+      }
+
+      placement.previewPosition.copy(placement.container.position);
     }
   };
 
