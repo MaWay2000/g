@@ -24,6 +24,7 @@ const TERRAIN_TILE_NUMBERS = new Map(
 const DOOR_MARKER_PATH = "door-marker";
 const DOOR_MARKER_COLOR = "#f97316";
 const DOOR_MARKER_FRAME_COLOR = "#0f172a";
+const DEFAULT_MAP_AREA_ID = "operations-exterior";
 
 const getWebglSupport = () => {
   const canvas = document.createElement("canvas");
@@ -230,6 +231,7 @@ export const initMapMaker3d = ({
   resetButton,
   terrainTypeToggle,
   terrainTextureToggle,
+  getSelectedAreaId,
   initialHeightVisibility = false,
   initialTextureVisibility = true,
   initialTileNumberVisibility = true,
@@ -309,6 +311,9 @@ export const initMapMaker3d = ({
 
   const objectGroup = new THREE.Group();
   scene.add(objectGroup);
+  const areaReferenceGroup = new THREE.Group();
+  areaReferenceGroup.name = "Area Reference";
+  scene.add(areaReferenceGroup);
   const objectPreviewGroup = new THREE.Group();
   objectPreviewGroup.visible = false;
   objectPreviewGroup.name = "Object Preview";
@@ -491,7 +496,391 @@ export const initMapMaker3d = ({
   let previewToken = 0;
   let previewIndex = null;
   let objectHighlightStart = null;
+  let areaReferenceGeometries = [];
+  let areaReferenceMaterials = [];
   const OBJECT_HIGHLIGHT_DURATION = 1.8;
+  const createAreaReferenceMaterial = (params = {}) => {
+    const material = new THREE.MeshStandardMaterial(params);
+    areaReferenceMaterials.push(material);
+    return material;
+  };
+
+  const createAreaReferenceMesh = (
+    geometry,
+    material,
+    { castShadow = false, receiveShadow = false } = {}
+  ) => {
+    areaReferenceGeometries.push(geometry);
+    const meshInstance = new THREE.Mesh(geometry, material);
+    meshInstance.castShadow = castShadow;
+    meshInstance.receiveShadow = receiveShadow;
+    return meshInstance;
+  };
+
+  const clearAreaReferenceEnvironment = () => {
+    areaReferenceGroup.clear();
+    areaReferenceGeometries.forEach((geometry) => {
+      geometry.dispose();
+    });
+    areaReferenceMaterials.forEach((material) => {
+      material.dispose();
+    });
+    areaReferenceGeometries = [];
+    areaReferenceMaterials = [];
+  };
+
+  const addPerimeterWalls = (
+    {
+      halfWidth,
+      halfDepth,
+      wallHeight,
+      wallThickness,
+      wallInset = 0,
+      pillarOffset = 0.4,
+    },
+    wallMaterial,
+    trimMaterial
+  ) => {
+    const adjustedHalfWidth = Math.max(0.4, halfWidth - wallInset);
+    const adjustedHalfDepth = Math.max(0.4, halfDepth - wallInset);
+
+    const northWall = createAreaReferenceMesh(
+      new THREE.BoxGeometry(adjustedHalfWidth * 2, wallHeight, wallThickness),
+      wallMaterial
+    );
+    northWall.position.set(0, wallHeight / 2, -adjustedHalfDepth);
+    areaReferenceGroup.add(northWall);
+
+    const southWall = createAreaReferenceMesh(
+      new THREE.BoxGeometry(adjustedHalfWidth * 2, wallHeight, wallThickness),
+      wallMaterial
+    );
+    southWall.position.set(0, wallHeight / 2, adjustedHalfDepth);
+    areaReferenceGroup.add(southWall);
+
+    const westWall = createAreaReferenceMesh(
+      new THREE.BoxGeometry(wallThickness, wallHeight, adjustedHalfDepth * 2),
+      wallMaterial
+    );
+    westWall.position.set(-adjustedHalfWidth, wallHeight / 2, 0);
+    areaReferenceGroup.add(westWall);
+
+    const eastWall = createAreaReferenceMesh(
+      new THREE.BoxGeometry(wallThickness, wallHeight, adjustedHalfDepth * 2),
+      wallMaterial
+    );
+    eastWall.position.set(adjustedHalfWidth, wallHeight / 2, 0);
+    areaReferenceGroup.add(eastWall);
+
+    const pillarHeight = wallHeight + 0.35;
+    const pillarSize = wallThickness + 0.08;
+    const pillarOffsetX = Math.max(0.2, adjustedHalfWidth - pillarOffset);
+    const pillarOffsetZ = Math.max(0.2, adjustedHalfDepth - pillarOffset);
+    const pillarPositions = [
+      [pillarOffsetX, pillarOffsetZ],
+      [pillarOffsetX, -pillarOffsetZ],
+      [-pillarOffsetX, pillarOffsetZ],
+      [-pillarOffsetX, -pillarOffsetZ],
+    ];
+    pillarPositions.forEach(([x, z]) => {
+      const pillar = createAreaReferenceMesh(
+        new THREE.BoxGeometry(pillarSize, pillarHeight, pillarSize),
+        trimMaterial
+      );
+      pillar.position.set(x, pillarHeight / 2, z);
+      areaReferenceGroup.add(pillar);
+    });
+  };
+
+  const addDoorFrame = (
+    { centerX = 0, centerZ = 0, width = 1.25, height = 1.9, depth = 0.12 },
+    frameMaterial,
+    panelMaterial
+  ) => {
+    const frameThickness = 0.11;
+    const frame = createAreaReferenceMesh(
+      new THREE.BoxGeometry(
+        width + frameThickness * 2,
+        height + frameThickness * 2,
+        depth + frameThickness
+      ),
+      frameMaterial
+    );
+    frame.position.set(centerX, height / 2, centerZ);
+    areaReferenceGroup.add(frame);
+
+    const panel = createAreaReferenceMesh(
+      new THREE.BoxGeometry(width, height, depth),
+      panelMaterial
+    );
+    panel.position.set(centerX, height / 2, centerZ + frameThickness * 0.1);
+    areaReferenceGroup.add(panel);
+  };
+
+  const rebuildAreaReferenceEnvironment = (map) => {
+    clearAreaReferenceEnvironment();
+
+    if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
+      return;
+    }
+
+    const areaIdRaw =
+      typeof getSelectedAreaId === "function"
+        ? getSelectedAreaId()
+        : map?.region;
+    const areaId =
+      typeof areaIdRaw === "string" && areaIdRaw.trim().length > 0
+        ? areaIdRaw.trim()
+        : DEFAULT_MAP_AREA_ID;
+
+    const halfWidth = map.width / 2;
+    const halfDepth = map.height / 2;
+    const wallHeight = areaId === "exterior-outpost" ? 1.1 : 1.9;
+    const wallThickness = 0.18;
+
+    const wallMaterial = createAreaReferenceMaterial({
+      color: 0x1f2937,
+      roughness: 0.64,
+      metalness: 0.28,
+    });
+    const trimMaterial = createAreaReferenceMaterial({
+      color: 0x475569,
+      roughness: 0.42,
+      metalness: 0.55,
+    });
+    const panelMaterial = createAreaReferenceMaterial({
+      color: 0x0f172a,
+      emissive: 0x1e3a8a,
+      emissiveIntensity: 0.22,
+      roughness: 0.3,
+      metalness: 0.35,
+    });
+    const platformMaterial = createAreaReferenceMaterial({
+      color: 0x111827,
+      roughness: 0.68,
+      metalness: 0.24,
+    });
+    const glowMaterial = createAreaReferenceMaterial({
+      color: 0x22d3ee,
+      emissive: 0x22d3ee,
+      emissiveIntensity: 0.75,
+      roughness: 0.24,
+      metalness: 0.35,
+    });
+
+    if (areaId !== "operations-exterior") {
+      addPerimeterWalls(
+        {
+          halfWidth,
+          halfDepth,
+          wallHeight,
+          wallThickness,
+          wallInset: areaId === "exterior-outpost" ? 0.2 : 0,
+        },
+        wallMaterial,
+        trimMaterial
+      );
+    }
+
+    if (areaId === "hangar-deck") {
+      const runway = createAreaReferenceMesh(
+        new THREE.BoxGeometry(
+          Math.max(1.6, map.width * 0.5),
+          0.06,
+          Math.max(2.5, map.height * 0.72)
+        ),
+        platformMaterial
+      );
+      runway.position.set(0, 0.03, 0);
+      areaReferenceGroup.add(runway);
+
+      const console = createAreaReferenceMesh(
+        new THREE.BoxGeometry(1.4, 0.9, 0.5),
+        trimMaterial
+      );
+      console.position.set(0, 0.45, -halfDepth + 1.1);
+      areaReferenceGroup.add(console);
+
+      [-1, 1].forEach((side) => {
+        const crate = createAreaReferenceMesh(
+          new THREE.BoxGeometry(0.55, 0.55, 0.55),
+          wallMaterial
+        );
+        crate.position.set(side * (halfWidth * 0.55), 0.275, 0.35);
+        areaReferenceGroup.add(crate);
+      });
+
+      addDoorFrame(
+        {
+          centerX: 0,
+          centerZ: -halfDepth + 0.18,
+          width: 1.35,
+          height: 1.9,
+          depth: 0.1,
+        },
+        trimMaterial,
+        panelMaterial
+      );
+    } else if (areaId === "operations-concourse") {
+      const catwalk = createAreaReferenceMesh(
+        new THREE.BoxGeometry(
+          Math.max(2, map.width * 0.68),
+          0.08,
+          Math.max(1.8, map.height * 0.3)
+        ),
+        platformMaterial
+      );
+      catwalk.position.set(0, 0.04, 0);
+      areaReferenceGroup.add(catwalk);
+
+      const railLength = Math.max(3, map.height * 0.72);
+      [-1, 1].forEach((side) => {
+        const rail = createAreaReferenceMesh(
+          new THREE.BoxGeometry(0.1, 0.8, railLength),
+          trimMaterial
+        );
+        rail.position.set(side * (map.width * 0.24), 0.4, 0);
+        areaReferenceGroup.add(rail);
+      });
+
+      addDoorFrame(
+        {
+          centerX: 0,
+          centerZ: -halfDepth + 0.2,
+          width: 1.2,
+          height: 1.85,
+          depth: 0.1,
+        },
+        trimMaterial,
+        glowMaterial
+      );
+    } else if (areaId === "engineering-bay") {
+      const gantry = createAreaReferenceMesh(
+        new THREE.BoxGeometry(Math.max(2.4, map.width * 0.7), 0.12, 0.6),
+        trimMaterial
+      );
+      gantry.position.set(0, 0.18, 0);
+      areaReferenceGroup.add(gantry);
+
+      const beamHeight = 2.6;
+      const beamOffsetX = Math.max(0.6, halfWidth - 0.5);
+      const beamOffsetZ = Math.max(0.6, halfDepth - 0.5);
+      [
+        [beamOffsetX, beamOffsetZ],
+        [beamOffsetX, -beamOffsetZ],
+        [-beamOffsetX, beamOffsetZ],
+        [-beamOffsetX, -beamOffsetZ],
+      ].forEach(([x, z]) => {
+        const beam = createAreaReferenceMesh(
+          new THREE.BoxGeometry(0.18, beamHeight, 0.18),
+          trimMaterial
+        );
+        beam.position.set(x, beamHeight / 2, z);
+        areaReferenceGroup.add(beam);
+      });
+
+      const generatorHousing = createAreaReferenceMesh(
+        new THREE.CylinderGeometry(0.58, 0.75, 1.1, 20),
+        wallMaterial
+      );
+      generatorHousing.position.set(0, 0.55, -halfDepth * 0.18);
+      areaReferenceGroup.add(generatorHousing);
+
+      const generatorCore = createAreaReferenceMesh(
+        new THREE.CylinderGeometry(0.3, 0.3, 0.9, 20),
+        glowMaterial
+      );
+      generatorCore.position.set(0, 0.55, -halfDepth * 0.18);
+      areaReferenceGroup.add(generatorCore);
+
+      const console = createAreaReferenceMesh(
+        new THREE.BoxGeometry(1.2, 0.75, 0.4),
+        trimMaterial
+      );
+      console.position.set(0, 0.55, halfDepth - 0.8);
+      areaReferenceGroup.add(console);
+
+      const pipeGeometryA = new THREE.CylinderGeometry(
+        0.12,
+        0.12,
+        Math.max(2, map.width * 0.9),
+        16
+      );
+      const upperPipeA = createAreaReferenceMesh(pipeGeometryA, wallMaterial);
+      upperPipeA.rotation.z = Math.PI / 2;
+      upperPipeA.position.set(0, 1.15, -halfDepth + 0.65);
+      areaReferenceGroup.add(upperPipeA);
+      const upperPipeB = createAreaReferenceMesh(
+        new THREE.CylinderGeometry(0.12, 0.12, Math.max(2, map.width * 0.9), 16),
+        wallMaterial
+      );
+      upperPipeB.rotation.z = Math.PI / 2;
+      upperPipeB.position.set(0, 1.15, halfDepth - 0.65);
+      areaReferenceGroup.add(upperPipeB);
+
+      addDoorFrame(
+        {
+          centerX: 0,
+          centerZ: -halfDepth + 0.18,
+          width: 1.2,
+          height: 1.85,
+          depth: 0.1,
+        },
+        trimMaterial,
+        panelMaterial
+      );
+    } else if (areaId === "exterior-outpost") {
+      const overlook = createAreaReferenceMesh(
+        new THREE.BoxGeometry(Math.max(2, map.width * 0.58), 0.08, Math.max(2.2, map.height * 0.35)),
+        platformMaterial
+      );
+      overlook.position.set(-map.width * 0.17, 0.06, map.height * 0.08);
+      areaReferenceGroup.add(overlook);
+
+      const rail = createAreaReferenceMesh(
+        new THREE.BoxGeometry(Math.max(2, map.width * 0.6), 0.12, 0.12),
+        trimMaterial
+      );
+      rail.position.set(-map.width * 0.17, 1.02, halfDepth - 0.55);
+      areaReferenceGroup.add(rail);
+
+      [-1, 1].forEach((side) => {
+        const planter = createAreaReferenceMesh(
+          new THREE.CylinderGeometry(0.22, 0.3, 0.28, 14),
+          wallMaterial
+        );
+        planter.position.set(-map.width * 0.17 + side * 0.95, 0.14, -0.2);
+        areaReferenceGroup.add(planter);
+      });
+
+      addDoorFrame(
+        {
+          centerX: -map.width * 0.18,
+          centerZ: -halfDepth + 0.2,
+          width: 1.15,
+          height: 1.8,
+          depth: 0.1,
+        },
+        trimMaterial,
+        panelMaterial
+      );
+    } else {
+      const landingPad = createAreaReferenceMesh(
+        new THREE.BoxGeometry(Math.max(2, map.width * 0.48), 0.06, Math.max(1.2, map.height * 0.24)),
+        trimMaterial
+      );
+      landingPad.position.set(0, 0.03, -map.height * 0.15);
+      areaReferenceGroup.add(landingPad);
+
+      const tunnelFrame = createAreaReferenceMesh(
+        new THREE.BoxGeometry(1.5, 1.8, 0.12),
+        wallMaterial
+      );
+      tunnelFrame.position.set(0, 0.9, -halfDepth + 0.2);
+      areaReferenceGroup.add(tunnelFrame);
+    }
+  };
+
   const getTerrainToggleState = () => {
     if (!terrainTypeToggle) {
       return true;
@@ -1070,6 +1459,7 @@ export const initMapMaker3d = ({
     const geometry = buildTerrainGeometry(map);
     mesh.geometry.dispose();
     mesh.geometry = geometry;
+    rebuildAreaReferenceEnvironment(map);
     updateTerrainMarkers(map);
     void renderTerrainTexture(map);
     if (resetCamera) {
@@ -1582,6 +1972,7 @@ export const initMapMaker3d = ({
     objectHighlightMaterial.dispose();
     selectionMaterial.dispose();
     objectGroup.clear();
+    clearAreaReferenceEnvironment();
     canvas.removeEventListener("pointerdown", handlePointerDown);
     canvas.removeEventListener("pointermove", handlePointerMove);
     canvas.removeEventListener("pointerup", handlePointerUp);

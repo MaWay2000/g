@@ -2325,6 +2325,7 @@ function setActivePaletteTab(tabId) {
         initialTextureVisibility: getTextureVisibility(),
         initialTileNumberVisibility: getTileNumberVisibility(),
         initialHeightVisibility: state.showHeights,
+        getSelectedAreaId: () => state.selectedAreaId,
         getBrushSize: () =>
           state.activeTab === "height" ? state.heightBrushSize : state.terrainBrushSize,
         getTerrainMode: () =>
