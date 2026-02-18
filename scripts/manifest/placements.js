@@ -248,6 +248,60 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
   };
 
+  const notifyExternalPlacementTransform = (container) => {
+    if (!container || !externalEditablePlacements.has(container)) {
+      return false;
+    }
+
+    const externalHandlers =
+      container.userData?.externalEditablePlacementHandlers ?? null;
+    if (typeof externalHandlers?.onTransform !== "function") {
+      return false;
+    }
+
+    try {
+      externalHandlers.onTransform({
+        container,
+        entry: container.userData?.manifestEntry ?? null,
+      });
+      return true;
+    } catch (error) {
+      console.warn("Unable to persist external placement transform", error);
+      return false;
+    }
+  };
+
+  const persistRealignedPlacementChanges = (
+    changedContainers = [],
+    { excludeContainer = null } = {}
+  ) => {
+    if (!Array.isArray(changedContainers) || changedContainers.length === 0) {
+      return { manifestChanged: false };
+    }
+
+    let manifestChanged = false;
+    const seen = new Set();
+
+    changedContainers.forEach((container) => {
+      if (!container || seen.has(container) || container === excludeContainer) {
+        return;
+      }
+      seen.add(container);
+
+      if (manifestPlacements.has(container)) {
+        manifestChanged = true;
+      } else if (externalEditablePlacements.has(container)) {
+        notifyExternalPlacementTransform(container);
+      }
+    });
+
+    if (manifestChanged) {
+      notifyManifestPlacementsChanged();
+    }
+
+    return { manifestChanged };
+  };
+
   const getManifestPlacementRoot = (object) => {
     let current = object;
 
@@ -873,8 +927,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   };
 
   const realignManifestPlacements = ({ exclude } = {}) => {
-    let anyChanged = false;
-    const placements = Array.from(manifestPlacements).filter(
+    const changedContainers = [];
+    const changedSet = new Set();
+    const placements = getEditablePlacements().filter(
       (container) => container && container !== exclude
     );
 
@@ -904,7 +959,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         if (!container.position.equals(computedPosition)) {
           container.position.copy(computedPosition);
           container.updateMatrixWorld(true);
-          anyChanged = true;
+          if (!changedSet.has(container)) {
+            changedSet.add(container);
+            changedContainers.push(container);
+          }
           iterationChanged = true;
         }
       });
@@ -914,7 +972,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       }
     }
 
-    return anyChanged;
+    return changedContainers;
   };
 
   const applyPlacementColliderEntries = (container, colliderEntries = []) => {
@@ -1039,11 +1097,13 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       rebuildStaticColliders();
     }
 
-    const placementsRealigned = realignManifestPlacements();
+    const realignedPlacements = realignManifestPlacements();
 
-    if (placementsRealigned && typeof rebuildStaticColliders === "function") {
+    if (realignedPlacements.length > 0 && typeof rebuildStaticColliders === "function") {
       rebuildStaticColliders();
     }
+    const { manifestChanged: realignedManifestChanged } =
+      persistRealignedPlacementChanges(realignedPlacements);
 
     const manifestEntry = container.userData?.manifestEntry ?? null;
     const externalHandlers =
@@ -1067,7 +1127,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       onManifestPlacementRemoved(manifestEntry);
     }
 
-    if (isStoredManifestPlacement) {
+    if (isStoredManifestPlacement && !realignedManifestChanged) {
       notifyManifestPlacementsChanged();
     }
 
@@ -1640,13 +1700,20 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     if (placement.isReposition) {
-      const placementsRealigned = realignManifestPlacements({
+      const realignedPlacements = realignManifestPlacements({
         exclude: placement.container,
       });
 
-      if (placementsRealigned && typeof rebuildStaticColliders === "function") {
+      if (
+        realignedPlacements.length > 0 &&
+        typeof rebuildStaticColliders === "function"
+      ) {
         rebuildStaticColliders();
       }
+
+      persistRealignedPlacementChanges(realignedPlacements, {
+        excludeContainer: placement.container,
+      });
     }
 
     if (placement.isReposition) {
@@ -1654,18 +1721,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       setHoveredManifestPlacement(null);
       updateManifestEditModeHover();
 
-      const externalHandlers =
-        placement.container.userData?.externalEditablePlacementHandlers ?? null;
-      if (typeof externalHandlers?.onTransform === "function") {
-        try {
-          externalHandlers.onTransform({
-            container: placement.container,
-            entry: placement.container.userData?.manifestEntry ?? null,
-          });
-        } catch (error) {
-          console.warn("Unable to persist external placement transform", error);
-        }
-      }
+      notifyExternalPlacementTransform(placement.container);
     }
 
     if (manifestPlacements.has(placement.container)) {
