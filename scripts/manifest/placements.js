@@ -1151,6 +1151,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     setHoveredManifestPlacement(null);
 
     let collidersWereRemoved = clearManifestPlacementColliders(container);
+    const stackedDependentsRaw = collectStackedManifestPlacements(container);
 
     const containerBounds = computeManifestPlacementBounds(container);
 
@@ -1173,49 +1174,60 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, distanceToPlayer)
       : MIN_MANIFEST_PLACEMENT_DISTANCE;
 
-    const stackedDependents = reparentedContainer
-      ? []
-      : collectStackedManifestPlacements(container).map((dependent) => {
-          const dependentContainer = dependent?.container ?? null;
-          const collidersCleared = clearManifestPlacementColliders(
-            dependentContainer
-          );
+    const stackedDependents = stackedDependentsRaw.map((dependent) => {
+      const dependentContainer = dependent?.container ?? null;
+      const collidersCleared = clearManifestPlacementColliders(
+        dependentContainer
+      );
 
-          if (collidersCleared) {
-            collidersWereRemoved = true;
-          }
+      if (collidersCleared) {
+        collidersWereRemoved = true;
+      }
 
-          if (!dependentContainer) {
-            return {
-              ...dependent,
-              collidersCleared,
-              containerBounds: null,
-              previewPlacement: null,
-              previewPosition: null,
-              lastResolvedPosition: null,
-            };
-          }
+      if (!dependentContainer) {
+        return {
+          ...dependent,
+          collidersCleared,
+          containerBounds: null,
+          previewPlacement: null,
+          previewBasePosition: null,
+          previewPosition: null,
+          lastResolvedPosition: null,
+        };
+      }
 
-          const dependentBounds = computeManifestPlacementBounds(
-            dependentContainer
-          );
-          const previewPlacement = dependentBounds?.isEmpty()
-            ? null
-            : {
-                container: dependentContainer,
-                containerBounds: dependentBounds,
-                dependents: [],
-              };
+      if (reparentedContainer) {
+        const reparentedDependent = reparentPlacementContainerForEditing(
+          dependentContainer
+        );
+        if (reparentedDependent) {
+          reparentedContainers.push(reparentedDependent);
+          dependentContainer.updateMatrixWorld(true);
+        }
+      }
 
-          return {
-            ...dependent,
-            collidersCleared,
+      const dependentBounds = computeManifestPlacementBounds(
+        dependentContainer
+      );
+      const previewPlacement = dependentBounds?.isEmpty()
+        ? null
+        : {
+            container: dependentContainer,
             containerBounds: dependentBounds,
-            previewPlacement,
-            previewPosition: dependentContainer.position.clone(),
-            lastResolvedPosition: dependentContainer.position.clone(),
+            dependents: [],
           };
-        });
+      const previewBasePosition = dependentContainer.position.clone();
+
+      return {
+        ...dependent,
+        collidersCleared,
+        containerBounds: dependentBounds,
+        previewPlacement,
+        previewBasePosition,
+        previewPosition: previewBasePosition.clone(),
+        lastResolvedPosition: previewBasePosition.clone(),
+      };
+    });
 
     const userData = container.userData || (container.userData = {});
 
@@ -1228,6 +1240,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       distance: placementDistance,
       previewDirection: new THREE.Vector3(),
       previewPosition: container.position.clone(),
+      previewBasePosition: container.position.clone(),
       pointerHandler: null,
       keydownHandler: null,
       isReposition: true,
@@ -1726,12 +1739,22 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     placement.container.updateMatrixWorld(true);
 
     if (Array.isArray(placement.dependents) && placement.dependents.length > 0) {
+      const previewBasePosition =
+        placement.previewBasePosition ??
+        placement.previousState?.position ??
+        placement.container.position;
       placementDependentOffset
         .copy(placement.container.position)
-        .sub(placement.previousState?.position ?? placement.container.position);
+        .sub(previewBasePosition);
 
       placement.dependents.forEach((dependent) => {
-        if (!dependent?.container || !dependent.initialPosition) {
+        if (!dependent?.container) {
+          return;
+        }
+
+        const dependentBasePosition =
+          dependent.previewBasePosition ?? dependent.initialPosition ?? null;
+        if (!dependentBasePosition) {
           return;
         }
 
@@ -1739,7 +1762,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           dependent.previewPosition ??
           (dependent.previewPosition = new THREE.Vector3());
         previewPosition
-          .copy(dependent.initialPosition)
+          .copy(dependentBasePosition)
           .add(placementDependentOffset);
 
         const previousResolvedPosition = dependent.lastResolvedPosition
@@ -1747,7 +1770,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
               dependent.lastResolvedPosition
             )
           : placementDependentPreviousPosition
-              .copy(dependent.initialPosition)
+              .copy(dependentBasePosition)
               .add(placementDependentOffset);
 
         dependent.container.position.copy(previewPosition);
