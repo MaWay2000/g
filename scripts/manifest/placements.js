@@ -939,10 +939,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return firstY - secondY;
     });
 
-    if (typeof rebuildStaticColliders === "function") {
-      rebuildStaticColliders();
-    }
-
     const maxIterations = 4;
     for (let iteration = 0; iteration < maxIterations; iteration += 1) {
       let iterationChanged = false;
@@ -973,10 +969,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
       if (!iterationChanged) {
         break;
-      }
-
-      if (typeof rebuildStaticColliders === "function") {
-        rebuildStaticColliders();
       }
     }
 
@@ -1208,28 +1200,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     placement.reparentedContainers.length = 0;
   };
 
-  const restorePreviewRealignedPlacements = (placement) => {
-    if (!(placement?.previewRealignRestoreStates instanceof Map)) {
-      return;
-    }
-
-    placement.previewRealignRestoreStates.forEach((savedPosition, container) => {
-      if (!container?.isObject3D || !savedPosition?.isVector3) {
-        return;
-      }
-      container.position.copy(savedPosition);
-      container.updateMatrixWorld(true);
-    });
-
-    if (placement.previewRealignedContainers instanceof Set) {
-      placement.previewRealignedContainers.clear();
-    }
-
-    if (typeof rebuildStaticColliders === "function") {
-      rebuildStaticColliders();
-    }
-  };
-
   const beginManifestPlacementReposition = (container) => {
     if (!container || activePlacement) {
       return;
@@ -1251,13 +1221,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       quaternion: container.quaternion.clone(),
       scale: container.scale.clone(),
     };
-    const previewRealignRestoreStates = new Map();
-    getEditablePlacements().forEach((candidate) => {
-      if (!candidate || candidate === container) {
-        return;
-      }
-      previewRealignRestoreStates.set(candidate, candidate.position.clone());
-    });
 
     const reparentedContainers = [];
     const reparentedContainer = reparentPlacementContainerForEditing(container);
@@ -1342,8 +1305,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       collidersWereRemoved,
       reparentedContainers,
       moveDependentsWithPlacement: MOVE_STACKED_DEPENDENTS_WITH_BASE,
-      previewRealignRestoreStates,
-      previewRealignedContainers: new Set(),
     };
 
     placement.pointerHandler = (event) => {
@@ -1601,7 +1562,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     if (placement.isReposition) {
       restoreReparentedPlacementContainers(placement);
-      restorePreviewRealignedPlacements(placement);
     }
 
     if (placement.isReposition && restoreOnCancel) {
@@ -1740,35 +1700,20 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     if (placement.isReposition) {
-      const settledPlacementSet =
-        placement.previewRealignedContainers instanceof Set
-          ? new Set(placement.previewRealignedContainers)
-          : new Set();
       const realignedPlacements = realignManifestPlacements({
         exclude: placement.container,
       });
-      realignedPlacements.forEach((container) => {
-        if (container) {
-          settledPlacementSet.add(container);
-        }
-      });
 
       if (
-        settledPlacementSet.size > 0 &&
+        realignedPlacements.length > 0 &&
         typeof rebuildStaticColliders === "function"
       ) {
         rebuildStaticColliders();
       }
 
-      persistRealignedPlacementChanges(Array.from(settledPlacementSet), {
+      persistRealignedPlacementChanges(realignedPlacements, {
         excludeContainer: placement.container,
       });
-      if (placement.previewRealignedContainers instanceof Set) {
-        placement.previewRealignedContainers.clear();
-      }
-      if (placement.previewRealignRestoreStates instanceof Map) {
-        placement.previewRealignRestoreStates.clear();
-      }
     }
 
     if (placement.isReposition) {
@@ -1923,22 +1868,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         dependent.lastResolvedPosition.copy(dependent.container.position);
         dependent.container.updateMatrixWorld(true);
       });
-    }
-
-    if (placement.isReposition) {
-      const previewRealignedPlacements = realignManifestPlacements({
-        exclude: placement.container,
-      });
-      if (
-        placement.previewRealignedContainers instanceof Set &&
-        previewRealignedPlacements.length > 0
-      ) {
-        previewRealignedPlacements.forEach((container) => {
-          if (container) {
-            placement.previewRealignedContainers.add(container);
-          }
-        });
-      }
     }
   };
 
