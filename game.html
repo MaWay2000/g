@@ -161,6 +161,61 @@
         opacity: 0.85;
       }
 
+      .area-loading-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(1rem, 4vw, 2rem);
+        background: radial-gradient(
+          circle at center,
+          rgba(30, 41, 59, 0.9) 0%,
+          rgba(15, 23, 42, 0.96) 62%,
+          rgba(2, 6, 23, 0.98) 100%
+        );
+        backdrop-filter: blur(8px);
+        z-index: 24;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 220ms ease;
+      }
+
+      .area-loading-overlay[data-active="true"] {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .area-loading-overlay__panel {
+        width: min(540px, 92vw);
+        padding: clamp(1rem, 2.6vw, 1.6rem);
+        border-radius: 18px;
+        border: 1px solid rgba(56, 189, 248, 0.45);
+        background: rgba(15, 23, 42, 0.78);
+        box-shadow: 0 20px 60px rgba(8, 47, 73, 0.5);
+      }
+
+      .area-loading-overlay__eyebrow {
+        margin: 0 0 0.45rem;
+        font-size: 0.68rem;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: rgba(125, 211, 252, 0.82);
+      }
+
+      .area-loading-overlay__title {
+        margin: 0;
+        font-size: clamp(1.15rem, 2.5vw, 1.45rem);
+        font-weight: 700;
+        color: #f8fafc;
+      }
+
+      .area-loading-overlay__description {
+        margin: 0.5rem 0 0;
+        color: rgba(203, 213, 225, 0.9);
+        line-height: 1.45;
+      }
+
       .resource-tool-indicator {
         position: fixed;
         bottom: clamp(3.8rem, 8vw, 6.4rem);
@@ -3726,6 +3781,18 @@
       role="img"
       tabindex="0"
     ></canvas>
+
+    <div class="area-loading-overlay" data-area-loading-overlay hidden>
+      <div class="area-loading-overlay__panel" role="status" aria-live="polite">
+        <p class="area-loading-overlay__eyebrow">Transit</p>
+        <p class="area-loading-overlay__title" data-area-loading-title>
+          Loading area
+        </p>
+        <p class="area-loading-overlay__description" data-area-loading-description>
+          Preparing environment...
+        </p>
+      </div>
+    </div>
 
     <div
       class="rendering-error"

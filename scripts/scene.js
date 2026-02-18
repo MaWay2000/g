@@ -119,6 +119,7 @@ export const initScene = (
     onLiftControlInteract,
     onLiftInteractableChange,
     onLiftTravel,
+    onAreaLoadingStateChange,
     onManifestPlacementHoverChange,
     onManifestEditModeChange,
     onManifestPlacementRemoved,
@@ -129,6 +130,7 @@ export const initScene = (
     settings,
   } = {}
 ) => {
+  const MIN_AREA_LOADING_DISPLAY_MS = 3000;
   const BASE_MAX_STEP_HEIGHT = 2;
   const BASE_JUMP_VELOCITY = 7.2;
   const STEP_CLIMB_SPEED = 6;
@@ -4586,6 +4588,7 @@ export const initScene = (
     const terrainTiles = [];
     const registeredModelColliders = [];
     const editableModelContainers = new Set();
+    const pendingAsyncModelLoads = [];
     const tileMaterialCache = new Map();
     let disposed = false;
     let shouldPersistGeneratedPlacementIds = false;
@@ -4982,95 +4985,104 @@ export const initScene = (
     }
 
     if (modelPlacements.length > 0) {
-      modelPlacements.forEach(async ({ placement, placementId }) => {
-        if (disposed) {
-          return;
-        }
+      modelPlacements.forEach(({ placement, placementId }) => {
+        const loadPromise = (async () => {
+          if (disposed) {
+            return;
+          }
 
-        let model = null;
-        try {
-          model = await loadModelFromManifestEntry({
-            path: placement.path,
-          });
-        } catch (error) {
-          console.warn(
-            `Unable to load stored area object "${placement.path}"`,
-            error
-          );
-          return;
-        }
-
-        if (!model) {
-          return;
-        }
-
-        if (disposed) {
-          disposeObject3D(model);
-          return;
-        }
-
-        const placementPosition = getPlacementWorldPosition(placement);
-        applyPlacementTransform(model, placement, {
-          surfaceY: placementPosition.baseY,
-          alignToSurface: true,
-        });
-
-        if (disposed) {
-          disposeObject3D(model);
-          return;
-        }
-
-        objectGroup.add(model);
-        adjustableEntries.push({
-          object: model,
-          offset: model.position.y - roomFloorY,
-        });
-        viewDistanceTargets.push(model);
-
-        const descriptors = registerCollidersForImportedRoot(model, {
-          padding: new THREE.Vector3(0.02, 0.02, 0.02),
-        });
-        const modelUserData = model.userData || (model.userData = {});
-        modelUserData.manifestPlacementColliders = Array.isArray(descriptors)
-          ? descriptors
-          : [];
-        if (Array.isArray(descriptors) && descriptors.length > 0) {
-          registeredModelColliders.push(...descriptors);
-          rebuildStaticColliders();
-        }
-
-        editableModelContainers.add(model);
-        queueExternalEditablePlacement({
-          container: model,
-          options: {
-            entry: {
+          let model = null;
+          try {
+            model = await loadModelFromManifestEntry({
               path: placement.path,
-              label:
-                typeof placement?.name === "string" && placement.name.trim()
-                  ? placement.name.trim()
-                  : placement.path,
+            });
+          } catch (error) {
+            console.warn(
+              `Unable to load stored area object "${placement.path}"`,
+              error
+            );
+            return;
+          }
+
+          if (!model) {
+            return;
+          }
+
+          if (disposed) {
+            disposeObject3D(model);
+            return;
+          }
+
+          const placementPosition = getPlacementWorldPosition(placement);
+          applyPlacementTransform(model, placement, {
+            surfaceY: placementPosition.baseY,
+            alignToSurface: true,
+          });
+
+          if (disposed) {
+            disposeObject3D(model);
+            return;
+          }
+
+          objectGroup.add(model);
+          adjustableEntries.push({
+            object: model,
+            offset: model.position.y - roomFloorY,
+          });
+          viewDistanceTargets.push(model);
+
+          const descriptors = registerCollidersForImportedRoot(model, {
+            padding: new THREE.Vector3(0.02, 0.02, 0.02),
+          });
+          const modelUserData = model.userData || (model.userData = {});
+          modelUserData.manifestPlacementColliders = Array.isArray(descriptors)
+            ? descriptors
+            : [];
+          if (Array.isArray(descriptors) && descriptors.length > 0) {
+            registeredModelColliders.push(...descriptors);
+            rebuildStaticColliders();
+          }
+
+          editableModelContainers.add(model);
+          queueExternalEditablePlacement({
+            container: model,
+            options: {
+              entry: {
+                path: placement.path,
+                label:
+                  typeof placement?.name === "string" && placement.name.trim()
+                    ? placement.name.trim()
+                    : placement.path,
+              },
+              onTransform: ({ container }) => {
+                persistStoredAreaObjectTransform(placementId, container);
+              },
+              onRemove: ({ container }) => {
+                removeStoredAreaObjectPlacement(placementId);
+                const removedIndex = viewDistanceTargets.indexOf(container);
+                if (removedIndex >= 0) {
+                  viewDistanceTargets.splice(removedIndex, 1);
+                }
+                const adjustableIndex = adjustableEntries.findIndex(
+                  (entry) => entry?.object === container
+                );
+                if (adjustableIndex >= 0) {
+                  adjustableEntries.splice(adjustableIndex, 1);
+                }
+                editableModelContainers.delete(container);
+              },
             },
-            onTransform: ({ container }) => {
-              persistStoredAreaObjectTransform(placementId, container);
-            },
-            onRemove: ({ container }) => {
-              removeStoredAreaObjectPlacement(placementId);
-              const removedIndex = viewDistanceTargets.indexOf(container);
-              if (removedIndex >= 0) {
-                viewDistanceTargets.splice(removedIndex, 1);
-              }
-              const adjustableIndex = adjustableEntries.findIndex(
-                (entry) => entry?.object === container
-              );
-              if (adjustableIndex >= 0) {
-                adjustableEntries.splice(adjustableIndex, 1);
-              }
-              editableModelContainers.delete(container);
-            },
-          },
-        });
+          });
+        })();
+
+        pendingAsyncModelLoads.push(loadPromise);
       });
     }
+
+    const readyPromise = Promise.allSettled(pendingAsyncModelLoads).then(
+      () => undefined
+    );
+    overlayGroup.userData.whenReady = () => readyPromise;
 
     overlayGroup.userData.dispose = () => {
       if (disposed) {
@@ -5095,6 +5107,7 @@ export const initScene = (
       liftDoors,
       terrainTiles,
       viewDistanceTargets,
+      readyPromise,
     };
   };
 
@@ -5603,6 +5616,7 @@ export const initScene = (
       colliderDescriptors: mapColliderDescriptors,
       terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
+      readyPromise: mapOverlay?.readyPromise,
     };
   };
 
@@ -5821,6 +5835,7 @@ export const initScene = (
       const terrainTiles = [];
       const liftDoors = [];
       const viewDistanceTargets = [];
+      const pendingAsyncObjectLoads = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
       const geoVisorMaterials = new Map();
@@ -7082,123 +7097,132 @@ export const initScene = (
           typeof normalizedMap?.name === "string"
             ? normalizedMap.name.trim()
             : "";
-        objectPlacements.forEach(async (placement) => {
-          if (!placement?.path) {
-            return;
-          }
-          const placementPosition = getPlacementWorldPosition(placement);
-          if (placement.path === DOOR_MARKER_PATH) {
-            const door = createHangarDoor();
-            if (
-              mapDisplayName &&
-              typeof door.userData?.liftUi?.updateState === "function"
-            ) {
-              door.userData.liftUi.updateState({ mapName: mapDisplayName });
-            }
-            const doorId =
-              typeof placement.id === "string" ? placement.id.trim() : null;
-            const resolvedDoorId = doorId || resolveDoorPlacementId(placement);
-            if (resolvedDoorId) {
-              door.userData.doorId = resolvedDoorId;
-              doorMarkersById.set(resolvedDoorId, door);
-            }
-            const destinationType =
-              typeof placement.destinationType === "string"
-                ? placement.destinationType
-                : null;
-            const destinationId =
-              typeof placement.destinationId === "string"
-                ? placement.destinationId
-                : null;
-            if (destinationType === "area" && destinationId) {
-              door.userData.liftFloorId = destinationId;
-              door.userData?.liftUi?.setAccessType?.("area");
-              const liftControls = [
-                door.userData?.liftUi?.control,
-                ...(Array.isArray(door.userData?.liftUi?.controls)
-                  ? door.userData.liftUi.controls
-                  : []),
-              ].filter(Boolean);
-              liftControls.forEach((control) => {
-                if (!control.userData) {
-                  control.userData = {};
-                }
-                control.userData.liftFloorId = destinationId;
-              });
-            } else if (destinationType === "door" && destinationId) {
-              door.userData.doorDestinationId = destinationId;
-              door.userData?.liftUi?.setAccessType?.("direct");
-              const liftControls = [
-                door.userData?.liftUi?.control,
-                ...(Array.isArray(door.userData?.liftUi?.controls)
-                  ? door.userData.liftUi.controls
-                  : []),
-              ].filter(Boolean);
-              liftControls.forEach((control) => {
-                if (!control.userData) {
-                  control.userData = {};
-                }
-                control.userData.doorDestinationId = destinationId;
-              });
-            }
-            const doorHeight = door.userData?.height ?? BASE_DOOR_HEIGHT;
-            const doorBaseWidth =
-              door.userData?.baseDimensions?.width ?? BASE_DOOR_WIDTH;
-            const doorBaseDepth =
-              door.userData?.baseDimensions?.depth ?? doorBaseWidth * 0.05;
-            const doorRotationY = Number.isFinite(placement?.rotation?.y)
-              ? placement.rotation.y
-              : 0;
-            const doorSurfaceY = getSurfaceYForFootprint(
-              placementPosition.x,
-              placementPosition.z,
-              doorRotationY,
-              doorBaseWidth,
-              doorBaseDepth,
-              OUTSIDE_DOOR_TERRAIN_PADDING,
-              4
-            );
-            applyPlacementTransform(door, placement, {
-              surfaceY:
-                doorSurfaceY + doorHeight / 2 + OUTSIDE_DOOR_SURFACE_CLEARANCE,
-              alignToSurface: false,
-            });
-            mapObjectGroup.add(door);
-            adjustable.push({
-              object: door,
-              offset: door.position.y - roomFloorY,
-            });
-            liftDoors.push(door);
-            viewDistanceTargets.push(door);
-            return;
-          }
-
-          try {
-            const model = await loadModelFromManifestEntry({
-              path: placement.path,
-            });
-            if (!model) {
+        objectPlacements.forEach((placement) => {
+          const loadPromise = (async () => {
+            if (!placement?.path) {
               return;
             }
-            applyPlacementTransform(model, placement, {
-              surfaceY: placementPosition.baseY,
-              alignToSurface: true,
-            });
-            mapObjectGroup.add(model);
-            adjustable.push({
-              object: model,
-              offset: model.position.y - roomFloorY,
-            });
-            viewDistanceTargets.push(model);
-          } catch (error) {
-            console.warn(
-              "Unable to load outside map object",
-              placement.path,
-              error
-            );
-          }
+            const placementPosition = getPlacementWorldPosition(placement);
+            if (placement.path === DOOR_MARKER_PATH) {
+              const door = createHangarDoor();
+              if (
+                mapDisplayName &&
+                typeof door.userData?.liftUi?.updateState === "function"
+              ) {
+                door.userData.liftUi.updateState({ mapName: mapDisplayName });
+              }
+              const doorId =
+                typeof placement.id === "string" ? placement.id.trim() : null;
+              const resolvedDoorId = doorId || resolveDoorPlacementId(placement);
+              if (resolvedDoorId) {
+                door.userData.doorId = resolvedDoorId;
+                doorMarkersById.set(resolvedDoorId, door);
+              }
+              const destinationType =
+                typeof placement.destinationType === "string"
+                  ? placement.destinationType
+                  : null;
+              const destinationId =
+                typeof placement.destinationId === "string"
+                  ? placement.destinationId
+                  : null;
+              if (destinationType === "area" && destinationId) {
+                door.userData.liftFloorId = destinationId;
+                door.userData?.liftUi?.setAccessType?.("area");
+                const liftControls = [
+                  door.userData?.liftUi?.control,
+                  ...(Array.isArray(door.userData?.liftUi?.controls)
+                    ? door.userData.liftUi.controls
+                    : []),
+                ].filter(Boolean);
+                liftControls.forEach((control) => {
+                  if (!control.userData) {
+                    control.userData = {};
+                  }
+                  control.userData.liftFloorId = destinationId;
+                });
+              } else if (destinationType === "door" && destinationId) {
+                door.userData.doorDestinationId = destinationId;
+                door.userData?.liftUi?.setAccessType?.("direct");
+                const liftControls = [
+                  door.userData?.liftUi?.control,
+                  ...(Array.isArray(door.userData?.liftUi?.controls)
+                    ? door.userData.liftUi.controls
+                    : []),
+                ].filter(Boolean);
+                liftControls.forEach((control) => {
+                  if (!control.userData) {
+                    control.userData = {};
+                  }
+                  control.userData.doorDestinationId = destinationId;
+                });
+              }
+              const doorHeight = door.userData?.height ?? BASE_DOOR_HEIGHT;
+              const doorBaseWidth =
+                door.userData?.baseDimensions?.width ?? BASE_DOOR_WIDTH;
+              const doorBaseDepth =
+                door.userData?.baseDimensions?.depth ?? doorBaseWidth * 0.05;
+              const doorRotationY = Number.isFinite(placement?.rotation?.y)
+                ? placement.rotation.y
+                : 0;
+              const doorSurfaceY = getSurfaceYForFootprint(
+                placementPosition.x,
+                placementPosition.z,
+                doorRotationY,
+                doorBaseWidth,
+                doorBaseDepth,
+                OUTSIDE_DOOR_TERRAIN_PADDING,
+                4
+              );
+              applyPlacementTransform(door, placement, {
+                surfaceY:
+                  doorSurfaceY + doorHeight / 2 + OUTSIDE_DOOR_SURFACE_CLEARANCE,
+                alignToSurface: false,
+              });
+              mapObjectGroup.add(door);
+              adjustable.push({
+                object: door,
+                offset: door.position.y - roomFloorY,
+              });
+              liftDoors.push(door);
+              viewDistanceTargets.push(door);
+              return;
+            }
+
+            try {
+              const model = await loadModelFromManifestEntry({
+                path: placement.path,
+              });
+              if (!model) {
+                return;
+              }
+              applyPlacementTransform(model, placement, {
+                surfaceY: placementPosition.baseY,
+                alignToSurface: true,
+              });
+              mapObjectGroup.add(model);
+              adjustable.push({
+                object: model,
+                offset: model.position.y - roomFloorY,
+              });
+              viewDistanceTargets.push(model);
+            } catch (error) {
+              console.warn(
+                "Unable to load outside map object",
+                placement.path,
+                error
+              );
+            }
+          })();
+
+          pendingAsyncObjectLoads.push(loadPromise);
         });
       }
+
+      const readyPromise = Promise.allSettled(pendingAsyncObjectLoads).then(
+        () => undefined
+      );
+      mapGroup.userData.whenReady = () => readyPromise;
 
       return {
         group: mapGroup,
@@ -7220,6 +7244,7 @@ export const initScene = (
         resourceTargets,
         terrainTiles,
         viewDistanceTargets,
+        readyPromise,
       };
     };
 
@@ -7901,6 +7926,7 @@ export const initScene = (
       terrainTiles: environmentTerrainTiles,
       viewDistanceTargets: environmentViewDistanceTargets,
       starFields: [primaryStarField, distantStarField],
+      readyPromise: builtOutsideTerrain?.readyPromise,
     };
   };
 
@@ -8134,6 +8160,7 @@ export const initScene = (
       colliderDescriptors: mapColliderDescriptors,
       terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
+      readyPromise: mapOverlay?.readyPromise,
     };
   };
 
@@ -8488,6 +8515,7 @@ export const initScene = (
       colliderDescriptors: mapColliderDescriptors,
       terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
+      readyPromise: mapOverlay?.readyPromise,
     };
   };
 
@@ -8724,6 +8752,40 @@ export const initScene = (
       floorPosition.y = roomFloorY;
     }
 
+    const resolveEnvironmentReadyPromise = (environment, group) => {
+      const readyPromises = [];
+
+      const appendReadyPromise = (candidate) => {
+        if (candidate && typeof candidate.then === "function") {
+          readyPromises.push(candidate);
+        }
+      };
+
+      appendReadyPromise(environment?.readyPromise);
+
+      if (typeof environment?.whenReady === "function") {
+        try {
+          appendReadyPromise(environment.whenReady());
+        } catch (error) {
+          console.warn(`Unable to resolve environment readiness for ${id}`, error);
+        }
+      }
+
+      if (typeof group?.userData?.whenReady === "function") {
+        try {
+          appendReadyPromise(group.userData.whenReady());
+        } catch (error) {
+          console.warn(`Unable to resolve group readiness for ${id}`, error);
+        }
+      }
+
+      if (readyPromises.length === 0) {
+        return Promise.resolve();
+      }
+
+      return Promise.allSettled(readyPromises).then(() => undefined);
+    };
+
     let state = null;
 
     const load = () => {
@@ -8898,6 +8960,7 @@ export const initScene = (
         viewDistanceTargets,
         starFields,
         update: typeof environment?.update === "function" ? environment.update : null,
+        readyPromise: resolveEnvironmentReadyPromise(environment, group),
       };
 
       updateEnvironmentForPlayerHeight();
@@ -8956,6 +9019,13 @@ export const initScene = (
         if (typeof state?.update === "function") {
           state.update(payload);
         }
+      },
+      waitUntilReady: () => {
+        const loadedState = load();
+        const readyPromise = loadedState?.readyPromise;
+        return readyPromise && typeof readyPromise.then === "function"
+          ? readyPromise
+          : Promise.resolve();
       },
       getGroup: () => state?.group ?? null,
       isLoaded: () => Boolean(state?.group),
@@ -11861,6 +11931,19 @@ export const initScene = (
   const GRAVITY = -9.81;
   const CEILING_CLEARANCE = 0.5;
   const SOFT_CEILING_RANGE = 0.4;
+  let liftTravelLoadingSequence = 0;
+
+  const notifyAreaLoadingStateChange = (payload) => {
+    if (typeof onAreaLoadingStateChange !== "function") {
+      return;
+    }
+
+    try {
+      onAreaLoadingStateChange(payload);
+    } catch (error) {
+      console.warn("Unable to notify area loading state", error);
+    }
+  };
 
   travelToLiftFloor = (targetIndex, options = {}) => {
     if (!liftInteractionsEnabled) {
@@ -11888,6 +11971,15 @@ export const initScene = (
       return false;
     }
 
+    const travelReason = options?.reason || "direct";
+    const loadingSequence = ++liftTravelLoadingSequence;
+    notifyAreaLoadingStateChange({
+      active: true,
+      from: currentFloor || null,
+      to: nextFloor || null,
+      reason: travelReason,
+    });
+
     activateDeckEnvironment(nextFloor.id ?? null);
 
     liftState.currentIndex = clampedIndex;
@@ -11903,6 +11995,10 @@ export const initScene = (
     const destinationEnvironment = nextFloor?.id
       ? deckEnvironmentMap.get(nextFloor.id)
       : null;
+    const destinationReadyPromise =
+      typeof destinationEnvironment?.waitUntilReady === "function"
+        ? destinationEnvironment.waitUntilReady()
+        : Promise.resolve();
     const destinationGroup = destinationEnvironment?.getGroup?.() ?? null;
     if (typeof destinationEnvironment?.update === "function") {
       try {
@@ -12006,9 +12102,29 @@ export const initScene = (
       onLiftTravel({
         from: currentFloor || null,
         to: nextFloor,
-        reason: options?.reason || "direct",
+        reason: travelReason,
       });
     }
+
+    const minimumLoadingDelayPromise = new Promise((resolve) => {
+      window.setTimeout(resolve, MIN_AREA_LOADING_DISPLAY_MS);
+    });
+
+    Promise.allSettled([
+      destinationReadyPromise,
+      minimumLoadingDelayPromise,
+    ]).then(() => {
+      if (loadingSequence !== liftTravelLoadingSequence) {
+        return;
+      }
+
+      notifyAreaLoadingStateChange({
+        active: false,
+        from: currentFloor || null,
+        to: nextFloor || null,
+        reason: travelReason,
+      });
+    });
 
     return true;
   };

@@ -84,6 +84,13 @@ const renderingErrorBanner = document.querySelector("[data-rendering-error]");
 const renderingErrorDetail = renderingErrorBanner?.querySelector(
   "[data-rendering-error-detail]"
 );
+const areaLoadingOverlay = document.querySelector("[data-area-loading-overlay]");
+const areaLoadingTitle = areaLoadingOverlay?.querySelector(
+  "[data-area-loading-title]"
+);
+const areaLoadingDescription = areaLoadingOverlay?.querySelector(
+  "[data-area-loading-description]"
+);
 const topBar = document.querySelector(".top-bar");
 const settingsMenu = document.querySelector("[data-settings-menu]");
 const settingsTrigger = settingsMenu?.querySelector("[data-settings-trigger]");
@@ -258,6 +265,7 @@ let previousCrosshairInteractableState =
   crosshair instanceof HTMLElement && crosshair.dataset.interactable === "true";
 let pointerLockImmersiveModeEnabled = false;
 let liftModalActive = false;
+let areaLoadingOverlayHideTimeoutId = 0;
 
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
@@ -3161,6 +3169,54 @@ const playGeoVisorScanSuccessSound = () => {
   } catch (error) {
     console.error("Unable to play Geo Visor scan success sound", error);
   }
+};
+
+const setAreaLoadingOverlayState = ({
+  active = false,
+  title = "Loading area",
+  description = "Preparing environment...",
+} = {}) => {
+  if (!(areaLoadingOverlay instanceof HTMLElement)) {
+    return;
+  }
+
+  window.clearTimeout(areaLoadingOverlayHideTimeoutId);
+  areaLoadingOverlayHideTimeoutId = 0;
+
+  const nextActive = Boolean(active);
+  const resolvedTitle =
+    typeof title === "string" && title.trim() !== ""
+      ? title.trim()
+      : "Loading area";
+  const resolvedDescription =
+    typeof description === "string" && description.trim() !== ""
+      ? description.trim()
+      : "Preparing environment...";
+
+  if (nextActive) {
+    if (areaLoadingTitle instanceof HTMLElement) {
+      areaLoadingTitle.textContent = resolvedTitle;
+    }
+    if (areaLoadingDescription instanceof HTMLElement) {
+      areaLoadingDescription.textContent = resolvedDescription;
+    }
+    areaLoadingOverlay.hidden = false;
+    areaLoadingOverlay.dataset.active = "true";
+    return;
+  }
+
+  areaLoadingOverlay.dataset.active = "false";
+  areaLoadingOverlayHideTimeoutId = window.setTimeout(() => {
+    if (!(areaLoadingOverlay instanceof HTMLElement)) {
+      return;
+    }
+
+    if (areaLoadingOverlay.dataset.active === "true") {
+      return;
+    }
+
+    areaLoadingOverlay.hidden = true;
+  }, 240);
 };
 
 const playGeoVisorOutOfBatterySound = () => {
@@ -9408,6 +9464,7 @@ const bootstrapScene = () => {
   }
 
   hideRenderingErrorMessage();
+  setAreaLoadingOverlayState({ active: false });
   sceneController?.dispose?.();
 
   try {
@@ -9462,87 +9519,99 @@ const bootstrapScene = () => {
         const destination = event?.to ?? null;
         const floorTitle = destination?.title || destination?.id || "New deck";
         const detail = destination?.description
-          ? `${floorTitle} – ${destination.description}`
+          ? `${floorTitle} - ${destination.description}`
           : floorTitle;
-      showTerminalToast({
-        title: "Lift arrival",
-        description: detail,
-      });
-      updateLiftModalActiveState();
-    },
-    onManifestPlacementHoverChange: handleManifestPlacementHoverChange,
-    onManifestEditModeChange: handleManifestEditModeChange,
-    onManifestPlacementRemoved: handleManifestPlacementRemoved,
-    onResourceCollected(detail) {
-      applyTerrainLifeDrain(detail);
-      if (detail?.source === "drone-miner") {
-        handleDroneResourceCollected(detail);
-        return;
-      }
+        showTerminalToast({
+          title: "Lift arrival",
+          description: detail,
+        });
+        updateLiftModalActiveState();
+      },
+      onAreaLoadingStateChange(event) {
+        const destination = event?.to ?? null;
+        const floorTitle = destination?.title || destination?.id || "Area";
+        const floorDescription =
+          destination?.description ||
+          "Synchronizing map data and placed objects...";
+        setAreaLoadingOverlayState({
+          active: Boolean(event?.active),
+          title: `Loading ${floorTitle}`,
+          description: floorDescription,
+        });
+      },
+      onManifestPlacementHoverChange: handleManifestPlacementHoverChange,
+      onManifestEditModeChange: handleManifestEditModeChange,
+      onManifestPlacementRemoved: handleManifestPlacementRemoved,
+      onResourceCollected(detail) {
+        applyTerrainLifeDrain(detail);
+        if (detail?.source === "drone-miner") {
+          handleDroneResourceCollected(detail);
+          return;
+        }
 
-      if (!detail || detail.found === false || !detail.element) {
-        showResourceToast({ title: "Nothing found" });
-        return;
-      }
+        if (!detail || detail.found === false || !detail.element) {
+          showResourceToast({ title: "Nothing found" });
+          return;
+        }
 
-      const element = detail?.element ?? {};
-      const terrainLabel = detail?.terrain?.label ?? null;
-      const { symbol, name } = element;
-      const atomicNumber = Number.isFinite(element.number)
-        ? element.number
-        : null;
-      recordInventoryResource(detail);
-      const label =
-        symbol && name
-          ? `${symbol} (${name})`
-          : symbol || name || "Unknown element";
-      const segments = [];
-      if (label) {
-        segments.push(label);
-      }
-      if (atomicNumber !== null) {
-        segments.push(`Atomic #${atomicNumber}`);
-      }
-      let description = segments.join(" – ");
-      if (terrainLabel) {
-        description = description
-          ? `${description} • ${terrainLabel}`
-          : terrainLabel;
-      }
-      const resourceDetailSegments = [];
-      if (atomicNumber !== null) {
-        resourceDetailSegments.push(`Atomic #${atomicNumber}`);
-      }
-      if (terrainLabel) {
-        resourceDetailSegments.push(terrainLabel);
-      }
-      const resourceToastDescription = resourceDetailSegments.join(" • ");
-      showResourceToast({
-        title: label || "Resource collected",
-        description: resourceToastDescription || "Resource extracted.",
-      });
-    },
-    onResourceUnavailable({ terrain } = {}) {
-      const terrainLabel = terrain?.terrainLabel ?? null;
-      const description = "Search other area.";
+        const element = detail?.element ?? {};
+        const terrainLabel = detail?.terrain?.label ?? null;
+        const { symbol, name } = element;
+        const atomicNumber = Number.isFinite(element.number)
+          ? element.number
+          : null;
+        recordInventoryResource(detail);
+        const label =
+          symbol && name
+            ? `${symbol} (${name})`
+            : symbol || name || "Unknown element";
+        const segments = [];
+        if (label) {
+          segments.push(label);
+        }
+        if (atomicNumber !== null) {
+          segments.push(`Atomic #${atomicNumber}`);
+        }
+        let description = segments.join(" - ");
+        if (terrainLabel) {
+          description = description
+            ? `${description} • ${terrainLabel}`
+            : terrainLabel;
+        }
+        const resourceDetailSegments = [];
+        if (atomicNumber !== null) {
+          resourceDetailSegments.push(`Atomic #${atomicNumber}`);
+        }
+        if (terrainLabel) {
+          resourceDetailSegments.push(terrainLabel);
+        }
+        const resourceToastDescription = resourceDetailSegments.join(" • ");
+        showResourceToast({
+          title: label || "Resource collected",
+          description: resourceToastDescription || "Resource extracted.",
+        });
+      },
+      onResourceUnavailable({ terrain } = {}) {
+        const terrainLabel = terrain?.terrainLabel ?? null;
+        const description = "Search other area.";
 
-      showResourceToast({
-        title: "No resources detected",
-        description,
-      });
-    },
-    onResourceSessionCancelled({ reason, source } = {}) {
-      if (source === "drone-miner") {
-        handleDroneSessionCancelled(reason);
-        return;
-      }
+        showResourceToast({
+          title: "No resources detected",
+          description,
+        });
+      },
+      onResourceSessionCancelled({ reason, source } = {}) {
+        if (source === "drone-miner") {
+          handleDroneSessionCancelled(reason);
+          return;
+        }
 
-      if (reason === "movement") {
-        showResourceToast({ title: "Digging interrupted" });
-      }
-    },
-    onDroneReturnComplete: handleDroneReturnComplete,
-  });
+        if (reason === "movement") {
+          showResourceToast({ title: "Digging interrupted" });
+        }
+      },
+      onDroneReturnComplete: handleDroneReturnComplete,
+    });
 
   const currentSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
