@@ -164,6 +164,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const ROOM_BOUNDARY_PADDING = 1e-3;
   const MIN_MANIFEST_PLACEMENT_DISTANCE = 2;
   const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
+  const MANIFEST_PLACEMENT_ROTATION_STEP = Math.PI / 12;
   const STACKING_VERTICAL_TOLERANCE = 0.02;
   const getMaxManifestPlacementDistance = () => {
     const horizontalBounds = getHorizontalPlacementBounds();
@@ -1552,6 +1553,21 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     };
 
     placement.keydownHandler = (event) => {
+      if (event.code === "KeyQ" || event.code === "KeyE") {
+        event.preventDefault();
+        event.stopPropagation();
+        placement.container.rotation.y +=
+          event.code === "KeyQ"
+            ? MANIFEST_PLACEMENT_ROTATION_STEP
+            : -MANIFEST_PLACEMENT_ROTATION_STEP;
+        placement.container.updateMatrixWorld(true);
+        placement.containerBounds = computeManifestPlacementBounds(
+          placement.container
+        );
+        updateActivePlacementPreview();
+        return;
+      }
+
       if (event.code === "Escape") {
         cancelActivePlacement(
           new PlacementCancelledError("Placement cancelled"),
@@ -2434,6 +2450,21 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         };
 
         placement.keydownHandler = (event) => {
+          if (event.code === "KeyQ" || event.code === "KeyE") {
+            event.preventDefault();
+            event.stopPropagation();
+            placement.container.rotation.y +=
+              event.code === "KeyQ"
+                ? MANIFEST_PLACEMENT_ROTATION_STEP
+                : -MANIFEST_PLACEMENT_ROTATION_STEP;
+            placement.container.updateMatrixWorld(true);
+            placement.containerBounds = computeManifestPlacementBounds(
+              placement.container
+            );
+            updateActivePlacementPreview();
+            return;
+          }
+
           if (event.code === "Escape") {
             cancelActivePlacement(
               new PlacementCancelledError("Placement cancelled")
