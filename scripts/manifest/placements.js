@@ -485,7 +485,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return bounds;
   };
 
-  const computePlacementPosition = (placement, basePosition) => {
+  const computePlacementPosition = (
+    placement,
+    basePosition,
+    { allowRaise = true } = {}
+  ) => {
     placementComputedPosition.copy(basePosition);
 
     let supportingColliders = null;
@@ -571,6 +575,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     const boundsHeight = bounds.max.y - bounds.min.y;
+    const referenceBottom = Number.isFinite(basePosition?.y)
+      ? basePosition.y + bounds.min.y
+      : null;
 
     const sampledGroundHeight = resolvePlacementGroundHeight(
       placementComputedPosition
@@ -619,6 +626,14 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       }
 
       const effectiveTop = box.max.y - paddingY;
+
+      if (
+        !allowRaise &&
+        Number.isFinite(referenceBottom) &&
+        effectiveTop > referenceBottom + STACKING_VERTICAL_TOLERANCE
+      ) {
+        return;
+      }
 
       if (effectiveTop > supportHeight) {
         supportHeight = effectiveTop;
@@ -858,29 +873,45 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
   const realignManifestPlacements = ({ exclude } = {}) => {
     let anyChanged = false;
+    const placements = Array.from(manifestPlacements).filter(
+      (container) => container && container !== exclude
+    );
 
-    manifestPlacements.forEach((container) => {
-      if (!container || container === exclude) {
-        return;
-      }
-
-      const bounds = computeManifestPlacementBounds(container);
-
-      if (bounds.isEmpty()) {
-        return;
-      }
-
-      const computedPosition = computePlacementPosition(
-        { container, containerBounds: bounds },
-        container.position
-      );
-
-      if (!container.position.equals(computedPosition)) {
-        container.position.copy(computedPosition);
-        container.updateMatrixWorld(true);
-        anyChanged = true;
-      }
+    placements.sort((first, second) => {
+      const firstY = Number.isFinite(first?.position?.y) ? first.position.y : 0;
+      const secondY = Number.isFinite(second?.position?.y) ? second.position.y : 0;
+      return firstY - secondY;
     });
+
+    const maxIterations = 4;
+    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+      let iterationChanged = false;
+
+      placements.forEach((container) => {
+        const bounds = computeManifestPlacementBounds(container);
+
+        if (bounds.isEmpty()) {
+          return;
+        }
+
+        const computedPosition = computePlacementPosition(
+          { container, containerBounds: bounds },
+          container.position,
+          { allowRaise: false }
+        );
+
+        if (!container.position.equals(computedPosition)) {
+          container.position.copy(computedPosition);
+          container.updateMatrixWorld(true);
+          anyChanged = true;
+          iterationChanged = true;
+        }
+      });
+
+      if (!iterationChanged) {
+        break;
+      }
+    }
 
     return anyChanged;
   };
