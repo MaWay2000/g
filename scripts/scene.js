@@ -37,10 +37,12 @@ import {
   loadOutsideMapFromStorage,
   normalizeOutsideMap,
   saveOutsideMapToStorage,
+  OUTSIDE_MAP_LOCAL_STORAGE_KEY,
   OUTSIDE_TERRAIN_ELEMENTS_BY_ID,
   getOutsideTerrainById,
   getOutsideTerrainDefaultTileId,
   getOutsideTerrainTilePath,
+  tryGetOutsideMapStorage,
 } from "./outside-map.js";
 import { getTerrainLifeKey, loadStoredTerrainLife } from "./terrain-life-storage.js";
 import {
@@ -4420,6 +4422,446 @@ export const initScene = (
     return group;
   };
 
+  const MAP_MAKER_DEFAULT_AREA_ID = "operations-exterior";
+  const MAP_MAKER_DOOR_MARKER_PATH = "door-marker";
+  const MAP_MAKER_HEIGHT_MIN = 0;
+  const MAP_MAKER_HEIGHT_MAX = 255;
+  const MAP_MAKER_HEIGHT_SCALE = 6;
+  const MAP_MAKER_TILE_SURFACE_CLEARANCE = 0.01;
+  const MAP_MAKER_TILE_THICKNESS = 0.08;
+  const MAP_MAKER_DOOR_SURFACE_CLEARANCE = 0.02;
+  const MAP_MAKER_DOOR_POSITION_EPSILON = 0.01;
+
+  const clampMapMakerHeight = (value) => {
+    const numericValue = Number.parseInt(value, 10);
+    if (!Number.isFinite(numericValue)) {
+      return MAP_MAKER_HEIGHT_MIN;
+    }
+    return Math.min(
+      MAP_MAKER_HEIGHT_MAX,
+      Math.max(MAP_MAKER_HEIGHT_MIN, Math.floor(numericValue))
+    );
+  };
+
+  const getMapMakerHeightElevation = (value = MAP_MAKER_HEIGHT_MIN) =>
+    (MAP_MAKER_HEIGHT_SCALE * clampMapMakerHeight(value)) /
+    MAP_MAKER_HEIGHT_MAX;
+
+  const getMapMakerStorageKeyForArea = (areaId) => {
+    const resolvedAreaId =
+      typeof areaId === "string" ? areaId.trim() : MAP_MAKER_DEFAULT_AREA_ID;
+    if (!resolvedAreaId || resolvedAreaId === MAP_MAKER_DEFAULT_AREA_ID) {
+      return OUTSIDE_MAP_LOCAL_STORAGE_KEY;
+    }
+    return `${OUTSIDE_MAP_LOCAL_STORAGE_KEY}.${resolvedAreaId}`;
+  };
+
+  const loadStoredMapForArea = (areaId) => {
+    const storage = tryGetOutsideMapStorage();
+    if (!storage) {
+      return null;
+    }
+
+    const storageKey = getMapMakerStorageKeyForArea(areaId);
+    let serialized = null;
+    try {
+      serialized = storage.getItem(storageKey);
+    } catch (error) {
+      console.warn(`Unable to read stored map for area "${areaId}"`, error);
+      return null;
+    }
+
+    if (!serialized) {
+      return null;
+    }
+
+    try {
+      return normalizeOutsideMap(JSON.parse(serialized));
+    } catch (error) {
+      console.warn(`Stored map for area "${areaId}" is invalid`, error);
+      return null;
+    }
+  };
+
+  const createStoredAreaOverlay = ({ areaId, floorBounds, roomFloorY }) => {
+    const storedMap = loadStoredMapForArea(areaId);
+    if (!storedMap) {
+      return null;
+    }
+
+    let normalizedMap = null;
+    try {
+      normalizedMap = normalizeOutsideMap(storedMap);
+    } catch (error) {
+      console.warn(`Unable to normalize stored area map for "${areaId}"`, error);
+      return null;
+    }
+
+    const width = Math.max(1, Number.parseInt(normalizedMap.width, 10));
+    const height = Math.max(1, Number.parseInt(normalizedMap.height, 10));
+    const floorWidth =
+      Number.isFinite(floorBounds?.minX) && Number.isFinite(floorBounds?.maxX)
+        ? Math.max(1, floorBounds.maxX - floorBounds.minX)
+        : Math.max(1, width);
+    const floorDepth =
+      Number.isFinite(floorBounds?.minZ) && Number.isFinite(floorBounds?.maxZ)
+        ? Math.max(1, floorBounds.maxZ - floorBounds.minZ)
+        : Math.max(1, height);
+    const cellSizeX = floorWidth / width;
+    const cellSizeZ = floorDepth / height;
+
+    const overlayGroup = new THREE.Group();
+    overlayGroup.name = `${areaId}-stored-area-overlay`;
+    const objectGroup = new THREE.Group();
+    objectGroup.name = `${areaId}-stored-area-objects`;
+    overlayGroup.add(objectGroup);
+
+    const adjustableEntries = [];
+    const colliderSource = [];
+    const liftDoors = [];
+    const viewDistanceTargets = [];
+    const registeredModelColliders = [];
+    const tileMaterialCache = new Map();
+    let disposed = false;
+
+    const getTerrainMaterial = (terrainId) => {
+      const resolvedTerrain = getOutsideTerrainById(terrainId ?? "void");
+      const resolvedTerrainId = resolvedTerrain?.id ?? "void";
+      if (tileMaterialCache.has(resolvedTerrainId)) {
+        return tileMaterialCache.get(resolvedTerrainId);
+      }
+
+      const rawColor =
+        typeof resolvedTerrain?.color === "string"
+          ? resolvedTerrain.color.trim()
+          : "";
+      const resolvedColor =
+        rawColor && rawColor.toLowerCase() !== "transparent"
+          ? rawColor
+          : "#64748b";
+
+      const material = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(resolvedColor),
+        roughness: 0.74,
+        metalness: 0.16,
+      });
+
+      tileMaterialCache.set(resolvedTerrainId, material);
+      return material;
+    };
+
+    const getCellIndexFromPlacement = (position) => {
+      const placementX = Number.isFinite(position?.x) ? position.x : 0;
+      const placementZ = Number.isFinite(position?.z) ? position.z : 0;
+      const column = THREE.MathUtils.clamp(
+        Math.floor(placementX + width / 2),
+        0,
+        width - 1
+      );
+      const row = THREE.MathUtils.clamp(
+        Math.floor(placementZ + height / 2),
+        0,
+        height - 1
+      );
+      return row * width + column;
+    };
+
+    const getCellSurfaceY = (index) => {
+      const elevation = getMapMakerHeightElevation(normalizedMap.heights?.[index]);
+      return (
+        roomFloorY +
+        MAP_MAKER_TILE_SURFACE_CLEARANCE +
+        elevation +
+        MAP_MAKER_TILE_THICKNESS
+      );
+    };
+
+    const getPlacementWorldPosition = (placement) => {
+      const position = placement?.position ?? {};
+      const placementX = Number.isFinite(position.x) ? position.x : 0;
+      const placementZ = Number.isFinite(position.z) ? position.z : 0;
+      const index = getCellIndexFromPlacement(position);
+      return {
+        x: placementX * cellSizeX,
+        z: placementZ * cellSizeZ,
+        surfaceY: getCellSurfaceY(index),
+      };
+    };
+
+    const alignObjectToSurface = (object, surfaceY) => {
+      if (!object || !Number.isFinite(surfaceY)) {
+        return;
+      }
+      object.updateMatrixWorld(true);
+      const bounds = new THREE.Box3().setFromObject(object);
+      if (!Number.isFinite(bounds.min.y)) {
+        return;
+      }
+      const offset = surfaceY - bounds.min.y;
+      if (!Number.isFinite(offset) || Math.abs(offset) < 0.0001) {
+        return;
+      }
+      object.position.y += offset;
+      object.updateMatrixWorld(true);
+    };
+
+    const applyPlacementTransform = (
+      object,
+      placement,
+      { surfaceY, alignToSurface = true } = {}
+    ) => {
+      if (!object) {
+        return;
+      }
+      const rotation = placement?.rotation ?? {};
+      const scale = placement?.scale ?? {};
+      const placementPosition = getPlacementWorldPosition(placement);
+      const resolvedSurfaceY = Number.isFinite(surfaceY)
+        ? surfaceY
+        : placementPosition.surfaceY;
+
+      object.position.set(
+        placementPosition.x,
+        resolvedSurfaceY,
+        placementPosition.z
+      );
+      object.rotation.set(
+        Number.isFinite(rotation.x) ? rotation.x : 0,
+        Number.isFinite(rotation.y) ? rotation.y : 0,
+        Number.isFinite(rotation.z) ? rotation.z : 0
+      );
+      object.scale.set(
+        Number.isFinite(scale.x) ? scale.x : 1,
+        Number.isFinite(scale.y) ? scale.y : 1,
+        Number.isFinite(scale.z) ? scale.z : 1
+      );
+
+      if (alignToSurface) {
+        alignObjectToSurface(object, resolvedSurfaceY);
+      }
+    };
+
+    const resolveDoorPlacementId = (placement) => {
+      if (!placement || placement.path !== MAP_MAKER_DOOR_MARKER_PATH) {
+        return null;
+      }
+      const position = placement.position ?? null;
+      if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) {
+        return null;
+      }
+      const xIndex = Math.round(position.x + width / 2 - 0.5);
+      const yIndex = Math.round(position.z + height / 2 - 0.5);
+      if (xIndex < 0 || yIndex < 0 || xIndex >= width || yIndex >= height) {
+        return null;
+      }
+      const worldX = xIndex - width / 2 + 0.5;
+      const worldZ = yIndex - height / 2 + 0.5;
+      const matchesX =
+        Math.abs(position.x - worldX) <= MAP_MAKER_DOOR_POSITION_EPSILON;
+      const matchesZ =
+        Math.abs(position.z - worldZ) <= MAP_MAKER_DOOR_POSITION_EPSILON ||
+        Math.abs(position.z - (worldZ - 0.5)) <= MAP_MAKER_DOOR_POSITION_EPSILON;
+      if (!matchesX || !matchesZ) {
+        return null;
+      }
+      return `door-${xIndex + 1}-${yIndex + 1}`;
+    };
+
+    const tileGeometry = new THREE.BoxGeometry(
+      Math.max(0.12, cellSizeX * 0.96),
+      MAP_MAKER_TILE_THICKNESS,
+      Math.max(0.12, cellSizeZ * 0.96)
+    );
+
+    for (let index = 0; index < width * height; index += 1) {
+      const cell = normalizedMap.cells?.[index];
+      const terrain = getOutsideTerrainById(cell?.terrainId ?? "void");
+      if (terrain.id === "void") {
+        continue;
+      }
+
+      const column = index % width;
+      const row = Math.floor(index / width);
+      const worldX = (column - width / 2 + 0.5) * cellSizeX;
+      const worldZ = (row - height / 2 + 0.5) * cellSizeZ;
+      const surfaceY = getCellSurfaceY(index);
+      const tile = new THREE.Mesh(tileGeometry, getTerrainMaterial(terrain.id));
+      tile.position.set(
+        worldX,
+        surfaceY - MAP_MAKER_TILE_THICKNESS / 2,
+        worldZ
+      );
+      overlayGroup.add(tile);
+      adjustableEntries.push({
+        object: tile,
+        offset: tile.position.y - roomFloorY,
+      });
+      viewDistanceTargets.push(tile);
+    }
+
+    const objectPlacements = Array.isArray(normalizedMap.objects)
+      ? normalizedMap.objects
+      : [];
+    const modelPlacements = [];
+
+    objectPlacements.forEach((placement) => {
+      if (!placement || typeof placement !== "object") {
+        return;
+      }
+
+      if (placement.path === MAP_MAKER_DOOR_MARKER_PATH) {
+        const door = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
+          includeBackWall: true,
+        });
+
+        const resolvedDoorId =
+          (typeof placement.id === "string" && placement.id.trim()) ||
+          resolveDoorPlacementId(placement);
+        if (resolvedDoorId) {
+          door.userData.id = resolvedDoorId;
+        }
+
+        const destinationType =
+          typeof placement.destinationType === "string"
+            ? placement.destinationType
+            : null;
+        const destinationId =
+          typeof placement.destinationId === "string"
+            ? placement.destinationId
+            : null;
+
+        if (destinationType === "area" && destinationId) {
+          door.userData.liftFloorId = destinationId;
+          door.userData?.liftUi?.setAccessType?.("area");
+          const liftControls = [
+            door.userData?.liftUi?.control,
+            ...(Array.isArray(door.userData?.liftUi?.controls)
+              ? door.userData.liftUi.controls
+              : []),
+          ].filter(Boolean);
+          liftControls.forEach((control) => {
+            if (!control.userData) {
+              control.userData = {};
+            }
+            control.userData.liftFloorId = destinationId;
+          });
+        } else if (destinationType === "door" && destinationId) {
+          door.userData.doorDestinationId = destinationId;
+          door.userData?.liftUi?.setAccessType?.("direct");
+          const liftControls = [
+            door.userData?.liftUi?.control,
+            ...(Array.isArray(door.userData?.liftUi?.controls)
+              ? door.userData.liftUi.controls
+              : []),
+          ].filter(Boolean);
+          liftControls.forEach((control) => {
+            if (!control.userData) {
+              control.userData = {};
+            }
+            control.userData.doorDestinationId = destinationId;
+          });
+        }
+
+        const doorHeight = door.userData?.height ?? BASE_DOOR_HEIGHT;
+        const placementPosition = getPlacementWorldPosition(placement);
+        applyPlacementTransform(door, placement, {
+          surfaceY:
+            placementPosition.surfaceY +
+            doorHeight / 2 +
+            MAP_MAKER_DOOR_SURFACE_CLEARANCE,
+          alignToSurface: false,
+        });
+        objectGroup.add(door);
+        adjustableEntries.push({
+          object: door,
+          offset: door.position.y - roomFloorY,
+        });
+        liftDoors.push(door);
+        viewDistanceTargets.push(door);
+        colliderSource.push({ object: door });
+        return;
+      }
+
+      modelPlacements.push(placement);
+    });
+
+    if (modelPlacements.length > 0) {
+      modelPlacements.forEach(async (placement) => {
+        if (disposed) {
+          return;
+        }
+
+        let model = null;
+        try {
+          model = await loadModelFromManifestEntry({
+            path: placement.path,
+          });
+        } catch (error) {
+          console.warn(
+            `Unable to load stored area object "${placement.path}"`,
+            error
+          );
+          return;
+        }
+
+        if (!model) {
+          return;
+        }
+
+        if (disposed) {
+          disposeObject3D(model);
+          return;
+        }
+
+        const placementPosition = getPlacementWorldPosition(placement);
+        applyPlacementTransform(model, placement, {
+          surfaceY: placementPosition.surfaceY,
+          alignToSurface: true,
+        });
+
+        if (disposed) {
+          disposeObject3D(model);
+          return;
+        }
+
+        objectGroup.add(model);
+        adjustableEntries.push({
+          object: model,
+          offset: model.position.y - roomFloorY,
+        });
+        viewDistanceTargets.push(model);
+
+        const descriptors = registerCollidersForImportedRoot(model, {
+          padding: new THREE.Vector3(0.02, 0.02, 0.02),
+        });
+        if (Array.isArray(descriptors) && descriptors.length > 0) {
+          registeredModelColliders.push(...descriptors);
+          rebuildStaticColliders();
+        }
+      });
+    }
+
+    overlayGroup.userData.dispose = () => {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      if (registeredModelColliders.length > 0) {
+        unregisterColliderDescriptors(registeredModelColliders);
+        registeredModelColliders.length = 0;
+        rebuildStaticColliders();
+      }
+    };
+
+    return {
+      group: overlayGroup,
+      adjustableEntries,
+      colliderDescriptors: colliderSource,
+      liftDoors,
+      viewDistanceTargets,
+    };
+  };
+
   const createOperationsConcourseEnvironment = () => {
     const group = new THREE.Group();
 
@@ -4866,6 +5308,27 @@ export const initScene = (
       { object: portalControl, offset: exteriorDoorHeight * 0.56 },
     ];
 
+    const mapOverlay = createStoredAreaOverlay({
+      areaId: "operations-concourse",
+      floorBounds,
+      roomFloorY,
+    });
+    const mapColliderDescriptors = Array.isArray(mapOverlay?.colliderDescriptors)
+      ? mapOverlay.colliderDescriptors
+      : [];
+    const mapLiftDoors = Array.isArray(mapOverlay?.liftDoors)
+      ? mapOverlay.liftDoors.filter((door) => door?.isObject3D)
+      : [];
+    const mapViewDistanceTargets = Array.isArray(mapOverlay?.viewDistanceTargets)
+      ? mapOverlay.viewDistanceTargets
+      : [];
+    if (mapOverlay?.group) {
+      group.add(mapOverlay.group);
+    }
+    if (Array.isArray(mapOverlay?.adjustableEntries)) {
+      adjustableEntries.push(...mapOverlay.adjustableEntries);
+    }
+
     const updateForRoomHeight = ({ roomFloorY }) => {
       adjustableEntries.forEach(({ object, offset }) => {
         if (object) {
@@ -4894,10 +5357,12 @@ export const initScene = (
     return {
       group,
       liftDoor,
-      liftDoors: [liftDoor, exteriorExitDoor],
+      liftDoors: [liftDoor, exteriorExitDoor, ...mapLiftDoors],
       updateForRoomHeight,
       teleportOffset,
       bounds: floorBounds,
+      colliderDescriptors: mapColliderDescriptors,
+      viewDistanceTargets: mapViewDistanceTargets,
     };
   };
 
@@ -7380,6 +7845,27 @@ export const initScene = (
       adjustableEntries.push({ object: beam, offset: 1.3 });
     });
 
+    const mapOverlay = createStoredAreaOverlay({
+      areaId: "engineering-bay",
+      floorBounds,
+      roomFloorY,
+    });
+    const mapColliderDescriptors = Array.isArray(mapOverlay?.colliderDescriptors)
+      ? mapOverlay.colliderDescriptors
+      : [];
+    const mapLiftDoors = Array.isArray(mapOverlay?.liftDoors)
+      ? mapOverlay.liftDoors.filter((door) => door?.isObject3D)
+      : [];
+    const mapViewDistanceTargets = Array.isArray(mapOverlay?.viewDistanceTargets)
+      ? mapOverlay.viewDistanceTargets
+      : [];
+    if (mapOverlay?.group) {
+      group.add(mapOverlay.group);
+    }
+    if (Array.isArray(mapOverlay?.adjustableEntries)) {
+      adjustableEntries.push(...mapOverlay.adjustableEntries);
+    }
+
     const updateForRoomHeight = ({ roomFloorY }) => {
       adjustableEntries.forEach(({ object, offset }) => {
         if (object) {
@@ -7392,13 +7878,16 @@ export const initScene = (
     const teleportOffset = new THREE.Vector3(0, 0, -bayDepth / 2 + 1.8);
 
     return {
-        group,
-        liftDoor,
-        updateForRoomHeight,
-        teleportOffset,
-        starFields: [],
-        bounds: floorBounds,
-      };
+      group,
+      liftDoor,
+      liftDoors: [liftDoor, ...mapLiftDoors],
+      updateForRoomHeight,
+      teleportOffset,
+      starFields: [],
+      bounds: floorBounds,
+      colliderDescriptors: mapColliderDescriptors,
+      viewDistanceTargets: mapViewDistanceTargets,
+    };
   };
 
   const createExteriorOutpostEnvironment = () => {
@@ -7697,6 +8186,27 @@ export const initScene = (
     adjustableEntries.push({ object: horizonGlow, offset: 2.6 });
     adjustableEntries.push({ object: nebula, offset: 3.6 });
 
+    const mapOverlay = createStoredAreaOverlay({
+      areaId: "exterior-outpost",
+      floorBounds,
+      roomFloorY,
+    });
+    const mapColliderDescriptors = Array.isArray(mapOverlay?.colliderDescriptors)
+      ? mapOverlay.colliderDescriptors
+      : [];
+    const mapLiftDoors = Array.isArray(mapOverlay?.liftDoors)
+      ? mapOverlay.liftDoors.filter((door) => door?.isObject3D)
+      : [];
+    const mapViewDistanceTargets = Array.isArray(mapOverlay?.viewDistanceTargets)
+      ? mapOverlay.viewDistanceTargets
+      : [];
+    if (mapOverlay?.group) {
+      group.add(mapOverlay.group);
+    }
+    if (Array.isArray(mapOverlay?.adjustableEntries)) {
+      adjustableEntries.push(...mapOverlay.adjustableEntries);
+    }
+
     const updateForRoomHeight = ({ roomFloorY }) => {
       adjustableEntries.forEach(({ object, offset }) => {
         if (object) {
@@ -7717,14 +8227,17 @@ export const initScene = (
       -plazaDepth / 2 + 1.9
     );
 
-      return {
-        group,
-        liftDoor,
-        updateForRoomHeight,
-        teleportOffset,
-        starFields: [nearStarField, farStarField],
-        bounds: floorBounds,
-      };
+    return {
+      group,
+      liftDoor,
+      liftDoors: [liftDoor, ...mapLiftDoors],
+      updateForRoomHeight,
+      teleportOffset,
+      starFields: [nearStarField, farStarField],
+      bounds: floorBounds,
+      colliderDescriptors: mapColliderDescriptors,
+      viewDistanceTargets: mapViewDistanceTargets,
+    };
   };
 
   const createLastUpdatedDisplay = () => {
@@ -7866,6 +8379,49 @@ export const initScene = (
   );
   lastUpdatedDisplay.rotation.y = Math.PI / 2;
   hangarDeckEnvironmentGroup.add(lastUpdatedDisplay);
+
+  const hangarDeckStoredAreaOverlay = createStoredAreaOverlay({
+    areaId: "hangar-deck",
+    floorBounds: createFloorBounds(roomWidth, roomDepth, {
+      paddingX: 1,
+      paddingZ: 1,
+    }),
+    roomFloorY,
+  });
+
+  if (hangarDeckStoredAreaOverlay?.group) {
+    hangarDeckEnvironmentGroup.add(hangarDeckStoredAreaOverlay.group);
+  }
+
+  if (
+    Array.isArray(hangarDeckStoredAreaOverlay?.colliderDescriptors) &&
+    hangarDeckStoredAreaOverlay.colliderDescriptors.length > 0
+  ) {
+    registerColliderDescriptors(hangarDeckStoredAreaOverlay.colliderDescriptors);
+    rebuildStaticColliders();
+  }
+
+  if (Array.isArray(hangarDeckStoredAreaOverlay?.liftDoors)) {
+    hangarDeckStoredAreaOverlay.liftDoors
+      .filter((door) => door?.isObject3D)
+      .forEach((door) => {
+        registerLiftDoor(door);
+      });
+  }
+
+  if (Array.isArray(hangarDeckStoredAreaOverlay?.adjustableEntries)) {
+    const updateHangarStoredAreaOverlayForRoomHeight = ({ roomFloorY }) => {
+      hangarDeckStoredAreaOverlay.adjustableEntries.forEach(
+        ({ object, offset }) => {
+          if (object) {
+            object.position.y = roomFloorY + offset;
+          }
+        }
+      );
+    };
+    registerEnvironmentHeightAdjuster(updateHangarStoredAreaOverlayForRoomHeight);
+    updateHangarStoredAreaOverlayForRoomHeight({ roomFloorY });
+  }
 
   const createLazyDeckEnvironment = ({
     id,

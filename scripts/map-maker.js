@@ -17,6 +17,7 @@ const localSaveFeedbackTimers = {
   save: null,
   restore: null,
 };
+let autoSaveTimerId = null;
 
 const MAP_AREAS = [
   {
@@ -168,6 +169,7 @@ const DEFAULT_GENERATE_HEIGHT_MAX = 64;
 const DEFAULT_GENERATE_HILLS = 8;
 const OBJECT_MANIFEST_URL = "models/manifest.json";
 const DOOR_MARKER_PATH = "door-marker";
+const LOCAL_AUTO_SAVE_DELAY_MS = 350;
 
 const DOOR_DESTINATION_AREAS = MAP_AREAS.map(({ id, label }) => ({ id, label }));
 const DOOR_POSITION_EPSILON = 0.01;
@@ -1563,12 +1565,14 @@ function updateLocalSaveButtonsState() {
   }
 }
 
-function saveMapToLocalStorage() {
+function saveMapToLocalStorage({ showAlert = true, showFeedback = true } = {}) {
   const storage = getLocalStorage();
   if (!storage) {
-    alert(
-      "Local saving is unavailable in this browser. Try a different browser or enable storage permissions."
-    );
+    if (showAlert) {
+      alert(
+        "Local saving is unavailable in this browser. Try a different browser or enable storage permissions."
+      );
+    }
     return false;
   }
   try {
@@ -1578,14 +1582,42 @@ function saveMapToLocalStorage() {
     state.areaMapCache.set(state.selectedAreaId, cloneMapDefinition(state.map));
   } catch (error) {
     console.error("Failed to save map locally", error);
-    alert("Unable to save the map locally. Check storage permissions or space.");
+    if (showAlert) {
+      alert("Unable to save the map locally. Check storage permissions or space.");
+    }
     updateLocalSaveButtonsState();
     return false;
   }
 
-  setTemporaryButtonLabel(elements.saveLocalButton, "Saved", "save");
+  if (showFeedback) {
+    setTemporaryButtonLabel(elements.saveLocalButton, "Saved", "save");
+  }
   updateLocalSaveButtonsState();
   return true;
+}
+
+function scheduleAutoSave() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (typeof autoSaveTimerId === "number") {
+    window.clearTimeout(autoSaveTimerId);
+  }
+  autoSaveTimerId = window.setTimeout(() => {
+    autoSaveTimerId = null;
+    saveMapToLocalStorage({ showAlert: false, showFeedback: false });
+  }, LOCAL_AUTO_SAVE_DELAY_MS);
+}
+
+function flushAutoSave() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (typeof autoSaveTimerId === "number") {
+    window.clearTimeout(autoSaveTimerId);
+    autoSaveTimerId = null;
+  }
+  saveMapToLocalStorage({ showAlert: false, showFeedback: false });
 }
 
 function restoreMapFromLocalStorage({
@@ -2275,6 +2307,7 @@ function updateJsonPreview() {
   elements.jsonPreview.textContent = json;
   updateDoorList();
   updateObjectList();
+  scheduleAutoSave();
 }
 
 function setActivePaletteTab(tabId) {
@@ -2764,6 +2797,15 @@ function initControls() {
     showAlertOnMissing: false,
     showFeedback: false,
     pushHistory: false,
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      flushAutoSave();
+    }
+  });
+  window.addEventListener("beforeunload", () => {
+    flushAutoSave();
   });
 
   elements.mapNameInput.addEventListener("input", (event) => {
