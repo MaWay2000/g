@@ -1875,14 +1875,21 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
               ? descriptor.padding.y
               : 0;
           const effectiveTop = box.max.y - paddingY;
+          const placementBottomY = placementCollisionBox.min.y;
           const supportGap =
             Number.isFinite(effectiveTop) && Number.isFinite(placementSupportHeight)
               ? Math.max(0, placementSupportHeight - effectiveTop)
               : 0;
           const allowedOverlap =
             paddingY + STACKING_VERTICAL_TOLERANCE + supportGap;
+          const isPlacedOnSupportSurface =
+            Number.isFinite(effectiveTop) &&
+            placementBottomY >=
+              effectiveTop - (paddingY + STACKING_VERTICAL_TOLERANCE);
 
-          if (overlapY <= allowedOverlap) {
+          // Only ignore tiny vertical overlap when the placement is actually
+          // resting on the support surface (stacking), not intersecting it.
+          if (overlapY <= allowedOverlap && isPlacedOnSupportSurface) {
             continue;
           }
         }
