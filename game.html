@@ -4727,6 +4727,15 @@
             <button
               class="inventory-panel__tab"
               type="button"
+              data-inventory-tab-target="items"
+              role="tab"
+              aria-selected="false"
+            >
+              Items
+            </button>
+            <button
+              class="inventory-panel__tab"
+              type="button"
               data-inventory-tab-target="drone"
               role="tab"
               aria-selected="false"
@@ -4747,6 +4756,17 @@
               materials.
             </p>
             <ul class="inventory-panel__list" data-inventory-list role="list"></ul>
+          </div>
+          <div
+            class="inventory-panel__section"
+            data-inventory-section="items"
+            hidden
+            role="tabpanel"
+            aria-label="Inventory placeable items"
+          >
+            <p class="inventory-panel__empty">
+              No items in storage yet.
+            </p>
           </div>
           <div
             class="inventory-panel__section"
