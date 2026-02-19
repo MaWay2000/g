@@ -321,6 +321,8 @@ export const initMapMaker3d = ({
     canvas.hidden = true;
     return {
       updateMap: () => {},
+      focusObject: () => {},
+      focusObjectByIndex: () => {},
       dispose: () => {},
     };
   }
@@ -342,6 +344,8 @@ export const initMapMaker3d = ({
     canvas.hidden = true;
     return {
       updateMap: () => {},
+      focusObject: () => {},
+      focusObjectByIndex: () => {},
       dispose: () => {},
     };
   }
@@ -1889,11 +1893,11 @@ export const initMapMaker3d = ({
     return y * mapWidth + x;
   };
 
-  const focusObject = (placement) => {
+  const focusPlacement = (placement, placementIndex = null) => {
     if (!placement?.position) {
       return;
     }
-    const { x, y, z } = placement.position;
+    const { x, z } = placement.position;
     if (!Number.isFinite(x) || !Number.isFinite(z)) {
       return;
     }
@@ -1906,6 +1910,40 @@ export const initMapMaker3d = ({
     controls.target.copy(target);
     camera.position.copy(target).add(offset);
     controls.update();
+    objectHighlightPlacementIndex =
+      Number.isFinite(placementIndex) && placementIndex >= 0
+        ? placementIndex
+        : null;
+    objectHighlightStart = clock.getElapsedTime();
+    updateObjectHighlightBounds();
+  };
+
+  const focusObjectByIndex = (index) => {
+    const placementIndex = Number.parseInt(index, 10);
+    if (
+      !Number.isFinite(placementIndex) ||
+      placementIndex < 0 ||
+      placementIndex >= objectPlacements.length
+    ) {
+      return;
+    }
+    const placement = objectPlacements[placementIndex];
+    if (!placement) {
+      return;
+    }
+    focusPlacement(placement, placementIndex);
+  };
+
+  const focusObject = (placement) => {
+    if (!placement?.position) {
+      return;
+    }
+    const { x, z } = placement.position;
+    if (!Number.isFinite(x) || !Number.isFinite(z)) {
+      return;
+    }
+    const worldX = getMapLocalToWorldX(x);
+    const worldZ = getMapLocalToWorldZ(z);
     let placementIndex = objectPlacements.findIndex(
       (entry) => entry === placement
     );
@@ -1922,9 +1960,7 @@ export const initMapMaker3d = ({
         });
       }
     }
-    objectHighlightPlacementIndex = placementIndex >= 0 ? placementIndex : null;
-    objectHighlightStart = clock.getElapsedTime();
-    updateObjectHighlightBounds();
+    focusPlacement(placement, placementIndex);
   };
 
   const updateBrushPreview = (index) => {
@@ -2476,6 +2512,7 @@ export const initMapMaker3d = ({
     setHeightVisibility: updateHeightDisplay,
     setObjectPlacements: updateObjectPlacements,
     focusObject,
+    focusObjectByIndex,
     setSelection,
     resize: resizeRenderer,
     dispose,

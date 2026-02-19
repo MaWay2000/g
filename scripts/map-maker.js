@@ -950,8 +950,17 @@ function removeDoorPlacementAtIndex(index) {
   pushUndoSnapshot(snapshot);
 }
 
-function focusPlacedObject(placement) {
+function focusPlacedObject(placement, index = null) {
   if (!placement) {
+    return;
+  }
+  const placementIndex = Number.parseInt(index, 10);
+  if (
+    Number.isFinite(placementIndex) &&
+    placementIndex >= 0 &&
+    typeof landscapeViewer?.focusObjectByIndex === "function"
+  ) {
+    landscapeViewer.focusObjectByIndex(placementIndex);
     return;
   }
   landscapeViewer?.focusObject?.(placement);
@@ -1149,7 +1158,7 @@ function updateObjectList() {
 
     focusButton.append(name, id, rotation);
     focusButton.addEventListener("click", () => {
-      focusPlacedObject(placement);
+      focusPlacedObject(placement, index);
     });
 
     const actions = document.createElement("div");
