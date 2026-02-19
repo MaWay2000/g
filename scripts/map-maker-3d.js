@@ -496,22 +496,22 @@ export const initMapMaker3d = ({
   highlightMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   highlightMesh.renderOrder = 2;
   scene.add(highlightMesh);
-  const objectHighlightGeometry = new THREE.PlaneGeometry(1.15, 1.15);
-  objectHighlightGeometry.rotateX(-Math.PI / 2);
-  const objectHighlightMaterial = new THREE.MeshBasicMaterial({
+  const objectHighlightBounds = new THREE.Box3();
+  const objectHighlightMaterial = new THREE.LineBasicMaterial({
     color: "#fbbf24",
     transparent: true,
-    opacity: 0.4,
+    opacity: 0.75,
     depthTest: false,
     depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
   });
-  const objectHighlightMesh = new THREE.Mesh(
-    objectHighlightGeometry,
-    objectHighlightMaterial
+  const objectHighlightMesh = new THREE.Box3Helper(
+    objectHighlightBounds,
+    "#fbbf24"
   );
+  if (objectHighlightMesh.material) {
+    objectHighlightMesh.material.dispose();
+  }
+  objectHighlightMesh.material = objectHighlightMaterial;
   objectHighlightMesh.visible = false;
   objectHighlightMesh.renderOrder = 3;
   scene.add(objectHighlightMesh);
@@ -572,6 +572,7 @@ export const initMapMaker3d = ({
   let previewToken = 0;
   let previewIndex = null;
   let objectHighlightStart = null;
+  let objectHighlightPlacementIndex = null;
   let areaReferenceGeometries = [];
   let areaReferenceMaterials = [];
   const OBJECT_HIGHLIGHT_DURATION = 1.8;
@@ -627,8 +628,6 @@ export const initMapMaker3d = ({
     getDisplayHeightFromMapLocal(getTerrainHeight(heightValue));
   const getCellHighlightScaleX = () => Math.max(0.2, mapCellSizeX * 0.98);
   const getCellHighlightScaleZ = () => Math.max(0.2, mapCellSizeZ * 0.98);
-  const getObjectHighlightBaseScale = () =>
-    Math.max(0.25, Math.min(mapCellSizeX, mapCellSizeZ) * 1.15);
   const identityQuaternion = new THREE.Quaternion();
   const createAreaReferenceMaterial = (params = {}) => {
     const material = new THREE.MeshStandardMaterial(params);
@@ -1608,6 +1607,57 @@ export const initMapMaker3d = ({
   });
   resizeObserver.observe(canvas);
 
+  const getPlacementIndexFromObject = (object) =>
+    Number.parseInt(object?.userData?.objectPlacementIndex, 10);
+
+  const getObjectPlacementInstanceByIndex = (placementIndex) => {
+    if (!Number.isFinite(placementIndex)) {
+      return null;
+    }
+    for (const entry of objectGroup.children) {
+      if (entry.visible === false) {
+        continue;
+      }
+      if (getPlacementIndexFromObject(entry) === placementIndex) {
+        return entry;
+      }
+    }
+    return null;
+  };
+
+  const getActiveObjectHighlightTarget = () => {
+    if (!Number.isFinite(objectHighlightPlacementIndex)) {
+      return null;
+    }
+    const selectedMoveIndex = Number.parseInt(objectMoveSelectionIndex, 10);
+    if (
+      Number.isFinite(selectedMoveIndex) &&
+      selectedMoveIndex === objectHighlightPlacementIndex &&
+      previewObject &&
+      objectPreviewGroup.visible
+    ) {
+      return previewObject;
+    }
+    return getObjectPlacementInstanceByIndex(objectHighlightPlacementIndex);
+  };
+
+  const updateObjectHighlightBounds = () => {
+    const target = getActiveObjectHighlightTarget();
+    if (!target) {
+      objectHighlightMesh.visible = false;
+      return false;
+    }
+    target.updateMatrixWorld(true);
+    objectHighlightBounds.setFromObject(target);
+    if (objectHighlightBounds.isEmpty()) {
+      objectHighlightMesh.visible = false;
+      return false;
+    }
+    objectHighlightBounds.expandByScalar(0.035);
+    objectHighlightMesh.visible = true;
+    return true;
+  };
+
   const renderLoop = () => {
     frameId = window.requestAnimationFrame(renderLoop);
     const delta = clock.getDelta();
@@ -1643,14 +1693,12 @@ export const initMapMaker3d = ({
       const elapsed = clock.getElapsedTime() - objectHighlightStart;
       if (elapsed > OBJECT_HIGHLIGHT_DURATION) {
         objectHighlightStart = null;
+        objectHighlightPlacementIndex = null;
         objectHighlightMesh.visible = false;
       } else {
         const pulse = 0.5 + 0.5 * Math.sin(elapsed * Math.PI * 4);
-        objectHighlightMaterial.opacity = 0.18 + 0.5 * pulse;
-        const pulseScale =
-          getObjectHighlightBaseScale() * (1 + 0.06 * Math.sin(elapsed * Math.PI * 2));
-        objectHighlightMesh.scale.set(pulseScale, 1, pulseScale);
-        objectHighlightMesh.visible = true;
+        objectHighlightMaterial.opacity = 0.25 + 0.65 * pulse;
+        updateObjectHighlightBounds();
       }
     }
     controls.update();
@@ -1858,15 +1906,25 @@ export const initMapMaker3d = ({
     controls.target.copy(target);
     camera.position.copy(target).add(offset);
     controls.update();
-    const index = getCellIndexFromWorldPosition({ x: worldX, z: worldZ });
-    const elevation = Number.isFinite(index)
-      ? getCellElevation(index, 0.12)
-      : Number.isFinite(y)
-      ? getDisplayHeightFromMapLocal(y) + 0.12
-      : TERRAIN_HEIGHT + 0.12;
-    objectHighlightMesh.position.set(worldX, elevation, worldZ);
+    let placementIndex = objectPlacements.findIndex(
+      (entry) => entry === placement
+    );
+    if (placementIndex < 0) {
+      const targetCellIndex = getCellIndexFromWorldPosition({ x: worldX, z: worldZ });
+      if (Number.isFinite(targetCellIndex)) {
+        placementIndex = objectPlacements.findIndex((entry) => {
+          if (!entry || entry.path !== placement.path) {
+            return false;
+          }
+          const entryPosition = entry.position ?? null;
+          const entryCellIndex = getCellIndexFromWorldPosition(entryPosition);
+          return Number.isFinite(entryCellIndex) && entryCellIndex === targetCellIndex;
+        });
+      }
+    }
+    objectHighlightPlacementIndex = placementIndex >= 0 ? placementIndex : null;
     objectHighlightStart = clock.getElapsedTime();
-    objectHighlightMesh.visible = true;
+    updateObjectHighlightBounds();
   };
 
   const updateBrushPreview = (index) => {
@@ -2390,7 +2448,7 @@ export const initMapMaker3d = ({
     terrainMarkerMaterial.dispose();
     highlightGeometry.dispose();
     highlightMaterial.dispose();
-    objectHighlightGeometry.dispose();
+    objectHighlightMesh.geometry.dispose();
     objectHighlightMaterial.dispose();
     selectionMaterial.dispose();
     objectGroup.clear();
