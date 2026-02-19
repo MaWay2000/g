@@ -2364,6 +2364,13 @@ function setActivePaletteTab(tabId) {
   if (previousTab && previousTab !== tabId) {
     clearSelection();
   }
+
+  if (tabId === "terrain" && state.terrainMode !== "brush") {
+    setTerrainMenu("brush");
+  } else if (tabId === "height" && state.heightMode !== "brush") {
+    setHeightMode("brush");
+  }
+
   let activePanelId = null;
   elements.tabButtons.forEach((button) => {
     const isActive = button.dataset.mapMakerTab === tabId;
