@@ -977,6 +977,7 @@ function setObjectPlacementCollisionAtIndex(index, isEnabled) {
   updateJsonPreview();
   landscapeViewer?.setObjectPlacements?.(state.map.objects);
   pushUndoSnapshot(snapshot);
+  saveMapToLocalStorage({ showAlert: false, showFeedback: false });
 }
 
 function removeObjectPlacementAtIndex(index) {

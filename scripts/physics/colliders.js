@@ -34,6 +34,10 @@ export const registerColliderDescriptors = (descriptors) => {
       autoUpdate,
     };
 
+    if (descriptor.mapMakerCollisionEnabled === false) {
+      registeredDescriptor.mapMakerCollisionEnabled = false;
+    }
+
     if (descriptor.root) {
       registeredDescriptor.root = descriptor.root;
     }
@@ -94,6 +98,8 @@ export const registerCollidersForImportedRoot = (root, { padding } = {}) => {
       : null;
 
   root.updateMatrixWorld(true);
+  const rootCollisionEnabled =
+    root.userData?.mapMakerCollisionEnabled !== false;
 
   const descriptors = [];
 
@@ -109,6 +115,15 @@ export const registerCollidersForImportedRoot = (root, { padding } = {}) => {
     }
 
     const descriptor = { object: child, root };
+
+    if (
+      !rootCollisionEnabled ||
+      child.userData?.mapMakerCollisionEnabled === false
+    ) {
+      const childUserData = child.userData || (child.userData = {});
+      childUserData.mapMakerCollisionEnabled = false;
+      descriptor.mapMakerCollisionEnabled = false;
+    }
 
     if (paddingVector) {
       descriptor.padding = paddingVector.clone();

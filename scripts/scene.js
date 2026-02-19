@@ -4453,6 +4453,8 @@ export const initScene = (
     });
   };
   const isMapMakerDescriptorCollisionEnabled = (descriptor) =>
+    descriptor?.mapMakerCollisionEnabled !== false &&
+    descriptor?.root?.userData?.mapMakerCollisionEnabled !== false &&
     descriptor?.object?.userData?.mapMakerCollisionEnabled !== false;
 
   const clampMapMakerHeight = (value) => {
