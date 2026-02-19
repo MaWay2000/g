@@ -424,6 +424,17 @@
         color: rgba(226, 232, 240, 0.6);
       }
 
+      .object-list-rotation {
+        color: rgba(125, 211, 252, 0.85);
+      }
+
+      .object-list-actions {
+        display: inline-flex;
+        align-items: stretch;
+        gap: 0.35rem;
+      }
+
+      .object-list-rotate,
       .object-list-remove {
         border: 1px solid rgba(248, 113, 113, 0.45);
         background: rgba(248, 113, 113, 0.16);
@@ -433,6 +444,19 @@
         font-weight: 700;
         cursor: pointer;
         transition: transform 120ms ease, background 120ms ease;
+      }
+
+      .object-list-rotate {
+        border-color: rgba(56, 189, 248, 0.4);
+        background: rgba(56, 189, 248, 0.12);
+        color: rgba(125, 211, 252, 0.95);
+      }
+
+      .object-list-rotate:hover,
+      .object-list-rotate:focus-visible {
+        transform: translateY(-1px);
+        background: rgba(56, 189, 248, 0.22);
+        outline: none;
       }
 
       .object-list-remove:hover,
