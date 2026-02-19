@@ -646,6 +646,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     descriptor?.root?.userData?.mapMakerCollisionEnabled !== false &&
     descriptor?.object?.userData?.mapMakerCollisionEnabled !== false;
 
+  const isTerrainColliderDescriptor = (descriptor) => {
+    const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
+    return Number.isFinite(terrainHeight);
+  };
+
   const getPlacementColliderEntries = (container) => {
     if (!container) {
       return [];
@@ -1006,6 +1011,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         return;
       }
 
+      if (isTerrainColliderDescriptor(descriptor)) {
+        return;
+      }
+
       if (!isColliderDescriptorCollisionEnabled(descriptor)) {
         return;
       }
@@ -1252,6 +1261,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const evaluateSupportDescriptor = (descriptor) => {
       const box = descriptor?.box;
       if (!box || box.isEmpty()) {
+        return;
+      }
+
+      if (isTerrainColliderDescriptor(descriptor)) {
         return;
       }
 
@@ -1814,6 +1827,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         const descriptor = colliderDescriptors[i];
 
         if (!descriptor) {
+          continue;
+        }
+
+        if (isTerrainColliderDescriptor(descriptor)) {
           continue;
         }
 
