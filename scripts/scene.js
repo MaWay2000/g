@@ -4859,9 +4859,6 @@ export const initScene = (
     for (let index = 0; index < width * height; index += 1) {
       const cell = normalizedMap.cells?.[index];
       const terrain = getOutsideTerrainById(cell?.terrainId ?? "void");
-      if (terrain.id === "void") {
-        continue;
-      }
 
       const column = index % width;
       const row = Math.floor(index / width);
