@@ -8053,12 +8053,19 @@ export const initScene = (
       },
     };
 
+    const outsideSurfaceSamplePosition = new THREE.Vector3();
     group.userData.returnDoor = returnDoor;
     group.userData.getSurfaceYAtWorldPosition = (worldX, worldZ) => {
       if (
         typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
       ) {
-        return builtOutsideTerrain.getSurfaceYAtWorldPosition(worldX, worldZ);
+        outsideSurfaceSamplePosition.set(worldX, roomFloorY, worldZ);
+        group.updateWorldMatrix(true, false);
+        group.worldToLocal(outsideSurfaceSamplePosition);
+        return builtOutsideTerrain.getSurfaceYAtWorldPosition(
+          outsideSurfaceSamplePosition.x,
+          outsideSurfaceSamplePosition.z
+        );
       }
 
       return roomFloorY;
@@ -8083,7 +8090,7 @@ export const initScene = (
       if (
         typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
       ) {
-        const surfaceY = builtOutsideTerrain.getSurfaceYAtWorldPosition(
+        const surfaceY = group.userData.getSurfaceYAtWorldPosition(
           spawnPosition.x,
           spawnPosition.z
         );
