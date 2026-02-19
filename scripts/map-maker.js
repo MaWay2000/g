@@ -975,6 +975,9 @@ function updateDoorList() {
     item.className = "door-list-item";
     const header = document.createElement("div");
     header.className = "door-list-item-head";
+    const focusButton = document.createElement("button");
+    focusButton.type = "button";
+    focusButton.className = "object-list-focus door-list-focus";
     const title = document.createElement("div");
     title.className = "door-list-item-title";
     const name = document.createElement("div");
@@ -984,6 +987,10 @@ function updateDoorList() {
     id.className = "door-list-id";
     id.textContent = `ID: ${entry.id}`;
     title.append(name, id);
+    focusButton.append(title);
+    focusButton.addEventListener("click", () => {
+      focusPlacedObject(entry.placement);
+    });
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "object-list-remove door-list-remove";
@@ -992,7 +999,7 @@ function updateDoorList() {
     removeButton.addEventListener("click", () => {
       removeDoorPlacementAtIndex(entry.index);
     });
-    header.append(title, removeButton);
+    header.append(focusButton, removeButton);
     const destination = document.createElement("div");
     destination.className = "door-list-destination";
     const destinationLabel = document.createElement("label");
