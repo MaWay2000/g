@@ -198,6 +198,12 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
   const MANIFEST_PLACEMENT_ROTATION_STEP = Math.PI / 2;
   const STACKING_VERTICAL_TOLERANCE = 0.02;
+  const PLACEMENT_PREVIEW_INPUT_POSITION_EPSILON_SQ = 1e-6;
+  const PLACEMENT_PREVIEW_INPUT_DIRECTION_EPSILON_SQ = 1e-6;
+  const PLACEMENT_PREVIEW_INPUT_ROTATION_EPSILON = 1e-6;
+  const PLACEMENT_PREVIEW_SETTLE_MOVE_EPSILON_SQ = 4e-4;
+  const PLACEMENT_PREVIEW_SETTLE_INTERVAL_MS = 120;
+  const PLACEMENT_PREVIEW_SETTLE_MAX_ITERATIONS = 2;
   const PLACEMENT_WALL_SNAP_EDGE_THRESHOLD = 1.3;
   const PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD = 0.96;
   const PLACEMENT_FLOOR_SNAP_EDGE_THRESHOLD = 1.2;
@@ -2815,13 +2821,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     const placement = activePlacement;
-    if (placement.isReposition) {
-      restoreRepositionPreviewBaseline(placement);
-    }
     const playerPosition = controls.getObject().position;
     const directionVector = placement.previewDirection;
-
-    placementPreviousPreviewPosition.copy(placement.previewPosition);
 
     camera.getWorldDirection(directionVector);
     directionVector.y = 0;
@@ -2856,6 +2857,33 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       );
     }
 
+    const previousRotationY = Number.isFinite(placement.lastPreviewRotationY)
+      ? placement.lastPreviewRotationY
+      : placement.container.rotation.y;
+    const previewInputChanged =
+      !(placement.lastPreviewBasePosition instanceof THREE.Vector3) ||
+      placement.lastPreviewBasePosition.distanceToSquared(
+        placementPreviewBasePosition
+      ) > PLACEMENT_PREVIEW_INPUT_POSITION_EPSILON_SQ ||
+      !(placement.lastPreviewDirection instanceof THREE.Vector3) ||
+      placement.lastPreviewDirection.distanceToSquared(directionVector) >
+        PLACEMENT_PREVIEW_INPUT_DIRECTION_EPSILON_SQ ||
+      Math.abs((placement.lastPreviewDistance ?? placement.distance) - placement.distance) >
+        1e-6 ||
+      Math.abs(placement.container.rotation.y - previousRotationY) >
+        PLACEMENT_PREVIEW_INPUT_ROTATION_EPSILON;
+
+    if (!previewInputChanged) {
+      updateManifestEditSelectionHighlight();
+      return;
+    }
+
+    if (placement.isReposition) {
+      restoreRepositionPreviewBaseline(placement);
+    }
+
+    placementPreviousPreviewPosition.copy(placement.previewPosition);
+
     const computedPosition = computePlacementPosition(
       placement,
       placementPreviewBasePosition
@@ -2884,6 +2912,19 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     placement.container.updateMatrixWorld(true);
+
+    if (!(placement.lastPreviewBasePosition instanceof THREE.Vector3)) {
+      placement.lastPreviewBasePosition = new THREE.Vector3();
+    }
+    placement.lastPreviewBasePosition.copy(placementPreviewBasePosition);
+
+    if (!(placement.lastPreviewDirection instanceof THREE.Vector3)) {
+      placement.lastPreviewDirection = new THREE.Vector3();
+    }
+    placement.lastPreviewDirection.copy(directionVector);
+
+    placement.lastPreviewDistance = placement.distance;
+    placement.lastPreviewRotationY = placement.container.rotation.y;
 
     if (
       placement.moveDependentsWithPlacement &&
@@ -2966,44 +3007,70 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     if (placement.isReposition) {
-      const previewSupportDescriptors = [];
-      const supportBounds = computeManifestPlacementBounds(placement.container);
-      const supportWorldPosition = getContainerWorldPosition(
-        placement.container,
-        settleWorldPosition
-      );
+      const now =
+        typeof performance !== "undefined" && Number.isFinite(performance.now())
+          ? performance.now()
+          : Date.now();
+      const lastSettleAt = Number.isFinite(placement.lastPreviewSettleAt)
+        ? placement.lastPreviewSettleAt
+        : -Infinity;
+      const lastSettlePosition =
+        placement.lastPreviewSettlePosition instanceof THREE.Vector3
+          ? placement.lastPreviewSettlePosition
+          : null;
+      const movedSinceSettle =
+        !lastSettlePosition ||
+        placement.container.position.distanceToSquared(lastSettlePosition) >
+          PLACEMENT_PREVIEW_SETTLE_MOVE_EPSILON_SQ;
+      const shouldRunPreviewSettle =
+        movedSinceSettle &&
+        now - lastSettleAt >= PLACEMENT_PREVIEW_SETTLE_INTERVAL_MS;
 
-      if (supportWorldPosition && !supportBounds.isEmpty()) {
-        placementPreviewSupportBox.min
-          .copy(supportBounds.min)
-          .add(supportWorldPosition);
-        placementPreviewSupportBox.max
-          .copy(supportBounds.max)
-          .add(supportWorldPosition);
-        previewSupportDescriptors.push({
-          root: placement.container,
-          object: placement.container,
-          box: placementPreviewSupportBox,
-          padding: manifestPlacementPadding,
-        });
-      }
+      if (shouldRunPreviewSettle) {
+        const previewSupportDescriptors = [];
+        const supportBounds = computeManifestPlacementBounds(placement.container);
+        const supportWorldPosition = getContainerWorldPosition(
+          placement.container,
+          settleWorldPosition
+        );
 
-      const previewSettledPlacements = settlePlacementsDownward(
-        getEditablePlacements(),
-        {
-          maxIterations: 6,
-          extraSupportDescriptors: previewSupportDescriptors,
+        if (supportWorldPosition && !supportBounds.isEmpty()) {
+          placementPreviewSupportBox.min
+            .copy(supportBounds.min)
+            .add(supportWorldPosition);
+          placementPreviewSupportBox.max
+            .copy(supportBounds.max)
+            .add(supportWorldPosition);
+          previewSupportDescriptors.push({
+            root: placement.container,
+            object: placement.container,
+            box: placementPreviewSupportBox,
+            padding: manifestPlacementPadding,
+          });
         }
-      );
 
-      if (
-        previewSettledPlacements.length > 0 &&
-        typeof rebuildStaticColliders === "function"
-      ) {
-        rebuildStaticColliders();
+        const previewSettledPlacements = settlePlacementsDownward(
+          getEditablePlacements(),
+          {
+            maxIterations: PLACEMENT_PREVIEW_SETTLE_MAX_ITERATIONS,
+            extraSupportDescriptors: previewSupportDescriptors,
+          }
+        );
+
+        if (
+          previewSettledPlacements.length > 0 &&
+          typeof rebuildStaticColliders === "function"
+        ) {
+          rebuildStaticColliders();
+        }
+
+        placement.previewPosition.copy(placement.container.position);
+        placement.lastPreviewSettleAt = now;
+        if (!(placement.lastPreviewSettlePosition instanceof THREE.Vector3)) {
+          placement.lastPreviewSettlePosition = new THREE.Vector3();
+        }
+        placement.lastPreviewSettlePosition.copy(placement.container.position);
       }
-
-      placement.previewPosition.copy(placement.container.position);
     }
 
     updateManifestEditSelectionHighlight();
