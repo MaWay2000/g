@@ -4436,6 +4436,24 @@ export const initScene = (
   const MAP_MAKER_DOOR_POSITION_EPSILON = 0.01;
   const isMapMakerPlacementCollisionEnabled = (placement) =>
     placement?.collisionEnabled !== false;
+  const setMapMakerPlacementCollisionState = (
+    object,
+    collisionEnabled = true
+  ) => {
+    if (!object || typeof object.traverse !== "function") {
+      return;
+    }
+    const nextEnabled = collisionEnabled !== false;
+    object.traverse((entry) => {
+      if (!entry?.isObject3D) {
+        return;
+      }
+      const userData = entry.userData || (entry.userData = {});
+      userData.mapMakerCollisionEnabled = nextEnabled;
+    });
+  };
+  const isMapMakerDescriptorCollisionEnabled = (descriptor) =>
+    descriptor?.object?.userData?.mapMakerCollisionEnabled !== false;
 
   const clampMapMakerHeight = (value) => {
     const numericValue = Number.parseInt(value, 10);
@@ -5061,6 +5079,10 @@ export const initScene = (
             return;
           }
 
+          const placementCollisionEnabled =
+            isMapMakerPlacementCollisionEnabled(placement);
+          setMapMakerPlacementCollisionState(model, placementCollisionEnabled);
+
           const placementPosition = getPlacementWorldPosition(placement);
           applyPlacementTransform(model, placement, {
             surfaceY: placementPosition.baseY,
@@ -5079,7 +5101,7 @@ export const initScene = (
           });
           viewDistanceTargets.push(model);
 
-          const descriptors = isMapMakerPlacementCollisionEnabled(placement)
+          const descriptors = placementCollisionEnabled
             ? registerCollidersForImportedRoot(model, {
                 padding: new THREE.Vector3(0.02, 0.02, 0.02),
               })
@@ -7281,6 +7303,12 @@ export const initScene = (
               if (!model) {
                 return;
               }
+              const placementCollisionEnabled =
+                isMapMakerPlacementCollisionEnabled(placement);
+              setMapMakerPlacementCollisionState(
+                model,
+                placementCollisionEnabled
+              );
               applyPlacementTransform(model, placement, {
                 surfaceY: placementPosition.baseY,
                 alignToSurface: true,
@@ -12426,6 +12454,10 @@ export const initScene = (
     };
 
     colliderDescriptors.forEach((descriptor) => {
+      if (!isMapMakerDescriptorCollisionEnabled(descriptor)) {
+        return;
+      }
+
       const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
       if (
         Number.isFinite(terrainHeight) &&
@@ -13113,6 +13145,10 @@ export const initScene = (
     let bestSupportHeight = null;
 
     colliderDescriptors.forEach((descriptor) => {
+      if (!isMapMakerDescriptorCollisionEnabled(descriptor)) {
+        return;
+      }
+
       const box = descriptor?.box;
       if (!box || box.isEmpty()) {
         return;
