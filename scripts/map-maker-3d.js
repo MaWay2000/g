@@ -25,12 +25,17 @@ const DOOR_MARKER_PATH = "door-marker";
 const DOOR_MARKER_COLOR = "#f97316";
 const DOOR_MARKER_FRAME_COLOR = "#0f172a";
 const DEFAULT_MAP_AREA_ID = "operations-exterior";
+const DEFAULT_PLAYER_HEIGHT = 1.8;
+const OUTSIDE_HEIGHT_UNITS_PER_PLAYER = 3;
 const ROOM_SCALE_FACTOR = 0.25;
 const BASE_ROOM_WIDTH = 20 * ROOM_SCALE_FACTOR;
 const BASE_ROOM_DEPTH = 60 * ROOM_SCALE_FACTOR;
 const ENGINEERING_BAY_WIDTH_FACTOR = 2.1;
 const ENGINEERING_BAY_DEPTH_FACTOR = 1.2;
 const OUTSIDE_CELL_SIZE = ROOM_SCALE_FACTOR * 60;
+const OUTSIDE_HEIGHT_SCALE =
+  ((DEFAULT_PLAYER_HEIGHT - HEIGHT_FLOOR) * HEIGHT_MAX) /
+  OUTSIDE_HEIGHT_UNITS_PER_PLAYER;
 
 const clampPositiveNumber = (value, fallback = 1) => {
   if (!Number.isFinite(value) || value <= 0) {
@@ -121,7 +126,7 @@ const resolveTerrainColor = (terrain, showColors) => {
 
 const buildTerrainGeometry = (
   map,
-  { cellSizeX = 1, cellSizeZ = 1 } = {}
+  { cellSizeX = 1, cellSizeZ = 1, resolveHeight = getTerrainHeight } = {}
 ) => {
   const positions = [];
   const colors = [];
@@ -144,7 +149,7 @@ const buildTerrainGeometry = (
     }
   };
 
-  const getCellHeight = (index) => getTerrainHeight(map.heights?.[index]);
+  const getCellHeight = (index) => resolveHeight(map.heights?.[index]);
   const isVoidCell = (index) => map.cells?.[index]?.terrainId === "void";
   const isHeightDrop = (fromHeight, toHeight) => fromHeight - toHeight > 0.001;
 
@@ -605,6 +610,19 @@ export const initMapMaker3d = ({
   const getMapLocalToWorldZ = (localZ) => localZ * mapCellSizeZ;
   const getWorldToMapLocalX = (worldX) => worldX / mapCellSizeX;
   const getWorldToMapLocalZ = (worldZ) => worldZ / mapCellSizeZ;
+  const getDisplayHeightFromMapLocal = (localValue) => {
+    const normalizedLocalValue = Number(localValue);
+    if (!Number.isFinite(normalizedLocalValue)) {
+      return HEIGHT_FLOOR;
+    }
+    if (selectedAreaId !== "operations-exterior") {
+      return normalizedLocalValue;
+    }
+    const localElevation = Math.max(0, normalizedLocalValue - HEIGHT_FLOOR);
+    return HEIGHT_FLOOR + (OUTSIDE_HEIGHT_SCALE * localElevation) / HEIGHT_SCALE;
+  };
+  const getDisplayTerrainHeight = (heightValue = HEIGHT_MIN) =>
+    getDisplayHeightFromMapLocal(getTerrainHeight(heightValue));
   const getCellHighlightScaleX = () => Math.max(0.2, mapCellSizeX * 0.98);
   const getCellHighlightScaleZ = () => Math.max(0.2, mapCellSizeZ * 0.98);
   const getObjectHighlightBaseScale = () =>
@@ -1410,7 +1428,7 @@ export const initMapMaker3d = ({
     map.cells.forEach((cellData, index) => {
       const terrainId = cellData?.terrainId;
       const markerElevation =
-        getTerrainHeight(map.heights?.[index]) + 0.04;
+        getDisplayTerrainHeight(map.heights?.[index]) + 0.04;
       const x = index % map.width;
       const y = Math.floor(index / map.width);
       const worldX = getCellCenterWorldX(x);
@@ -1483,10 +1501,11 @@ export const initMapMaker3d = ({
     const scale = placement?.scale ?? { x: 1, y: 1, z: 1 };
     const worldX = getMapLocalToWorldX(position.x);
     const worldZ = getMapLocalToWorldZ(position.z);
-    object.position.set(worldX, position.y, worldZ);
+    const worldY = getDisplayHeightFromMapLocal(position.y);
+    object.position.set(worldX, worldY, worldZ);
     object.rotation.set(rotation.x, rotation.y, rotation.z);
     object.scale.set(scale.x, scale.y, scale.z);
-    alignObjectToSurface(object, position.y);
+    alignObjectToSurface(object, worldY);
   };
 
   const updateObjectPlacements = (placements) => {
@@ -1621,6 +1640,7 @@ export const initMapMaker3d = ({
     const geometry = buildTerrainGeometry(map, {
       cellSizeX: mapCellSizeX,
       cellSizeZ: mapCellSizeZ,
+      resolveHeight: getDisplayTerrainHeight,
     });
     mesh.geometry.dispose();
     mesh.geometry = geometry;
@@ -1700,7 +1720,7 @@ export const initMapMaker3d = ({
       return TERRAIN_HEIGHT + offset;
     }
     const heightValue = lastMap.heights?.[index];
-    return getTerrainHeight(heightValue) + offset;
+    return getDisplayTerrainHeight(heightValue) + offset;
   };
 
   const getCellIndexFromWorldPosition = (position) => {
@@ -1743,7 +1763,9 @@ export const initMapMaker3d = ({
     const index = getCellIndexFromWorldPosition({ x: worldX, z: worldZ });
     const elevation = Number.isFinite(index)
       ? getCellElevation(index, 0.12)
-      : (Number.isFinite(y) ? y + 0.12 : TERRAIN_HEIGHT + 0.12);
+      : Number.isFinite(y)
+      ? getDisplayHeightFromMapLocal(y) + 0.12
+      : TERRAIN_HEIGHT + 0.12;
     objectHighlightMesh.position.set(worldX, elevation, worldZ);
     objectHighlightStart = clock.getElapsedTime();
     objectHighlightMesh.visible = true;
