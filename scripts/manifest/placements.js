@@ -135,6 +135,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
   const EDIT_MODE_HOVER_OPACITY = 0.25;
   const EDIT_MODE_SELECTED_OPACITY = 0.45;
+  const EDIT_MODE_HIGHLIGHT_PADDING = 0.06;
+  const EDIT_MODE_HIGHLIGHT_MIN_SIZE = 0.08;
+  const EDIT_MODE_HIGHLIGHT_BASE_OPACITY = 0.35;
+  const EDIT_MODE_HIGHLIGHT_PULSE_OPACITY = 0.45;
+  const EDIT_MODE_HIGHLIGHT_PULSE_SPEED = 0.008;
   const manifestEditModeState = {
     enabled: false,
     hovered: null,
@@ -159,6 +164,29 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const placementCollisionBox = new THREE.Box3();
   const placementPreviousCollisionBox = new THREE.Box3();
   const placementPreviewSupportBox = new THREE.Box3();
+  const editHighlightBounds = new THREE.Box3();
+  const editHighlightCenter = new THREE.Vector3();
+  const editHighlightSize = new THREE.Vector3();
+  const editHighlightGeometry = new THREE.EdgesGeometry(
+    new THREE.BoxGeometry(1, 1, 1)
+  );
+  const editHighlightMaterial = new THREE.LineBasicMaterial({
+    color: new THREE.Color(0x38bdf8),
+    transparent: true,
+    opacity: EDIT_MODE_HIGHLIGHT_BASE_OPACITY,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const editHighlightMesh = new THREE.LineSegments(
+    editHighlightGeometry,
+    editHighlightMaterial
+  );
+  editHighlightMesh.visible = false;
+  editHighlightMesh.renderOrder = 999;
+  if (scene?.isObject3D && typeof scene.add === "function") {
+    scene.add(editHighlightMesh);
+  }
 
   const PLACEMENT_VERTICAL_TOLERANCE = 1e-3;
   const ROOM_BOUNDARY_PADDING = 1e-3;
@@ -426,6 +454,75 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     });
   };
 
+  const resolveManifestEditHighlightTarget = () => {
+    if (!manifestEditModeState.enabled) {
+      return null;
+    }
+
+    if (activePlacement?.container?.isObject3D) {
+      return activePlacement.container;
+    }
+
+    if (manifestEditModeState.selected?.isObject3D) {
+      return manifestEditModeState.selected;
+    }
+
+    if (manifestEditModeState.hovered?.isObject3D) {
+      return manifestEditModeState.hovered;
+    }
+
+    return null;
+  };
+
+  const updateManifestEditSelectionHighlight = () => {
+    const target = resolveManifestEditHighlightTarget();
+    if (!target || !target.parent || target.visible === false) {
+      editHighlightMesh.visible = false;
+      return;
+    }
+
+    target.updateWorldMatrix(true, true);
+    editHighlightBounds.setFromObject(target);
+    if (editHighlightBounds.isEmpty()) {
+      editHighlightMesh.visible = false;
+      return;
+    }
+
+    editHighlightBounds.expandByScalar(EDIT_MODE_HIGHLIGHT_PADDING);
+    editHighlightBounds.getCenter(editHighlightCenter);
+    editHighlightBounds.getSize(editHighlightSize);
+    editHighlightSize.x = Math.max(
+      EDIT_MODE_HIGHLIGHT_MIN_SIZE,
+      editHighlightSize.x
+    );
+    editHighlightSize.y = Math.max(
+      EDIT_MODE_HIGHLIGHT_MIN_SIZE,
+      editHighlightSize.y
+    );
+    editHighlightSize.z = Math.max(
+      EDIT_MODE_HIGHLIGHT_MIN_SIZE,
+      editHighlightSize.z
+    );
+
+    editHighlightMesh.position.copy(editHighlightCenter);
+    editHighlightMesh.scale.copy(editHighlightSize);
+    const pulse =
+      0.5 + 0.5 * Math.sin(performance.now() * EDIT_MODE_HIGHLIGHT_PULSE_SPEED);
+    editHighlightMaterial.opacity = THREE.MathUtils.clamp(
+      EDIT_MODE_HIGHLIGHT_BASE_OPACITY +
+        pulse * EDIT_MODE_HIGHLIGHT_PULSE_OPACITY,
+      0,
+      1
+    );
+    editHighlightMaterial.color.setRGB(
+      0.22 + 0.18 * pulse,
+      0.74 + 0.2 * pulse,
+      0.98
+    );
+    editHighlightMaterial.needsUpdate = true;
+    editHighlightMesh.visible = true;
+  };
+
   const setHoveredManifestPlacement = (container) => {
     if (manifestEditModeState.hovered === container) {
       return;
@@ -445,6 +542,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     if (typeof onManifestPlacementHoverChange === "function") {
       onManifestPlacementHoverChange(Boolean(container));
     }
+
+    updateManifestEditSelectionHighlight();
   };
 
   const setSelectedManifestPlacement = (container) => {
@@ -462,6 +561,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     if (container) {
       updateManifestPlacementVisualState(container);
     }
+
+    updateManifestEditSelectionHighlight();
   };
 
   const clearManifestPlacementColliders = (container) => {
@@ -1677,6 +1778,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   };
 
   const updateManifestEditModeHover = () => {
+    updateManifestEditSelectionHighlight();
+
     if (!manifestEditModeState.enabled) {
       if (manifestEditModeState.hovered) {
         setHoveredManifestPlacement(null);
@@ -1760,6 +1863,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     getEditablePlacements().forEach(updateManifestPlacementVisualState);
+    updateManifestEditSelectionHighlight();
 
     if (typeof onManifestEditModeChange === "function") {
       onManifestEditModeChange(manifestEditModeState.enabled);
@@ -2210,6 +2314,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
       placement.previewPosition.copy(placement.container.position);
     }
+
+    updateManifestEditSelectionHighlight();
   };
 
   const createManifestPlacementContainer = (object, manifestEntry) => {
@@ -2509,6 +2615,14 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     setManifestEditModeEnabled(false);
     manifestPlacements.clear();
     externalEditablePlacements.clear();
+    if (
+      editHighlightMesh.parent &&
+      typeof editHighlightMesh.parent.remove === "function"
+    ) {
+      editHighlightMesh.parent.remove(editHighlightMesh);
+    }
+    editHighlightGeometry.dispose();
+    editHighlightMaterial.dispose();
   };
 
   const setActiveFloorId = (floorId) => {
