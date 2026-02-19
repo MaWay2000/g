@@ -25,6 +25,62 @@ const DOOR_MARKER_PATH = "door-marker";
 const DOOR_MARKER_COLOR = "#f97316";
 const DOOR_MARKER_FRAME_COLOR = "#0f172a";
 const DEFAULT_MAP_AREA_ID = "operations-exterior";
+const ROOM_SCALE_FACTOR = 0.25;
+const BASE_ROOM_WIDTH = 20 * ROOM_SCALE_FACTOR;
+const BASE_ROOM_DEPTH = 60 * ROOM_SCALE_FACTOR;
+const ENGINEERING_BAY_WIDTH_FACTOR = 2.1;
+const ENGINEERING_BAY_DEPTH_FACTOR = 1.2;
+const OUTSIDE_CELL_SIZE = ROOM_SCALE_FACTOR * 60;
+
+const clampPositiveNumber = (value, fallback = 1) => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+  return value;
+};
+
+const getFloorSpan = (size, padding) =>
+  Math.max(0, clampPositiveNumber(size, 0) - clampPositiveNumber(padding, 0) * 2);
+
+const resolveAreaCellSizes = (areaId, mapWidth, mapHeight) => {
+  const safeWidth = clampPositiveNumber(mapWidth, 1);
+  const safeHeight = clampPositiveNumber(mapHeight, 1);
+
+  if (areaId === "operations-exterior") {
+    return {
+      cellSizeX: OUTSIDE_CELL_SIZE,
+      cellSizeZ: OUTSIDE_CELL_SIZE,
+    };
+  }
+
+  let floorWidth = safeWidth;
+  let floorDepth = safeHeight;
+
+  if (areaId === "hangar-deck") {
+    floorWidth = getFloorSpan(BASE_ROOM_WIDTH, 1);
+    floorDepth = getFloorSpan(BASE_ROOM_DEPTH, 1);
+  } else if (areaId === "operations-concourse") {
+    floorWidth = getFloorSpan(BASE_ROOM_WIDTH * 1.35, 0.75);
+    floorDepth = getFloorSpan(BASE_ROOM_DEPTH * 0.85, 0.75);
+  } else if (areaId === "engineering-bay") {
+    floorWidth = getFloorSpan(
+      BASE_ROOM_WIDTH * ENGINEERING_BAY_WIDTH_FACTOR,
+      0.75
+    );
+    floorDepth = getFloorSpan(
+      BASE_ROOM_DEPTH * ENGINEERING_BAY_DEPTH_FACTOR,
+      0.75
+    );
+  } else if (areaId === "exterior-outpost") {
+    floorWidth = getFloorSpan(BASE_ROOM_WIDTH * 1.8, 1.1);
+    floorDepth = getFloorSpan(BASE_ROOM_DEPTH * 1.15, 1.6);
+  }
+
+  return {
+    cellSizeX: clampPositiveNumber(floorWidth / safeWidth, 1),
+    cellSizeZ: clampPositiveNumber(floorDepth / safeHeight, 1),
+  };
+};
 
 const getWebglSupport = () => {
   const canvas = document.createElement("canvas");
@@ -63,7 +119,10 @@ const resolveTerrainColor = (terrain, showColors) => {
   return terrainColor;
 };
 
-const buildTerrainGeometry = (map) => {
+const buildTerrainGeometry = (
+  map,
+  { cellSizeX = 1, cellSizeZ = 1 } = {}
+) => {
   const positions = [];
   const colors = [];
   const uvs = [];
@@ -97,10 +156,10 @@ const buildTerrainGeometry = (map) => {
       }
       const elevation = getCellHeight(index);
 
-      const x0 = x - xOffset;
-      const x1 = x + 1 - xOffset;
-      const z0 = y - zOffset;
-      const z1 = y + 1 - zOffset;
+      const x0 = (x - xOffset) * cellSizeX;
+      const x1 = (x + 1 - xOffset) * cellSizeX;
+      const z0 = (y - zOffset) * cellSizeZ;
+      const z1 = (y + 1 - zOffset) * cellSizeZ;
 
       const u0 = x / width;
       const u1 = (x + 1) / width;
@@ -494,6 +553,11 @@ export const initMapMaker3d = ({
   let lastMap = null;
   let mapWidth = 0;
   let mapHeight = 0;
+  let mapCellSizeX = 1;
+  let mapCellSizeZ = 1;
+  let mapWorldWidth = 0;
+  let mapWorldDepth = 0;
+  let selectedAreaId = DEFAULT_MAP_AREA_ID;
   let objectPlacementToken = 0;
   let objectPlacements = [];
   let previewObject = null;
@@ -504,6 +568,48 @@ export const initMapMaker3d = ({
   let areaReferenceGeometries = [];
   let areaReferenceMaterials = [];
   const OBJECT_HIGHLIGHT_DURATION = 1.8;
+
+  const resolveActiveAreaId = (map) => {
+    const areaIdRaw =
+      typeof getSelectedAreaId === "function"
+        ? getSelectedAreaId()
+        : map?.region;
+    if (typeof areaIdRaw === "string" && areaIdRaw.trim().length > 0) {
+      return areaIdRaw.trim();
+    }
+    return DEFAULT_MAP_AREA_ID;
+  };
+
+  const updateMapScaleMetrics = (map) => {
+    if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
+      mapCellSizeX = 1;
+      mapCellSizeZ = 1;
+      mapWorldWidth = 0;
+      mapWorldDepth = 0;
+      selectedAreaId = DEFAULT_MAP_AREA_ID;
+      return;
+    }
+    selectedAreaId = resolveActiveAreaId(map);
+    const cellSizes = resolveAreaCellSizes(selectedAreaId, map.width, map.height);
+    mapCellSizeX = clampPositiveNumber(cellSizes.cellSizeX, 1);
+    mapCellSizeZ = clampPositiveNumber(cellSizes.cellSizeZ, 1);
+    mapWorldWidth = map.width * mapCellSizeX;
+    mapWorldDepth = map.height * mapCellSizeZ;
+  };
+
+  const getCellCenterWorldX = (column) =>
+    (column - mapWidth / 2 + 0.5) * mapCellSizeX;
+  const getCellCenterWorldZ = (row) =>
+    (row - mapHeight / 2 + 0.5) * mapCellSizeZ;
+  const getMapLocalToWorldX = (localX) => localX * mapCellSizeX;
+  const getMapLocalToWorldZ = (localZ) => localZ * mapCellSizeZ;
+  const getWorldToMapLocalX = (worldX) => worldX / mapCellSizeX;
+  const getWorldToMapLocalZ = (worldZ) => worldZ / mapCellSizeZ;
+  const getCellHighlightScaleX = () => Math.max(0.2, mapCellSizeX * 0.98);
+  const getCellHighlightScaleZ = () => Math.max(0.2, mapCellSizeZ * 0.98);
+  const getObjectHighlightBaseScale = () =>
+    Math.max(0.25, Math.min(mapCellSizeX, mapCellSizeZ) * 1.15);
+  const identityQuaternion = new THREE.Quaternion();
   const createAreaReferenceMaterial = (params = {}) => {
     const material = new THREE.MeshStandardMaterial(params);
     areaReferenceMaterials.push(material);
@@ -629,17 +735,15 @@ export const initMapMaker3d = ({
       return;
     }
 
-    const areaIdRaw =
-      typeof getSelectedAreaId === "function"
-        ? getSelectedAreaId()
-        : map?.region;
-    const areaId =
-      typeof areaIdRaw === "string" && areaIdRaw.trim().length > 0
-        ? areaIdRaw.trim()
-        : DEFAULT_MAP_AREA_ID;
-
-    const halfWidth = map.width / 2;
-    const halfDepth = map.height / 2;
+    const areaId = selectedAreaId;
+    const scaledWidth = map.width * mapCellSizeX;
+    const scaledDepth = map.height * mapCellSizeZ;
+    const referenceWidth =
+      areaId === "operations-exterior" ? map.width : scaledWidth;
+    const referenceDepth =
+      areaId === "operations-exterior" ? map.height : scaledDepth;
+    const halfWidth = referenceWidth / 2;
+    const halfDepth = referenceDepth / 2;
     const wallHeight = areaId === "exterior-outpost" ? 1.1 : 1.9;
     const wallThickness = 0.18;
 
@@ -695,9 +799,9 @@ export const initMapMaker3d = ({
     if (areaId === "hangar-deck") {
       const runway = createAreaReferenceMesh(
         new THREE.BoxGeometry(
-          Math.max(1.6, map.width * 0.5),
+          Math.max(1.6, referenceWidth * 0.5),
           0.06,
-          Math.max(2.5, map.height * 0.72)
+          Math.max(2.5, referenceDepth * 0.72)
         ),
         platformMaterial
       );
@@ -734,22 +838,22 @@ export const initMapMaker3d = ({
     } else if (areaId === "operations-concourse") {
       const catwalk = createAreaReferenceMesh(
         new THREE.BoxGeometry(
-          Math.max(2, map.width * 0.68),
+          Math.max(2, referenceWidth * 0.68),
           0.08,
-          Math.max(1.8, map.height * 0.3)
+          Math.max(1.8, referenceDepth * 0.3)
         ),
         platformMaterial
       );
       catwalk.position.set(0, 0.04, 0);
       areaReferenceGroup.add(catwalk);
 
-      const railLength = Math.max(3, map.height * 0.72);
+      const railLength = Math.max(3, referenceDepth * 0.72);
       [-1, 1].forEach((side) => {
         const rail = createAreaReferenceMesh(
           new THREE.BoxGeometry(0.1, 0.8, railLength),
           trimMaterial
         );
-        rail.position.set(side * (map.width * 0.24), 0.4, 0);
+        rail.position.set(side * (referenceWidth * 0.24), 0.4, 0);
         areaReferenceGroup.add(rail);
       });
 
@@ -766,7 +870,7 @@ export const initMapMaker3d = ({
       );
     } else if (areaId === "engineering-bay") {
       const gantry = createAreaReferenceMesh(
-        new THREE.BoxGeometry(Math.max(2.4, map.width * 0.7), 0.12, 0.6),
+        new THREE.BoxGeometry(Math.max(2.4, referenceWidth * 0.7), 0.12, 0.6),
         trimMaterial
       );
       gantry.position.set(0, 0.18, 0);
@@ -813,7 +917,7 @@ export const initMapMaker3d = ({
       const pipeGeometryA = new THREE.CylinderGeometry(
         0.12,
         0.12,
-        Math.max(2, map.width * 0.9),
+        Math.max(2, referenceWidth * 0.9),
         16
       );
       const upperPipeA = createAreaReferenceMesh(pipeGeometryA, wallMaterial);
@@ -821,7 +925,12 @@ export const initMapMaker3d = ({
       upperPipeA.position.set(0, 1.15, -halfDepth + 0.65);
       areaReferenceGroup.add(upperPipeA);
       const upperPipeB = createAreaReferenceMesh(
-        new THREE.CylinderGeometry(0.12, 0.12, Math.max(2, map.width * 0.9), 16),
+        new THREE.CylinderGeometry(
+          0.12,
+          0.12,
+          Math.max(2, referenceWidth * 0.9),
+          16
+        ),
         wallMaterial
       );
       upperPipeB.rotation.z = Math.PI / 2;
@@ -841,17 +950,21 @@ export const initMapMaker3d = ({
       );
     } else if (areaId === "exterior-outpost") {
       const overlook = createAreaReferenceMesh(
-        new THREE.BoxGeometry(Math.max(2, map.width * 0.58), 0.08, Math.max(2.2, map.height * 0.35)),
+        new THREE.BoxGeometry(
+          Math.max(2, referenceWidth * 0.58),
+          0.08,
+          Math.max(2.2, referenceDepth * 0.35)
+        ),
         platformMaterial
       );
-      overlook.position.set(-map.width * 0.17, 0.06, map.height * 0.08);
+      overlook.position.set(-referenceWidth * 0.17, 0.06, referenceDepth * 0.08);
       areaReferenceGroup.add(overlook);
 
       const rail = createAreaReferenceMesh(
-        new THREE.BoxGeometry(Math.max(2, map.width * 0.6), 0.12, 0.12),
+        new THREE.BoxGeometry(Math.max(2, referenceWidth * 0.6), 0.12, 0.12),
         trimMaterial
       );
-      rail.position.set(-map.width * 0.17, 1.02, halfDepth - 0.55);
+      rail.position.set(-referenceWidth * 0.17, 1.02, halfDepth - 0.55);
       areaReferenceGroup.add(rail);
 
       [-1, 1].forEach((side) => {
@@ -859,13 +972,13 @@ export const initMapMaker3d = ({
           new THREE.CylinderGeometry(0.22, 0.3, 0.28, 14),
           wallMaterial
         );
-        planter.position.set(-map.width * 0.17 + side * 0.95, 0.14, -0.2);
+        planter.position.set(-referenceWidth * 0.17 + side * 0.95, 0.14, -0.2);
         areaReferenceGroup.add(planter);
       });
 
       addDoorFrame(
         {
-          centerX: -map.width * 0.18,
+          centerX: -referenceWidth * 0.18,
           centerZ: -halfDepth + 0.2,
           width: 1.15,
           height: 1.8,
@@ -876,10 +989,14 @@ export const initMapMaker3d = ({
       );
     } else {
       const landingPad = createAreaReferenceMesh(
-        new THREE.BoxGeometry(Math.max(2, map.width * 0.48), 0.06, Math.max(1.2, map.height * 0.24)),
+        new THREE.BoxGeometry(
+          Math.max(2, referenceWidth * 0.48),
+          0.06,
+          Math.max(1.2, referenceDepth * 0.24)
+        ),
         trimMaterial
       );
-      landingPad.position.set(0, 0.03, -map.height * 0.15);
+      landingPad.position.set(0, 0.03, -referenceDepth * 0.15);
       areaReferenceGroup.add(landingPad);
 
       const tunnelFrame = createAreaReferenceMesh(
@@ -1282,19 +1399,28 @@ export const initMapMaker3d = ({
     }
 
     const tempMatrix = new THREE.Matrix4();
+    const tempPosition = new THREE.Vector3();
+    const tempScale = new THREE.Vector3(
+      clampPositiveNumber(mapCellSizeX, 1),
+      1,
+      clampPositiveNumber(mapCellSizeZ, 1)
+    );
+    const markerOffsetX = TERRAIN_MARKER_OFFSET * tempScale.x;
+    const markerOffsetZ = TERRAIN_MARKER_OFFSET * tempScale.z;
     map.cells.forEach((cellData, index) => {
       const terrainId = cellData?.terrainId;
       const markerElevation =
         getTerrainHeight(map.heights?.[index]) + 0.04;
       const x = index % map.width;
       const y = Math.floor(index / map.width);
-      const worldX = x - map.width / 2 + 0.5;
-      const worldZ = y - map.height / 2 + 0.5;
-      tempMatrix.makeTranslation(
-        worldX + TERRAIN_MARKER_OFFSET,
+      const worldX = getCellCenterWorldX(x);
+      const worldZ = getCellCenterWorldZ(y);
+      tempPosition.set(
+        worldX + markerOffsetX,
         markerElevation,
-        worldZ + TERRAIN_MARKER_OFFSET
+        worldZ + markerOffsetZ
       );
+      tempMatrix.compose(tempPosition, identityQuaternion, tempScale);
       terrainMarkerMesh.setMatrixAt(index, tempMatrix);
       const terrain = getOutsideTerrainById(terrainId);
       const color = new THREE.Color(resolveTerrainColor(terrain, true));
@@ -1317,17 +1443,17 @@ export const initMapMaker3d = ({
     }
     const x = index % mapWidth;
     const y = Math.floor(index / mapWidth);
-    const worldX = x - mapWidth / 2 + 0.5;
-    const worldZ =
+    const mapLocalX = x - mapWidth / 2 + 0.5;
+    const mapLocalZ =
       y -
       mapHeight / 2 +
       0.5 +
       (path === DOOR_MARKER_PATH ? -0.5 : 0);
     const heightValue = lastMap.heights?.[index];
-    const worldY = getTerrainHeight(heightValue);
+    const mapLocalY = getTerrainHeight(heightValue);
     return {
       path,
-      position: { x: worldX, y: worldY, z: worldZ },
+      position: { x: mapLocalX, y: mapLocalY, z: mapLocalZ },
       heightReference: "map-local",
       rotation: { x: 0, y: 0, z: 0 },
       scale: { x: 1, y: 1, z: 1 },
@@ -1355,7 +1481,9 @@ export const initMapMaker3d = ({
     const position = placement?.position ?? { x: 0, y: 0, z: 0 };
     const rotation = placement?.rotation ?? { x: 0, y: 0, z: 0 };
     const scale = placement?.scale ?? { x: 1, y: 1, z: 1 };
-    object.position.set(position.x, position.y, position.z);
+    const worldX = getMapLocalToWorldX(position.x);
+    const worldZ = getMapLocalToWorldZ(position.z);
+    object.position.set(worldX, position.y, worldZ);
     object.rotation.set(rotation.x, rotation.y, rotation.z);
     object.scale.set(scale.x, scale.y, scale.z);
     alignObjectToSurface(object, position.y);
@@ -1387,8 +1515,8 @@ export const initMapMaker3d = ({
     objectPreviewGroup.visible = false;
   };
 
-  const setCameraForMap = (width, height) => {
-    const size = Math.max(width, height, 8);
+  const setCameraForMap = (worldWidth, worldDepth) => {
+    const size = Math.max(worldWidth, worldDepth, 8);
     mapSize = size;
     const maxDistance = Math.max(size * 6, 40);
     controls.maxDistance = maxDistance;
@@ -1462,8 +1590,9 @@ export const initMapMaker3d = ({
       } else {
         const pulse = 0.5 + 0.5 * Math.sin(elapsed * Math.PI * 4);
         objectHighlightMaterial.opacity = 0.18 + 0.5 * pulse;
-        const scale = 1 + 0.06 * Math.sin(elapsed * Math.PI * 2);
-        objectHighlightMesh.scale.set(scale, scale, scale);
+        const pulseScale =
+          getObjectHighlightBaseScale() * (1 + 0.06 * Math.sin(elapsed * Math.PI * 2));
+        objectHighlightMesh.scale.set(pulseScale, 1, pulseScale);
         objectHighlightMesh.visible = true;
       }
     }
@@ -1476,19 +1605,30 @@ export const initMapMaker3d = ({
     if (!map || !Number.isFinite(map.width) || !Number.isFinite(map.height)) {
       return;
     }
+    const previousAreaId = selectedAreaId;
+    const previousCellSizeX = mapCellSizeX;
+    const previousCellSizeZ = mapCellSizeZ;
     const didMapSizeChange =
       map.width !== mapWidth || map.height !== mapHeight;
     lastMap = map;
     mapWidth = map.width;
     mapHeight = map.height;
-    const geometry = buildTerrainGeometry(map);
+    updateMapScaleMetrics(map);
+    const didScaleChange =
+      selectedAreaId !== previousAreaId ||
+      Math.abs(mapCellSizeX - previousCellSizeX) > 1e-6 ||
+      Math.abs(mapCellSizeZ - previousCellSizeZ) > 1e-6;
+    const geometry = buildTerrainGeometry(map, {
+      cellSizeX: mapCellSizeX,
+      cellSizeZ: mapCellSizeZ,
+    });
     mesh.geometry.dispose();
     mesh.geometry = geometry;
     rebuildAreaReferenceEnvironment(map);
     updateTerrainMarkers(map);
     void renderTerrainTexture(map);
-    if (resetCamera || didMapSizeChange) {
-      setCameraForMap(map.width, map.height);
+    if (resetCamera || didMapSizeChange || didScaleChange) {
+      setCameraForMap(mapWorldWidth, mapWorldDepth);
     }
     resizeRenderer();
   };
@@ -1573,8 +1713,10 @@ export const initMapMaker3d = ({
     ) {
       return null;
     }
-    const x = Math.round(position.x + mapWidth / 2 - 0.5);
-    const y = Math.round(position.z + mapHeight / 2 - 0.5);
+    const localX = getWorldToMapLocalX(position.x);
+    const localZ = getWorldToMapLocalZ(position.z);
+    const x = Math.round(localX + mapWidth / 2 - 0.5);
+    const y = Math.round(localZ + mapHeight / 2 - 0.5);
     if (x < 0 || y < 0 || x >= mapWidth || y >= mapHeight) {
       return null;
     }
@@ -1589,18 +1731,20 @@ export const initMapMaker3d = ({
     if (!Number.isFinite(x) || !Number.isFinite(z)) {
       return;
     }
-    const target = new THREE.Vector3(x, 0, z);
+    const worldX = getMapLocalToWorldX(x);
+    const worldZ = getMapLocalToWorldZ(z);
+    const target = new THREE.Vector3(worldX, 0, worldZ);
     const offset = new THREE.Vector3()
       .copy(camera.position)
       .sub(controls.target);
     controls.target.copy(target);
     camera.position.copy(target).add(offset);
     controls.update();
-    const index = getCellIndexFromWorldPosition(placement.position);
+    const index = getCellIndexFromWorldPosition({ x: worldX, z: worldZ });
     const elevation = Number.isFinite(index)
       ? getCellElevation(index, 0.12)
       : (Number.isFinite(y) ? y + 0.12 : TERRAIN_HEIGHT + 0.12);
-    objectHighlightMesh.position.set(x, elevation, z);
+    objectHighlightMesh.position.set(worldX, elevation, worldZ);
     objectHighlightStart = clock.getElapsedTime();
     objectHighlightMesh.visible = true;
   };
@@ -1651,6 +1795,12 @@ export const initMapMaker3d = ({
 
     let instanceIndex = 0;
     const tempMatrix = new THREE.Matrix4();
+    const tempPosition = new THREE.Vector3();
+    const tempScale = new THREE.Vector3(
+      getCellHighlightScaleX(),
+      1,
+      getCellHighlightScaleZ()
+    );
     for (let row = startY; row <= endY; row += 1) {
       for (let col = startX; col <= endX; col += 1) {
         if (col < 0 || col >= mapWidth || row < 0 || row >= mapHeight) {
@@ -1658,9 +1808,10 @@ export const initMapMaker3d = ({
         } else {
           const cellIndex = row * mapWidth + col;
           const elevation = getCellElevation(cellIndex, 0.08);
-          const worldX = col - mapWidth / 2 + 0.5;
-          const worldZ = row - mapHeight / 2 + 0.5;
-          tempMatrix.makeTranslation(worldX, elevation, worldZ);
+          const worldX = getCellCenterWorldX(col);
+          const worldZ = getCellCenterWorldZ(row);
+          tempPosition.set(worldX, elevation, worldZ);
+          tempMatrix.compose(tempPosition, identityQuaternion, tempScale);
         }
         highlightMesh.setMatrixAt(instanceIndex, tempMatrix);
         instanceIndex += 1;
@@ -1705,13 +1856,20 @@ export const initMapMaker3d = ({
     }
     let instanceIndex = 0;
     const tempMatrix = new THREE.Matrix4();
+    const tempPosition = new THREE.Vector3();
+    const tempScale = new THREE.Vector3(
+      getCellHighlightScaleX(),
+      1,
+      getCellHighlightScaleZ()
+    );
     for (let row = minY; row <= maxY; row += 1) {
       for (let col = minX; col <= maxX; col += 1) {
         const cellIndex = row * mapWidth + col;
         const elevation = getCellElevation(cellIndex, 0.06);
-        const worldX = col - mapWidth / 2 + 0.5;
-        const worldZ = row - mapHeight / 2 + 0.5;
-        tempMatrix.makeTranslation(worldX, elevation, worldZ);
+        const worldX = getCellCenterWorldX(col);
+        const worldZ = getCellCenterWorldZ(row);
+        tempPosition.set(worldX, elevation, worldZ);
+        tempMatrix.compose(tempPosition, identityQuaternion, tempScale);
         selectionMesh.setMatrixAt(instanceIndex, tempMatrix);
         instanceIndex += 1;
       }
@@ -1749,8 +1907,10 @@ export const initMapMaker3d = ({
     if (!point) {
       return null;
     }
-    const xIndex = Math.floor(point.x + mapWidth / 2);
-    const yIndex = Math.floor(point.z + mapHeight / 2);
+    const localX = getWorldToMapLocalX(point.x);
+    const localZ = getWorldToMapLocalZ(point.z);
+    const xIndex = Math.floor(localX + mapWidth / 2);
+    const yIndex = Math.floor(localZ + mapHeight / 2);
     if (
       xIndex < 0 ||
       yIndex < 0 ||
@@ -1963,7 +2123,10 @@ export const initMapMaker3d = ({
 
   if (resetButton) {
     resetButton.addEventListener("click", () => {
-      setCameraForMap(mapSize, mapSize);
+      setCameraForMap(
+        mapWorldWidth > 0 ? mapWorldWidth : mapSize,
+        mapWorldDepth > 0 ? mapWorldDepth : mapSize
+      );
     });
   }
 
