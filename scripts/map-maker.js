@@ -1550,7 +1550,7 @@ function syncDoorModeButtons() {
 }
 
 function setDoorMode(mode) {
-  if (mode && !["place", "remove"].includes(mode)) {
+  if (mode && !["place", "remove", "move"].includes(mode)) {
     return;
   }
   const nextMode = state.doorMode === mode ? null : mode;
@@ -2723,7 +2723,7 @@ function setActivePaletteTab(tabId) {
             return;
           }
           const currentPlacement = existing[targetIndex];
-          if (!currentPlacement || currentPlacement.path === DOOR_MARKER_PATH) {
+          if (!currentPlacement) {
             return;
           }
           const snapshot = cloneMapDefinition(state.map);
@@ -2750,9 +2750,20 @@ function setActivePaletteTab(tabId) {
               )
             ),
           };
-          state.map.objects = existing.map((entry, entryIndex) =>
-            entryIndex === targetIndex ? nextPlacement : entry
-          );
+          if (currentPlacement.path === DOOR_MARKER_PATH) {
+            const withoutTarget = existing.filter(
+              (_, entryIndex) => entryIndex !== targetIndex
+            );
+            const deduped = removeDoorMarkersAtPosition(
+              withoutTarget,
+              nextPlacement.position ?? null
+            );
+            state.map.objects = [...deduped, nextPlacement];
+          } else {
+            state.map.objects = existing.map((entry, entryIndex) =>
+              entryIndex === targetIndex ? nextPlacement : entry
+            );
+          }
           updateJsonPreview();
           landscapeViewer?.setObjectPlacements?.(state.map.objects);
           pushUndoSnapshot(snapshot);

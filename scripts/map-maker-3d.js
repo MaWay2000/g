@@ -571,6 +571,7 @@ export const initMapMaker3d = ({
   let objectPlacementToken = 0;
   let objectPlacements = [];
   let objectMoveSelectionIndex = null;
+  let doorMoveSelectionIndex = null;
   let previewObject = null;
   let previewPath = null;
   let previewToken = 0;
@@ -1516,22 +1517,31 @@ export const initMapMaker3d = ({
   const updateMoveSelectionVisibility = () => {
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
-    const selectedIndex = Number.parseInt(objectMoveSelectionIndex, 10);
-    const hasSelectedIndex =
+    const selectedObjectIndex = Number.parseInt(objectMoveSelectionIndex, 10);
+    const selectedDoorIndex = Number.parseInt(doorMoveSelectionIndex, 10);
+    const doorMode = activeTab === "doors" ? resolveDoorMode() : null;
+    const hasSelectedObjectIndex =
       activeTab === "objects" &&
-      Number.isFinite(selectedIndex) &&
-      selectedIndex >= 0 &&
-      selectedIndex < objectPlacements.length &&
-      objectPlacements[selectedIndex]?.path !== DOOR_MARKER_PATH;
+      Number.isFinite(selectedObjectIndex) &&
+      selectedObjectIndex >= 0 &&
+      selectedObjectIndex < objectPlacements.length &&
+      objectPlacements[selectedObjectIndex]?.path !== DOOR_MARKER_PATH;
+    const hasSelectedDoorIndex =
+      activeTab === "doors" &&
+      doorMode === "move" &&
+      Number.isFinite(selectedDoorIndex) &&
+      selectedDoorIndex >= 0 &&
+      selectedDoorIndex < objectPlacements.length &&
+      objectPlacements[selectedDoorIndex]?.path === DOOR_MARKER_PATH;
     objectGroup.children.forEach((entry) => {
       const placementIndex = Number.parseInt(
         entry.userData?.objectPlacementIndex,
         10
       );
       entry.visible = !(
-        hasSelectedIndex &&
         Number.isFinite(placementIndex) &&
-        placementIndex === selectedIndex
+        ((hasSelectedObjectIndex && placementIndex === selectedObjectIndex) ||
+          (hasSelectedDoorIndex && placementIndex === selectedDoorIndex))
       );
     });
   };
@@ -1549,6 +1559,16 @@ export const initMapMaker3d = ({
       // keep current move selection
     } else {
       objectMoveSelectionIndex = null;
+    }
+    if (
+      Number.isFinite(doorMoveSelectionIndex) &&
+      doorMoveSelectionIndex >= 0 &&
+      doorMoveSelectionIndex < objectPlacements.length &&
+      objectPlacements[doorMoveSelectionIndex]?.path === DOOR_MARKER_PATH
+    ) {
+      // keep current door move selection
+    } else {
+      doorMoveSelectionIndex = null;
     }
     objectGroup.clear();
     if (!objectPlacements.length) {
@@ -1633,7 +1653,11 @@ export const initMapMaker3d = ({
     if (!Number.isFinite(objectHighlightPlacementIndex)) {
       return null;
     }
-    const selectedMoveIndex = Number.parseInt(objectMoveSelectionIndex, 10);
+    const selectedObjectMoveIndex = Number.parseInt(objectMoveSelectionIndex, 10);
+    const selectedDoorMoveIndex = Number.parseInt(doorMoveSelectionIndex, 10);
+    const selectedMoveIndex = Number.isFinite(selectedObjectMoveIndex)
+      ? selectedObjectMoveIndex
+      : selectedDoorMoveIndex;
     if (
       Number.isFinite(selectedMoveIndex) &&
       selectedMoveIndex === objectHighlightPlacementIndex &&
@@ -2186,12 +2210,28 @@ export const initMapMaker3d = ({
     return { index, placement };
   };
 
+  const getSelectedDoorMovePlacement = () => {
+    if (!Number.isFinite(doorMoveSelectionIndex)) {
+      return null;
+    }
+    const index = Number.parseInt(doorMoveSelectionIndex, 10);
+    if (!Number.isFinite(index) || index < 0 || index >= objectPlacements.length) {
+      return null;
+    }
+    const placement = objectPlacements[index];
+    if (!placement || placement.path !== DOOR_MARKER_PATH) {
+      return null;
+    }
+    return { index, placement };
+  };
+
   const updateObjectPreview = async (index) => {
     previewIndex = Number.isFinite(index) ? index : null;
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
     if (activeTab !== "objects" && activeTab !== "doors") {
       objectMoveSelectionIndex = null;
+      doorMoveSelectionIndex = null;
       updateMoveSelectionVisibility();
       clearPreviewObject();
       return;
@@ -2199,16 +2239,26 @@ export const initMapMaker3d = ({
     if (activeTab !== "objects") {
       objectMoveSelectionIndex = null;
     }
+    if (activeTab !== "doors") {
+      doorMoveSelectionIndex = null;
+    }
 
-    const selectedMovePlacement =
+    const selectedObjectMovePlacement =
       activeTab === "objects" ? getSelectedObjectMovePlacement() : null;
+    const selectedDoorMovePlacement =
+      activeTab === "doors" ? getSelectedDoorMovePlacement() : null;
+    const selectedMovePlacement =
+      selectedObjectMovePlacement ?? selectedDoorMovePlacement;
     updateMoveSelectionVisibility();
+    const doorMode = activeTab === "doors" ? resolveDoorMode() : null;
     const path =
       activeTab === "doors"
-        ? resolveDoorMode() === "place"
+        ? doorMode === "place" ||
+          (doorMode === "move" && Boolean(selectedDoorMovePlacement))
           ? DOOR_MARKER_PATH
           : null
-        : selectedMovePlacement?.placement?.path ?? resolveSelectedObjectPath();
+        : selectedObjectMovePlacement?.placement?.path ??
+          resolveSelectedObjectPath();
     if (!path || !Number.isFinite(index)) {
       clearPreviewObject();
       return;
@@ -2255,6 +2305,19 @@ export const initMapMaker3d = ({
     return true;
   };
 
+  const selectDoorForMoveFromEvent = (event) => {
+    const hit = getObjectPlacementHitFromEvent(event, {
+      includeDoors: true,
+    });
+    if (!hit || hit.placement?.path !== DOOR_MARKER_PATH) {
+      return false;
+    }
+    doorMoveSelectionIndex = hit.index;
+    focusObject(hit.placement);
+    void updateObjectPreview(previewIndex);
+    return true;
+  };
+
   const moveSelectedObjectFromEvent = (event) => {
     if (typeof onMoveObject !== "function") {
       return false;
@@ -2284,6 +2347,36 @@ export const initMapMaker3d = ({
       placement: nextPlacement,
     });
     objectMoveSelectionIndex = null;
+    void updateObjectPreview(index);
+    return true;
+  };
+
+  const moveSelectedDoorFromEvent = (event) => {
+    if (typeof onMoveObject !== "function") {
+      return false;
+    }
+    const selectedMovePlacement = getSelectedDoorMovePlacement();
+    if (!selectedMovePlacement) {
+      doorMoveSelectionIndex = null;
+      return false;
+    }
+    const index = getCellIndexFromEvent(event);
+    if (index === null) {
+      return false;
+    }
+    const nextPlacement = buildObjectPlacement(index, DOOR_MARKER_PATH);
+    if (!nextPlacement) {
+      return false;
+    }
+    applyPlacementTransformOverrides(
+      nextPlacement,
+      selectedMovePlacement.placement
+    );
+    onMoveObject({
+      index: selectedMovePlacement.index,
+      placement: nextPlacement,
+    });
+    doorMoveSelectionIndex = null;
     void updateObjectPreview(index);
     return true;
   };
@@ -2364,6 +2457,30 @@ export const initMapMaker3d = ({
       }
       if (doorMode === "place") {
         placeDoorFromEvent(event);
+        return;
+      }
+      if (doorMode === "move") {
+        const selectedMovePlacement = getSelectedDoorMovePlacement();
+        if (selectedMovePlacement) {
+          const hit = getObjectPlacementHitFromEvent(event, {
+            includeDoors: true,
+          });
+          if (hit && hit.index === selectedMovePlacement.index) {
+            doorMoveSelectionIndex = null;
+            void updateObjectPreview(previewIndex);
+            return;
+          }
+          if (moveSelectedDoorFromEvent(event)) {
+            return;
+          }
+          if (hit && hit.placement?.path === DOOR_MARKER_PATH) {
+            doorMoveSelectionIndex = hit.index;
+            focusObject(hit.placement);
+            void updateObjectPreview(previewIndex);
+          }
+          return;
+        }
+        selectDoorForMoveFromEvent(event);
       }
       return;
     }
