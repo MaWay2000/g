@@ -156,6 +156,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const placementDependentOffset = new THREE.Vector3();
   const placementDependentPreviousPosition = new THREE.Vector3();
   const placementPreviousPreviewPosition = new THREE.Vector3();
+  const placementSnapPreviousPosition = new THREE.Vector3();
   const settleWorldPosition = new THREE.Vector3();
   const settleWorldTargetPosition = new THREE.Vector3();
   const settleLocalTargetPosition = new THREE.Vector3();
@@ -194,6 +195,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
   const MANIFEST_PLACEMENT_ROTATION_STEP = Math.PI / 2;
   const STACKING_VERTICAL_TOLERANCE = 0.02;
+  const PLACEMENT_WALL_SNAP_EDGE_THRESHOLD = 0.35;
+  const PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD = 0.28;
   const getMaxManifestPlacementDistance = () => {
     const horizontalBounds = getHorizontalPlacementBounds();
     const boundsDepth = horizontalBounds
@@ -472,6 +475,19 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     return null;
+  };
+
+  const getPlacementEntryPath = (container) => {
+    const path =
+      typeof container?.userData?.manifestEntry?.path === "string"
+        ? container.userData.manifestEntry.path.trim()
+        : "";
+    return path;
+  };
+
+  const isWallLikePlacement = (container) => {
+    const path = getPlacementEntryPath(container);
+    return /wall/i.test(path);
   };
 
   const updateManifestEditSelectionHighlight = () => {
@@ -1143,6 +1159,198 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     return changedContainers;
+  };
+
+  const resolvePlacementPreviewSnap = (placement) => {
+    if (!placement?.container || !placement.containerBounds) {
+      return false;
+    }
+
+    const container = placement.container;
+    const bounds = placement.containerBounds;
+    if (bounds.isEmpty()) {
+      return false;
+    }
+
+    // Keep snap behavior focused on wall building so other props retain
+    // free-form placement.
+    if (!isWallLikePlacement(container)) {
+      return false;
+    }
+
+    const currentX = container.position.x;
+    const currentZ = container.position.z;
+    if (!Number.isFinite(currentX) || !Number.isFinite(currentZ)) {
+      return false;
+    }
+
+    const currentMinX = currentX + bounds.min.x;
+    const currentMaxX = currentX + bounds.max.x;
+    const currentMinZ = currentZ + bounds.min.z;
+    const currentMaxZ = currentZ + bounds.max.z;
+    const dependents = Array.isArray(placement.dependents)
+      ? placement.dependents
+      : [];
+
+    let bestEdgeSnapX = null;
+    let bestEdgeSnapZ = null;
+    let bestAlignSnapX = null;
+    let bestAlignSnapZ = null;
+
+    const considerSnap = (currentCandidate, nextCandidate) => {
+      if (!nextCandidate) {
+        return currentCandidate;
+      }
+      if (!currentCandidate) {
+        return nextCandidate;
+      }
+      return nextCandidate.distance < currentCandidate.distance
+        ? nextCandidate
+        : currentCandidate;
+    };
+
+    const isPlacementObject = (target) => {
+      if (!target) {
+        return false;
+      }
+      if (target === container || isObjectDescendantOf(target, container)) {
+        return true;
+      }
+      return dependents.some((dependent) => {
+        const dependentContainer = dependent?.container ?? null;
+        return (
+          dependentContainer &&
+          (target === dependentContainer ||
+            isObjectDescendantOf(target, dependentContainer))
+        );
+      });
+    };
+
+    getEditablePlacements().forEach((candidate) => {
+      if (
+        !candidate ||
+        candidate === container ||
+        candidate.visible === false ||
+        isPlacementObject(candidate)
+      ) {
+        return;
+      }
+      if (!isWallLikePlacement(candidate)) {
+        return;
+      }
+
+      const candidateBounds = computeManifestPlacementBounds(candidate);
+      if (candidateBounds.isEmpty()) {
+        return;
+      }
+      const candidatePosition = getContainerWorldPosition(
+        candidate,
+        settleWorldTargetPosition
+      );
+      if (!candidatePosition) {
+        return;
+      }
+
+      const candidateMinX = candidatePosition.x + candidateBounds.min.x;
+      const candidateMaxX = candidatePosition.x + candidateBounds.max.x;
+      const candidateMinZ = candidatePosition.z + candidateBounds.min.z;
+      const candidateMaxZ = candidatePosition.z + candidateBounds.max.z;
+
+      const overlapX =
+        Math.min(currentMaxX, candidateMaxX) -
+        Math.max(currentMinX, candidateMinX);
+      const overlapZ =
+        Math.min(currentMaxZ, candidateMaxZ) -
+        Math.max(currentMinZ, candidateMinZ);
+
+      const alignDeltaX = Math.abs(currentX - candidatePosition.x);
+      const alignDeltaZ = Math.abs(currentZ - candidatePosition.z);
+
+      if (
+        overlapZ >= -PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD ||
+        alignDeltaZ <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD
+      ) {
+        const leftDistance = Math.abs(currentMinX - candidateMaxX);
+        if (leftDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+          bestEdgeSnapX = considerSnap(bestEdgeSnapX, {
+            value: candidateMaxX - bounds.min.x,
+            distance: leftDistance,
+          });
+        }
+
+        const rightDistance = Math.abs(currentMaxX - candidateMinX);
+        if (rightDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+          bestEdgeSnapX = considerSnap(bestEdgeSnapX, {
+            value: candidateMinX - bounds.max.x,
+            distance: rightDistance,
+          });
+        }
+      }
+
+      if (
+        overlapX >= -PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD ||
+        alignDeltaX <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD
+      ) {
+        const backDistance = Math.abs(currentMinZ - candidateMaxZ);
+        if (backDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+          bestEdgeSnapZ = considerSnap(bestEdgeSnapZ, {
+            value: candidateMaxZ - bounds.min.z,
+            distance: backDistance,
+          });
+        }
+
+        const frontDistance = Math.abs(currentMaxZ - candidateMinZ);
+        if (frontDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+          bestEdgeSnapZ = considerSnap(bestEdgeSnapZ, {
+            value: candidateMinZ - bounds.max.z,
+            distance: frontDistance,
+          });
+        }
+      }
+
+      if (alignDeltaX <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD) {
+        bestAlignSnapX = considerSnap(bestAlignSnapX, {
+          value: candidatePosition.x,
+          distance: alignDeltaX,
+        });
+      }
+
+      if (alignDeltaZ <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD) {
+        bestAlignSnapZ = considerSnap(bestAlignSnapZ, {
+          value: candidatePosition.z,
+          distance: alignDeltaZ,
+        });
+      }
+    });
+
+    let nextX = currentX;
+    let nextZ = currentZ;
+    let didSnap = false;
+
+    if (bestEdgeSnapX) {
+      nextX = bestEdgeSnapX.value;
+      didSnap = true;
+    } else if (bestAlignSnapX) {
+      nextX = bestAlignSnapX.value;
+      didSnap = true;
+    }
+
+    if (bestEdgeSnapZ) {
+      nextZ = bestEdgeSnapZ.value;
+      didSnap = true;
+    } else if (bestAlignSnapZ) {
+      nextZ = bestAlignSnapZ.value;
+      didSnap = true;
+    }
+
+    if (!didSnap) {
+      return false;
+    }
+
+    container.position.x = nextX;
+    container.position.z = nextZ;
+    container.updateMatrixWorld(true);
+    return true;
   };
 
   const resolvePlacementPreviewCollisions = (placement, previousPosition) => {
@@ -2249,6 +2457,16 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     );
 
     if (collisionsResolved) {
+      placement.previewPosition.copy(placement.container.position);
+    }
+
+    placementSnapPreviousPosition.copy(placement.container.position);
+    const snappedToNeighbor = resolvePlacementPreviewSnap(placement);
+    if (snappedToNeighbor) {
+      resolvePlacementPreviewCollisions(
+        placement,
+        placementSnapPreviousPosition
+      );
       placement.previewPosition.copy(placement.container.position);
     }
 
