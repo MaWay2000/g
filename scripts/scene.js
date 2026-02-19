@@ -12974,7 +12974,13 @@ export const initScene = (
         hangarDeckFloorBounds
       );
     },
-    getPlacementGroundHeight: (position) => getPlayerGroundHeight(position),
+    getPlacementGroundHeight: (position) => {
+      const terrainHeight = getTerrainGroundHeight(position);
+      return Math.max(
+        roomFloorY,
+        Number.isFinite(terrainHeight) ? terrainHeight : roomFloorY
+      );
+    },
     getActiveFloorId: () => getActiveLiftFloor()?.id ?? null,
     resolveFloorIdForPosition: (position) => {
       if (!position) {
