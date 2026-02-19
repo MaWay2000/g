@@ -132,6 +132,7 @@ export const initScene = (
 ) => {
   const MIN_AREA_LOADING_DISPLAY_MS = 3000;
   const BASE_MAX_STEP_HEIGHT = 2;
+  const PLAYER_STEP_HEIGHT_RATIO = 0.5;
   const BASE_JUMP_VELOCITY = 7.2;
   const STEP_CLIMB_SPEED = 6;
   const STEP_CLIMB_SPEED_MULTIPLIER = 10;
@@ -2704,14 +2705,21 @@ export const initScene = (
     OUTSIDE_HEIGHT_MAX
   );
 
-  const getMaxStepHeight = () => OUTSIDE_HEIGHT_ELEVATION_MAX;
+  const getMaxStepHeight = () => {
+    const playerRelativeStepHeight =
+      Number.isFinite(playerHeight) && playerHeight > 0
+        ? playerHeight * PLAYER_STEP_HEIGHT_RATIO
+        : BASE_MAX_STEP_HEIGHT;
+    return Math.max(OUTSIDE_HEIGHT_ELEVATION_MAX, playerRelativeStepHeight);
+  };
   const getClimbSpeed = (distance) => {
     const climbDistance = Number(distance);
     if (!Number.isFinite(climbDistance) || climbDistance <= 0) {
       return STEP_CLIMB_SPEED * STEP_CLIMB_SPEED_MULTIPLIER;
     }
 
-    const climbRatio = climbDistance / BASE_MAX_STEP_HEIGHT;
+    const maxStepHeight = Math.max(1e-3, getMaxStepHeight());
+    const climbRatio = climbDistance / maxStepHeight;
     const slowdownFactor = 1 + climbRatio * climbRatio * 6;
     return (STEP_CLIMB_SPEED * STEP_CLIMB_SPEED_MULTIPLIER) / slowdownFactor;
   };
@@ -12631,6 +12639,10 @@ export const initScene = (
     const currentHeadY = currentFeetY + playerHeight;
     const previousFeetY = previousPosition?.y ?? currentFeetY;
     const previousHeadY = previousFeetY + playerHeight;
+    const previousGround = previousPosition
+      ? getPlayerGroundHeight(previousPosition)
+      : currentFeetY;
+    const maxStepHeight = getMaxStepHeight();
 
     const sweptFeetY = Math.min(currentFeetY, previousFeetY);
     const sweptHeadY = Math.max(currentHeadY, previousHeadY);
@@ -12751,6 +12763,19 @@ export const initScene = (
       const box = descriptor.box;
 
       if (!box || box.isEmpty()) {
+        return;
+      }
+
+      // Allow stepping onto low colliders (up to configured step height)
+      // instead of treating them as blocking vertical walls.
+      const colliderTopY = box.max.y;
+      const canStepOntoCollider =
+        Number.isFinite(previousGround) &&
+        Number.isFinite(colliderTopY) &&
+        colliderTopY >= previousGround - STEP_HEIGHT_TOLERANCE &&
+        colliderTopY <= previousGround + maxStepHeight + STEP_HEIGHT_TOLERANCE;
+
+      if (canStepOntoCollider) {
         return;
       }
 
@@ -13427,7 +13452,7 @@ export const initScene = (
     const probeX = Number.isFinite(position.x) ? position.x : 0;
     const probeY = Number.isFinite(position.y) ? position.y : roomFloorY;
     const probeZ = Number.isFinite(position.z) ? position.z : 0;
-    const maxSupportRise = BASE_MAX_STEP_HEIGHT + STEP_HEIGHT_TOLERANCE;
+    const maxSupportRise = getMaxStepHeight() + STEP_HEIGHT_TOLERANCE;
     const maxSupportedTopY = probeY + maxSupportRise;
     const footprintPadding = 0.02;
     let bestSupportHeight = null;
