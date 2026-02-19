@@ -6560,6 +6560,8 @@ export const initScene = (
         const position = placement?.position ?? {};
         const placementX = Number.isFinite(position.x) ? position.x : 0;
         const placementZ = Number.isFinite(position.z) ? position.z : 0;
+        const worldX = placementX * cellSize;
+        const worldZ = mapCenterZ + placementZ * cellSize;
         const column = Math.floor(placementX + width / 2);
         const row = Math.floor(placementZ + height / 2);
         const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
@@ -6568,35 +6570,44 @@ export const initScene = (
         const elevation = getOutsideTerrainElevation(
           normalizedMap.heights?.[index]
         );
-        const surfaceY = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation;
+        const surfaceYFromGrid = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation;
+        const sampledSurfaceY =
+          typeof getSurfaceYAtWorldPosition === "function"
+            ? getSurfaceYAtWorldPosition(worldX, worldZ)
+            : null;
+        const surfaceY = Number.isFinite(sampledSurfaceY)
+          ? sampledSurfaceY
+          : surfaceYFromGrid;
         const rawY = Number.isFinite(position.y) ? position.y : surfaceY;
         const reference =
           typeof placement?.heightReference === "string"
             ? placement.heightReference.trim().toLowerCase()
             : "";
-        const toWorldFromMapLocal = (localY) => {
+        const toWorldFromMapLocal = (localY, baseSurfaceY = surfaceYFromGrid) => {
           const localValue = getMapMakerLocalHeightValue(localY);
           const localElevation = Math.max(0, localValue - MAP_MAKER_HEIGHT_FLOOR);
           const outsideElevation =
             OUTSIDE_HEIGHT_FLOOR +
             (OUTSIDE_HEIGHT_SCALE * localElevation) / MAP_MAKER_HEIGHT_SCALE;
-          return roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + outsideElevation;
+          const mapLocalSurfaceY = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + OUTSIDE_HEIGHT_FLOOR;
+          const mapLocalOffset = outsideElevation - OUTSIDE_HEIGHT_FLOOR;
+          return baseSurfaceY + mapLocalOffset + (mapLocalSurfaceY - surfaceYFromGrid);
         };
         let baseY = rawY;
 
         if (reference === "map-local" || reference === "local") {
-          baseY = toWorldFromMapLocal(rawY);
+          baseY = toWorldFromMapLocal(rawY, surfaceY);
         } else if (reference !== "world") {
           // Backward compatibility for legacy map-maker saves (no heightReference).
-          const legacyLocalCandidateY = toWorldFromMapLocal(rawY);
+          const legacyLocalCandidateY = toWorldFromMapLocal(rawY, surfaceY);
           const worldDistance = Math.abs(rawY - surfaceY);
           const localDistance = Math.abs(legacyLocalCandidateY - surfaceY);
           baseY = localDistance < worldDistance ? legacyLocalCandidateY : rawY;
         }
 
         return {
-          x: placementX * cellSize,
-          z: mapCenterZ + placementZ * cellSize,
+          x: worldX,
+          z: worldZ,
           surfaceY,
           baseY,
         };
