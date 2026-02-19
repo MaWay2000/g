@@ -1510,6 +1510,29 @@ export const initMapMaker3d = ({
     alignObjectToSurface(object, worldY);
   };
 
+  const updateMoveSelectionVisibility = () => {
+    const activeTab =
+      typeof getActiveTab === "function" ? getActiveTab() : null;
+    const selectedIndex = Number.parseInt(objectMoveSelectionIndex, 10);
+    const hasSelectedIndex =
+      activeTab === "objects" &&
+      Number.isFinite(selectedIndex) &&
+      selectedIndex >= 0 &&
+      selectedIndex < objectPlacements.length &&
+      objectPlacements[selectedIndex]?.path !== DOOR_MARKER_PATH;
+    objectGroup.children.forEach((entry) => {
+      const placementIndex = Number.parseInt(
+        entry.userData?.objectPlacementIndex,
+        10
+      );
+      entry.visible = !(
+        hasSelectedIndex &&
+        Number.isFinite(placementIndex) &&
+        placementIndex === selectedIndex
+      );
+    });
+  };
+
   const updateObjectPlacements = (placements) => {
     objectPlacementToken += 1;
     const token = objectPlacementToken;
@@ -1538,6 +1561,7 @@ export const initMapMaker3d = ({
       const instanceUserData = instance.userData || (instance.userData = {});
       instanceUserData.objectPlacementIndex = placementIndex;
       objectGroup.add(instance);
+      updateMoveSelectionVisibility();
     });
   };
 
@@ -1762,6 +1786,9 @@ export const initMapMaker3d = ({
     for (const hit of intersects) {
       const root = getObjectPlacementRoot(hit.object);
       if (!root) {
+        continue;
+      }
+      if (root.visible === false) {
         continue;
       }
       const placementIndex = Number.parseInt(
@@ -2071,6 +2098,7 @@ export const initMapMaker3d = ({
       typeof getActiveTab === "function" ? getActiveTab() : null;
     if (activeTab !== "objects" && activeTab !== "doors") {
       objectMoveSelectionIndex = null;
+      updateMoveSelectionVisibility();
       clearPreviewObject();
       return;
     }
@@ -2080,6 +2108,7 @@ export const initMapMaker3d = ({
 
     const selectedMovePlacement =
       activeTab === "objects" ? getSelectedObjectMovePlacement() : null;
+    updateMoveSelectionVisibility();
     const path =
       activeTab === "doors"
         ? resolveDoorMode() === "place"
