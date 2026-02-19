@@ -625,6 +625,49 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return userData.manifestPlacementColliders;
   };
 
+  const isPlacementCollisionEnabled = (container) =>
+    container?.userData?.mapMakerCollisionEnabled !== false;
+
+  const isColliderDescriptorCollisionEnabled = (descriptor) =>
+    descriptor?.mapMakerCollisionEnabled !== false &&
+    descriptor?.root?.userData?.mapMakerCollisionEnabled !== false &&
+    descriptor?.object?.userData?.mapMakerCollisionEnabled !== false;
+
+  const getPlacementColliderEntries = (container) => {
+    if (!container) {
+      return [];
+    }
+
+    const colliders = container.userData?.manifestPlacementColliders;
+    if (!Array.isArray(colliders) || colliders.length === 0) {
+      return [];
+    }
+
+    return colliders.filter((descriptor) => {
+      const box = descriptor?.box;
+      if (!box || box.isEmpty()) {
+        return false;
+      }
+      return isColliderDescriptorCollisionEnabled(descriptor);
+    });
+  };
+
+  const hasEnabledPlacementColliders = (container) =>
+    getPlacementColliderEntries(container).length > 0;
+
+  const pushUniquePlacementContainer = (collection, candidate, { exclude = null } = {}) => {
+    if (!Array.isArray(collection) || !candidate || candidate === exclude) {
+      return false;
+    }
+
+    if (collection.includes(candidate)) {
+      return false;
+    }
+
+    collection.push(candidate);
+    return true;
+  };
+
   const shouldShowPlacementOnActiveFloor = (container) => {
     if (!container || !manifestPlacements.has(container)) {
       return true;
@@ -759,6 +802,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     placementComputedPosition.copy(basePosition);
 
     let supportingColliders = null;
+    let supportingContainers = null;
 
     if (placement) {
       if (Array.isArray(placement.supportColliders)) {
@@ -768,11 +812,22 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         supportingColliders = [];
         placement.supportColliders = supportingColliders;
       }
+
+      if (Array.isArray(placement.supportContainers)) {
+        supportingContainers = placement.supportContainers;
+        supportingContainers.length = 0;
+      } else {
+        supportingContainers = [];
+        placement.supportContainers = supportingContainers;
+      }
     }
 
     if (!placement || !placement.containerBounds) {
       if (supportingColliders) {
         supportingColliders.length = 0;
+      }
+      if (supportingContainers) {
+        supportingContainers.length = 0;
       }
 
       const { floorY } = getRoomDimensions();
@@ -788,6 +843,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     if (bounds.isEmpty()) {
       placementComputedPosition.y = roomFloorY;
+      if (placement) {
+        placement.supportHeight = roomFloorY;
+      }
       return placementComputedPosition;
     }
 
@@ -858,11 +916,33 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       ? Math.max(roomFloorY, sampledGroundSupportHeight)
       : roomFloorY;
     let currentTop = supportHeight + boundsHeight;
+    const resetSupportingSources = () => {
+      if (supportingColliders) {
+        supportingColliders.length = 0;
+      }
+      if (supportingContainers) {
+        supportingContainers.length = 0;
+      }
+    };
+    const addSupportingSource = (descriptor, supportContainer = null) => {
+      if (supportingColliders && descriptor) {
+        supportingColliders.push(descriptor);
+      }
+      if (supportingContainers && supportContainer) {
+        pushUniquePlacementContainer(supportingContainers, supportContainer, {
+          exclude: container,
+        });
+      }
+    };
 
     colliderDescriptors.forEach((descriptor) => {
       const box = descriptor?.box;
 
       if (!box || box.isEmpty()) {
+        return;
+      }
+
+      if (!isColliderDescriptorCollisionEnabled(descriptor)) {
         return;
       }
 
@@ -910,23 +990,98 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       if (effectiveTop > supportHeight) {
         supportHeight = effectiveTop;
         currentTop = supportHeight + boundsHeight;
-
-        if (supportingColliders) {
-          supportingColliders.length = 0;
-          supportingColliders.push(descriptor);
-        }
+        resetSupportingSources();
+        addSupportingSource(
+          descriptor,
+          descriptor.root ?? getManifestPlacementRoot(descriptor.object)
+        );
         return;
       }
 
       if (
-        supportingColliders &&
         Math.abs(effectiveTop - supportHeight) <= STACKING_VERTICAL_TOLERANCE
       ) {
-        supportingColliders.push(descriptor);
+        addSupportingSource(
+          descriptor,
+          descriptor.root ?? getManifestPlacementRoot(descriptor.object)
+        );
+      }
+    });
+
+    // Fallback support: some imported models can be editable but expose no
+    // collider descriptors. Use their bounds so every object can be stacked.
+    getEditablePlacements().forEach((candidate) => {
+      if (
+        !candidate ||
+        candidate === container ||
+        candidate.visible === false ||
+        !isPlacementCollisionEnabled(candidate) ||
+        hasEnabledPlacementColliders(candidate)
+      ) {
+        return;
+      }
+
+      const candidateBounds = computeManifestPlacementBounds(candidate);
+      if (!candidateBounds || candidateBounds.isEmpty()) {
+        return;
+      }
+
+      const candidatePosition = getContainerWorldPosition(
+        candidate,
+        settleWorldPosition
+      );
+      if (!candidatePosition) {
+        return;
+      }
+
+      const candidateMinX = candidatePosition.x + candidateBounds.min.x;
+      const candidateMaxX = candidatePosition.x + candidateBounds.max.x;
+      const candidateMinZ = candidatePosition.z + candidateBounds.min.z;
+      const candidateMaxZ = candidatePosition.z + candidateBounds.max.z;
+
+      if (
+        footprintMaxX <= candidateMinX ||
+        footprintMinX >= candidateMaxX ||
+        footprintMaxZ <= candidateMinZ ||
+        footprintMinZ >= candidateMaxZ
+      ) {
+        return;
+      }
+
+      const supportBottom = candidatePosition.y + candidateBounds.min.y;
+      if (supportBottom >= currentTop - PLACEMENT_VERTICAL_TOLERANCE) {
+        return;
+      }
+
+      const effectiveTop = candidatePosition.y + candidateBounds.max.y;
+
+      if (
+        !allowRaise &&
+        Number.isFinite(referenceBottom) &&
+        effectiveTop > referenceBottom + STACKING_VERTICAL_TOLERANCE
+      ) {
+        return;
+      }
+
+      if (effectiveTop > supportHeight) {
+        supportHeight = effectiveTop;
+        currentTop = supportHeight + boundsHeight;
+        resetSupportingSources();
+        addSupportingSource(null, candidate);
+        return;
+      }
+
+      if (
+        Math.abs(effectiveTop - supportHeight) <= STACKING_VERTICAL_TOLERANCE
+      ) {
+        addSupportingSource(null, candidate);
       }
     });
 
     placementComputedPosition.y = supportHeight - bounds.min.y;
+    if (placement) {
+      placement.supportHeight = supportHeight;
+    }
     return placementComputedPosition;
   };
 
@@ -1034,6 +1189,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const evaluateSupportDescriptor = (descriptor) => {
       const box = descriptor?.box;
       if (!box || box.isEmpty()) {
+        return;
+      }
+
+      if (!isColliderDescriptorCollisionEnabled(descriptor)) {
         return;
       }
 
@@ -1376,9 +1535,15 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const supportingColliders = Array.isArray(placement.supportColliders)
       ? placement.supportColliders
       : null;
+    const supportingContainers = Array.isArray(placement.supportContainers)
+      ? placement.supportContainers
+      : null;
 
     placementCollisionBox.min.copy(bounds.min).add(position);
     placementCollisionBox.max.copy(bounds.max).add(position);
+    const placementSupportHeight = Number.isFinite(placement.supportHeight)
+      ? placement.supportHeight
+      : placementCollisionBox.min.y;
 
     let previousBox = null;
 
@@ -1447,6 +1612,21 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       });
     };
 
+    const isSupportingContainerDescriptor = (descriptor) => {
+      if (!supportingContainers || supportingContainers.length === 0) {
+        return false;
+      }
+
+      for (let index = 0; index < supportingContainers.length; index += 1) {
+        const supportContainer = supportingContainers[index];
+        if (isDescriptorOwnedByContainer(descriptor, supportContainer)) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
     let collisionResolved = clampToRoomBounds();
     const maxIterations = 10;
 
@@ -1488,13 +1668,20 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           Math.max(placementCollisionBox.min.y, box.min.y);
 
         if (
-          supportingColliders &&
-          supportingColliders.includes(descriptor)
+          (supportingColliders && supportingColliders.includes(descriptor)) ||
+          isSupportingContainerDescriptor(descriptor)
         ) {
-          const allowedOverlap =
-            (descriptor.padding instanceof THREE.Vector3
+          const paddingY =
+            descriptor.padding instanceof THREE.Vector3
               ? descriptor.padding.y
-              : 0) + STACKING_VERTICAL_TOLERANCE;
+              : 0;
+          const effectiveTop = box.max.y - paddingY;
+          const supportGap =
+            Number.isFinite(effectiveTop) && Number.isFinite(placementSupportHeight)
+              ? Math.max(0, placementSupportHeight - effectiveTop)
+              : 0;
+          const allowedOverlap =
+            paddingY + STACKING_VERTICAL_TOLERANCE + supportGap;
 
           if (overlapY <= allowedOverlap) {
             continue;
