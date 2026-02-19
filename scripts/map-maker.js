@@ -1156,7 +1156,7 @@ function updateDoorList() {
     title.append(name, id);
     focusButton.append(title);
     focusButton.addEventListener("click", () => {
-      focusPlacedObject(entry.placement);
+      focusPlacedObject(entry.placement, entry.index);
     });
     const removeButton = document.createElement("button");
     removeButton.type = "button";
