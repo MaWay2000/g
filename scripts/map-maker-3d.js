@@ -305,6 +305,7 @@ export const initMapMaker3d = ({
   getSelectedObject,
   getDoorMode,
   onPlaceObject,
+  onMoveObject,
   onRemoveObject,
   onPaintCell,
   onPaintEnd,
@@ -565,6 +566,7 @@ export const initMapMaker3d = ({
   let selectedAreaId = DEFAULT_MAP_AREA_ID;
   let objectPlacementToken = 0;
   let objectPlacements = [];
+  let objectMoveSelectionIndex = null;
   let previewObject = null;
   let previewPath = null;
   let previewToken = 0;
@@ -1512,17 +1514,29 @@ export const initMapMaker3d = ({
     objectPlacementToken += 1;
     const token = objectPlacementToken;
     objectPlacements = Array.isArray(placements) ? placements : [];
+    if (
+      Number.isFinite(objectMoveSelectionIndex) &&
+      objectMoveSelectionIndex >= 0 &&
+      objectMoveSelectionIndex < objectPlacements.length &&
+      objectPlacements[objectMoveSelectionIndex]?.path !== DOOR_MARKER_PATH
+    ) {
+      // keep current move selection
+    } else {
+      objectMoveSelectionIndex = null;
+    }
     objectGroup.clear();
     if (!objectPlacements.length) {
       return;
     }
-    objectPlacements.forEach(async (placement) => {
+    objectPlacements.forEach(async (placement, placementIndex) => {
       const model = await loadModel(placement.path);
       if (token !== objectPlacementToken || !model) {
         return;
       }
       const instance = cloneModel(model);
       applyObjectTransform(instance, placement);
+      const instanceUserData = instance.userData || (instance.userData = {});
+      instanceUserData.objectPlacementIndex = placementIndex;
       objectGroup.add(instance);
     });
   };
@@ -1715,6 +1729,63 @@ export const initMapMaker3d = ({
   const hasSelection = () =>
     Number.isFinite(selectionStart) && Number.isFinite(selectionEnd);
 
+  const setRaycasterFromEvent = (event) => {
+    if (!event) {
+      return false;
+    }
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      return false;
+    }
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    return true;
+  };
+
+  const getObjectPlacementRoot = (object) => {
+    let current = object;
+    while (current && current.parent && current.parent !== objectGroup) {
+      current = current.parent;
+    }
+    if (!current || current.parent !== objectGroup) {
+      return null;
+    }
+    return current;
+  };
+
+  const getObjectPlacementHitFromEvent = (event, { includeDoors = false } = {}) => {
+    if (!setRaycasterFromEvent(event)) {
+      return null;
+    }
+    const intersects = raycaster.intersectObjects(objectGroup.children, true);
+    for (const hit of intersects) {
+      const root = getObjectPlacementRoot(hit.object);
+      if (!root) {
+        continue;
+      }
+      const placementIndex = Number.parseInt(
+        root.userData?.objectPlacementIndex,
+        10
+      );
+      if (!Number.isFinite(placementIndex) || placementIndex < 0) {
+        continue;
+      }
+      const placement = objectPlacements[placementIndex];
+      if (!placement) {
+        continue;
+      }
+      if (!includeDoors && placement.path === DOOR_MARKER_PATH) {
+        continue;
+      }
+      return {
+        index: placementIndex,
+        placement,
+      };
+    }
+    return null;
+  };
+
   const getCellElevation = (index, offset = 0) => {
     if (!lastMap) {
       return TERRAIN_HEIGHT + offset;
@@ -1904,13 +1975,9 @@ export const initMapMaker3d = ({
     if (!lastMap) {
       return null;
     }
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) {
+    if (!setRaycasterFromEvent(event)) {
       return null;
     }
-    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
     const intersects = raycaster.intersectObject(mesh, false);
     const topHit =
       intersects.find((hit) => (hit.face?.normal?.y ?? 0) > 0.5) ?? null;
@@ -1965,15 +2032,37 @@ export const initMapMaker3d = ({
     return getDoorMode();
   };
 
-  const resolvePreviewPath = () => {
-    const doorMode = resolveDoorMode();
-    if (doorMode === "place") {
-      return DOOR_MARKER_PATH;
+  const applyPlacementTransformOverrides = (targetPlacement, sourcePlacement) => {
+    if (!targetPlacement || !sourcePlacement) {
+      return;
     }
-    if (doorMode === "remove") {
+    const sourceRotation = sourcePlacement.rotation ?? {};
+    const sourceScale = sourcePlacement.scale ?? {};
+    targetPlacement.rotation = {
+      x: Number.isFinite(sourceRotation.x) ? sourceRotation.x : 0,
+      y: Number.isFinite(sourceRotation.y) ? sourceRotation.y : 0,
+      z: Number.isFinite(sourceRotation.z) ? sourceRotation.z : 0,
+    };
+    targetPlacement.scale = {
+      x: Number.isFinite(sourceScale.x) ? sourceScale.x : 1,
+      y: Number.isFinite(sourceScale.y) ? sourceScale.y : 1,
+      z: Number.isFinite(sourceScale.z) ? sourceScale.z : 1,
+    };
+  };
+
+  const getSelectedObjectMovePlacement = () => {
+    if (!Number.isFinite(objectMoveSelectionIndex)) {
       return null;
     }
-    return resolveSelectedObjectPath();
+    const index = Number.parseInt(objectMoveSelectionIndex, 10);
+    if (!Number.isFinite(index) || index < 0 || index >= objectPlacements.length) {
+      return null;
+    }
+    const placement = objectPlacements[index];
+    if (!placement || placement.path === DOOR_MARKER_PATH) {
+      return null;
+    }
+    return { index, placement };
   };
 
   const updateObjectPreview = async (index) => {
@@ -1981,10 +2070,22 @@ export const initMapMaker3d = ({
     const activeTab =
       typeof getActiveTab === "function" ? getActiveTab() : null;
     if (activeTab !== "objects" && activeTab !== "doors") {
+      objectMoveSelectionIndex = null;
       clearPreviewObject();
       return;
     }
-    const path = activeTab === "doors" ? resolveDoorMode() === "place" ? DOOR_MARKER_PATH : null : resolveSelectedObjectPath();
+    if (activeTab !== "objects") {
+      objectMoveSelectionIndex = null;
+    }
+
+    const selectedMovePlacement =
+      activeTab === "objects" ? getSelectedObjectMovePlacement() : null;
+    const path =
+      activeTab === "doors"
+        ? resolveDoorMode() === "place"
+          ? DOOR_MARKER_PATH
+          : null
+        : selectedMovePlacement?.placement?.path ?? resolveSelectedObjectPath();
     if (!path || !Number.isFinite(index)) {
       clearPreviewObject();
       return;
@@ -1993,6 +2094,9 @@ export const initMapMaker3d = ({
     if (!placement) {
       clearPreviewObject();
       return;
+    }
+    if (selectedMovePlacement?.placement) {
+      applyPlacementTransformOverrides(placement, selectedMovePlacement.placement);
     }
     if (!previewObject || previewPath !== path) {
       previewToken += 1;
@@ -2013,6 +2117,52 @@ export const initMapMaker3d = ({
     }
     applyObjectTransform(previewObject, placement);
     objectPreviewGroup.visible = true;
+  };
+
+  const selectObjectForMoveFromEvent = (event) => {
+    const hit = getObjectPlacementHitFromEvent(event, {
+      includeDoors: false,
+    });
+    if (!hit) {
+      return false;
+    }
+    objectMoveSelectionIndex = hit.index;
+    focusObject(hit.placement);
+    void updateObjectPreview(previewIndex);
+    return true;
+  };
+
+  const moveSelectedObjectFromEvent = (event) => {
+    if (typeof onMoveObject !== "function") {
+      return false;
+    }
+    const selectedMovePlacement = getSelectedObjectMovePlacement();
+    if (!selectedMovePlacement) {
+      objectMoveSelectionIndex = null;
+      return false;
+    }
+    const index = getCellIndexFromEvent(event);
+    if (index === null) {
+      return false;
+    }
+    const nextPlacement = buildObjectPlacement(
+      index,
+      selectedMovePlacement.placement.path
+    );
+    if (!nextPlacement) {
+      return false;
+    }
+    applyPlacementTransformOverrides(
+      nextPlacement,
+      selectedMovePlacement.placement
+    );
+    onMoveObject({
+      index: selectedMovePlacement.index,
+      placement: nextPlacement,
+    });
+    objectMoveSelectionIndex = null;
+    void updateObjectPreview(index);
+    return true;
   };
 
   const placeObjectFromEvent = (event) => {
@@ -2095,6 +2245,29 @@ export const initMapMaker3d = ({
       return;
     }
     if (activeTab === "objects") {
+      const selectedMovePlacement = getSelectedObjectMovePlacement();
+      if (selectedMovePlacement) {
+        const hit = getObjectPlacementHitFromEvent(event, {
+          includeDoors: false,
+        });
+        if (hit && hit.index === selectedMovePlacement.index) {
+          objectMoveSelectionIndex = null;
+          void updateObjectPreview(previewIndex);
+          return;
+        }
+        if (moveSelectedObjectFromEvent(event)) {
+          return;
+        }
+        if (hit) {
+          objectMoveSelectionIndex = hit.index;
+          focusObject(hit.placement);
+          void updateObjectPreview(previewIndex);
+        }
+        return;
+      }
+      if (selectObjectForMoveFromEvent(event)) {
+        return;
+      }
       placeObjectFromEvent(event);
       return;
     }

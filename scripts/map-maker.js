@@ -2526,6 +2526,56 @@ function setActivePaletteTab(tabId) {
           landscapeViewer?.setObjectPlacements?.(state.map.objects);
           pushUndoSnapshot(snapshot);
         },
+        onMoveObject: ({ index, placement } = {}) => {
+          if (!placement) {
+            return;
+          }
+          const existing = Array.isArray(state.map.objects)
+            ? state.map.objects
+            : [];
+          const targetIndex = Number.parseInt(index, 10);
+          if (
+            !Number.isFinite(targetIndex) ||
+            targetIndex < 0 ||
+            targetIndex >= existing.length
+          ) {
+            return;
+          }
+          const currentPlacement = existing[targetIndex];
+          if (!currentPlacement || currentPlacement.path === DOOR_MARKER_PATH) {
+            return;
+          }
+          const snapshot = cloneMapDefinition(state.map);
+          const nextPlacement = {
+            ...currentPlacement,
+            ...placement,
+            path: currentPlacement.path,
+            position: normalizeObjectVector(
+              placement.position,
+              DEFAULT_OBJECT_TRANSFORM.position
+            ),
+            rotation: normalizeObjectVector(
+              placement.rotation,
+              normalizeObjectVector(
+                currentPlacement.rotation,
+                DEFAULT_OBJECT_TRANSFORM.rotation
+              )
+            ),
+            scale: normalizeObjectVector(
+              placement.scale,
+              normalizeObjectVector(
+                currentPlacement.scale,
+                DEFAULT_OBJECT_TRANSFORM.scale
+              )
+            ),
+          };
+          state.map.objects = existing.map((entry, entryIndex) =>
+            entryIndex === targetIndex ? nextPlacement : entry
+          );
+          updateJsonPreview();
+          landscapeViewer?.setObjectPlacements?.(state.map.objects);
+          pushUndoSnapshot(snapshot);
+        },
         onRemoveObject: ({ index, path } = {}) => {
           if (path === DOOR_MARKER_PATH) {
             removeDoorMarkersAtIndex(index);
