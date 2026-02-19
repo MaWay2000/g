@@ -557,6 +557,25 @@ function normalizeObjectCollisionEnabled(value) {
   return true;
 }
 
+function normalizeObjectStoned(value) {
+  if (value === false) {
+    return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["false", "0", "off", "no"].includes(normalized)) {
+      return false;
+    }
+    if (["true", "1", "on", "yes"].includes(normalized)) {
+      return true;
+    }
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  return true;
+}
+
 function resolvePlacementDestination(placement) {
   if (!placement || typeof placement !== "object") {
     return null;
@@ -653,6 +672,7 @@ function normalizeObjectPlacements(placements, { width, height } = {}) {
       const collisionEnabled = normalizeObjectCollisionEnabled(
         placement.collisionEnabled
       );
+      const stoned = normalizeObjectStoned(placement.stoned);
       const destination = resolvePlacementDestination(placement);
       return {
         path,
@@ -671,6 +691,7 @@ function normalizeObjectPlacements(placements, { width, height } = {}) {
         ...(name ? { name } : {}),
         ...(id ? { id } : {}),
         ...(!collisionEnabled ? { collisionEnabled: false } : {}),
+        ...(!stoned ? { stoned: false } : {}),
         ...(destination?.destinationType
           ? { destinationType: destination.destinationType }
           : {}),
@@ -882,6 +903,10 @@ function isObjectCollisionEnabled(placement) {
   return normalizeObjectCollisionEnabled(placement?.collisionEnabled);
 }
 
+function isObjectStoned(placement) {
+  return normalizeObjectStoned(placement?.stoned);
+}
+
 function getObjectDisplayName(placement, order) {
   if (typeof placement?.name === "string" && placement.name.trim().length > 0) {
     return placement.name.trim();
@@ -970,6 +995,36 @@ function setObjectPlacementCollisionAtIndex(index, isEnabled) {
     delete nextPlacement.collisionEnabled;
   } else {
     nextPlacement.collisionEnabled = false;
+  }
+  state.map.objects = existing.map((entry, entryIndex) =>
+    entryIndex === index ? nextPlacement : entry
+  );
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  pushUndoSnapshot(snapshot);
+  saveMapToLocalStorage({ showAlert: false, showFeedback: false });
+}
+
+function setObjectPlacementStonedAtIndex(index, isEnabled) {
+  const existing = Array.isArray(state.map.objects) ? state.map.objects : [];
+  if (!Number.isFinite(index) || index < 0 || index >= existing.length) {
+    return;
+  }
+  const placement = existing[index];
+  if (!placement || placement.path === DOOR_MARKER_PATH) {
+    return;
+  }
+  const nextStoned = Boolean(isEnabled);
+  const currentStoned = isObjectStoned(placement);
+  if (currentStoned === nextStoned) {
+    return;
+  }
+  const snapshot = cloneMapDefinition(state.map);
+  const nextPlacement = { ...placement };
+  if (nextStoned) {
+    delete nextPlacement.stoned;
+  } else {
+    nextPlacement.stoned = false;
   }
   state.map.objects = existing.map((entry, entryIndex) =>
     entryIndex === index ? nextPlacement : entry
@@ -1220,8 +1275,13 @@ function updateObjectList() {
     collisionStatus.textContent = `Collision: ${
       collisionEnabled ? "On" : "Off"
     }`;
+    const stoned = isObjectStoned(placement);
+    const stonedStatus = document.createElement("span");
+    stonedStatus.className = "object-list-id object-list-stoned-status";
+    stonedStatus.dataset.active = String(stoned);
+    stonedStatus.textContent = `Stoned: ${stoned ? "On" : "Off"}`;
 
-    focusButton.append(name, id, rotation, collisionStatus);
+    focusButton.append(name, id, rotation, collisionStatus, stonedStatus);
     focusButton.addEventListener("click", () => {
       focusPlacedObject(placement, index);
     });
@@ -1277,6 +1337,25 @@ function updateObjectList() {
       setObjectPlacementCollisionAtIndex(index, !collisionEnabled);
     });
 
+    const stonedButton = document.createElement("button");
+    stonedButton.type = "button";
+    stonedButton.className = "object-list-stoned";
+    stonedButton.dataset.active = String(stoned);
+    stonedButton.setAttribute(
+      "aria-label",
+      `${stoned ? "Disable" : "Enable"} stoned mode for ${getObjectDisplayName(
+        placement,
+        order
+      )}`
+    );
+    stonedButton.title = stoned
+      ? "Disable stoned (allow edit in game)"
+      : "Enable stoned (lock edit in game)";
+    stonedButton.textContent = "S";
+    stonedButton.addEventListener("click", () => {
+      setObjectPlacementStonedAtIndex(index, !stoned);
+    });
+
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "object-list-remove";
@@ -1289,7 +1368,12 @@ function updateObjectList() {
       removeObjectPlacementAtIndex(index);
     });
 
-    rotateColumn.append(rotateLeftButton, rotateRightButton, collisionButton);
+    rotateColumn.append(
+      rotateLeftButton,
+      rotateRightButton,
+      collisionButton,
+      stonedButton
+    );
     actions.append(rotateColumn, removeButton);
     item.append(focusButton, actions);
     elements.objectList.appendChild(item);

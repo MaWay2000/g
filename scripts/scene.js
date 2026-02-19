@@ -4436,6 +4436,7 @@ export const initScene = (
   const MAP_MAKER_DOOR_POSITION_EPSILON = 0.01;
   const isMapMakerPlacementCollisionEnabled = (placement) =>
     placement?.collisionEnabled !== false;
+  const isMapMakerPlacementStoned = (placement) => placement?.stoned !== false;
   const setMapMakerPlacementCollisionState = (
     object,
     collisionEnabled = true
@@ -5083,6 +5084,7 @@ export const initScene = (
 
           const placementCollisionEnabled =
             isMapMakerPlacementCollisionEnabled(placement);
+          const placementStoned = isMapMakerPlacementStoned(placement);
           setMapMakerPlacementCollisionState(model, placementCollisionEnabled);
 
           const placementPosition = getPlacementWorldPosition(placement);
@@ -5109,6 +5111,7 @@ export const initScene = (
               })
             : [];
           const modelUserData = model.userData || (model.userData = {});
+          modelUserData.mapMakerStoned = placementStoned;
           modelUserData.manifestPlacementColliders = Array.isArray(descriptors)
             ? descriptors
             : [];
@@ -5117,36 +5120,38 @@ export const initScene = (
             rebuildStaticColliders();
           }
 
-          editableModelContainers.add(model);
-          queueExternalEditablePlacement({
-            container: model,
-            options: {
-              entry: {
-                path: placement.path,
-                label:
-                  typeof placement?.name === "string" && placement.name.trim()
-                    ? placement.name.trim()
-                    : placement.path,
+          if (!placementStoned) {
+            editableModelContainers.add(model);
+            queueExternalEditablePlacement({
+              container: model,
+              options: {
+                entry: {
+                  path: placement.path,
+                  label:
+                    typeof placement?.name === "string" && placement.name.trim()
+                      ? placement.name.trim()
+                      : placement.path,
+                },
+                onTransform: ({ container }) => {
+                  persistStoredAreaObjectTransform(placementId, container);
+                },
+                onRemove: ({ container }) => {
+                  removeStoredAreaObjectPlacement(placementId);
+                  const removedIndex = viewDistanceTargets.indexOf(container);
+                  if (removedIndex >= 0) {
+                    viewDistanceTargets.splice(removedIndex, 1);
+                  }
+                  const adjustableIndex = adjustableEntries.findIndex(
+                    (entry) => entry?.object === container
+                  );
+                  if (adjustableIndex >= 0) {
+                    adjustableEntries.splice(adjustableIndex, 1);
+                  }
+                  editableModelContainers.delete(container);
+                },
               },
-              onTransform: ({ container }) => {
-                persistStoredAreaObjectTransform(placementId, container);
-              },
-              onRemove: ({ container }) => {
-                removeStoredAreaObjectPlacement(placementId);
-                const removedIndex = viewDistanceTargets.indexOf(container);
-                if (removedIndex >= 0) {
-                  viewDistanceTargets.splice(removedIndex, 1);
-                }
-                const adjustableIndex = adjustableEntries.findIndex(
-                  (entry) => entry?.object === container
-                );
-                if (adjustableIndex >= 0) {
-                  adjustableEntries.splice(adjustableIndex, 1);
-                }
-                editableModelContainers.delete(container);
-              },
-            },
-          });
+            });
+          }
         })();
 
         pendingAsyncModelLoads.push(loadPromise);

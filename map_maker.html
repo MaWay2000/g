@@ -436,6 +436,14 @@
         color: rgba(248, 113, 113, 0.95);
       }
 
+      .object-list-stoned-status[data-active="true"] {
+        color: rgba(250, 204, 21, 0.98);
+      }
+
+      .object-list-stoned-status[data-active="false"] {
+        color: rgba(125, 211, 252, 0.95);
+      }
+
       .object-list-actions {
         display: inline-flex;
         align-items: stretch;
@@ -450,6 +458,7 @@
 
       .object-list-rotate,
       .object-list-collision,
+      .object-list-stoned,
       .object-list-remove {
         border: 1px solid rgba(248, 113, 113, 0.45);
         background: rgba(248, 113, 113, 0.16);
@@ -466,6 +475,10 @@
       }
 
       .object-list-collision {
+        min-width: 2.1rem;
+      }
+
+      .object-list-stoned {
         min-width: 2.1rem;
       }
 
@@ -508,6 +521,30 @@
       .object-list-collision[data-active="false"]:hover,
       .object-list-collision[data-active="false"]:focus-visible {
         background: rgba(148, 163, 184, 0.24);
+      }
+
+      .object-list-stoned {
+        border-color: rgba(250, 204, 21, 0.45);
+        background: rgba(250, 204, 21, 0.16);
+        color: rgba(254, 240, 138, 0.98);
+      }
+
+      .object-list-stoned[data-active="false"] {
+        border-color: rgba(56, 189, 248, 0.45);
+        background: rgba(56, 189, 248, 0.12);
+        color: rgba(125, 211, 252, 0.98);
+      }
+
+      .object-list-stoned:hover,
+      .object-list-stoned:focus-visible {
+        transform: translateY(-1px);
+        background: rgba(250, 204, 21, 0.24);
+        outline: none;
+      }
+
+      .object-list-stoned[data-active="false"]:hover,
+      .object-list-stoned[data-active="false"]:focus-visible {
+        background: rgba(56, 189, 248, 0.22);
       }
 
       .object-list-remove:hover,

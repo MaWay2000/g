@@ -412,6 +412,25 @@ const normalizeOutsideCollisionEnabled = (value) => {
   return true;
 };
 
+const normalizeOutsidePlacementStoned = (value) => {
+  if (value === false) {
+    return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["false", "0", "off", "no"].includes(normalized)) {
+      return false;
+    }
+    if (["true", "1", "on", "yes"].includes(normalized)) {
+      return true;
+    }
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  return true;
+};
+
 const resolveOutsideDestination = (placement) => {
   if (!placement || typeof placement !== "object") {
     return null;
@@ -482,6 +501,7 @@ const normalizeOutsideObjectPlacements = (placements) => {
       const collisionEnabled = normalizeOutsideCollisionEnabled(
         placement.collisionEnabled
       );
+      const stoned = normalizeOutsidePlacementStoned(placement.stoned);
       const destination = resolveOutsideDestination(placement);
       return {
         path,
@@ -501,6 +521,7 @@ const normalizeOutsideObjectPlacements = (placements) => {
         ...(id ? { id } : {}),
         ...(heightReference ? { heightReference } : {}),
         ...(!collisionEnabled ? { collisionEnabled: false } : {}),
+        ...(!stoned ? { stoned: false } : {}),
         ...(destination?.destinationType
           ? { destinationType: destination.destinationType }
           : {}),
