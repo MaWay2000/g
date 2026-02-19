@@ -153,6 +153,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const placementPreviewBasePosition = new THREE.Vector3();
   const placementComputedPosition = new THREE.Vector3();
   const placementBoundsWorldPosition = new THREE.Vector3();
+  const placementRepositionDirection = new THREE.Vector3();
+  const placementRepositionCenterline = new THREE.Vector3();
+  const placementRepositionVectorToObject = new THREE.Vector3();
   const placementDependentOffset = new THREE.Vector3();
   const placementDependentPreviousPosition = new THREE.Vector3();
   const placementPreviousPreviewPosition = new THREE.Vector3();
@@ -1846,10 +1849,29 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     const playerPosition = controls.getObject().position;
-    const distanceToPlayer = playerPosition.distanceTo(container.position);
-    const placementDistance = Number.isFinite(distanceToPlayer)
-      ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, distanceToPlayer)
+    camera.getWorldDirection(placementRepositionDirection);
+    placementRepositionDirection.y = 0;
+    if (placementRepositionDirection.lengthSq() < 1e-6) {
+      placementRepositionDirection.set(0, 0, -1);
+    } else {
+      placementRepositionDirection.normalize();
+    }
+
+    placementRepositionVectorToObject
+      .copy(container.position)
+      .sub(playerPosition);
+    const projectedDistance = placementRepositionVectorToObject.dot(
+      placementRepositionDirection
+    );
+    const placementDistance = Number.isFinite(projectedDistance)
+      ? Math.max(MIN_MANIFEST_PLACEMENT_DISTANCE, projectedDistance)
       : MIN_MANIFEST_PLACEMENT_DISTANCE;
+    placementRepositionCenterline
+      .copy(playerPosition)
+      .addScaledVector(placementRepositionDirection, placementDistance);
+    const previewFollowOffset = container.position
+      .clone()
+      .sub(placementRepositionCenterline);
 
     const userData = container.userData || (container.userData = {});
 
@@ -1863,6 +1885,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       previewDirection: new THREE.Vector3(),
       previewPosition: container.position.clone(),
       previewBasePosition: container.position.clone(),
+      previewFollowOffset,
       pointerHandler: null,
       wheelHandler: null,
       keydownHandler: null,
@@ -2428,6 +2451,12 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     placementPreviewBasePosition
       .copy(playerPosition)
       .addScaledVector(directionVector, placement.distance);
+    if (
+      placement.isReposition &&
+      placement.previewFollowOffset instanceof THREE.Vector3
+    ) {
+      placementPreviewBasePosition.add(placement.previewFollowOffset);
+    }
 
     const horizontalBounds = getHorizontalPlacementBounds();
     if (horizontalBounds) {
