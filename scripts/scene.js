@@ -5910,9 +5910,16 @@ export const initScene = (
       const liftDoors = [];
       const viewDistanceTargets = [];
       const pendingAsyncObjectLoads = [];
+      const registeredObjectColliders = [];
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
       const geoVisorMaterials = new Map();
+      const outsidePlacementColliderPadding = new THREE.Vector3(
+        0.02,
+        0.02,
+        0.02
+      );
+      let outsideObjectsDisposed = false;
       doorMarkersById.clear();
       const objectPlacements = Array.isArray(normalizedMap.objects)
         ? normalizedMap.objects
@@ -7196,9 +7203,15 @@ export const initScene = (
       };
 
       mapGroup.userData.dispose = () => {
+        outsideObjectsDisposed = true;
         Array.from(windowedTileRegistry.keys()).forEach((key) => {
           removeWindowedTile(key);
         });
+        if (registeredObjectColliders.length > 0) {
+          unregisterColliderDescriptors(registeredObjectColliders);
+          registeredObjectColliders.length = 0;
+          rebuildStaticColliders();
+        }
       };
 
       if (objectPlacements.length > 0) {
@@ -7211,9 +7224,18 @@ export const initScene = (
             if (!placement?.path) {
               return;
             }
+            if (outsideObjectsDisposed) {
+              return;
+            }
             const placementPosition = getPlacementWorldPosition(placement);
             if (placement.path === DOOR_MARKER_PATH) {
               const door = createHangarDoor();
+              const placementCollisionEnabled =
+                isMapMakerPlacementCollisionEnabled(placement);
+              setMapMakerPlacementCollisionState(
+                door,
+                placementCollisionEnabled
+              );
               if (
                 mapDisplayName &&
                 typeof door.userData?.liftUi?.updateState === "function"
@@ -7295,6 +7317,15 @@ export const initScene = (
               });
               liftDoors.push(door);
               viewDistanceTargets.push(door);
+              if (placementCollisionEnabled) {
+                const doorColliders = registerCollidersForImportedRoot(door, {
+                  padding: outsidePlacementColliderPadding,
+                });
+                if (Array.isArray(doorColliders) && doorColliders.length > 0) {
+                  registeredObjectColliders.push(...doorColliders);
+                  rebuildStaticColliders();
+                }
+              }
               return;
             }
 
@@ -7303,6 +7334,10 @@ export const initScene = (
                 path: placement.path,
               });
               if (!model) {
+                return;
+              }
+              if (outsideObjectsDisposed) {
+                disposeObject3D(model);
                 return;
               }
               const placementCollisionEnabled =
@@ -7321,6 +7356,18 @@ export const initScene = (
                 offset: model.position.y - roomFloorY,
               });
               viewDistanceTargets.push(model);
+              if (placementCollisionEnabled) {
+                const modelColliders = registerCollidersForImportedRoot(model, {
+                  padding: outsidePlacementColliderPadding,
+                });
+                if (
+                  Array.isArray(modelColliders) &&
+                  modelColliders.length > 0
+                ) {
+                  registeredObjectColliders.push(...modelColliders);
+                  rebuildStaticColliders();
+                }
+              }
             } catch (error) {
               console.warn(
                 "Unable to load outside map object",
