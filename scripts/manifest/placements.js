@@ -195,8 +195,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const MANIFEST_PLACEMENT_DISTANCE_STEP = 0.5;
   const MANIFEST_PLACEMENT_ROTATION_STEP = Math.PI / 2;
   const STACKING_VERTICAL_TOLERANCE = 0.02;
-  const PLACEMENT_WALL_SNAP_EDGE_THRESHOLD = 0.35;
-  const PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD = 0.28;
+  const PLACEMENT_WALL_SNAP_EDGE_THRESHOLD = 0.65;
+  const PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD = 0.48;
   const getMaxManifestPlacementDistance = () => {
     const horizontalBounds = getHorizontalPlacementBounds();
     const boundsDepth = horizontalBounds
