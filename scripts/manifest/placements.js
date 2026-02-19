@@ -675,6 +675,57 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return true;
   };
 
+  const getDescriptorContainer = (descriptor) =>
+    descriptor?.root ?? getManifestPlacementRoot(descriptor?.object);
+
+  const getEditableDescriptorHorizontalPadding = (descriptor) => {
+    const padding =
+      descriptor?.padding instanceof THREE.Vector3 ? descriptor.padding : null;
+    const descriptorContainer = getDescriptorContainer(descriptor);
+    const isEditableDescriptor =
+      descriptorContainer && isEditablePlacement(descriptorContainer);
+
+    return {
+      x:
+        isEditableDescriptor && Number.isFinite(padding?.x)
+          ? Math.max(0, padding.x)
+          : 0,
+      z:
+        isEditableDescriptor && Number.isFinite(padding?.z)
+          ? Math.max(0, padding.z)
+          : 0,
+    };
+  };
+
+  const getDescriptorHorizontalFootprint = (descriptor) => {
+    const box = descriptor?.box;
+    if (!box || box.isEmpty()) {
+      return null;
+    }
+
+    const horizontalPadding = getEditableDescriptorHorizontalPadding(descriptor);
+    const paddedMinX = box.min.x + horizontalPadding.x;
+    const paddedMaxX = box.max.x - horizontalPadding.x;
+    const paddedMinZ = box.min.z + horizontalPadding.z;
+    const paddedMaxZ = box.max.z - horizontalPadding.z;
+
+    if (paddedMaxX > paddedMinX && paddedMaxZ > paddedMinZ) {
+      return {
+        minX: paddedMinX,
+        maxX: paddedMaxX,
+        minZ: paddedMinZ,
+        maxZ: paddedMaxZ,
+      };
+    }
+
+    return {
+      minX: box.min.x,
+      maxX: box.max.x,
+      minZ: box.min.z,
+      maxZ: box.max.z,
+    };
+  };
+
   const shouldShowPlacementOnActiveFloor = (container) => {
     if (!container || !manifestPlacements.has(container)) {
       return true;
@@ -964,11 +1015,16 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         return;
       }
 
+      const descriptorFootprint = getDescriptorHorizontalFootprint(descriptor);
+      if (!descriptorFootprint) {
+        return;
+      }
+
       if (
-        footprintMaxX <= box.min.x ||
-        footprintMinX >= box.max.x ||
-        footprintMaxZ <= box.min.z ||
-        footprintMinZ >= box.max.z
+        footprintMaxX <= descriptorFootprint.minX ||
+        footprintMinX >= descriptorFootprint.maxX ||
+        footprintMaxZ <= descriptorFootprint.minZ ||
+        footprintMinZ >= descriptorFootprint.maxZ
       ) {
         return;
       }
@@ -998,20 +1054,14 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         supportHeight = effectiveTop;
         currentTop = supportHeight + boundsHeight;
         resetSupportingSources();
-        addSupportingSource(
-          descriptor,
-          descriptor.root ?? getManifestPlacementRoot(descriptor.object)
-        );
+        addSupportingSource(descriptor, getDescriptorContainer(descriptor));
         return;
       }
 
       if (
         Math.abs(effectiveTop - supportHeight) <= STACKING_VERTICAL_TOLERANCE
       ) {
-        addSupportingSource(
-          descriptor,
-          descriptor.root ?? getManifestPlacementRoot(descriptor.object)
-        );
+        addSupportingSource(descriptor, getDescriptorContainer(descriptor));
       }
     });
 
@@ -1207,11 +1257,16 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         return;
       }
 
+      const descriptorFootprint = getDescriptorHorizontalFootprint(descriptor);
+      if (!descriptorFootprint) {
+        return;
+      }
+
       if (
-        footprintMaxX <= box.min.x ||
-        footprintMinX >= box.max.x ||
-        footprintMaxZ <= box.min.z ||
-        footprintMinZ >= box.max.z
+        footprintMaxX <= descriptorFootprint.minX ||
+        footprintMinX >= descriptorFootprint.maxX ||
+        footprintMaxZ <= descriptorFootprint.minZ ||
+        footprintMinZ >= descriptorFootprint.maxZ
       ) {
         return;
       }
@@ -1334,6 +1389,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     if (!placement?.container || !placement.containerBounds) {
       return false;
     }
+
+    placement.snappedSupportBottom = null;
 
     const container = placement.container;
     const bounds = placement.containerBounds;
@@ -1534,6 +1591,97 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
     container.position.x = nextX;
     container.position.z = nextZ;
+
+    if (snapMode === "floor") {
+      const snappedMinX = nextX + bounds.min.x;
+      const snappedMaxX = nextX + bounds.max.x;
+      const snappedMinZ = nextZ + bounds.min.z;
+      const snappedMaxZ = nextZ + bounds.max.z;
+
+      let bestLevelSnap = null;
+      getEditablePlacements().forEach((candidate) => {
+        if (
+          !candidate ||
+          candidate === container ||
+          candidate.visible === false ||
+          isPlacementObject(candidate) ||
+          !isFloorLikePlacement(candidate)
+        ) {
+          return;
+        }
+
+        const candidateBounds = computeManifestPlacementBounds(candidate);
+        if (candidateBounds.isEmpty()) {
+          return;
+        }
+
+        const candidatePosition = getContainerWorldPosition(
+          candidate,
+          settleWorldTargetPosition
+        );
+        if (!candidatePosition) {
+          return;
+        }
+
+        const candidateMinX = candidatePosition.x + candidateBounds.min.x;
+        const candidateMaxX = candidatePosition.x + candidateBounds.max.x;
+        const candidateMinZ = candidatePosition.z + candidateBounds.min.z;
+        const candidateMaxZ = candidatePosition.z + candidateBounds.max.z;
+
+        const overlapX =
+          Math.min(snappedMaxX, candidateMaxX) -
+          Math.max(snappedMinX, candidateMinX);
+        const overlapZ =
+          Math.min(snappedMaxZ, candidateMaxZ) -
+          Math.max(snappedMinZ, candidateMinZ);
+        const alignDeltaX = Math.abs(nextX - candidatePosition.x);
+        const alignDeltaZ = Math.abs(nextZ - candidatePosition.z);
+        const edgeGapX = Math.min(
+          Math.abs(snappedMinX - candidateMaxX),
+          Math.abs(snappedMaxX - candidateMinX)
+        );
+        const edgeGapZ = Math.min(
+          Math.abs(snappedMinZ - candidateMaxZ),
+          Math.abs(snappedMaxZ - candidateMinZ)
+        );
+
+        const nearByX =
+          (overlapZ >= -alignSnapThreshold && edgeGapX <= edgeSnapThreshold) ||
+          (alignDeltaZ <= alignSnapThreshold && edgeGapX <= edgeSnapThreshold);
+        const nearByZ =
+          (overlapX >= -alignSnapThreshold && edgeGapZ <= edgeSnapThreshold) ||
+          (alignDeltaX <= alignSnapThreshold && edgeGapZ <= edgeSnapThreshold);
+        const centerAligned =
+          alignDeltaX <= alignSnapThreshold && alignDeltaZ <= alignSnapThreshold;
+
+        if (!nearByX && !nearByZ && !centerAligned) {
+          return;
+        }
+
+        const snapDistance = Math.min(
+          Math.max(0, edgeGapX),
+          Math.max(0, edgeGapZ),
+          Math.hypot(alignDeltaX, alignDeltaZ)
+        );
+        const candidateBottom = candidatePosition.y + candidateBounds.min.y;
+        const levelCandidate = {
+          distance: snapDistance,
+          bottom: candidateBottom,
+        };
+
+        if (!bestLevelSnap || levelCandidate.distance < bestLevelSnap.distance) {
+          bestLevelSnap = levelCandidate;
+        }
+      });
+
+      if (bestLevelSnap && Number.isFinite(bestLevelSnap.bottom)) {
+        const snappedBottom = bestLevelSnap.bottom;
+        container.position.y = snappedBottom - bounds.min.y;
+        placement.snappedSupportBottom = snappedBottom;
+        placement.supportHeight = snappedBottom;
+      }
+    }
+
     container.updateMatrixWorld(true);
     return true;
   };
@@ -1680,31 +1828,20 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           continue;
         }
 
+        const descriptorFootprint = getDescriptorHorizontalFootprint(descriptor);
+        if (!descriptorFootprint) {
+          continue;
+        }
+
         const overlapX =
-          Math.min(placementCollisionBox.max.x, box.max.x) -
-          Math.max(placementCollisionBox.min.x, box.min.x);
+          Math.min(placementCollisionBox.max.x, descriptorFootprint.maxX) -
+          Math.max(placementCollisionBox.min.x, descriptorFootprint.minX);
         const overlapZ =
-          Math.min(placementCollisionBox.max.z, box.max.z) -
-          Math.max(placementCollisionBox.min.z, box.min.z);
+          Math.min(placementCollisionBox.max.z, descriptorFootprint.maxZ) -
+          Math.max(placementCollisionBox.min.z, descriptorFootprint.minZ);
         const overlapY =
           Math.min(placementCollisionBox.max.y, box.max.y) -
           Math.max(placementCollisionBox.min.y, box.min.y);
-        const paddingVector =
-          descriptor.padding instanceof THREE.Vector3 ? descriptor.padding : null;
-        const descriptorContainer =
-          descriptor.root ?? getManifestPlacementRoot(descriptor.object);
-        const isEditableDescriptor =
-          descriptorContainer && isEditablePlacement(descriptorContainer);
-        const horizontalPaddingX =
-          isEditableDescriptor && Number.isFinite(paddingVector?.x)
-            ? Math.max(0, paddingVector.x)
-            : 0;
-        const horizontalPaddingZ =
-          isEditableDescriptor && Number.isFinite(paddingVector?.z)
-            ? Math.max(0, paddingVector.z)
-            : 0;
-        const effectiveOverlapX = overlapX - horizontalPaddingX;
-        const effectiveOverlapZ = overlapZ - horizontalPaddingZ;
 
         if (
           (supportingColliders && supportingColliders.includes(descriptor)) ||
@@ -1728,28 +1865,31 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         }
 
         if (
-          effectiveOverlapX <= 0 ||
-          effectiveOverlapZ <= 0 ||
+          overlapX <= 0 ||
+          overlapZ <= 0 ||
           overlapY <= STACKING_VERTICAL_TOLERANCE
         ) {
           continue;
         }
 
-        if (effectiveOverlapX < effectiveOverlapZ) {
-          const effectiveMinX = box.min.x + horizontalPaddingX;
-          const effectiveMaxX = box.max.x - horizontalPaddingX;
-          const overlapLeft = placementCollisionBox.max.x - effectiveMinX;
-          const overlapRight = effectiveMaxX - placementCollisionBox.min.x;
+        if (overlapX < overlapZ) {
+          const overlapLeft =
+            placementCollisionBox.max.x - descriptorFootprint.minX;
+          const overlapRight =
+            descriptorFootprint.maxX - placementCollisionBox.min.x;
           let shiftX = 0;
 
-          if (previousBox && previousBox.max.x <= effectiveMinX) {
-            shiftX = effectiveMinX - placementCollisionBox.max.x;
-          } else if (previousBox && previousBox.min.x >= effectiveMaxX) {
-            shiftX = effectiveMaxX - placementCollisionBox.min.x;
+          if (previousBox && previousBox.max.x <= descriptorFootprint.minX) {
+            shiftX = descriptorFootprint.minX - placementCollisionBox.max.x;
+          } else if (
+            previousBox &&
+            previousBox.min.x >= descriptorFootprint.maxX
+          ) {
+            shiftX = descriptorFootprint.maxX - placementCollisionBox.min.x;
           } else if (overlapLeft < overlapRight) {
-            shiftX = effectiveMinX - placementCollisionBox.max.x;
+            shiftX = descriptorFootprint.minX - placementCollisionBox.max.x;
           } else {
-            shiftX = effectiveMaxX - placementCollisionBox.min.x;
+            shiftX = descriptorFootprint.maxX - placementCollisionBox.min.x;
           }
 
           if (shiftX !== 0) {
@@ -1757,20 +1897,23 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
             iterationAdjusted = true;
           }
         } else {
-          const effectiveMinZ = box.min.z + horizontalPaddingZ;
-          const effectiveMaxZ = box.max.z - horizontalPaddingZ;
-          const overlapBack = placementCollisionBox.max.z - effectiveMinZ;
-          const overlapFront = effectiveMaxZ - placementCollisionBox.min.z;
+          const overlapBack =
+            placementCollisionBox.max.z - descriptorFootprint.minZ;
+          const overlapFront =
+            descriptorFootprint.maxZ - placementCollisionBox.min.z;
           let shiftZ = 0;
 
-          if (previousBox && previousBox.max.z <= effectiveMinZ) {
-            shiftZ = effectiveMinZ - placementCollisionBox.max.z;
-          } else if (previousBox && previousBox.min.z >= effectiveMaxZ) {
-            shiftZ = effectiveMaxZ - placementCollisionBox.min.z;
+          if (previousBox && previousBox.max.z <= descriptorFootprint.minZ) {
+            shiftZ = descriptorFootprint.minZ - placementCollisionBox.max.z;
+          } else if (
+            previousBox &&
+            previousBox.min.z >= descriptorFootprint.maxZ
+          ) {
+            shiftZ = descriptorFootprint.maxZ - placementCollisionBox.min.z;
           } else if (overlapBack < overlapFront) {
-            shiftZ = effectiveMinZ - placementCollisionBox.max.z;
+            shiftZ = descriptorFootprint.minZ - placementCollisionBox.max.z;
           } else {
-            shiftZ = effectiveMaxZ - placementCollisionBox.min.z;
+            shiftZ = descriptorFootprint.maxZ - placementCollisionBox.min.z;
           }
 
           if (shiftZ !== 0) {
@@ -2565,6 +2708,17 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       placement,
       placement.previewPosition
     );
+
+    if (
+      isFloorLikePlacement(placement.container) &&
+      Number.isFinite(placement.snappedSupportBottom) &&
+      placement.containerBounds &&
+      !placement.containerBounds.isEmpty()
+    ) {
+      finalPosition.y =
+        placement.snappedSupportBottom - placement.containerBounds.min.y;
+      placement.supportHeight = placement.snappedSupportBottom;
+    }
 
     placement.previewPosition.copy(finalPosition);
     placement.container.position.copy(placement.previewPosition);
