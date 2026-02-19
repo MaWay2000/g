@@ -200,6 +200,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const STACKING_VERTICAL_TOLERANCE = 0.02;
   const PLACEMENT_WALL_SNAP_EDGE_THRESHOLD = 1.3;
   const PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD = 0.96;
+  const PLACEMENT_FLOOR_SNAP_EDGE_THRESHOLD = 1.2;
+  const PLACEMENT_FLOOR_SNAP_ALIGN_THRESHOLD = 1.05;
   const getMaxManifestPlacementDistance = () => {
     const horizontalBounds = getHorizontalPlacementBounds();
     const boundsDepth = horizontalBounds
@@ -491,6 +493,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const isWallLikePlacement = (container) => {
     const path = getPlacementEntryPath(container);
     return /wall/i.test(path);
+  };
+
+  const isFloorLikePlacement = (container) => {
+    const path = getPlacementEntryPath(container);
+    return /(floor|tile)/i.test(path);
   };
 
   const updateManifestEditSelectionHighlight = () => {
@@ -1334,11 +1341,23 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return false;
     }
 
-    // Keep snap behavior focused on wall building so other props retain
-    // free-form placement.
-    if (!isWallLikePlacement(container)) {
+    const snapMode = isWallLikePlacement(container)
+      ? "wall"
+      : isFloorLikePlacement(container)
+        ? "floor"
+        : null;
+    if (!snapMode) {
       return false;
     }
+
+    const edgeSnapThreshold =
+      snapMode === "floor"
+        ? PLACEMENT_FLOOR_SNAP_EDGE_THRESHOLD
+        : PLACEMENT_WALL_SNAP_EDGE_THRESHOLD;
+    const alignSnapThreshold =
+      snapMode === "floor"
+        ? PLACEMENT_FLOOR_SNAP_ALIGN_THRESHOLD
+        : PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD;
 
     const currentX = container.position.x;
     const currentZ = container.position.z;
@@ -1397,7 +1416,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       ) {
         return;
       }
-      if (!isWallLikePlacement(candidate)) {
+      const isSnapCompatibleCandidate =
+        snapMode === "floor"
+          ? isFloorLikePlacement(candidate)
+          : isWallLikePlacement(candidate);
+      if (!isSnapCompatibleCandidate) {
         return;
       }
 
@@ -1429,11 +1452,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       const alignDeltaZ = Math.abs(currentZ - candidatePosition.z);
 
       if (
-        overlapZ >= -PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD ||
-        alignDeltaZ <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD
+        overlapZ >= -alignSnapThreshold ||
+        alignDeltaZ <= alignSnapThreshold
       ) {
         const leftDistance = Math.abs(currentMinX - candidateMaxX);
-        if (leftDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+        if (leftDistance <= edgeSnapThreshold) {
           bestEdgeSnapX = considerSnap(bestEdgeSnapX, {
             value: candidateMaxX - bounds.min.x,
             distance: leftDistance,
@@ -1441,7 +1464,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         }
 
         const rightDistance = Math.abs(currentMaxX - candidateMinX);
-        if (rightDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+        if (rightDistance <= edgeSnapThreshold) {
           bestEdgeSnapX = considerSnap(bestEdgeSnapX, {
             value: candidateMinX - bounds.max.x,
             distance: rightDistance,
@@ -1450,11 +1473,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       }
 
       if (
-        overlapX >= -PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD ||
-        alignDeltaX <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD
+        overlapX >= -alignSnapThreshold ||
+        alignDeltaX <= alignSnapThreshold
       ) {
         const backDistance = Math.abs(currentMinZ - candidateMaxZ);
-        if (backDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+        if (backDistance <= edgeSnapThreshold) {
           bestEdgeSnapZ = considerSnap(bestEdgeSnapZ, {
             value: candidateMaxZ - bounds.min.z,
             distance: backDistance,
@@ -1462,7 +1485,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         }
 
         const frontDistance = Math.abs(currentMaxZ - candidateMinZ);
-        if (frontDistance <= PLACEMENT_WALL_SNAP_EDGE_THRESHOLD) {
+        if (frontDistance <= edgeSnapThreshold) {
           bestEdgeSnapZ = considerSnap(bestEdgeSnapZ, {
             value: candidateMinZ - bounds.max.z,
             distance: frontDistance,
@@ -1470,14 +1493,14 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         }
       }
 
-      if (alignDeltaX <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD) {
+      if (alignDeltaX <= alignSnapThreshold) {
         bestAlignSnapX = considerSnap(bestAlignSnapX, {
           value: candidatePosition.x,
           distance: alignDeltaX,
         });
       }
 
-      if (alignDeltaZ <= PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD) {
+      if (alignDeltaZ <= alignSnapThreshold) {
         bestAlignSnapZ = considerSnap(bestAlignSnapZ, {
           value: candidatePosition.z,
           distance: alignDeltaZ,
@@ -1666,6 +1689,22 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         const overlapY =
           Math.min(placementCollisionBox.max.y, box.max.y) -
           Math.max(placementCollisionBox.min.y, box.min.y);
+        const paddingVector =
+          descriptor.padding instanceof THREE.Vector3 ? descriptor.padding : null;
+        const descriptorContainer =
+          descriptor.root ?? getManifestPlacementRoot(descriptor.object);
+        const isEditableDescriptor =
+          descriptorContainer && isEditablePlacement(descriptorContainer);
+        const horizontalPaddingX =
+          isEditableDescriptor && Number.isFinite(paddingVector?.x)
+            ? Math.max(0, paddingVector.x)
+            : 0;
+        const horizontalPaddingZ =
+          isEditableDescriptor && Number.isFinite(paddingVector?.z)
+            ? Math.max(0, paddingVector.z)
+            : 0;
+        const effectiveOverlapX = overlapX - horizontalPaddingX;
+        const effectiveOverlapZ = overlapZ - horizontalPaddingZ;
 
         if (
           (supportingColliders && supportingColliders.includes(descriptor)) ||
@@ -1689,26 +1728,28 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         }
 
         if (
-          overlapX <= 0 ||
-          overlapZ <= 0 ||
+          effectiveOverlapX <= 0 ||
+          effectiveOverlapZ <= 0 ||
           overlapY <= STACKING_VERTICAL_TOLERANCE
         ) {
           continue;
         }
 
-        if (overlapX < overlapZ) {
-          const overlapLeft = placementCollisionBox.max.x - box.min.x;
-          const overlapRight = box.max.x - placementCollisionBox.min.x;
+        if (effectiveOverlapX < effectiveOverlapZ) {
+          const effectiveMinX = box.min.x + horizontalPaddingX;
+          const effectiveMaxX = box.max.x - horizontalPaddingX;
+          const overlapLeft = placementCollisionBox.max.x - effectiveMinX;
+          const overlapRight = effectiveMaxX - placementCollisionBox.min.x;
           let shiftX = 0;
 
-          if (previousBox && previousBox.max.x <= box.min.x) {
-            shiftX = box.min.x - placementCollisionBox.max.x;
-          } else if (previousBox && previousBox.min.x >= box.max.x) {
-            shiftX = box.max.x - placementCollisionBox.min.x;
+          if (previousBox && previousBox.max.x <= effectiveMinX) {
+            shiftX = effectiveMinX - placementCollisionBox.max.x;
+          } else if (previousBox && previousBox.min.x >= effectiveMaxX) {
+            shiftX = effectiveMaxX - placementCollisionBox.min.x;
           } else if (overlapLeft < overlapRight) {
-            shiftX = box.min.x - placementCollisionBox.max.x;
+            shiftX = effectiveMinX - placementCollisionBox.max.x;
           } else {
-            shiftX = box.max.x - placementCollisionBox.min.x;
+            shiftX = effectiveMaxX - placementCollisionBox.min.x;
           }
 
           if (shiftX !== 0) {
@@ -1716,18 +1757,20 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
             iterationAdjusted = true;
           }
         } else {
-          const overlapBack = placementCollisionBox.max.z - box.min.z;
-          const overlapFront = box.max.z - placementCollisionBox.min.z;
+          const effectiveMinZ = box.min.z + horizontalPaddingZ;
+          const effectiveMaxZ = box.max.z - horizontalPaddingZ;
+          const overlapBack = placementCollisionBox.max.z - effectiveMinZ;
+          const overlapFront = effectiveMaxZ - placementCollisionBox.min.z;
           let shiftZ = 0;
 
-          if (previousBox && previousBox.max.z <= box.min.z) {
-            shiftZ = box.min.z - placementCollisionBox.max.z;
-          } else if (previousBox && previousBox.min.z >= box.max.z) {
-            shiftZ = box.max.z - placementCollisionBox.min.z;
+          if (previousBox && previousBox.max.z <= effectiveMinZ) {
+            shiftZ = effectiveMinZ - placementCollisionBox.max.z;
+          } else if (previousBox && previousBox.min.z >= effectiveMaxZ) {
+            shiftZ = effectiveMaxZ - placementCollisionBox.min.z;
           } else if (overlapBack < overlapFront) {
-            shiftZ = box.min.z - placementCollisionBox.max.z;
+            shiftZ = effectiveMinZ - placementCollisionBox.max.z;
           } else {
-            shiftZ = box.max.z - placementCollisionBox.min.z;
+            shiftZ = effectiveMaxZ - placementCollisionBox.min.z;
           }
 
           if (shiftZ !== 0) {
