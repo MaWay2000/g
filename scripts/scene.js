@@ -4428,6 +4428,7 @@ export const initScene = (
   const MAP_MAKER_DOOR_MARKER_PATH = "door-marker";
   const MAP_MAKER_HEIGHT_MIN = 0;
   const MAP_MAKER_HEIGHT_MAX = 255;
+  const MAP_MAKER_HEIGHT_FLOOR = 0.05;
   const MAP_MAKER_HEIGHT_SCALE = 6;
   const MAP_MAKER_TILE_SURFACE_CLEARANCE = 0.01;
   const MAP_MAKER_TILE_THICKNESS = 0.08;
@@ -4448,6 +4449,14 @@ export const initScene = (
   const getMapMakerHeightElevation = (value = MAP_MAKER_HEIGHT_MIN) =>
     (MAP_MAKER_HEIGHT_SCALE * clampMapMakerHeight(value)) /
     MAP_MAKER_HEIGHT_MAX;
+
+  const getMapMakerLocalHeightValue = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return MAP_MAKER_HEIGHT_FLOOR;
+    }
+    return numericValue;
+  };
 
   const getMapMakerStorageKeyForArea = (areaId) => {
     const resolvedAreaId =
@@ -4771,33 +4780,29 @@ export const initScene = (
         typeof placement?.heightReference === "string"
           ? placement.heightReference.trim().toLowerCase()
           : "";
-      const localToWorldOffset =
-        roomFloorY + MAP_MAKER_TILE_SURFACE_CLEARANCE + MAP_MAKER_TILE_THICKNESS;
+      const toWorldFromMapLocal = (localY) => {
+        const localValue = getMapMakerLocalHeightValue(localY);
+        const localElevation = Math.max(0, localValue - MAP_MAKER_HEIGHT_FLOOR);
+        return (
+          roomFloorY +
+          MAP_MAKER_TILE_SURFACE_CLEARANCE +
+          MAP_MAKER_TILE_THICKNESS +
+          localElevation
+        );
+      };
 
       if (reference === "world") {
         return rawY;
       }
       if (reference === "map-local" || reference === "local") {
-        return localToWorldOffset + rawY;
+        return toWorldFromMapLocal(rawY);
       }
 
-      // Backward compatibility for older map-maker saves with local-only heights.
-      const legacyLocalCandidateY = localToWorldOffset + rawY;
+      // Backward compatibility: choose the representation closer to terrain.
+      const legacyLocalCandidateY = toWorldFromMapLocal(rawY);
       const worldDistance = Math.abs(rawY - surfaceY);
       const localDistance = Math.abs(legacyLocalCandidateY - surfaceY);
-      const legacyHeightTolerance = 0.35;
-
-      if (worldDistance <= legacyHeightTolerance) {
-        return rawY;
-      }
-      if (localDistance <= legacyHeightTolerance) {
-        return legacyLocalCandidateY;
-      }
-      if (rawY < localToWorldOffset - legacyHeightTolerance) {
-        return legacyLocalCandidateY;
-      }
-
-      return rawY;
+      return localDistance < worldDistance ? legacyLocalCandidateY : rawY;
     };
 
     const getPlacementWorldPosition = (placement) => {
@@ -6569,25 +6574,24 @@ export const initScene = (
           typeof placement?.heightReference === "string"
             ? placement.heightReference.trim().toLowerCase()
             : "";
-        const localToWorldOffset = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
+        const toWorldFromMapLocal = (localY) => {
+          const localValue = getMapMakerLocalHeightValue(localY);
+          const localElevation = Math.max(0, localValue - MAP_MAKER_HEIGHT_FLOOR);
+          const outsideElevation =
+            OUTSIDE_HEIGHT_FLOOR +
+            (OUTSIDE_HEIGHT_SCALE * localElevation) / MAP_MAKER_HEIGHT_SCALE;
+          return roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + outsideElevation;
+        };
         let baseY = rawY;
 
         if (reference === "map-local" || reference === "local") {
-          baseY = localToWorldOffset + rawY;
+          baseY = toWorldFromMapLocal(rawY);
         } else if (reference !== "world") {
-          // Backward compatibility for map-maker saves that used local heights.
-          const legacyLocalCandidateY = localToWorldOffset + rawY;
+          // Backward compatibility for legacy map-maker saves (no heightReference).
+          const legacyLocalCandidateY = toWorldFromMapLocal(rawY);
           const worldDistance = Math.abs(rawY - surfaceY);
           const localDistance = Math.abs(legacyLocalCandidateY - surfaceY);
-          const legacyHeightTolerance = 0.35;
-
-          if (worldDistance <= legacyHeightTolerance) {
-            baseY = rawY;
-          } else if (localDistance <= legacyHeightTolerance) {
-            baseY = legacyLocalCandidateY;
-          } else if (rawY < localToWorldOffset - legacyHeightTolerance) {
-            baseY = legacyLocalCandidateY;
-          }
+          baseY = localDistance < worldDistance ? legacyLocalCandidateY : rawY;
         }
 
         return {
