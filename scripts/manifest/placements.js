@@ -1000,7 +1000,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     supportHeight = Math.max(
       supportHeight,
       resolveGroundSupportHeightForBounds(worldPosition, bounds, fallbackHeight, {
-        allowRaise: false,
+        // Terrain support should always be allowed to push objects up to the
+        // surface so settle logic does not sink wide models into slopes.
+        allowRaise: true,
         currentBottom,
       })
     );
