@@ -1164,6 +1164,9 @@ function updateObjectList() {
     const actions = document.createElement("div");
     actions.className = "object-list-actions";
 
+    const rotateColumn = document.createElement("div");
+    rotateColumn.className = "object-list-rotate-column";
+
     const rotateLeftButton = document.createElement("button");
     rotateLeftButton.type = "button";
     rotateLeftButton.className = "object-list-rotate";
@@ -1202,7 +1205,8 @@ function updateObjectList() {
       removeObjectPlacementAtIndex(index);
     });
 
-    actions.append(rotateLeftButton, rotateRightButton, removeButton);
+    rotateColumn.append(rotateLeftButton, rotateRightButton);
+    actions.append(rotateColumn, removeButton);
     item.append(focusButton, actions);
     elements.objectList.appendChild(item);
   });
