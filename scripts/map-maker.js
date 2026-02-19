@@ -353,6 +353,7 @@ const elements = {
   palette: document.getElementById("terrainPalette"),
   objectsPalette: document.getElementById("objectsPalette"),
   objectsPaletteStatus: document.getElementById("objectsPaletteStatus"),
+  clearSelectedObjectButton: document.getElementById("clearSelectedObjectButton"),
   mapGrid: document.getElementById("mapGrid"),
   jsonPreview: document.getElementById("jsonPreview"),
   mapNameInput: document.getElementById("mapNameInput"),
@@ -2759,8 +2760,18 @@ function setObjectsPaletteStatus(message, { isError = false } = {}) {
 }
 
 function setSelectedObject(entry) {
-  state.selectedObject = entry;
+  if (entry && typeof entry === "object") {
+    const nextPath = typeof entry.path === "string" ? entry.path : "";
+    const isSameSelection =
+      Boolean(nextPath) && state.selectedObject?.path === nextPath;
+    state.selectedObject = isSameSelection ? null : entry;
+  } else {
+    state.selectedObject = null;
+  }
   renderObjectsPalette();
+  if (landscapeViewer) {
+    updateLandscapeViewer();
+  }
 }
 
 function renderObjectsPalette() {
@@ -2773,10 +2784,27 @@ function renderObjectsPalette() {
     setObjectsPaletteStatus("No models listed in the manifest yet.", {
       isError: true,
     });
+    if (elements.clearSelectedObjectButton) {
+      elements.clearSelectedObjectButton.disabled = true;
+    }
     return;
   }
 
-  setObjectsPaletteStatus("Select a model to place on the terrain.");
+  if (state.selectedObject?.path) {
+    const selectedLabel =
+      typeof state.selectedObject.label === "string" &&
+      state.selectedObject.label.trim().length > 0
+        ? state.selectedObject.label.trim()
+        : state.selectedObject.path;
+    setObjectsPaletteStatus(`Selected: ${selectedLabel}`);
+  } else {
+    setObjectsPaletteStatus("No model selected. Select one to place objects.");
+  }
+
+  if (elements.clearSelectedObjectButton) {
+    elements.clearSelectedObjectButton.disabled = !state.selectedObject?.path;
+  }
+
   const fragment = document.createDocumentFragment();
   entries.forEach((entry) => {
     const button = document.createElement("button");
@@ -2828,8 +2856,11 @@ async function loadObjectManifest() {
           .filter(Boolean)
       : [];
     state.objectManifest = entries;
-    if (!state.selectedObject && entries.length) {
-      state.selectedObject = entries[0];
+    if (
+      state.selectedObject?.path &&
+      !entries.some((entry) => entry.path === state.selectedObject.path)
+    ) {
+      state.selectedObject = null;
     }
     renderObjectsPalette();
   } catch (error) {
@@ -2916,6 +2947,11 @@ function initControls() {
   updateDrawButtonsState();
   initPaletteTabs();
   loadObjectManifest();
+  if (elements.clearSelectedObjectButton) {
+    elements.clearSelectedObjectButton.addEventListener("click", () => {
+      setSelectedObject(null);
+    });
+  }
 
   if (elements.saveLocalButton?.dataset) {
     elements.saveLocalButton.dataset.defaultLabel =
