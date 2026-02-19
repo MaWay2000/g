@@ -842,7 +842,9 @@ function getCellIndexFromWorldPosition(position) {
 
 function getDoorPlacements() {
   const objects = Array.isArray(state.map.objects) ? state.map.objects : [];
-  return objects.filter((placement) => placement?.path === DOOR_MARKER_PATH);
+  return objects
+    .map((placement, index) => ({ placement, index }))
+    .filter(({ placement }) => placement?.path === DOOR_MARKER_PATH);
 }
 
 function getPlacedObjects() {
@@ -878,6 +880,21 @@ function getObjectDisplayId(placement, order) {
 function removeObjectPlacementAtIndex(index) {
   const existing = Array.isArray(state.map.objects) ? state.map.objects : [];
   if (!Number.isFinite(index) || index < 0 || index >= existing.length) {
+    return;
+  }
+  const snapshot = cloneMapDefinition(state.map);
+  state.map.objects = existing.filter((_, entryIndex) => entryIndex !== index);
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  pushUndoSnapshot(snapshot);
+}
+
+function removeDoorPlacementAtIndex(index) {
+  const existing = Array.isArray(state.map.objects) ? state.map.objects : [];
+  if (!Number.isFinite(index) || index < 0 || index >= existing.length) {
+    return;
+  }
+  if (existing[index]?.path !== DOOR_MARKER_PATH) {
     return;
   }
   const snapshot = cloneMapDefinition(state.map);
@@ -940,10 +957,11 @@ function updateDoorList() {
   }
   const placements = getDoorPlacements();
   const entries = placements
-    .map((placement, order) => ({
+    .map(({ placement, index }, order) => ({
       ...formatDoorListEntry(placement, order),
       order,
       placement,
+      index,
     }))
     .sort((a, b) => {
       if (a.sortIndex !== b.sortIndex) {
@@ -955,12 +973,26 @@ function updateDoorList() {
   entries.forEach((entry) => {
     const item = document.createElement("li");
     item.className = "door-list-item";
+    const header = document.createElement("div");
+    header.className = "door-list-item-head";
+    const title = document.createElement("div");
+    title.className = "door-list-item-title";
     const name = document.createElement("div");
     name.className = "door-list-name";
     name.textContent = entry.name;
     const id = document.createElement("div");
     id.className = "door-list-id";
     id.textContent = `ID: ${entry.id}`;
+    title.append(name, id);
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "object-list-remove door-list-remove";
+    removeButton.setAttribute("aria-label", `Remove ${entry.name}`);
+    removeButton.textContent = "x";
+    removeButton.addEventListener("click", () => {
+      removeDoorPlacementAtIndex(entry.index);
+    });
+    header.append(title, removeButton);
     const destination = document.createElement("div");
     destination.className = "door-list-destination";
     const destinationLabel = document.createElement("label");
@@ -1027,7 +1059,7 @@ function updateDoorList() {
     });
 
     destination.append(destinationLabel, select);
-    item.append(name, id, destination);
+    item.append(header, destination);
     elements.doorList.appendChild(item);
   });
   const hasDoors = entries.length > 0;
