@@ -680,6 +680,58 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return bounds;
   };
 
+  const resolveGroundSupportHeightForBounds = (
+    worldPosition,
+    bounds,
+    fallbackHeight,
+    { allowRaise = true, currentBottom = null } = {}
+  ) => {
+    if (!bounds || bounds.isEmpty() || !worldPosition) {
+      return fallbackHeight;
+    }
+
+    const minX = worldPosition.x + bounds.min.x;
+    const maxX = worldPosition.x + bounds.max.x;
+    const minZ = worldPosition.z + bounds.min.z;
+    const maxZ = worldPosition.z + bounds.max.z;
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+    const probeY = Number.isFinite(worldPosition.y)
+      ? worldPosition.y
+      : fallbackHeight;
+    const samplePoints = [
+      [centerX, centerZ],
+      [minX, minZ],
+      [minX, maxZ],
+      [maxX, minZ],
+      [maxX, maxZ],
+    ];
+
+    let supportHeight = fallbackHeight;
+    samplePoints.forEach(([sampleX, sampleZ]) => {
+      const sampledHeight = resolvePlacementGroundHeight({
+        x: sampleX,
+        y: probeY,
+        z: sampleZ,
+      });
+      if (!Number.isFinite(sampledHeight)) {
+        return;
+      }
+      if (
+        !allowRaise &&
+        Number.isFinite(currentBottom) &&
+        sampledHeight > currentBottom + STACKING_VERTICAL_TOLERANCE
+      ) {
+        return;
+      }
+      if (sampledHeight > supportHeight) {
+        supportHeight = sampledHeight;
+      }
+    });
+
+    return supportHeight;
+  };
+
   const computePlacementPosition = (
     placement,
     basePosition,
@@ -773,12 +825,18 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const referenceBottom = Number.isFinite(basePosition?.y)
       ? basePosition.y + bounds.min.y
       : null;
-
-    const sampledGroundHeight = resolvePlacementGroundHeight(
-      placementComputedPosition
+    const currentBottom = placementComputedPosition.y + bounds.min.y;
+    const sampledGroundSupportHeight = resolveGroundSupportHeightForBounds(
+      placementComputedPosition,
+      bounds,
+      roomFloorY,
+      {
+        allowRaise,
+        currentBottom,
+      }
     );
-    let supportHeight = Number.isFinite(sampledGroundHeight)
-      ? Math.max(roomFloorY, sampledGroundHeight)
+    let supportHeight = Number.isFinite(sampledGroundSupportHeight)
+      ? Math.max(roomFloorY, sampledGroundSupportHeight)
       : roomFloorY;
     let currentTop = supportHeight + boundsHeight;
 
@@ -939,13 +997,13 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const currentTop = worldPosition.y + bounds.max.y;
     let supportHeight = fallbackHeight;
 
-    const sampledGroundHeight = resolvePlacementGroundHeight(worldPosition);
-    if (
-      Number.isFinite(sampledGroundHeight) &&
-      sampledGroundHeight <= currentBottom + STACKING_VERTICAL_TOLERANCE
-    ) {
-      supportHeight = Math.max(supportHeight, sampledGroundHeight);
-    }
+    supportHeight = Math.max(
+      supportHeight,
+      resolveGroundSupportHeightForBounds(worldPosition, bounds, fallbackHeight, {
+        allowRaise: false,
+        currentBottom,
+      })
+    );
 
     const footprintMinX = worldPosition.x + bounds.min.x;
     const footprintMaxX = worldPosition.x + bounds.max.x;
