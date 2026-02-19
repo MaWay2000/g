@@ -4690,6 +4690,7 @@ export const initScene = (
             y: worldBottomY,
             z: mapZ,
           },
+          heightReference: "world",
           rotation: {
             x: Number.isFinite(container.rotation?.x) ? container.rotation.x : 0,
             y: Number.isFinite(container.rotation?.y) ? container.rotation.y : 0,
@@ -4759,13 +4760,53 @@ export const initScene = (
       );
     };
 
+    const resolvePlacementBaseY = (placement, surfaceY) => {
+      const position = placement?.position ?? {};
+      const rawY = Number.isFinite(position.y) ? position.y : surfaceY;
+      if (!Number.isFinite(rawY)) {
+        return surfaceY;
+      }
+
+      const reference =
+        typeof placement?.heightReference === "string"
+          ? placement.heightReference.trim().toLowerCase()
+          : "";
+      const localToWorldOffset =
+        roomFloorY + MAP_MAKER_TILE_SURFACE_CLEARANCE + MAP_MAKER_TILE_THICKNESS;
+
+      if (reference === "world") {
+        return rawY;
+      }
+      if (reference === "map-local" || reference === "local") {
+        return localToWorldOffset + rawY;
+      }
+
+      // Backward compatibility for older map-maker saves with local-only heights.
+      const legacyLocalCandidateY = localToWorldOffset + rawY;
+      const worldDistance = Math.abs(rawY - surfaceY);
+      const localDistance = Math.abs(legacyLocalCandidateY - surfaceY);
+      const legacyHeightTolerance = 0.35;
+
+      if (worldDistance <= legacyHeightTolerance) {
+        return rawY;
+      }
+      if (localDistance <= legacyHeightTolerance) {
+        return legacyLocalCandidateY;
+      }
+      if (rawY < localToWorldOffset - legacyHeightTolerance) {
+        return legacyLocalCandidateY;
+      }
+
+      return rawY;
+    };
+
     const getPlacementWorldPosition = (placement) => {
       const position = placement?.position ?? {};
       const placementX = Number.isFinite(position.x) ? position.x : 0;
       const placementZ = Number.isFinite(position.z) ? position.z : 0;
       const index = getCellIndexFromPlacement(position);
       const surfaceY = getCellSurfaceY(index);
-      const baseY = Number.isFinite(position.y) ? position.y : surfaceY;
+      const baseY = resolvePlacementBaseY(placement, surfaceY);
       return {
         x: placementX * cellSizeX,
         z: placementZ * cellSizeZ,
@@ -6523,7 +6564,32 @@ export const initScene = (
           normalizedMap.heights?.[index]
         );
         const surfaceY = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + elevation;
-        const baseY = Number.isFinite(position.y) ? position.y : surfaceY;
+        const rawY = Number.isFinite(position.y) ? position.y : surfaceY;
+        const reference =
+          typeof placement?.heightReference === "string"
+            ? placement.heightReference.trim().toLowerCase()
+            : "";
+        const localToWorldOffset = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
+        let baseY = rawY;
+
+        if (reference === "map-local" || reference === "local") {
+          baseY = localToWorldOffset + rawY;
+        } else if (reference !== "world") {
+          // Backward compatibility for map-maker saves that used local heights.
+          const legacyLocalCandidateY = localToWorldOffset + rawY;
+          const worldDistance = Math.abs(rawY - surfaceY);
+          const localDistance = Math.abs(legacyLocalCandidateY - surfaceY);
+          const legacyHeightTolerance = 0.35;
+
+          if (worldDistance <= legacyHeightTolerance) {
+            baseY = rawY;
+          } else if (localDistance <= legacyHeightTolerance) {
+            baseY = legacyLocalCandidateY;
+          } else if (rawY < localToWorldOffset - legacyHeightTolerance) {
+            baseY = legacyLocalCandidateY;
+          }
+        }
+
         return {
           x: placementX * cellSize,
           z: mapCenterZ + placementZ * cellSize,

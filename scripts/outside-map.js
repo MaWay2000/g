@@ -450,6 +450,16 @@ const normalizeOutsideObjectPlacements = (placements) => {
       const name =
         typeof placement.name === "string" ? placement.name : undefined;
       const id = typeof placement.id === "string" ? placement.id : undefined;
+      const rawHeightReference =
+        typeof placement.heightReference === "string"
+          ? placement.heightReference.trim().toLowerCase()
+          : "";
+      const heightReference =
+        rawHeightReference === "world"
+          ? "world"
+          : rawHeightReference === "map-local" || rawHeightReference === "local"
+            ? "map-local"
+            : undefined;
       const destination = resolveOutsideDestination(placement);
       return {
         path,
@@ -467,6 +477,7 @@ const normalizeOutsideObjectPlacements = (placements) => {
         ),
         ...(name ? { name } : {}),
         ...(id ? { id } : {}),
+        ...(heightReference ? { heightReference } : {}),
         ...(destination?.destinationType
           ? { destinationType: destination.destinationType }
           : {}),
