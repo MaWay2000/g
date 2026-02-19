@@ -393,6 +393,25 @@ const normalizeOutsideObjectVector = (source, fallbackValue) => {
   };
 };
 
+const normalizeOutsideCollisionEnabled = (value) => {
+  if (value === false) {
+    return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["false", "0", "off", "no"].includes(normalized)) {
+      return false;
+    }
+    if (["true", "1", "on", "yes"].includes(normalized)) {
+      return true;
+    }
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  return true;
+};
+
 const resolveOutsideDestination = (placement) => {
   if (!placement || typeof placement !== "object") {
     return null;
@@ -460,6 +479,9 @@ const normalizeOutsideObjectPlacements = (placements) => {
           : rawHeightReference === "map-local" || rawHeightReference === "local"
             ? "map-local"
             : undefined;
+      const collisionEnabled = normalizeOutsideCollisionEnabled(
+        placement.collisionEnabled
+      );
       const destination = resolveOutsideDestination(placement);
       return {
         path,
@@ -478,6 +500,7 @@ const normalizeOutsideObjectPlacements = (placements) => {
         ...(name ? { name } : {}),
         ...(id ? { id } : {}),
         ...(heightReference ? { heightReference } : {}),
+        ...(!collisionEnabled ? { collisionEnabled: false } : {}),
         ...(destination?.destinationType
           ? { destinationType: destination.destinationType }
           : {}),

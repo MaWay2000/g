@@ -428,6 +428,14 @@
         color: rgba(125, 211, 252, 0.85);
       }
 
+      .object-list-collision-status[data-active="true"] {
+        color: rgba(74, 222, 128, 0.95);
+      }
+
+      .object-list-collision-status[data-active="false"] {
+        color: rgba(248, 113, 113, 0.95);
+      }
+
       .object-list-actions {
         display: inline-flex;
         align-items: stretch;
@@ -441,6 +449,7 @@
       }
 
       .object-list-rotate,
+      .object-list-collision,
       .object-list-remove {
         border: 1px solid rgba(248, 113, 113, 0.45);
         background: rgba(248, 113, 113, 0.16);
@@ -453,6 +462,10 @@
       }
 
       .object-list-rotate {
+        min-width: 2.1rem;
+      }
+
+      .object-list-collision {
         min-width: 2.1rem;
       }
 
@@ -471,6 +484,30 @@
         transform: translateY(-1px);
         background: rgba(56, 189, 248, 0.22);
         outline: none;
+      }
+
+      .object-list-collision {
+        border-color: rgba(74, 222, 128, 0.4);
+        background: rgba(74, 222, 128, 0.12);
+        color: rgba(134, 239, 172, 0.98);
+      }
+
+      .object-list-collision[data-active="false"] {
+        border-color: rgba(148, 163, 184, 0.45);
+        background: rgba(148, 163, 184, 0.14);
+        color: rgba(203, 213, 225, 0.95);
+      }
+
+      .object-list-collision:hover,
+      .object-list-collision:focus-visible {
+        transform: translateY(-1px);
+        background: rgba(74, 222, 128, 0.22);
+        outline: none;
+      }
+
+      .object-list-collision[data-active="false"]:hover,
+      .object-list-collision[data-active="false"]:focus-visible {
+        background: rgba(148, 163, 184, 0.24);
       }
 
       .object-list-remove:hover,

@@ -4434,6 +4434,8 @@ export const initScene = (
   const MAP_MAKER_TILE_THICKNESS = 0.08;
   const MAP_MAKER_DOOR_SURFACE_CLEARANCE = 0.02;
   const MAP_MAKER_DOOR_POSITION_EPSILON = 0.01;
+  const isMapMakerPlacementCollisionEnabled = (placement) =>
+    placement?.collisionEnabled !== false;
 
   const clampMapMakerHeight = (value) => {
     const numericValue = Number.parseInt(value, 10);
@@ -5077,9 +5079,11 @@ export const initScene = (
           });
           viewDistanceTargets.push(model);
 
-          const descriptors = registerCollidersForImportedRoot(model, {
-            padding: new THREE.Vector3(0.02, 0.02, 0.02),
-          });
+          const descriptors = isMapMakerPlacementCollisionEnabled(placement)
+            ? registerCollidersForImportedRoot(model, {
+                padding: new THREE.Vector3(0.02, 0.02, 0.02),
+              })
+            : [];
           const modelUserData = model.userData || (model.userData = {});
           modelUserData.manifestPlacementColliders = Array.isArray(descriptors)
             ? descriptors

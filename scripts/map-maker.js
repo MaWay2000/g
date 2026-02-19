@@ -538,6 +538,25 @@ function normalizeObjectVector(source, fallback) {
   };
 }
 
+function normalizeObjectCollisionEnabled(value) {
+  if (value === false) {
+    return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["false", "0", "off", "no"].includes(normalized)) {
+      return false;
+    }
+    if (["true", "1", "on", "yes"].includes(normalized)) {
+      return true;
+    }
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  return true;
+}
+
 function resolvePlacementDestination(placement) {
   if (!placement || typeof placement !== "object") {
     return null;
@@ -631,6 +650,9 @@ function normalizeObjectPlacements(placements, { width, height } = {}) {
           id = resolvedId;
         }
       }
+      const collisionEnabled = normalizeObjectCollisionEnabled(
+        placement.collisionEnabled
+      );
       const destination = resolvePlacementDestination(placement);
       return {
         path,
@@ -648,6 +670,7 @@ function normalizeObjectPlacements(placements, { width, height } = {}) {
         ),
         ...(name ? { name } : {}),
         ...(id ? { id } : {}),
+        ...(!collisionEnabled ? { collisionEnabled: false } : {}),
         ...(destination?.destinationType
           ? { destinationType: destination.destinationType }
           : {}),
@@ -855,6 +878,10 @@ function getPlacedObjects() {
     .filter(({ placement }) => placement?.path && placement?.path !== DOOR_MARKER_PATH);
 }
 
+function isObjectCollisionEnabled(placement) {
+  return normalizeObjectCollisionEnabled(placement?.collisionEnabled);
+}
+
 function getObjectDisplayName(placement, order) {
   if (typeof placement?.name === "string" && placement.name.trim().length > 0) {
     return placement.name.trim();
@@ -918,6 +945,35 @@ function rotateObjectPlacementAtIndex(index, stepDirection) {
     ...normalizeObjectVector(placement.rotation, DEFAULT_OBJECT_TRANSFORM.rotation),
     y: normalizedY,
   };
+  updateJsonPreview();
+  landscapeViewer?.setObjectPlacements?.(state.map.objects);
+  pushUndoSnapshot(snapshot);
+}
+
+function setObjectPlacementCollisionAtIndex(index, isEnabled) {
+  const existing = Array.isArray(state.map.objects) ? state.map.objects : [];
+  if (!Number.isFinite(index) || index < 0 || index >= existing.length) {
+    return;
+  }
+  const placement = existing[index];
+  if (!placement || placement.path === DOOR_MARKER_PATH) {
+    return;
+  }
+  const nextCollisionEnabled = Boolean(isEnabled);
+  const currentCollisionEnabled = isObjectCollisionEnabled(placement);
+  if (currentCollisionEnabled === nextCollisionEnabled) {
+    return;
+  }
+  const snapshot = cloneMapDefinition(state.map);
+  const nextPlacement = { ...placement };
+  if (nextCollisionEnabled) {
+    delete nextPlacement.collisionEnabled;
+  } else {
+    nextPlacement.collisionEnabled = false;
+  }
+  state.map.objects = existing.map((entry, entryIndex) =>
+    entryIndex === index ? nextPlacement : entry
+  );
   updateJsonPreview();
   landscapeViewer?.setObjectPlacements?.(state.map.objects);
   pushUndoSnapshot(snapshot);
@@ -1156,7 +1212,15 @@ function updateObjectList() {
     rotation.className = "object-list-id object-list-rotation";
     rotation.textContent = `Rot Y: ${getObjectRotationDegrees(placement)} deg`;
 
-    focusButton.append(name, id, rotation);
+    const collisionEnabled = isObjectCollisionEnabled(placement);
+    const collisionStatus = document.createElement("span");
+    collisionStatus.className = "object-list-id object-list-collision-status";
+    collisionStatus.dataset.active = String(collisionEnabled);
+    collisionStatus.textContent = `Collision: ${
+      collisionEnabled ? "On" : "Off"
+    }`;
+
+    focusButton.append(name, id, rotation, collisionStatus);
     focusButton.addEventListener("click", () => {
       focusPlacedObject(placement, index);
     });
@@ -1193,6 +1257,25 @@ function updateObjectList() {
       rotateObjectPlacementAtIndex(index, -1);
     });
 
+    const collisionButton = document.createElement("button");
+    collisionButton.type = "button";
+    collisionButton.className = "object-list-collision";
+    collisionButton.dataset.active = String(collisionEnabled);
+    collisionButton.setAttribute(
+      "aria-label",
+      `${collisionEnabled ? "Disable" : "Enable"} collision for ${getObjectDisplayName(
+        placement,
+        order
+      )}`
+    );
+    collisionButton.title = collisionEnabled
+      ? "Disable collision"
+      : "Enable collision";
+    collisionButton.textContent = "C";
+    collisionButton.addEventListener("click", () => {
+      setObjectPlacementCollisionAtIndex(index, !collisionEnabled);
+    });
+
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "object-list-remove";
@@ -1205,7 +1288,7 @@ function updateObjectList() {
       removeObjectPlacementAtIndex(index);
     });
 
-    rotateColumn.append(rotateLeftButton, rotateRightButton);
+    rotateColumn.append(rotateLeftButton, rotateRightButton, collisionButton);
     actions.append(rotateColumn, removeButton);
     item.append(focusButton, actions);
     elements.objectList.appendChild(item);
