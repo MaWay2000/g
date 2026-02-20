@@ -43,7 +43,7 @@ import {
   loadMarketState,
   persistMarketState,
 } from "./market-state-storage.js";
-import { clearStoredTodos, loadStoredTodos, persistTodos } from "./todo-storage.js";
+import { loadStoredTodos, persistTodos } from "./todo-storage.js";
 import {
   clearStoredTerrainLife,
   getTerrainLifeKey,
@@ -4609,7 +4609,6 @@ let lastTodoFocusedElement = null;
 let todoPanelWasPointerLocked = false;
 let todoPanelCloseFallbackId = 0;
 let todoPersistTimeoutId = 0;
-let todoPersistenceEnabled = true;
 
 const clearStoredInventoryState = () => {
   const storage = getInventoryStorage();
@@ -7331,10 +7330,6 @@ const loadTodoItems = () => {
 };
 
 const persistTodoItems = ({ showErrors = false } = {}) => {
-  if (!todoPersistenceEnabled) {
-    return false;
-  }
-
   const hasEmptyTodos = Array.isArray(todoItems)
     ? todoItems.some((item) => !String(item?.text ?? "").trim())
     : false;
@@ -7371,10 +7366,6 @@ const persistTodoItems = ({ showErrors = false } = {}) => {
 };
 
 const scheduleTodoPersist = ({ showErrors = false } = {}) => {
-  if (!todoPersistenceEnabled) {
-    return;
-  }
-
   window.clearTimeout(todoPersistTimeoutId);
   todoPersistTimeoutId = window.setTimeout(() => {
     persistTodoItems({ showErrors });
@@ -9925,9 +9916,6 @@ function handleReset(event) {
 
   setErrorMessage("");
   setButtonBusyState(resetButton, true);
-  todoPersistenceEnabled = false;
-  window.clearTimeout(todoPersistTimeoutId);
-  todoPersistTimeoutId = 0;
   geoVisorBatteryPersistenceEnabled = false;
   if (persistGeoVisorBatteryTimeoutId) {
     window.clearTimeout(persistGeoVisorBatteryTimeoutId);
@@ -9949,7 +9937,6 @@ function handleReset(event) {
     const clearedTerrainLife = clearStoredTerrainLife();
     const clearedManifestPlacements = clearStoredManifestPlacements();
     const clearedInventory = clearStoredInventoryState();
-    const clearedTodos = clearStoredTodos();
     const resetMarketState = persistMarketState(getDefaultMarketState());
 
     resetMissions();
@@ -9963,7 +9950,6 @@ function handleReset(event) {
       !clearedTerrainLife ||
       !clearedManifestPlacements ||
       !clearedInventory ||
-      !clearedTodos ||
       !resetMarketState
     ) {
       throw new Error("Unable to access saved data");
@@ -9986,7 +9972,6 @@ function handleReset(event) {
     }
 
     if (!shouldReload) {
-      todoPersistenceEnabled = true;
       geoVisorBatteryPersistenceEnabled = true;
       setButtonBusyState(resetButton, false);
     }
