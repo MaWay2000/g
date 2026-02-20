@@ -8770,7 +8770,7 @@ function updateDroneStatusUi() {
         break;
       case "returning":
         statusText = "Returning";
-        detailText = "Drone is on route to your position.";
+        detailText = "";
         break;
       case "idle":
       default:
