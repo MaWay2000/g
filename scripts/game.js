@@ -4609,6 +4609,7 @@ let lastTodoFocusedElement = null;
 let todoPanelWasPointerLocked = false;
 let todoPanelCloseFallbackId = 0;
 let todoPersistTimeoutId = 0;
+let todoPersistenceEnabled = true;
 
 const clearStoredInventoryState = () => {
   const storage = getInventoryStorage();
@@ -7330,6 +7331,10 @@ const loadTodoItems = () => {
 };
 
 const persistTodoItems = ({ showErrors = false } = {}) => {
+  if (!todoPersistenceEnabled) {
+    return false;
+  }
+
   const hasEmptyTodos = Array.isArray(todoItems)
     ? todoItems.some((item) => !String(item?.text ?? "").trim())
     : false;
@@ -7366,6 +7371,10 @@ const persistTodoItems = ({ showErrors = false } = {}) => {
 };
 
 const scheduleTodoPersist = ({ showErrors = false } = {}) => {
+  if (!todoPersistenceEnabled) {
+    return;
+  }
+
   window.clearTimeout(todoPersistTimeoutId);
   todoPersistTimeoutId = window.setTimeout(() => {
     persistTodoItems({ showErrors });
@@ -9916,6 +9925,9 @@ function handleReset(event) {
 
   setErrorMessage("");
   setButtonBusyState(resetButton, true);
+  todoPersistenceEnabled = false;
+  window.clearTimeout(todoPersistTimeoutId);
+  todoPersistTimeoutId = 0;
   geoVisorBatteryPersistenceEnabled = false;
   if (persistGeoVisorBatteryTimeoutId) {
     window.clearTimeout(persistGeoVisorBatteryTimeoutId);
@@ -9974,6 +9986,7 @@ function handleReset(event) {
     }
 
     if (!shouldReload) {
+      todoPersistenceEnabled = true;
       geoVisorBatteryPersistenceEnabled = true;
       setButtonBusyState(resetButton, false);
     }
