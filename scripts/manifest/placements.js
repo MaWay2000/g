@@ -140,10 +140,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const EDIT_MODE_HIGHLIGHT_BASE_OPACITY = 0.35;
   const EDIT_MODE_HIGHLIGHT_PULSE_OPACITY = 0.45;
   const EDIT_MODE_HIGHLIGHT_PULSE_SPEED = 0.008;
-  const PLACEMENT_PREVIEW_GLOW_COLOR = new THREE.Color(0xff9f43);
-  const PLACEMENT_PREVIEW_COLOR_BLEND = 0.08;
-  const PLACEMENT_PREVIEW_EMISSIVE_BLEND = 0.22;
-  const PLACEMENT_PREVIEW_EMISSIVE_INTENSITY = 0.24;
   const manifestEditModeState = {
     enabled: false,
     hovered: null,
@@ -417,7 +413,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return;
     }
 
-    const isActivePlacementPreview = activePlacement?.container === container;
     const multiplier = !manifestEditModeState.enabled
       ? 1
       : manifestEditModeState.hovered === container
@@ -455,22 +450,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           userData.baseDepthWrite = Boolean(material.depthWrite);
         }
 
-        if (!userData.baseColor && material.color?.isColor) {
-          userData.baseColor = material.color.clone();
-        }
-
-        if (!userData.baseEmissive && material.emissive?.isColor) {
-          userData.baseEmissive = material.emissive.clone();
-        }
-
-        if (!Number.isFinite(userData.baseEmissiveIntensity)) {
-          userData.baseEmissiveIntensity = Number.isFinite(
-            material.emissiveIntensity
-          )
-            ? material.emissiveIntensity
-            : 0;
-        }
-
         if (multiplier < 1) {
           material.transparent = true;
           material.opacity = userData.baseOpacity * multiplier;
@@ -482,41 +461,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
             typeof userData.baseDepthWrite === "boolean"
               ? userData.baseDepthWrite
               : true;
-        }
-
-        if (material.color?.isColor && userData.baseColor?.isColor) {
-          material.color.copy(userData.baseColor);
-        }
-
-        if (material.emissive?.isColor && userData.baseEmissive?.isColor) {
-          material.emissive.copy(userData.baseEmissive);
-          material.emissiveIntensity = Number.isFinite(
-            userData.baseEmissiveIntensity
-          )
-            ? userData.baseEmissiveIntensity
-            : 0;
-        }
-
-        if (isActivePlacementPreview) {
-          if (material.color?.isColor && userData.baseColor?.isColor) {
-            material.color.lerp(
-              PLACEMENT_PREVIEW_GLOW_COLOR,
-              PLACEMENT_PREVIEW_COLOR_BLEND
-            );
-          }
-
-          if (material.emissive?.isColor && userData.baseEmissive?.isColor) {
-            material.emissive.lerp(
-              PLACEMENT_PREVIEW_GLOW_COLOR,
-              PLACEMENT_PREVIEW_EMISSIVE_BLEND
-            );
-            material.emissiveIntensity = Math.max(
-              Number.isFinite(userData.baseEmissiveIntensity)
-                ? userData.baseEmissiveIntensity
-                : 0,
-              PLACEMENT_PREVIEW_EMISSIVE_INTENSITY
-            );
-          }
         }
 
         material.needsUpdate = true;
@@ -2435,7 +2379,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     };
 
     activePlacement = placement;
-    updateManifestPlacementVisualState(placement.container);
 
     placementPointerEvents.forEach((eventName) => {
       canvas?.addEventListener(eventName, placement.pointerHandler);
@@ -2694,7 +2637,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const placement = activePlacement;
     clearPlacementEventListeners(placement);
     activePlacement = null;
-    updateManifestPlacementVisualState(placement.container);
 
     const restoreOnCancel =
       options.restoreOnCancel ?? (placement.isReposition ? true : false);
@@ -2786,7 +2728,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const placement = activePlacement;
     clearPlacementEventListeners(placement);
     activePlacement = null;
-    updateManifestPlacementVisualState(placement.container);
 
     if (placement.isReposition) {
       restoreRepositionPreviewBaseline(placement);
@@ -3430,7 +3371,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         };
 
         activePlacement = placement;
-        updateManifestPlacementVisualState(placement.container);
 
         placementPointerEvents.forEach((eventName) => {
           canvas?.addEventListener(eventName, placement.pointerHandler);
