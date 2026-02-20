@@ -1504,6 +1504,7 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
   const DRONE_RETURN_STALL_TIMEOUT_MS = 30000;
   const DRONE_STALL_CHECK_INTERVAL_MS = 2000;
   const DRONE_MINING_SOUND_UPDATE_INTERVAL_MS = 150;
+  const DRONE_STATUS_UI_UPDATE_INTERVAL_MS = 1000;
   const DRONE_MINING_SOUND_MAX_DISTANCE_TILES = 3;
   const DRONE_MINING_SOUND_FALLBACK_TILE_SIZE = 15;
   const DRONE_MINING_SOUND_MAX_VOLUME = 1;
@@ -9503,6 +9504,25 @@ if (inventoryDroneAutoRefillToggle instanceof HTMLInputElement) {
   });
 }
 
+const tickDroneStatusUi = () => {
+  if (document.visibilityState === "hidden") {
+    return;
+  }
+
+  const shouldRefreshRuntimeUi =
+    droneState.inFlight ||
+    droneState.awaitingReturn ||
+    droneState.pendingShutdown ||
+    isInventoryOpen();
+
+  if (!shouldRefreshRuntimeUi) {
+    return;
+  }
+
+  updateDroneStatusUi();
+};
+
+window.setInterval(tickDroneStatusUi, DRONE_STATUS_UI_UPDATE_INTERVAL_MS);
 window.setInterval(cancelStalledDroneMiningSession, DRONE_STALL_CHECK_INTERVAL_MS);
 window.setInterval(
   updateDroneMiningSoundPlayback,
