@@ -1078,11 +1078,12 @@ const quickAccessModalTemplates = {
   map: document.getElementById("quick-access-modal-map"),
 };
 
+const DIGGER_QUICK_SLOT_ID = "digger";
 const DRONE_QUICK_SLOT_ID = "drone-miner";
 
 const quickSlotDefinitions = [
   {
-    id: "digger",
+    id: DIGGER_QUICK_SLOT_ID,
     label: "Digger",
     description: "Standard issue excavation module.",
     icon: "🪓",
@@ -1235,7 +1236,14 @@ const decreaseTerrainLife = (terrainId, tileIndex, amount = 1) => {
 const quickSlotState = {
   slots: quickSlotDefinitions,
   selectedIndex: 0,
+  diggerActive: true,
 };
+
+const getQuickSlotByIndex = (index) => quickSlotState.slots[index] ?? null;
+const getSelectedQuickSlot = () => getQuickSlotByIndex(quickSlotState.selectedIndex);
+const isDiggerQuickSlot = (slot) => slot?.id === DIGGER_QUICK_SLOT_ID;
+const isDiggerToolEnabled = () =>
+  isDiggerQuickSlot(getSelectedQuickSlot()) && quickSlotState.diggerActive;
 
 const geoVisorState = {
   activeSlotId: null,
@@ -2361,10 +2369,14 @@ const updateResourceToolIndicator = (slot) => {
     typeof slot?.label === "string" && slot.label.trim() !== ""
       ? slot.label.trim()
       : "Unassigned slot";
-  const descriptionText =
+  let descriptionText =
     typeof slot?.description === "string" && slot.description.trim() !== ""
       ? slot.description.trim()
       : "Assign an item or ability to this slot.";
+
+  if (isDiggerQuickSlot(slot) && !isDiggerToolEnabled()) {
+    descriptionText = "Digger offline. Press 1 to reactivate.";
+  }
 
   if (resourceToolLabel instanceof HTMLElement) {
     resourceToolLabel.textContent = labelText;
@@ -2714,12 +2726,12 @@ const updateQuickSlotUi = () => {
     });
   }
 
-  updateResourceToolIndicator(
-    quickSlotState.slots[quickSlotState.selectedIndex] ?? null
-  );
+  updateResourceToolIndicator(getSelectedQuickSlot());
+  updateDiggerQuickSlotState();
   updateDroneQuickSlotState();
   updateGeoVisorQuickSlotState();
   updateGeoVisorBatteryIndicator();
+  sceneController?.setResourceToolEnabled?.(isDiggerToolEnabled());
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
   updateGeoScanPanel();
 };
@@ -2877,7 +2889,8 @@ const dispatchQuickSlotChangeEvent = (index, { userInitiated = false } = {}) => 
     return;
   }
 
-  const slot = quickSlotState.slots[index] ?? null;
+  const slot = getQuickSlotByIndex(index);
+  const diggerEnabled = isDiggerQuickSlot(slot) && quickSlotState.diggerActive;
 
   try {
     const event = new CustomEvent("quick-slot:change", {
@@ -2885,6 +2898,8 @@ const dispatchQuickSlotChangeEvent = (index, { userInitiated = false } = {}) => 
         index,
         slot,
         userInitiated,
+        diggerActive: diggerEnabled,
+        resourceToolEnabled: diggerEnabled,
       },
     });
 
@@ -2899,10 +2914,15 @@ const selectQuickSlot = (index, { userInitiated = false } = {}) => {
     return;
   }
 
+  const slot = getQuickSlotByIndex(index);
   const isAlreadySelected = quickSlotState.selectedIndex === index;
 
   if (isAlreadySelected) {
     if (userInitiated) {
+      if (isDiggerQuickSlot(slot)) {
+        quickSlotState.diggerActive = !quickSlotState.diggerActive;
+        updateQuickSlotUi();
+      }
       dispatchQuickSlotChangeEvent(index, { userInitiated: true });
       triggerQuickSlotActivationEffect(index);
     }
@@ -2911,6 +2931,9 @@ const selectQuickSlot = (index, { userInitiated = false } = {}) => {
   }
 
   quickSlotState.selectedIndex = index;
+  if (isDiggerQuickSlot(slot)) {
+    quickSlotState.diggerActive = true;
+  }
   updateQuickSlotUi();
   dispatchQuickSlotChangeEvent(index, { userInitiated });
 
@@ -3135,6 +3158,26 @@ const startElevatorTravelSound = () => {
     console.error("Unable to play elevator travel sound", error);
   }
 };
+
+function updateDiggerQuickSlotState() {
+  if (!(quickSlotBar instanceof HTMLElement)) {
+    return;
+  }
+
+  const diggerSlotButton = quickSlotBar.querySelector(
+    `[data-quick-slot-id="${DIGGER_QUICK_SLOT_ID}"]`
+  );
+
+  if (!(diggerSlotButton instanceof HTMLElement)) {
+    return;
+  }
+
+  if (isDiggerToolEnabled()) {
+    diggerSlotButton.dataset.diggerActive = "true";
+  } else {
+    delete diggerSlotButton.dataset.diggerActive;
+  }
+}
 
 const stopElevatorTravelSound = () => {
   if (!elevatorTravelSoundPlaying && elevatorTravelSound.paused) {
@@ -9656,7 +9699,7 @@ const bootstrapScene = () => {
       onDroneReturnComplete: handleDroneReturnComplete,
     });
 
-  const currentSlot = quickSlotState.slots[quickSlotState.selectedIndex] ?? null;
+  sceneController?.setResourceToolEnabled?.(isDiggerToolEnabled());
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
 
   } catch (error) {

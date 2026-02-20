@@ -10791,6 +10791,11 @@ export const initScene = (
       }
     };
 
+    if (!resourceToolEnabled) {
+      markActionFailed();
+      return;
+    }
+
     if (getResourceSession(RESOURCE_SESSION_PLAYER_SOURCE).isActive) {
       markActionFailed();
       return;
@@ -11373,6 +11378,7 @@ export const initScene = (
     recoil: 0,
     actionDuration: RESOURCE_TOOL_BASE_ACTION_DURATION,
   };
+  let resourceToolEnabled = true;
   let primaryActionHeld = false;
   let autoResourceToolEngaged = false;
   let scheduledResourceToolResumeFrameId = 0;
@@ -11678,9 +11684,35 @@ export const initScene = (
   };
 
   resetResourceToolState();
-  resourceToolGroup.visible = controls.isLocked;
+  resourceToolGroup.visible = controls.isLocked && resourceToolEnabled;
+
+  const setResourceToolEnabled = (enabled = true) => {
+    const nextState = Boolean(enabled);
+
+    if (resourceToolEnabled === nextState) {
+      return resourceToolEnabled;
+    }
+
+    resourceToolEnabled = nextState;
+
+    if (!resourceToolEnabled) {
+      cancelActiveResourceSession({ reason: "tool-disabled" });
+      resetResourceToolState();
+    }
+
+    resourceToolGroup.visible = controls.isLocked && resourceToolEnabled;
+    return resourceToolEnabled;
+  };
 
   const triggerResourceToolAction = () => {
+    if (
+      !resourceToolEnabled ||
+      !controls.isLocked ||
+      getResourceSession(RESOURCE_SESSION_PLAYER_SOURCE).isActive
+    ) {
+      return false;
+    }
+
     if (resourceToolState.cooldown > 0) {
       return false;
     }
@@ -11773,6 +11805,10 @@ export const initScene = (
       return;
     }
 
+    if (!resourceToolEnabled) {
+      return;
+    }
+
     if (!controls.isLocked) {
       return;
     }
@@ -11789,6 +11825,10 @@ export const initScene = (
       scheduledResourceToolResumeFrameId = 0;
 
       if (!primaryActionHeld && !autoResourceToolEngaged) {
+        return;
+      }
+
+      if (!resourceToolEnabled) {
         return;
       }
 
@@ -11814,6 +11854,10 @@ export const initScene = (
     }
 
     if (!controls.isLocked) {
+      return;
+    }
+
+    if (!resourceToolEnabled) {
       return;
     }
 
@@ -13076,7 +13120,7 @@ export const initScene = (
   void restoreStoredManifestPlacements();
 
   controls.addEventListener("lock", () => {
-    resourceToolGroup.visible = true;
+    resourceToolGroup.visible = resourceToolEnabled;
     resetResourceToolState();
     unlockTowerRadioAudio();
     unlockPlayerDiggingAudio();
@@ -13822,6 +13866,7 @@ export const initScene = (
     if (!resourceToolGroup) {
       return;
     }
+    resourceToolGroup.visible = controls.isLocked && resourceToolEnabled;
 
     if (resourceToolState.cooldown > 0) {
       resourceToolState.cooldown = Math.max(
@@ -13832,6 +13877,7 @@ export const initScene = (
 
     if (
       resourceToolState.cooldown <= 0 &&
+      resourceToolEnabled &&
       controls.isLocked &&
       (primaryActionHeld || autoResourceToolEngaged)
     ) {
@@ -14259,6 +14305,7 @@ export const initScene = (
       return speedSettings.playerSpeedMultiplier;
     },
     setGodMode: (enabled = false) => setGodModeEnabled(enabled),
+    setResourceToolEnabled: (enabled = true) => setResourceToolEnabled(enabled),
     setGeoVisorEnabled: (enabled = true) => {
       const nextState = Boolean(enabled);
 
