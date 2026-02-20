@@ -2975,11 +2975,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     activePlacement = null;
     updateManifestPlacementVisualState(placement.container);
 
-    if (placement.isReposition) {
-      restoreRepositionPreviewBaseline(placement);
-      placement.container.updateMatrixWorld(true);
-    }
-
     const finalPosition = computePlacementPosition(
       placement,
       placement.previewPosition
@@ -3148,10 +3143,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return;
     }
 
-    if (placement.isReposition) {
-      restoreRepositionPreviewBaseline(placement, { rebuildMode: "partial" });
-    }
-
     placementPreviousPreviewPosition.copy(placement.previewPosition);
 
     const computedPosition = computePlacementPosition(
@@ -3274,71 +3265,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         dependent.lastResolvedPosition.copy(dependent.container.position);
         dependent.container.updateMatrixWorld(true);
       });
-    }
-
-    if (placement.isReposition) {
-      const now =
-        typeof performance !== "undefined" && Number.isFinite(performance.now())
-          ? performance.now()
-          : Date.now();
-      const lastSettleAt = Number.isFinite(placement.lastPreviewSettleAt)
-        ? placement.lastPreviewSettleAt
-        : -Infinity;
-      const lastSettlePosition =
-        placement.lastPreviewSettlePosition instanceof THREE.Vector3
-          ? placement.lastPreviewSettlePosition
-          : null;
-      const movedSinceSettle =
-        !lastSettlePosition ||
-        placement.container.position.distanceToSquared(lastSettlePosition) >
-          PLACEMENT_PREVIEW_SETTLE_MOVE_EPSILON_SQ;
-      const shouldRunPreviewSettle =
-        movedSinceSettle &&
-        now - lastSettleAt >= PLACEMENT_PREVIEW_SETTLE_INTERVAL_MS;
-
-      if (shouldRunPreviewSettle) {
-        const previewSettleCandidates = collectPreviewSettleCandidates(
-          placement,
-          placementPreviousPreviewPosition
-        );
-        const previewSupportDescriptors = [];
-        const supportBounds = computeManifestPlacementBounds(placement.container);
-        const supportWorldPosition = getContainerWorldPosition(
-          placement.container,
-          settleWorldPosition
-        );
-
-        if (supportWorldPosition && !supportBounds.isEmpty()) {
-          placementPreviewSupportBox.min
-            .copy(supportBounds.min)
-            .add(supportWorldPosition);
-          placementPreviewSupportBox.max
-            .copy(supportBounds.max)
-            .add(supportWorldPosition);
-          previewSupportDescriptors.push({
-            root: placement.container,
-            object: placement.container,
-            box: placementPreviewSupportBox,
-            padding: manifestPlacementPadding,
-          });
-        }
-
-        captureRepositionPreviewBaseline(placement, previewSettleCandidates);
-
-        settlePlacementsDownward(previewSettleCandidates, {
-          maxIterations: PLACEMENT_PREVIEW_SETTLE_MAX_ITERATIONS,
-          extraSupportDescriptors: previewSupportDescriptors,
-          rebuildMode: "none",
-          refreshMovedColliders: true,
-        });
-
-        placement.previewPosition.copy(placement.container.position);
-        placement.lastPreviewSettleAt = now;
-        if (!(placement.lastPreviewSettlePosition instanceof THREE.Vector3)) {
-          placement.lastPreviewSettlePosition = new THREE.Vector3();
-        }
-        placement.lastPreviewSettlePosition.copy(placement.container.position);
-      }
     }
 
     updateManifestEditSelectionHighlight();
