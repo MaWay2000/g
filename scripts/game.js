@@ -8018,6 +8018,10 @@ const handleModelPaletteSelection = async (entry, trigger) => {
 
     await placementPromise;
     showTerminalToast({ title: "Model placed", description: label });
+    const editModeEnabled = sceneController?.setManifestEditModeEnabled?.(true);
+    if (editModeEnabled) {
+      sceneController.requestPointerLock?.();
+    }
   } catch (error) {
     if (error?.name === "PlacementCancelledError" || error?.isPlacementCancellation) {
       showTerminalToast({ title: "Placement cancelled", description: label });
