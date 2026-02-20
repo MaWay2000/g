@@ -8601,10 +8601,56 @@ const getDronePayloadText = () => {
   return `${payloadText} / ${capacityText}`;
 };
 
+const getDroneFuelRemainingSeconds = () => {
+  const capacity = ensureDroneFuelSlots();
+
+  if (capacity <= 0 || droneState.fuelRemaining <= 0) {
+    return 0;
+  }
+
+  const activeSlot = getActiveFuelSlotInfo();
+  const activeElapsedSeconds = activeSlot ? getActiveFuelElapsedSeconds() : 0;
+  let remainingSeconds = 0;
+
+  for (let index = 0; index < capacity; index += 1) {
+    const slot = droneState.fuelSlots[index];
+
+    if (!slot) {
+      continue;
+    }
+
+    const runtimeSeconds = getFuelRuntimeSecondsForSlot(slot);
+
+    if (activeSlot && index === activeSlot.index) {
+      remainingSeconds += Math.max(0, runtimeSeconds - activeElapsedSeconds);
+    } else {
+      remainingSeconds += runtimeSeconds;
+    }
+  }
+
+  return Math.max(0, Math.round(remainingSeconds));
+};
+
+const getDroneFuelTotalRuntimeSeconds = () => {
+  const capacity = ensureDroneFuelSlots();
+  let totalRuntimeSeconds = 0;
+
+  for (let index = 0; index < capacity; index += 1) {
+    const slot = droneState.fuelSlots[index];
+
+    if (!slot) {
+      continue;
+    }
+
+    totalRuntimeSeconds += getFuelRuntimeSecondsForSlot(slot);
+  }
+
+  return Math.max(0, Math.round(totalRuntimeSeconds));
+};
+
 const getDroneFuelText = () => {
-  const capacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
-  const fuel = Math.max(0, Math.min(droneState.fuelRemaining, capacity));
-  return `${fuel} / ${capacity} fuel`;
+  const remainingSeconds = getDroneFuelRemainingSeconds();
+  return `${formatDurationSeconds(remainingSeconds)} left`;
 };
 
 const getDroneMissionSummary = () => {
@@ -8753,7 +8799,12 @@ function updateDroneStatusUi() {
 
   const fuelCapacity = Math.max(1, droneState.fuelCapacity || DRONE_FUEL_CAPACITY);
   const fuelRemaining = Math.max(0, Math.min(droneState.fuelRemaining, fuelCapacity));
-  const fuelRatio = fuelCapacity > 0 ? fuelRemaining / fuelCapacity : 0;
+  const fuelRemainingSeconds = getDroneFuelRemainingSeconds();
+  const fuelTotalRuntimeSeconds = getDroneFuelTotalRuntimeSeconds();
+  const fuelRatio =
+    fuelTotalRuntimeSeconds > 0
+      ? Math.max(0, Math.min(1, fuelRemainingSeconds / fuelTotalRuntimeSeconds))
+      : 0;
 
   if (requiresPickup) {
     statusText = "Retrieve";
