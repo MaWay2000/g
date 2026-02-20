@@ -1334,7 +1334,12 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
   const settlePlacementsDownward = (
     candidates = [],
-    { exclude = null, maxIterations = 10, extraSupportDescriptors = null } = {}
+    {
+      exclude = null,
+      maxIterations = 10,
+      extraSupportDescriptors = null,
+      rebuildMode = "full",
+    } = {}
   ) => {
     const placements = gatherPlacementContainers(candidates, { exclude });
     if (placements.length === 0) {
@@ -1345,6 +1350,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const changedSet = new Set();
     const epsilon = 1e-4;
     const iterationLimit = Math.max(1, Math.floor(maxIterations));
+    const normalizedRebuildMode =
+      rebuildMode === "iteration" || rebuildMode === "none"
+        ? rebuildMode
+        : "full";
+    const canRebuildColliders = typeof rebuildStaticColliders === "function";
 
     for (let iteration = 0; iteration < iterationLimit; iteration += 1) {
       let iterationChanged = false;
@@ -1357,7 +1367,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         return firstPosition.y - secondPosition.y;
       });
 
-      if (typeof rebuildStaticColliders === "function") {
+      if (canRebuildColliders && normalizedRebuildMode !== "none") {
         rebuildStaticColliders();
       }
 
@@ -1394,7 +1404,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         }
         iterationChanged = true;
 
-        if (typeof rebuildStaticColliders === "function") {
+        if (canRebuildColliders && normalizedRebuildMode === "full") {
           rebuildStaticColliders();
         }
       });
@@ -3084,15 +3094,9 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           {
             maxIterations: PLACEMENT_PREVIEW_SETTLE_MAX_ITERATIONS,
             extraSupportDescriptors: previewSupportDescriptors,
+            rebuildMode: "iteration",
           }
         );
-
-        if (
-          previewSettledPlacements.length > 0 &&
-          typeof rebuildStaticColliders === "function"
-        ) {
-          rebuildStaticColliders();
-        }
 
         placement.previewPosition.copy(placement.container.position);
         placement.lastPreviewSettleAt = now;
