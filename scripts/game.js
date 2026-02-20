@@ -8788,7 +8788,9 @@ function updateDroneStatusUi() {
 
   droneStatusDetails.forEach((element) => {
     if (element instanceof HTMLElement) {
-      element.textContent = detailText;
+      const hasDetailText = typeof detailText === "string" && detailText.trim() !== "";
+      element.textContent = hasDetailText ? detailText : "";
+      element.hidden = !hasDetailText;
     }
   });
 

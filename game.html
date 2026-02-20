@@ -762,20 +762,29 @@
         gap: 1rem;
       }
 
+      .drone-panel__headline {
+        display: flex;
+        align-items: baseline;
+        gap: 0.55rem;
+        flex-wrap: nowrap;
+      }
+
       .drone-panel__title {
         margin: 0;
         font-size: 1.35rem;
         font-weight: 700;
         letter-spacing: 0.04em;
         color: #f8fafc;
+        white-space: nowrap;
       }
 
       .drone-panel__status {
-        margin: 0.15rem 0 0;
+        margin: 0;
         font-size: 0.95rem;
         font-weight: 600;
         letter-spacing: 0.05em;
         color: #38bdf8;
+        white-space: nowrap;
       }
 
       .drone-panel__detail {
@@ -3801,6 +3810,10 @@
           flex-direction: column;
           align-items: flex-start;
         }
+
+        .drone-panel__headline {
+          gap: 0.45rem;
+        }
       }
 
     </style>
@@ -4630,7 +4643,7 @@
 
       <section class="drone-panel" data-drone-status-panel hidden>
         <div class="drone-panel__header">
-          <div>
+          <div class="drone-panel__headline">
             <p class="drone-panel__title">Drone Miner</p>
             <p class="drone-panel__status" data-drone-status-label>Stowed</p>
           </div>
