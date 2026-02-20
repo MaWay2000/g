@@ -1107,37 +1107,6 @@ const quickSlotDefinitions = [
     label: "Arc Welder",
     description: "Fuses structural panels in the field.",
   },
-  {
-    id: "geo-scanner",
-    label: "Geo Scanner",
-    description: "Construction layout view for placing structures on the map.",
-    activateOnly: true,
-  },
-  {
-    id: "pulse-barrier",
-    label: "Pulse Barrier",
-    description: "Deploys a short-lived kinetic shield.",
-  },
-  {
-    id: "gravity-well",
-    label: "Gravity Well",
-    description: "Pins unstable debris for safe recovery.",
-  },
-  {
-    id: "terraform-spike",
-    label: "Terraform Spike",
-    description: "Reshapes local terrain on impact.",
-  },
-  {
-    id: "chrono-anchor",
-    label: "Chrono Anchor",
-    description: "Stabilizes temporal distortions briefly.",
-  },
-  {
-    id: "seismic-charge",
-    label: "Seismic Charge",
-    description: "Breaks dense rock formations cleanly.",
-  },
 ];
 
 const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter"]);
