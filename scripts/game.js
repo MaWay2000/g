@@ -8753,12 +8753,16 @@ function updateDroneStatusUi() {
   }
 
   const isActive = Boolean(droneState.active);
+  const keepPanelVisibleDuringReturn =
+    !isActive &&
+    (droneState.pendingShutdown || droneState.awaitingReturn || droneState.inFlight);
+  const panelActive = isActive || keepPanelVisibleDuringReturn;
   const requiresPickup = isDronePickupRequired();
   const inventoryIsOpen =
     isInventoryOpen() ||
     (inventoryPanel instanceof HTMLElement &&
       inventoryPanel.classList.contains("is-open"));
-  const shouldShowAnyPanel = isActive || requiresPickup;
+  const shouldShowAnyPanel = panelActive || requiresPickup;
 
   let shouldRenderDetails = false;
 
@@ -8771,7 +8775,7 @@ function updateDroneStatusUi() {
     const panelShouldShow =
       shouldShowAnyPanel && (!inventoryIsOpen || isInventoryPanel);
 
-    panel.dataset.active = isActive ? "true" : "false";
+    panel.dataset.active = panelActive ? "true" : "false";
     panel.setAttribute("aria-hidden", panelShouldShow ? "false" : "true");
 
     if (!panelShouldShow) {
