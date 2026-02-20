@@ -1,4 +1,4 @@
-import { logout } from "./auth.js";
+﻿import { logout } from "./auth.js";
 import { initScene } from "./scene.js";
 import {
   DEFAULT_PLAYER_HEIGHT,
@@ -1106,44 +1106,37 @@ const quickSlotDefinitions = [
     id: "arc-welder",
     label: "Arc Welder",
     description: "Fuses structural panels in the field.",
-    icon: "⚡",
   },
   {
     id: "geo-scanner",
     label: "Geo Scanner",
     description: "Construction layout view for placing structures on the map.",
     activateOnly: true,
-    icon: "📡",
   },
   {
     id: "pulse-barrier",
     label: "Pulse Barrier",
     description: "Deploys a short-lived kinetic shield.",
-    icon: "🛡️",
   },
   {
     id: "gravity-well",
     label: "Gravity Well",
     description: "Pins unstable debris for safe recovery.",
-    icon: "🌌",
   },
   {
     id: "terraform-spike",
     label: "Terraform Spike",
     description: "Reshapes local terrain on impact.",
-    icon: "🛰️",
   },
   {
     id: "chrono-anchor",
     label: "Chrono Anchor",
     description: "Stabilizes temporal distortions briefly.",
-    icon: "⏳",
   },
   {
     id: "seismic-charge",
     label: "Seismic Charge",
     description: "Breaks dense rock formations cleanly.",
-    icon: "💥",
   },
 ];
 
@@ -10101,3 +10094,4 @@ function handleReset(event) {
 if (resetButton instanceof HTMLButtonElement) {
   resetButton.addEventListener("click", handleReset);
 }
+
