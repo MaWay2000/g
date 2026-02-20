@@ -1104,7 +1104,7 @@ const quickSlotDefinitions = [
   },
   {
     id: "arc-welder",
-    label: "Arc Welder",
+    label: "Station Builder",
     description: "Fuses structural panels in the field.",
   },
 ];
