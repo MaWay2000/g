@@ -8620,7 +8620,7 @@ const getDroneMissionSummary = () => {
     }
 
     if (droneState.status === "collecting") {
-      return "Autonomous drone is on route to the target.";
+      return "";
     }
 
     if (droneState.status === "returning") {
