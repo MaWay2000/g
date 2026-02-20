@@ -165,6 +165,11 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const settleLocalTargetPosition = new THREE.Vector3();
   const settleSortPositionA = new THREE.Vector3();
   const settleSortPositionB = new THREE.Vector3();
+  const previewSettleWorldPosition = new THREE.Vector3();
+  const previewSettleInfluenceBoxA = new THREE.Box3();
+  const previewSettleInfluenceBoxB = new THREE.Box3();
+  const previewSettleInfluenceBoxC = new THREE.Box3();
+  const previewSettleCandidateBox = new THREE.Box3();
   const placementCollisionBox = new THREE.Box3();
   const placementPreviousCollisionBox = new THREE.Box3();
   const placementPreviewSupportBox = new THREE.Box3();
@@ -204,6 +209,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const PLACEMENT_PREVIEW_SETTLE_MOVE_EPSILON_SQ = 4e-4;
   const PLACEMENT_PREVIEW_SETTLE_INTERVAL_MS = 120;
   const PLACEMENT_PREVIEW_SETTLE_MAX_ITERATIONS = 2;
+  const PLACEMENT_PREVIEW_SETTLE_INFLUENCE_PADDING = 1.6;
+  const PLACEMENT_PREVIEW_SETTLE_VERTICAL_BELOW = 1.2;
+  const PLACEMENT_PREVIEW_SETTLE_VERTICAL_ABOVE = 12;
+  const PLACEMENT_PREVIEW_SETTLE_FULL_SCAN_LIMIT = 36;
   const PLACEMENT_WALL_SNAP_EDGE_THRESHOLD = 1.3;
   const PLACEMENT_WALL_SNAP_ALIGN_THRESHOLD = 0.96;
   const PLACEMENT_FLOOR_SNAP_EDGE_THRESHOLD = 1.2;
@@ -671,6 +680,46 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       }
       return isColliderDescriptorCollisionEnabled(descriptor);
     });
+  };
+
+  const refreshColliderDescriptorBounds = (descriptor) => {
+    const object = descriptor?.object;
+    const box = descriptor?.box;
+    if (!object || !box || descriptor?.autoUpdate === false) {
+      return false;
+    }
+
+    object.updateWorldMatrix(true, false);
+    box.setFromObject(object);
+
+    const padding =
+      descriptor?.padding instanceof THREE.Vector3 ? descriptor.padding : null;
+    if (padding) {
+      box.min.sub(padding);
+      box.max.add(padding);
+    }
+
+    return true;
+  };
+
+  const refreshPlacementColliderBounds = (container) => {
+    if (!container) {
+      return false;
+    }
+
+    const colliderEntries = getPlacementColliderEntries(container);
+    if (colliderEntries.length === 0) {
+      return false;
+    }
+
+    let refreshedAny = false;
+    colliderEntries.forEach((descriptor) => {
+      if (refreshColliderDescriptorBounds(descriptor)) {
+        refreshedAny = true;
+      }
+    });
+
+    return refreshedAny;
   };
 
   const hasEnabledPlacementColliders = (container) =>
@@ -1212,6 +1261,137 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return true;
   };
 
+  const setPreviewSettleInfluenceBox = (targetBox, bounds, anchorPosition) => {
+    if (
+      !(targetBox instanceof THREE.Box3) ||
+      !bounds ||
+      bounds.isEmpty() ||
+      !(anchorPosition instanceof THREE.Vector3)
+    ) {
+      targetBox?.makeEmpty?.();
+      return false;
+    }
+
+    targetBox.min.copy(bounds.min).add(anchorPosition);
+    targetBox.max.copy(bounds.max).add(anchorPosition);
+
+    targetBox.min.x -= PLACEMENT_PREVIEW_SETTLE_INFLUENCE_PADDING;
+    targetBox.max.x += PLACEMENT_PREVIEW_SETTLE_INFLUENCE_PADDING;
+    targetBox.min.z -= PLACEMENT_PREVIEW_SETTLE_INFLUENCE_PADDING;
+    targetBox.max.z += PLACEMENT_PREVIEW_SETTLE_INFLUENCE_PADDING;
+    targetBox.min.y -= PLACEMENT_PREVIEW_SETTLE_VERTICAL_BELOW;
+    targetBox.max.y += PLACEMENT_PREVIEW_SETTLE_VERTICAL_ABOVE;
+    return true;
+  };
+
+  const collectPreviewSettleCandidates = (placement, previousPosition = null) => {
+    const editablePlacements = getEditablePlacements();
+    if (editablePlacements.length === 0) {
+      return [];
+    }
+
+    if (editablePlacements.length <= PLACEMENT_PREVIEW_SETTLE_FULL_SCAN_LIMIT) {
+      return editablePlacements;
+    }
+
+    const activeContainer = placement?.container ?? null;
+    if (!activeContainer || !isEditablePlacement(activeContainer)) {
+      return editablePlacements;
+    }
+
+    const activeBounds =
+      placement?.containerBounds && !placement.containerBounds.isEmpty()
+        ? placement.containerBounds
+        : computeManifestPlacementBounds(activeContainer);
+    if (!activeBounds || activeBounds.isEmpty()) {
+      return editablePlacements;
+    }
+
+    const influenceBoxes = [];
+    if (
+      setPreviewSettleInfluenceBox(
+        previewSettleInfluenceBoxA,
+        activeBounds,
+        activeContainer.position
+      )
+    ) {
+      influenceBoxes.push(previewSettleInfluenceBoxA);
+    }
+
+    if (
+      previousPosition instanceof THREE.Vector3 &&
+      setPreviewSettleInfluenceBox(
+        previewSettleInfluenceBoxB,
+        activeBounds,
+        previousPosition
+      )
+    ) {
+      influenceBoxes.push(previewSettleInfluenceBoxB);
+    }
+
+    if (
+      placement?.lastPreviewSettlePosition instanceof THREE.Vector3 &&
+      setPreviewSettleInfluenceBox(
+        previewSettleInfluenceBoxC,
+        activeBounds,
+        placement.lastPreviewSettlePosition
+      )
+    ) {
+      influenceBoxes.push(previewSettleInfluenceBoxC);
+    }
+
+    if (influenceBoxes.length === 0) {
+      return editablePlacements;
+    }
+
+    const candidates = [];
+
+    editablePlacements.forEach((candidate) => {
+      if (!candidate) {
+        return;
+      }
+
+      if (candidate === activeContainer) {
+        pushUniquePlacementContainer(candidates, candidate);
+        return;
+      }
+
+      const candidateBounds = computeManifestPlacementBounds(candidate);
+      if (!candidateBounds || candidateBounds.isEmpty()) {
+        return;
+      }
+
+      const candidateWorldPosition = getContainerWorldPosition(
+        candidate,
+        previewSettleWorldPosition
+      );
+      if (!candidateWorldPosition) {
+        return;
+      }
+
+      previewSettleCandidateBox.min
+        .copy(candidateBounds.min)
+        .add(candidateWorldPosition);
+      previewSettleCandidateBox.max
+        .copy(candidateBounds.max)
+        .add(candidateWorldPosition);
+
+      for (let index = 0; index < influenceBoxes.length; index += 1) {
+        const influenceBox = influenceBoxes[index];
+        if (influenceBox?.intersectsBox(previewSettleCandidateBox)) {
+          pushUniquePlacementContainer(candidates, candidate);
+          return;
+        }
+      }
+    });
+
+    if (!candidates.includes(activeContainer)) {
+      candidates.push(activeContainer);
+    }
+
+    return candidates;
+  };
+
   const isDescriptorOwnedByContainer = (descriptor, container) => {
     if (!descriptor || !container) {
       return false;
@@ -1339,6 +1519,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       maxIterations = 10,
       extraSupportDescriptors = null,
       rebuildMode = "full",
+      refreshMovedColliders = false,
     } = {}
   ) => {
     const placements = gatherPlacementContainers(candidates, { exclude });
@@ -1355,6 +1536,19 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         ? rebuildMode
         : "full";
     const canRebuildColliders = typeof rebuildStaticColliders === "function";
+    const shouldRefreshMovedColliders =
+      refreshMovedColliders &&
+      normalizedRebuildMode === "none" &&
+      typeof refreshPlacementColliderBounds === "function";
+
+    if (shouldRefreshMovedColliders) {
+      placements.forEach((container) => {
+        if (!container) {
+          return;
+        }
+        refreshPlacementColliderBounds(container);
+      });
+    }
 
     for (let iteration = 0; iteration < iterationLimit; iteration += 1) {
       let iterationChanged = false;
@@ -1406,6 +1600,8 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
 
         if (canRebuildColliders && normalizedRebuildMode === "full") {
           rebuildStaticColliders();
+        } else if (shouldRefreshMovedColliders) {
+          refreshPlacementColliderBounds(container);
         }
       });
 
@@ -2250,12 +2446,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       scale: container.scale.clone(),
     };
     const previewBaselinePositions = new Map();
-    getEditablePlacements().forEach((candidate) => {
-      if (!candidate || candidate === container) {
-        return;
-      }
-      previewBaselinePositions.set(candidate, candidate.position.clone());
-    });
 
     const reparentedContainers = [];
     const reparentedContainer = reparentPlacementContainerForEditing(container);
@@ -2606,7 +2796,33 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
   };
 
-  const restoreRepositionPreviewBaseline = (placement) => {
+  const captureRepositionPreviewBaseline = (placement, candidates = []) => {
+    if (!placement?.isReposition || !Array.isArray(candidates)) {
+      return;
+    }
+
+    const baselinePositions = placement.previewBaselinePositions;
+    if (!(baselinePositions instanceof Map)) {
+      return;
+    }
+
+    candidates.forEach((candidate) => {
+      if (!candidate?.isObject3D || candidate === placement.container) {
+        return;
+      }
+
+      if (baselinePositions.has(candidate)) {
+        return;
+      }
+
+      baselinePositions.set(candidate, candidate.position.clone());
+    });
+  };
+
+  const restoreRepositionPreviewBaseline = (
+    placement,
+    { rebuildMode = "full", clearBaseline = true } = {}
+  ) => {
     if (!placement?.isReposition) {
       return false;
     }
@@ -2617,6 +2833,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     let restoredAny = false;
+    const restoredContainers = [];
 
     baselinePositions.forEach((baselinePosition, container) => {
       if (
@@ -2634,13 +2851,26 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       container.position.copy(baselinePosition);
       container.updateMatrixWorld(true);
       restoredAny = true;
+      restoredContainers.push(container);
     });
 
-    if (restoredAny && typeof rebuildStaticColliders === "function") {
+    if (clearBaseline) {
+      baselinePositions.clear();
+    }
+
+    if (!restoredAny) {
+      return false;
+    }
+
+    if (rebuildMode === "partial") {
+      restoredContainers.forEach((container) => {
+        refreshPlacementColliderBounds(container);
+      });
+    } else if (typeof rebuildStaticColliders === "function") {
       rebuildStaticColliders();
     }
 
-    return restoredAny;
+    return true;
   };
 
   const cancelActivePlacement = (reason, options = {}) => {
@@ -2919,7 +3149,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     if (placement.isReposition) {
-      restoreRepositionPreviewBaseline(placement);
+      restoreRepositionPreviewBaseline(placement, { rebuildMode: "partial" });
     }
 
     placementPreviousPreviewPosition.copy(placement.previewPosition);
@@ -3067,6 +3297,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         now - lastSettleAt >= PLACEMENT_PREVIEW_SETTLE_INTERVAL_MS;
 
       if (shouldRunPreviewSettle) {
+        const previewSettleCandidates = collectPreviewSettleCandidates(
+          placement,
+          placementPreviousPreviewPosition
+        );
         const previewSupportDescriptors = [];
         const supportBounds = computeManifestPlacementBounds(placement.container);
         const supportWorldPosition = getContainerWorldPosition(
@@ -3089,14 +3323,14 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
           });
         }
 
-        const previewSettledPlacements = settlePlacementsDownward(
-          getEditablePlacements(),
-          {
-            maxIterations: PLACEMENT_PREVIEW_SETTLE_MAX_ITERATIONS,
-            extraSupportDescriptors: previewSupportDescriptors,
-            rebuildMode: "iteration",
-          }
-        );
+        captureRepositionPreviewBaseline(placement, previewSettleCandidates);
+
+        settlePlacementsDownward(previewSettleCandidates, {
+          maxIterations: PLACEMENT_PREVIEW_SETTLE_MAX_ITERATIONS,
+          extraSupportDescriptors: previewSupportDescriptors,
+          rebuildMode: "none",
+          refreshMovedColliders: true,
+        });
 
         placement.previewPosition.copy(placement.container.position);
         placement.lastPreviewSettleAt = now;
