@@ -577,6 +577,37 @@
         mix-blend-mode: screen;
       }
 
+      .quick-slot-bar__slot[data-quick-slot-id="digger"][data-selected="true"]:not(
+          [data-digger-active="true"]
+        )
+        .quick-slot-bar__slot-icon {
+        background: rgba(15, 23, 42, 0.42);
+        border-color: rgba(100, 116, 139, 0.52);
+        color: rgba(148, 163, 184, 0.9);
+        box-shadow: inset 0 0 8px rgba(15, 23, 42, 0.5);
+      }
+
+      .quick-slot-bar__slot[data-quick-slot-id="digger"][data-selected="true"]:not(
+          [data-digger-active="true"]
+        ) {
+        background: linear-gradient(
+          160deg,
+          rgba(51, 65, 85, 0.94),
+          rgba(30, 41, 59, 0.9)
+        );
+        color: rgba(203, 213, 225, 0.92);
+        border-color: rgba(100, 116, 139, 0.68);
+        box-shadow: inset 0 0 18px rgba(15, 23, 42, 0.6),
+          0 12px 24px rgba(2, 6, 23, 0.4);
+      }
+
+      .quick-slot-bar__slot[data-quick-slot-id="digger"][data-selected="true"]:not(
+          [data-digger-active="true"]
+        )
+        .quick-slot-bar__slot-key {
+        color: rgba(148, 163, 184, 0.85);
+      }
+
       @keyframes drone-slot-glow {
         0%,
         100% {
