@@ -1080,6 +1080,7 @@ const quickAccessModalTemplates = {
 
 const DIGGER_QUICK_SLOT_ID = "digger";
 const DRONE_QUICK_SLOT_ID = "drone-miner";
+const STATION_BUILDER_QUICK_SLOT_ID = "arc-welder";
 
 const quickSlotDefinitions = [
   {
@@ -1103,7 +1104,7 @@ const quickSlotDefinitions = [
     icon: "🥽",
   },
   {
-    id: "arc-welder",
+    id: STATION_BUILDER_QUICK_SLOT_ID,
     label: "Station Builder",
     description: "Fuses structural panels in the field.",
   },
@@ -8090,12 +8091,25 @@ const handleModelPaletteHotkey = (event) => {
   }
 
   event.preventDefault();
+  toggleModelPaletteVisibility();
+};
+
+const toggleModelPaletteVisibility = () => {
+  if (!sceneController?.placeModelFromManifestEntry) {
+    return false;
+  }
+
+  if (quickAccessModal instanceof HTMLElement && !quickAccessModal.hidden) {
+    return false;
+  }
 
   if (isModelPaletteOpen()) {
     closeModelPalette();
   } else {
     void openModelPalette();
   }
+
+  return true;
 };
 
 const trapFocusWithinModal = (event) => {
@@ -9433,9 +9447,27 @@ const handleGeoVisorQuickSlotChange = (event) => {
   }
 };
 
+const handleStationBuilderQuickSlotActivation = (event) => {
+  if (!(event instanceof CustomEvent)) {
+    return;
+  }
+
+  const { slot, userInitiated } = event.detail ?? {};
+
+  if (!userInitiated || slot?.id !== STATION_BUILDER_QUICK_SLOT_ID) {
+    return;
+  }
+
+  toggleModelPaletteVisibility();
+};
+
 if (canvas instanceof HTMLElement) {
   canvas.addEventListener("quick-slot:change", handleDroneQuickSlotActivation);
   canvas.addEventListener("quick-slot:change", handleGeoVisorQuickSlotChange);
+  canvas.addEventListener(
+    "quick-slot:change",
+    handleStationBuilderQuickSlotActivation
+  );
 }
 
 droneRefuelButtons.forEach((button) => {
