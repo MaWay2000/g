@@ -413,7 +413,10 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       return;
     }
 
-    const multiplier = !manifestEditModeState.enabled
+    const isActivePlacementPreview = activePlacement?.container === container;
+    const multiplier = isActivePlacementPreview
+      ? EDIT_MODE_SELECTED_OPACITY
+      : !manifestEditModeState.enabled
       ? 1
       : manifestEditModeState.hovered === container
       ? EDIT_MODE_HOVER_OPACITY
@@ -469,12 +472,12 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   };
 
   const resolveManifestEditHighlightTarget = () => {
-    if (!manifestEditModeState.enabled) {
-      return null;
-    }
-
     if (activePlacement?.container?.isObject3D) {
       return activePlacement.container;
+    }
+
+    if (!manifestEditModeState.enabled) {
+      return null;
     }
 
     if (manifestEditModeState.selected?.isObject3D) {
@@ -2379,6 +2382,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     };
 
     activePlacement = placement;
+    updateManifestPlacementVisualState(placement.container);
 
     placementPointerEvents.forEach((eventName) => {
       canvas?.addEventListener(eventName, placement.pointerHandler);
@@ -2637,6 +2641,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const placement = activePlacement;
     clearPlacementEventListeners(placement);
     activePlacement = null;
+    updateManifestPlacementVisualState(placement.container);
 
     const restoreOnCancel =
       options.restoreOnCancel ?? (placement.isReposition ? true : false);
@@ -2728,6 +2733,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     const placement = activePlacement;
     clearPlacementEventListeners(placement);
     activePlacement = null;
+    updateManifestPlacementVisualState(placement.container);
 
     if (placement.isReposition) {
       restoreRepositionPreviewBaseline(placement);
@@ -3371,6 +3377,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
         };
 
         activePlacement = placement;
+        updateManifestPlacementVisualState(placement.container);
 
         placementPointerEvents.forEach((eventName) => {
           canvas?.addEventListener(eventName, placement.pointerHandler);
