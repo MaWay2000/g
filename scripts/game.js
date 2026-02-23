@@ -1081,6 +1081,7 @@ const quickAccessModalTemplates = {
 const DIGGER_QUICK_SLOT_ID = "digger";
 const DRONE_QUICK_SLOT_ID = "drone-miner";
 const STATION_BUILDER_QUICK_SLOT_ID = "arc-welder";
+const INVENTORY_QUICK_SLOT_ID = "inventory";
 
 const quickSlotDefinitions = [
   {
@@ -1107,6 +1108,13 @@ const quickSlotDefinitions = [
     id: STATION_BUILDER_QUICK_SLOT_ID,
     label: "Station Builder",
     description: "Fuses structural panels in the field.",
+  },
+  {
+    id: INVENTORY_QUICK_SLOT_ID,
+    label: "Inventory",
+    description: "Open or close the inventory panel.",
+    activateOnly: true,
+    icon: "🎒",
   },
 ];
 
@@ -7134,6 +7142,30 @@ const shouldIgnoreInventoryHotkey = (event) => {
   return target.isContentEditable;
 };
 
+const toggleInventoryPanelFromShortcut = ({ event = null } = {}) => {
+  const inventoryCurrentlyOpen = isInventoryOpen();
+
+  if (
+    !inventoryCurrentlyOpen &&
+    ((quickAccessModal instanceof HTMLElement && !quickAccessModal.hidden) ||
+      isModelPaletteOpen())
+  ) {
+    return false;
+  }
+
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
+
+  if (inventoryCurrentlyOpen) {
+    closeInventoryPanel();
+  } else {
+    openInventoryPanel();
+  }
+
+  return true;
+};
+
 const handleInventoryHotkey = (event) => {
   if (event.code !== "KeyI" || event.repeat) {
     return;
@@ -7147,23 +7179,7 @@ const handleInventoryHotkey = (event) => {
     return;
   }
 
-  const inventoryCurrentlyOpen = isInventoryOpen();
-
-  if (
-    !inventoryCurrentlyOpen &&
-    ((quickAccessModal instanceof HTMLElement && !quickAccessModal.hidden) ||
-      isModelPaletteOpen())
-  ) {
-    return;
-  }
-
-  event.preventDefault();
-
-  if (inventoryCurrentlyOpen) {
-    closeInventoryPanel();
-  } else {
-    openInventoryPanel();
-  }
+  toggleInventoryPanelFromShortcut({ event });
 };
 
 refreshInventoryUi();
@@ -9465,12 +9481,30 @@ const handleStationBuilderQuickSlotActivation = (event) => {
   toggleModelPaletteVisibility();
 };
 
+const handleInventoryQuickSlotActivation = (event) => {
+  if (!(event instanceof CustomEvent)) {
+    return;
+  }
+
+  const { slot, userInitiated } = event.detail ?? {};
+
+  if (!userInitiated || slot?.id !== INVENTORY_QUICK_SLOT_ID) {
+    return;
+  }
+
+  toggleInventoryPanelFromShortcut();
+};
+
 if (canvas instanceof HTMLElement) {
   canvas.addEventListener("quick-slot:change", handleDroneQuickSlotActivation);
   canvas.addEventListener("quick-slot:change", handleGeoVisorQuickSlotChange);
   canvas.addEventListener(
     "quick-slot:change",
     handleStationBuilderQuickSlotActivation
+  );
+  canvas.addEventListener(
+    "quick-slot:change",
+    handleInventoryQuickSlotActivation
   );
 }
 
