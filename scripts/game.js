@@ -3485,6 +3485,23 @@ const setActiveInventorySection = (sectionId = "inventory") => {
     return;
   }
 
+  const shouldPreserveVisibleDialogPosition =
+    inventoryPanel.classList.contains("is-open") &&
+    inventoryDialog instanceof HTMLElement &&
+    !inventoryLayoutState.dragging;
+  const shouldPersistPosition = Boolean(inventoryLayoutState.position);
+  let preservedDialogPosition = null;
+
+  if (shouldPreserveVisibleDialogPosition) {
+    const dialogRect = inventoryDialog.getBoundingClientRect();
+    if (dialogRect.width > 0 && dialogRect.height > 0) {
+      preservedDialogPosition = {
+        left: dialogRect.left,
+        top: dialogRect.top,
+      };
+    }
+  }
+
   const resolvedSection = inventoryTabSections.has(sectionId)
     ? sectionId
     : "inventory";
@@ -3521,6 +3538,17 @@ const setActiveInventorySection = (sectionId = "inventory") => {
   } else {
     hideInventoryTooltip();
     updateDroneStatusUi();
+  }
+
+  if (preservedDialogPosition) {
+    setInventoryPanelPosition(
+      preservedDialogPosition.left,
+      preservedDialogPosition.top,
+      {
+        clamp: true,
+        updateState: shouldPersistPosition,
+      }
+    );
   }
 };
 
