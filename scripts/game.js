@@ -158,12 +158,18 @@ const speedSummaryValue = document.querySelector("[data-speed-summary-value]");
 const jumpSummaryValue = document.querySelector("[data-jump-summary-value]");
 const viewSummaryValue = document.querySelector("[data-view-summary-value]");
 const starSettingsSubmenu = document.querySelector("[data-stars-settings-submenu]");
+const reflectionSettingsSubmenu = document.querySelector(
+  "[data-reflection-settings-submenu]"
+);
 const speedSettingsSubmenu = document.querySelector("[data-speed-settings-submenu]");
 const jumpSettingsSubmenu = document.querySelector("[data-jump-settings-submenu]");
 const viewSettingsSubmenu = document.querySelector("[data-view-settings-submenu]");
 const liftSettingsSubmenu = document.querySelector("[data-lift-settings-submenu]");
 const starSettingsToggleButton = settingsMenu?.querySelector(
   "[data-star-settings-toggle]"
+);
+const reflectionSettingsToggleButton = settingsMenu?.querySelector(
+  "[data-reflection-settings-toggle]"
 );
 const speedSettingsToggleButton = settingsMenu?.querySelector(
   "[data-speed-settings-toggle]"
@@ -387,6 +393,7 @@ const setSettingsMenuOpen = (isOpen) => {
 
   if (!nextState) {
     setStarSettingsExpanded(false);
+    setReflectionSettingsExpanded(false);
     setSpeedSettingsExpanded(false);
     setJumpSettingsExpanded(false);
     setViewSettingsExpanded(false);
@@ -427,6 +434,19 @@ const setSpeedSettingsExpanded = (isExpanded) => {
 
   if (speedSettingsToggleButton instanceof HTMLButtonElement) {
     speedSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
+  }
+};
+
+const setReflectionSettingsExpanded = (isExpanded) => {
+  const nextState = Boolean(isExpanded);
+
+  if (reflectionSettingsSubmenu instanceof HTMLElement) {
+    reflectionSettingsSubmenu.hidden = !nextState;
+    reflectionSettingsSubmenu.dataset.expanded = nextState ? "true" : "false";
+  }
+
+  if (reflectionSettingsToggleButton instanceof HTMLButtonElement) {
+    reflectionSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
   }
 };
 
@@ -471,6 +491,7 @@ const setLiftSettingsExpanded = (isExpanded) => {
 
 setSettingsMenuOpen(false);
 setStarSettingsExpanded(false);
+setReflectionSettingsExpanded(false);
 setSpeedSettingsExpanded(false);
 setJumpSettingsExpanded(false);
 setViewSettingsExpanded(false);
@@ -518,6 +539,7 @@ if (starSettingsToggleButton instanceof HTMLButtonElement) {
       starSettingsSubmenu instanceof HTMLElement && starSettingsSubmenu.hidden !== true;
 
     if (!isExpanded) {
+      setReflectionSettingsExpanded(false);
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
@@ -525,6 +547,24 @@ if (starSettingsToggleButton instanceof HTMLButtonElement) {
     }
 
     setStarSettingsExpanded(!isExpanded);
+  });
+}
+
+if (reflectionSettingsToggleButton instanceof HTMLButtonElement) {
+  reflectionSettingsToggleButton.addEventListener("click", () => {
+    const isExpanded =
+      reflectionSettingsSubmenu instanceof HTMLElement &&
+      reflectionSettingsSubmenu.hidden !== true;
+
+    if (!isExpanded) {
+      setStarSettingsExpanded(false);
+      setSpeedSettingsExpanded(false);
+      setJumpSettingsExpanded(false);
+      setViewSettingsExpanded(false);
+      setLiftSettingsExpanded(false);
+    }
+
+    setReflectionSettingsExpanded(!isExpanded);
   });
 }
 
@@ -536,6 +576,7 @@ if (speedSettingsToggleButton instanceof HTMLButtonElement) {
 
     if (!isExpanded) {
       setStarSettingsExpanded(false);
+      setReflectionSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
       setLiftSettingsExpanded(false);
@@ -553,6 +594,7 @@ if (jumpSettingsToggleButton instanceof HTMLButtonElement) {
 
     if (!isExpanded) {
       setStarSettingsExpanded(false);
+      setReflectionSettingsExpanded(false);
       setSpeedSettingsExpanded(false);
       setViewSettingsExpanded(false);
       setLiftSettingsExpanded(false);
@@ -570,6 +612,7 @@ if (viewSettingsToggleButton instanceof HTMLButtonElement) {
 
     if (!isExpanded) {
       setStarSettingsExpanded(false);
+      setReflectionSettingsExpanded(false);
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setLiftSettingsExpanded(false);
@@ -587,6 +630,7 @@ if (liftSettingsToggleButton instanceof HTMLButtonElement) {
 
     if (!isExpanded) {
       setStarSettingsExpanded(false);
+      setReflectionSettingsExpanded(false);
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
@@ -641,6 +685,12 @@ applyStarsUiState();
 
 const setReflectionScaleAvailability = (enabled) => {
   const shouldEnable = Boolean(enabled);
+
+  reflectionSettingsSubmenu?.classList.toggle(
+    "settings-menu__submenu--disabled",
+    !shouldEnable
+  );
+  reflectionSettingsSubmenu?.setAttribute("aria-disabled", String(!shouldEnable));
 
   reflectionSettingInputs.forEach((input) => {
     if (input instanceof HTMLInputElement) {

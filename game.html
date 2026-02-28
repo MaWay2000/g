@@ -1015,7 +1015,8 @@
 
         .settings-menu__panel,
         .settings-menu__panel--stars,
-        .settings-menu__panel--lift {
+        .settings-menu__panel--lift,
+        .settings-menu__panel--reflection {
           width: min(90vw, 360px);
         }
       }
@@ -1038,10 +1039,16 @@
 
       .settings-menu__panel--stars[hidden],
       .settings-menu__panel--lift[hidden],
+      .settings-menu__panel--reflection[hidden],
       .settings-menu__panel--speed[hidden],
       .settings-menu__panel--jump[hidden],
       .settings-menu__panel--view[hidden] {
         display: none;
+      }
+
+      .settings-menu__panel--reflection {
+        min-width: 320px;
+        gap: 0.75rem;
       }
 
       .settings-menu__panel--speed {
@@ -3940,56 +3947,39 @@
                         </span>
                       </button>
                     </div>
-                    <label class="performance-toggle">
-                      <input
-                        class="performance-toggle__input"
-                        type="checkbox"
-                        role="switch"
-                        aria-label="Toggle reflections"
-                        data-reflections-toggle
-                      />
-                      <span class="performance-toggle__track" aria-hidden="true">
-                        <span class="performance-toggle__thumb" aria-hidden="true"></span>
-                      </span>
-                      <span class="performance-toggle__text">
-                        <span class="performance-toggle__title">Reflections</span>
-                      </span>
-                    </label>
-                    <label class="settings-slider" for="reflectorResolutionRange">
-                      <div class="settings-slider__header">
-                        <span class="settings-slider__title">Reflection resolution</span>
-                        <span class="settings-slider__value" data-reflection-scale-value>
-                          100%
+                    <div class="settings-menu__row">
+                      <label class="performance-toggle">
+                        <input
+                          class="performance-toggle__input"
+                          type="checkbox"
+                          role="switch"
+                          aria-label="Toggle reflections"
+                          data-reflections-toggle
+                        />
+                        <span class="performance-toggle__track" aria-hidden="true">
+                          <span class="performance-toggle__thumb" aria-hidden="true"></span>
                         </span>
-                      </div>
-                      <p class="settings-slider__hint">
-                        Lower values use less GPU memory for reflections.
-                      </p>
-                      <div class="settings-slider__controls">
-                        <input
-                          id="reflectorResolutionRange"
-                          class="settings-slider__range"
-                          type="range"
-                          min="0.25"
-                          max="1"
-                          step="0.05"
-                          value="1"
-                          aria-label="Reflection resolution scale"
-                          data-reflection-scale-range
+                        <span class="performance-toggle__text">
+                          <span class="performance-toggle__title">Reflections</span>
+                        </span>
+                      </label>
+                      <button
+                        class="settings-menu__submenu-toggle"
+                        type="button"
+                        data-reflection-settings-toggle
+                        aria-controls="reflectionSettingsPanel"
+                        aria-expanded="false"
+                        aria-label="Reflection settings"
+                      >
+                        <img
+                          src="images/game/settings.png"
+                          alt=""
+                          aria-hidden="true"
+                          class="settings-menu__submenu-toggle-icon"
                         />
-                        <input
-                          class="settings-slider__number-input"
-                          type="number"
-                          min="0.25"
-                          max="1"
-                          step="0.05"
-                          value="1"
-                          inputmode="decimal"
-                          aria-label="Reflection resolution scale"
-                          data-reflection-scale-input
-                        />
-                      </div>
-                    </label>
+                        <span class="visually-hidden">Settings</span>
+                      </button>
+                    </div>
                   </div>
                   <div class="settings-menu__section" role="group" aria-label="Gameplay">
                     <p class="settings-menu__heading">Gameplay</p>
@@ -4323,6 +4313,51 @@
                         inputmode="decimal"
                         aria-label="Sky dome height"
                         data-sky-height-input
+                      />
+                    </div>
+                  </label>
+                </div>
+                <div
+                  class="settings-menu__panel settings-menu__panel--reflection"
+                  id="reflectionSettingsPanel"
+                  role="menu"
+                  aria-label="Reflection settings"
+                  data-reflection-settings-submenu
+                  hidden
+                >
+                  <p class="settings-menu__heading">Reflections</p>
+                  <label class="settings-slider" for="reflectorResolutionRange">
+                    <div class="settings-slider__header">
+                      <span class="settings-slider__title">Reflection resolution</span>
+                      <span class="settings-slider__value" data-reflection-scale-value>
+                        100%
+                      </span>
+                    </div>
+                    <p class="settings-slider__hint">
+                      Lower values use less GPU memory for reflections.
+                    </p>
+                    <div class="settings-slider__controls">
+                      <input
+                        id="reflectorResolutionRange"
+                        class="settings-slider__range"
+                        type="range"
+                        min="0.25"
+                        max="1"
+                        step="0.05"
+                        value="1"
+                        aria-label="Reflection resolution scale"
+                        data-reflection-scale-range
+                      />
+                      <input
+                        class="settings-slider__number-input"
+                        type="number"
+                        min="0.25"
+                        max="1"
+                        step="0.05"
+                        value="1"
+                        inputmode="decimal"
+                        aria-label="Reflection resolution scale"
+                        data-reflection-scale-input
                       />
                     </div>
                   </label>
