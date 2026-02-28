@@ -11777,6 +11777,26 @@ export const initScene = (
       id: preset.id,
       label: preset.label,
       description: preset.description,
+      preview: {
+        hullTexturePath:
+          typeof preset?.hull?.baseColor === "string" ? preset.hull.baseColor : null,
+        frameTexturePath:
+          typeof preset?.frame?.baseColor === "string"
+            ? preset.frame.baseColor
+            : null,
+        visorTexturePath:
+          typeof preset?.visor?.baseColor === "string" ? preset.visor.baseColor : null,
+        cutterTexturePath:
+          typeof preset?.cutter?.baseColor === "string"
+            ? preset.cutter.baseColor
+            : null,
+        headLightColor: Number.isFinite(preset?.lights?.head)
+          ? preset.lights.head
+          : null,
+        cutterLightColor: Number.isFinite(preset?.lights?.cutter)
+          ? preset.lights.cutter
+          : null,
+      },
     }));
 
   applyDroneSkinPresetById(settings?.droneSkinId);

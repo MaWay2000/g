@@ -2005,6 +2005,51 @@
         color: rgba(148, 163, 184, 0.7);
       }
 
+      .drone-skin-preview {
+        border-radius: 1rem;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        background: rgba(15, 23, 42, 0.72);
+        box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.1),
+          0 20px 40px rgba(15, 23, 42, 0.35);
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+      }
+
+      .drone-skin-preview__canvas {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(96, 165, 250, 0.35);
+        background: radial-gradient(
+            circle at 25% 20%,
+            rgba(56, 189, 248, 0.24),
+            rgba(15, 23, 42, 0.9) 46%
+          ),
+          linear-gradient(145deg, rgba(2, 6, 23, 0.92), rgba(15, 23, 42, 0.96));
+        display: block;
+      }
+
+      .drone-skin-preview__meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .drone-skin-preview__title {
+        margin: 0;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: #e2e8f0;
+      }
+
+      .drone-skin-preview__desc {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(148, 163, 184, 0.95);
+      }
+
       .quick-access-modal__card-grid {
         display: grid;
         gap: 1rem;
@@ -5439,6 +5484,26 @@
           Select a skin profile for your drone miner. Changes apply immediately.
         </p>
       </header>
+      <section class="quick-access-modal__section">
+        <h3 class="quick-access-modal__section-title">Preview</h3>
+        <div class="drone-skin-preview">
+          <canvas
+            class="drone-skin-preview__canvas"
+            width="960"
+            height="540"
+            data-drone-skin-preview-canvas
+            aria-label="Drone skin preview"
+          ></canvas>
+          <div class="drone-skin-preview__meta">
+            <p class="drone-skin-preview__title" data-drone-skin-preview-title>
+              Drone skin preview
+            </p>
+            <p class="drone-skin-preview__desc" data-drone-skin-preview-description>
+              Hover any skin to preview the drone look.
+            </p>
+          </div>
+        </div>
+      </section>
       <section class="quick-access-modal__section quick-access-modal__section--lift">
         <h3 class="quick-access-modal__section-title">Available skins</h3>
         <ul class="lift-selector" data-drone-skin-list></ul>
