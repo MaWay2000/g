@@ -8564,7 +8564,7 @@ export const initScene = (
 
         context.fillStyle = hovered ? "#052e2b" : "#e2e8f0";
         context.font = "700 72px 'Segoe UI', 'Inter', sans-serif";
-        context.fillText("DRONE SKINS", actionZone.minX + 44, actionZone.minY + 108);
+        context.fillText("DRONE SETUP", actionZone.minX + 44, actionZone.minY + 108);
 
         context.fillStyle = hovered ? "rgba(7, 44, 36, 0.92)" : "rgba(148, 163, 184, 0.9)";
         context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
