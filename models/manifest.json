@@ -18,5 +18,9 @@
   {
     "path": "wall.glb",
     "label": "Wall (GLB)"
+  },
+  {
+    "path": "rocks.glb",
+    "label": "Rocks (GLB)"
   }
 ]
