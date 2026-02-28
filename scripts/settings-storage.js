@@ -36,6 +36,7 @@ const DEFAULT_SETTINGS = {
   skyExtent: 13.35,
   skyDomeHeight: 0,
   timeZoneOffsetHours: getDefaultTimeZoneOffsetHours(),
+  droneSkinId: "teal-honeycomb",
 };
 
 const normalizeSettings = (settings = {}) => {
@@ -126,6 +127,15 @@ const normalizeSettings = (settings = {}) => {
     }, {});
   };
 
+  const normalizeDroneSkinId = (value) => {
+    if (typeof value !== "string") {
+      return DEFAULT_SETTINGS.droneSkinId;
+    }
+
+    const trimmed = value.trim().toLowerCase();
+    return trimmed || DEFAULT_SETTINGS.droneSkinId;
+  };
+
   return {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
@@ -158,6 +168,7 @@ const normalizeSettings = (settings = {}) => {
       settings.timeZoneOffsetHours,
       DEFAULT_SETTINGS.timeZoneOffsetHours
     ),
+    droneSkinId: normalizeDroneSkinId(settings.droneSkinId),
   };
 };
 

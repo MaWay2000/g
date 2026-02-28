@@ -1120,6 +1120,9 @@ const modelPaletteClose = modelPalette?.querySelector(
 const quickAccessModalTemplates = {
   default: document.getElementById("quick-access-modal-default"),
   lift: document.getElementById("quick-access-modal-lift"),
+  "drone-customization": document.getElementById(
+    "quick-access-modal-drone-customization"
+  ),
   news: document.getElementById("quick-access-modal-news"),
   weather: document.getElementById("quick-access-modal-weather"),
   missions: document.getElementById("quick-access-modal-missions"),
@@ -3393,6 +3396,7 @@ let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let missionModalActive = false;
 let marketModalActive = false;
+let droneCustomizationModalActive = false;
 
 const INVENTORY_SLOT_COUNT = 100;
 const DEFAULT_INVENTORY_CAPACITY_KG = 10;
@@ -5233,6 +5237,121 @@ const renderLiftModalFloors = () => {
   updateLiftModalActiveState();
 };
 
+const getDroneCustomizationModalElements = () => {
+  if (!quickAccessModalContent) {
+    return { list: null, empty: null };
+  }
+
+  return {
+    list: quickAccessModalContent.querySelector("[data-drone-skin-list]"),
+    empty: quickAccessModalContent.querySelector("[data-drone-skin-empty]"),
+  };
+};
+
+const handleDroneSkinOptionClick = (event) => {
+  if (!(event?.currentTarget instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  const requestedSkinId = event.currentTarget.dataset.droneSkinId;
+  if (!requestedSkinId || !sceneController?.setActiveDroneSkinById) {
+    return;
+  }
+
+  const appliedSkinId = sceneController.setActiveDroneSkinById(requestedSkinId);
+  if (!appliedSkinId) {
+    return;
+  }
+
+  currentSettings = { ...currentSettings, droneSkinId: appliedSkinId };
+  persistSettings(currentSettings);
+  renderDroneCustomizationModal();
+
+  const label =
+    typeof event.currentTarget.dataset.droneSkinLabel === "string" &&
+    event.currentTarget.dataset.droneSkinLabel.trim() !== ""
+      ? event.currentTarget.dataset.droneSkinLabel.trim()
+      : appliedSkinId;
+  showTerminalToast({
+    title: "Drone skin applied",
+    description: label,
+  });
+};
+
+const renderDroneCustomizationModal = () => {
+  if (!droneCustomizationModalActive) {
+    return;
+  }
+
+  const { list, empty } = getDroneCustomizationModalElements();
+  if (!(list instanceof HTMLElement)) {
+    return;
+  }
+
+  list.innerHTML = "";
+
+  const skinOptions = sceneController?.getDroneSkinOptions?.() ?? [];
+  const hasOptions = Array.isArray(skinOptions) && skinOptions.length > 0;
+
+  if (empty instanceof HTMLElement) {
+    empty.hidden = hasOptions;
+  }
+
+  if (!hasOptions) {
+    return;
+  }
+
+  const activeSkinId = sceneController?.getActiveDroneSkinId?.() ?? null;
+  skinOptions.forEach((option) => {
+    if (!option || typeof option.id !== "string" || option.id.trim() === "") {
+      return;
+    }
+
+    const optionId = option.id.trim();
+    const optionLabel =
+      typeof option.label === "string" && option.label.trim() !== ""
+        ? option.label.trim()
+        : optionId;
+    const optionDescription =
+      typeof option.description === "string" && option.description.trim() !== ""
+        ? option.description.trim()
+        : "Available drone skin profile.";
+    const isActive = optionId === activeSkinId;
+
+    const item = document.createElement("li");
+    item.className = "lift-selector__item";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lift-selector__button";
+    button.dataset.droneSkinId = optionId;
+    button.dataset.droneSkinLabel = optionLabel;
+    button.setAttribute("aria-current", isActive ? "true" : "false");
+    button.disabled = isActive;
+
+    const title = document.createElement("span");
+    title.className = "lift-selector__title";
+    title.textContent = optionLabel;
+    button.appendChild(title);
+
+    const description = document.createElement("span");
+    description.className = "lift-selector__description";
+    description.textContent = optionDescription;
+    button.appendChild(description);
+
+    const status = document.createElement("span");
+    status.className = "lift-selector__status";
+    status.textContent = "Active skin";
+    status.hidden = !isActive;
+    button.appendChild(status);
+
+    button.addEventListener("click", handleDroneSkinOptionClick);
+    item.appendChild(button);
+    list.appendChild(item);
+  });
+};
+
 const resolveMissionRequirement = (mission) => {
   const description = typeof mission?.description === "string" ? mission.description : "";
   const title = typeof mission?.title === "string" ? mission.title : "";
@@ -5795,6 +5914,7 @@ subscribeToCurrency(() => {
 subscribeToMissionState(handleMissionStateChanged);
 
 const teardownQuickAccessModalContent = () => {
+  droneCustomizationModalActive = false;
   teardownMarketModal();
 };
 
@@ -5802,6 +5922,7 @@ const initializeQuickAccessModalContent = (option) => {
   liftModalActive = option?.id === LIFT_MODAL_OPTION.id;
   missionModalActive = option?.id === "missions";
   marketModalActive = option?.id === "market";
+  droneCustomizationModalActive = option?.id === "drone-customization";
 
   if (liftModalActive) {
     renderLiftModalFloors();
@@ -5816,6 +5937,10 @@ const initializeQuickAccessModalContent = (option) => {
     bindMarketModalEvents();
   } else {
     teardownMarketModal();
+  }
+
+  if (droneCustomizationModalActive) {
+    renderDroneCustomizationModal();
   }
 };
 
@@ -8262,6 +8387,7 @@ const finishClosingQuickAccessModal = () => {
 
   liftModalActive = false;
   missionModalActive = false;
+  droneCustomizationModalActive = false;
   teardownQuickAccessModalContent();
   quickAccessModal.hidden = true;
   quickAccessModalContent.innerHTML = "";

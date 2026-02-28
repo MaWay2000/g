@@ -8489,6 +8489,242 @@ export const initScene = (
     consoleScreen.rotation.x = -THREE.MathUtils.degToRad(12);
     group.add(consoleScreen);
 
+    const createDroneCustomizationDisplay = () => {
+      const width = 960;
+      const height = 512;
+      const actionZone = {
+        id: "drone-customization",
+        title: "Drone Customization",
+        description: "Skin and livery station",
+        minX: 64,
+        maxX: width - 64,
+        minY: 164,
+        maxY: height - 58,
+      };
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return {
+          texture: createQuickAccessFallbackTexture(),
+          getQuickAccessZones: () => [actionZone],
+          getQuickAccessTextureSize: () => ({ width, height }),
+          setHoveredZone: () => {},
+          update: () => {},
+          dispose: () => {},
+        };
+      }
+
+      let hovered = false;
+      let disposed = false;
+
+      const draw = () => {
+        context.clearRect(0, 0, width, height);
+
+        const bgGradient = context.createLinearGradient(0, 0, width, height);
+        bgGradient.addColorStop(0, "#04121f");
+        bgGradient.addColorStop(1, "#0a1f2d");
+        context.fillStyle = bgGradient;
+        context.fillRect(0, 0, width, height);
+
+        context.strokeStyle = "rgba(148, 163, 184, 0.35)";
+        context.lineWidth = 3;
+        context.strokeRect(10, 10, width - 20, height - 20);
+
+        context.fillStyle = "rgba(148, 163, 184, 0.82)";
+        context.font = "600 32px 'Segoe UI', 'Inter', sans-serif";
+        context.fillText("ENGINEERING CONSOLE", 56, 72);
+
+        const zoneWidth = actionZone.maxX - actionZone.minX;
+        const zoneHeight = actionZone.maxY - actionZone.minY;
+        const zoneGradient = context.createLinearGradient(
+          actionZone.minX,
+          actionZone.minY,
+          actionZone.maxX,
+          actionZone.maxY
+        );
+        if (hovered) {
+          zoneGradient.addColorStop(0, "rgba(16, 185, 129, 0.92)");
+          zoneGradient.addColorStop(1, "rgba(20, 184, 166, 0.78)");
+        } else {
+          zoneGradient.addColorStop(0, "rgba(15, 118, 210, 0.56)");
+          zoneGradient.addColorStop(1, "rgba(56, 189, 248, 0.32)");
+        }
+
+        context.fillStyle = zoneGradient;
+        context.fillRect(actionZone.minX, actionZone.minY, zoneWidth, zoneHeight);
+        context.lineWidth = hovered ? 4 : 2;
+        context.strokeStyle = hovered
+          ? "rgba(134, 239, 172, 0.92)"
+          : "rgba(148, 163, 184, 0.45)";
+        context.strokeRect(actionZone.minX, actionZone.minY, zoneWidth, zoneHeight);
+
+        context.fillStyle = hovered ? "#052e2b" : "#e2e8f0";
+        context.font = "700 72px 'Segoe UI', 'Inter', sans-serif";
+        context.fillText("DRONE SKINS", actionZone.minX + 44, actionZone.minY + 108);
+
+        context.fillStyle = hovered ? "rgba(7, 44, 36, 0.92)" : "rgba(148, 163, 184, 0.9)";
+        context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
+        context.fillText(
+          "Open customization station",
+          actionZone.minX + 46,
+          actionZone.minY + 164
+        );
+
+        context.fillStyle = hovered ? "rgba(22, 101, 52, 0.95)" : "rgba(51, 65, 85, 0.85)";
+        context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
+        context.fillText(
+          hovered ? "READY" : "STANDBY",
+          actionZone.maxX - 188,
+          actionZone.maxY - 26
+        );
+      };
+
+      draw();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+
+      return {
+        texture,
+        getQuickAccessZones: () => [actionZone],
+        getQuickAccessTextureSize: () => ({ width, height }),
+        setHoveredZone: (zoneId) => {
+          if (disposed) {
+            return;
+          }
+
+          const shouldHover = zoneId === actionZone.id;
+          if (hovered === shouldHover) {
+            return;
+          }
+
+          hovered = shouldHover;
+          draw();
+          texture.needsUpdate = true;
+        },
+        update: () => {},
+        dispose: () => {
+          if (disposed) {
+            return;
+          }
+          disposed = true;
+          texture.dispose();
+        },
+      };
+    };
+
+    const droneCustomizationTableX = bayWidth * 0.24;
+    const droneCustomizationTableZ = -bayDepth / 2 + 2.25;
+    const droneCustomizationTableTopOffset = 0.82;
+    const droneCustomizationTableTop = new THREE.Mesh(
+      new THREE.BoxGeometry(1.35, 0.08, 0.72),
+      catwalkMaterial
+    );
+    droneCustomizationTableTop.position.set(
+      droneCustomizationTableX,
+      roomFloorY + droneCustomizationTableTopOffset,
+      droneCustomizationTableZ
+    );
+    group.add(droneCustomizationTableTop);
+
+    const droneCustomizationTableLegGeometry = new THREE.BoxGeometry(0.1, 0.74, 0.1);
+    const droneCustomizationTableLegOffsets = [
+      [-0.56, 0.37, -0.26],
+      [0.56, 0.37, -0.26],
+      [-0.56, 0.37, 0.26],
+      [0.56, 0.37, 0.26],
+    ];
+    const droneCustomizationTableLegs = droneCustomizationTableLegOffsets.map(
+      ([x, y, z]) => {
+        const leg = new THREE.Mesh(droneCustomizationTableLegGeometry, beamMaterial);
+        leg.position.set(
+          droneCustomizationTableX + x,
+          roomFloorY + y,
+          droneCustomizationTableZ + z
+        );
+        group.add(leg);
+        return leg;
+      }
+    );
+
+    const droneCustomizationDisplay = createDroneCustomizationDisplay();
+    const droneCustomizationScreenMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: droneCustomizationDisplay.texture,
+      emissive: new THREE.Color(0x0f172a),
+      emissiveMap: droneCustomizationDisplay.texture,
+      emissiveIntensity: 0.4,
+      metalness: 0.16,
+      roughness: 0.22,
+      side: THREE.DoubleSide,
+    });
+    const droneCustomizationScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.86, 0.42),
+      droneCustomizationScreenMaterial
+    );
+    droneCustomizationScreen.position.set(
+      droneCustomizationTableX,
+      roomFloorY + 1.07,
+      droneCustomizationTableZ - 0.08
+    );
+    droneCustomizationScreen.rotation.x = -THREE.MathUtils.degToRad(18);
+    droneCustomizationScreen.userData.getQuickAccessZones = () =>
+      droneCustomizationDisplay.getQuickAccessZones();
+    droneCustomizationScreen.userData.getQuickAccessTextureSize = () =>
+      droneCustomizationDisplay.getQuickAccessTextureSize();
+    droneCustomizationScreen.userData.setHoveredZone = (zoneId) => {
+      droneCustomizationDisplay.setHoveredZone(zoneId);
+    };
+    droneCustomizationScreen.userData.updateDisplayTexture = (delta = 0, elapsed = 0) => {
+      droneCustomizationDisplay.update(delta, elapsed);
+    };
+    droneCustomizationScreen.userData.dispose = () => {
+      droneCustomizationDisplay.dispose();
+    };
+    group.add(droneCustomizationScreen);
+
+    const droneCustomizationPad = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.22, 0.06, 24),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0f172a),
+        roughness: 0.28,
+        metalness: 0.55,
+        emissive: new THREE.Color(0x0ea5e9),
+        emissiveIntensity: 0.4,
+      })
+    );
+    droneCustomizationPad.position.set(
+      droneCustomizationTableX - 0.34,
+      roomFloorY + 0.88,
+      droneCustomizationTableZ + 0.05
+    );
+    group.add(droneCustomizationPad);
+
+    const droneCustomizationBeacon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 14, 12),
+      new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    droneCustomizationBeacon.position.set(
+      droneCustomizationTableX - 0.34,
+      roomFloorY + 1.02,
+      droneCustomizationTableZ + 0.05
+    );
+    group.add(droneCustomizationBeacon);
+
     const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
       includeBackWall: true,
     });
@@ -8511,10 +8747,17 @@ export const initScene = (
       { object: consoleScreen, offset: 0.72 },
       { object: coolantPipe, offset: 1.1 },
       { object: returnPipe, offset: 1.1 },
+      { object: droneCustomizationTableTop, offset: droneCustomizationTableTopOffset },
+      { object: droneCustomizationScreen, offset: 1.07 },
+      { object: droneCustomizationPad, offset: 0.88 },
+      { object: droneCustomizationBeacon, offset: 1.02 },
     ];
 
     beams.forEach((beam) => {
       adjustableEntries.push({ object: beam, offset: 1.3 });
+    });
+    droneCustomizationTableLegs.forEach((leg) => {
+      adjustableEntries.push({ object: leg, offset: 0.37 });
     });
 
     const mapOverlay = createStoredAreaOverlay({
@@ -8556,6 +8799,7 @@ export const initScene = (
       group,
       liftDoor,
       liftDoors: [liftDoor, ...mapLiftDoors],
+      quickAccessInteractables: [droneCustomizationScreen],
       updateForRoomHeight,
       teleportOffset,
       starFields: [],
@@ -9340,7 +9584,14 @@ export const initScene = (
       const viewDistanceTargets = sanitizeObject3DTargetList(
         environment?.viewDistanceTargets
       );
+      const quickAccessTargets = sanitizeObject3DTargetList(
+        environment?.quickAccessInteractables
+      );
       enableTerrainLayerForTiles(terrainTiles);
+
+      if (group.userData && typeof group.userData === "object") {
+        group.userData.quickAccessInteractables = quickAccessTargets;
+      }
 
       const starFields = Array.isArray(environment?.starFields)
         ? environment.starFields.filter((field) => field?.isObject3D)
@@ -10027,7 +10278,6 @@ export const initScene = (
   updateEnvironmentForPlayerHeight();
 
   const raycaster = new THREE.Raycaster();
-  const quickAccessInteractables = [];
   const MAX_TERMINAL_INTERACTION_DISTANCE = 1.5;
 
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
@@ -10080,10 +10330,90 @@ export const initScene = (
   };
 
   const monitorScreen = computerSetup.userData?.monitorScreen;
-  let currentMonitorHoveredZoneId = null;
-  if (monitorScreen) {
-    quickAccessInteractables.push(monitorScreen);
-  }
+  let currentQuickAccessHoveredObject = null;
+  let currentQuickAccessHoveredZoneId = null;
+
+  const collectEnvironmentQuickAccessInteractables = () => {
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (!activeFloorId) {
+      return [];
+    }
+
+    const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
+    const activeGroup = activeEnvironment?.getGroup?.();
+    const targets = activeGroup?.userData?.quickAccessInteractables;
+    if (!Array.isArray(targets) || targets.length === 0) {
+      return [];
+    }
+
+    return targets.filter(
+      (target) =>
+        target?.isObject3D &&
+        target.visible !== false &&
+        target.parent
+    );
+  };
+
+  const getActiveQuickAccessInteractables = () => {
+    const result = [];
+    if (monitorScreen?.isObject3D && monitorScreen.visible !== false && monitorScreen.parent) {
+      result.push(monitorScreen);
+    }
+
+    const environmentTargets = collectEnvironmentQuickAccessInteractables();
+    environmentTargets.forEach((target) => {
+      if (!result.includes(target)) {
+        result.push(target);
+      }
+    });
+
+    return result;
+  };
+
+  const findQuickAccessSurface = (object) => {
+    let current = object;
+
+    while (current) {
+      const hasZones = typeof current.userData?.getQuickAccessZones === "function";
+      const hasSize =
+        typeof current.userData?.getQuickAccessTextureSize === "function";
+      if (hasZones && hasSize) {
+        return current;
+      }
+      current = current.parent;
+    }
+
+    return null;
+  };
+
+  const setQuickAccessHoverState = (nextObject = null, nextZoneId = null) => {
+    const resolvedObject = nextObject?.isObject3D ? nextObject : null;
+    const resolvedZoneId =
+      typeof nextZoneId === "string" && nextZoneId.trim() !== ""
+        ? nextZoneId
+        : null;
+
+    if (
+      currentQuickAccessHoveredObject === resolvedObject &&
+      currentQuickAccessHoveredZoneId === resolvedZoneId
+    ) {
+      return;
+    }
+
+    const previousObject = currentQuickAccessHoveredObject;
+    const previousSetter = previousObject?.userData?.setHoveredZone;
+    if (typeof previousSetter === "function") {
+      previousSetter(null);
+    }
+
+    currentQuickAccessHoveredObject = resolvedObject;
+    currentQuickAccessHoveredZoneId = resolvedZoneId;
+
+    const nextSetter = resolvedObject?.userData?.setHoveredZone;
+    if (typeof nextSetter === "function") {
+      nextSetter(resolvedZoneId);
+    }
+  };
 
   const storedPlayerState = loadStoredPlayerState();
   const storedDroneState = loadStoredDroneState();
@@ -10867,6 +11197,7 @@ export const initScene = (
     }
     return texture ?? null;
   };
+  const droneSkinTextureCache = new Map();
   const loadDroneSkinTexture = (
     path,
     { isColorTexture = false, repeatX = 1, repeatY = 1 } = {}
@@ -10877,6 +11208,18 @@ export const initScene = (
       return null;
     }
 
+    const safeRepeatX = Number.isFinite(repeatX) && repeatX > 0 ? repeatX : 1;
+    const safeRepeatY = Number.isFinite(repeatY) && repeatY > 0 ? repeatY : 1;
+    const textureCacheKey = [
+      isColorTexture ? "srgb" : "linear",
+      safeRepeatX,
+      safeRepeatY,
+      resolvedUrl,
+    ].join("|");
+    if (droneSkinTextureCache.has(textureCacheKey)) {
+      return droneSkinTextureCache.get(textureCacheKey);
+    }
+
     try {
       const texture = textureLoader.load(resolvedUrl);
       texture.colorSpace = isColorTexture
@@ -10884,94 +11227,222 @@ export const initScene = (
         : THREE.NoColorSpace;
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(
-        Number.isFinite(repeatX) && repeatX > 0 ? repeatX : 1,
-        Number.isFinite(repeatY) && repeatY > 0 ? repeatY : 1
-      );
+      texture.repeat.set(safeRepeatX, safeRepeatY);
       texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      return trackDroneTexture(texture);
+      const trackedTexture = trackDroneTexture(texture);
+      droneSkinTextureCache.set(textureCacheKey, trackedTexture);
+      return trackedTexture;
     } catch (error) {
       console.warn(`Unable to load drone skin texture: ${path}`, error);
       return null;
     }
   };
-  const DRONE_SKIN_TEXTURES = Object.freeze({
-    hullBaseColor: "images/textures/pack5/001_honeycomb_baseColor.png",
-    hullNormal: "images/textures/pack5/001_honeycomb_normal.png",
-    hullOrm: "images/textures/pack5/001_honeycomb_ORM.png",
-    hullEmissive: "images/textures/pack5/001_honeycomb_emissive.png",
-    frameBaseColor: "images/textures/pack1/003_hex_plate_black_baseColor.png",
-    frameNormal: "images/textures/pack1/003_hex_plate_black_normal.png",
-    frameOrm: "images/textures/pack1/003_hex_plate_black_ORM.png",
-    visorBaseColor: "images/textures/pack1/010_red_screen_baseColor.png",
-    visorNormal: "images/textures/pack1/010_red_screen_normal.png",
-    visorOrm: "images/textures/pack1/010_red_screen_ORM.png",
-    visorEmissive: "images/textures/pack1/010_red_screen_emissive.png",
-    cutterBaseColor: "images/textures/pack1/009_red_nanogrid_glow_baseColor.png",
-    cutterNormal: "images/textures/pack1/009_red_nanogrid_glow_normal.png",
-    cutterOrm: "images/textures/pack1/009_red_nanogrid_glow_ORM.png",
-    cutterEmissive: "images/textures/pack1/009_red_nanogrid_glow_emissive.png",
-  });
-  const droneHullBaseColorTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.hullBaseColor,
-    { isColorTexture: true, repeatX: 1.4, repeatY: 1.4 }
+  const DRONE_DEFAULT_SKIN_ID = "teal-honeycomb";
+  const DRONE_SKIN_PRESETS = Object.freeze([
+    {
+      id: "teal-honeycomb",
+      label: "Teal Honeycomb",
+      description: "Default engineering livery with cyan diagnostics.",
+      hull: {
+        baseColor: "images/textures/pack5/001_honeycomb_baseColor.png",
+        normal: "images/textures/pack5/001_honeycomb_normal.png",
+        orm: "images/textures/pack5/001_honeycomb_ORM.png",
+        emissive: "images/textures/pack5/001_honeycomb_emissive.png",
+        repeatX: 1.4,
+        repeatY: 1.4,
+        color: 0xffffff,
+        emissiveColor: 0x111827,
+        emissiveIntensity: 0.28,
+        metalness: 0.62,
+        roughness: 0.52,
+        normalScaleX: 0.7,
+        normalScaleY: 0.7,
+      },
+      frame: {
+        baseColor: "images/textures/pack1/003_hex_plate_black_baseColor.png",
+        normal: "images/textures/pack1/003_hex_plate_black_normal.png",
+        orm: "images/textures/pack1/003_hex_plate_black_ORM.png",
+        repeatX: 2,
+        repeatY: 1.2,
+        color: 0xffffff,
+        metalness: 0.7,
+        roughness: 0.48,
+        normalScaleX: 0.55,
+        normalScaleY: 0.55,
+      },
+      visor: {
+        baseColor: "images/textures/pack1/010_red_screen_baseColor.png",
+        normal: "images/textures/pack1/010_red_screen_normal.png",
+        orm: "images/textures/pack1/010_red_screen_ORM.png",
+        emissive: "images/textures/pack1/010_red_screen_emissive.png",
+        repeatX: 1.1,
+        repeatY: 1.1,
+        color: 0xffffff,
+        emissiveColor: 0xef4444,
+        emissiveIntensity: 0.85,
+        metalness: 0.35,
+        roughness: 0.24,
+        normalScaleX: 0.6,
+        normalScaleY: 0.6,
+      },
+      cutter: {
+        baseColor: "images/textures/pack1/009_red_nanogrid_glow_baseColor.png",
+        normal: "images/textures/pack1/009_red_nanogrid_glow_normal.png",
+        orm: "images/textures/pack1/009_red_nanogrid_glow_ORM.png",
+        emissive: "images/textures/pack1/009_red_nanogrid_glow_emissive.png",
+        repeatX: 1.5,
+        repeatY: 1.5,
+        color: 0xffffff,
+        emissiveColor: 0xf97316,
+        emissiveIntensity: 0.48,
+        metalness: 0.45,
+        roughness: 0.32,
+        normalScaleX: 0.6,
+        normalScaleY: 0.6,
+      },
+      lights: {
+        head: 0x93c5fd,
+        cutter: 0xf97316,
+        glow: 0xfcd34d,
+      },
+    },
+    {
+      id: "hazard-stripe",
+      label: "Hazard Stripe",
+      description: "High-visibility industrial maintenance skin.",
+      hull: {
+        baseColor: "images/textures/pack1/024_hazard_dark_yellow_baseColor.png",
+        normal: "images/textures/pack1/024_hazard_dark_yellow_normal.png",
+        orm: "images/textures/pack1/024_hazard_dark_yellow_ORM.png",
+        repeatX: 1.4,
+        repeatY: 1.4,
+        color: 0xffffff,
+        emissiveColor: 0x0a0f1a,
+        emissiveIntensity: 0.24,
+        metalness: 0.58,
+        roughness: 0.55,
+        normalScaleX: 0.7,
+        normalScaleY: 0.7,
+      },
+      frame: {
+        baseColor: "images/textures/pack1/004_grille_dark_baseColor.png",
+        normal: "images/textures/pack1/004_grille_dark_normal.png",
+        orm: "images/textures/pack1/004_grille_dark_ORM.png",
+        repeatX: 2,
+        repeatY: 1.2,
+        color: 0xffffff,
+        metalness: 0.74,
+        roughness: 0.46,
+        normalScaleX: 0.52,
+        normalScaleY: 0.52,
+      },
+      visor: {
+        baseColor: "images/textures/pack1/021_red_screen_baseColor.png",
+        normal: "images/textures/pack1/021_red_screen_normal.png",
+        orm: "images/textures/pack1/021_red_screen_ORM.png",
+        emissive: "images/textures/pack1/021_red_screen_emissive.png",
+        repeatX: 1.1,
+        repeatY: 1.1,
+        color: 0xffffff,
+        emissiveColor: 0xf97316,
+        emissiveIntensity: 0.92,
+        metalness: 0.36,
+        roughness: 0.22,
+        normalScaleX: 0.6,
+        normalScaleY: 0.6,
+      },
+      cutter: {
+        baseColor: "images/textures/pack1/020_red_nanogrid_glow_baseColor.png",
+        normal: "images/textures/pack1/020_red_nanogrid_glow_normal.png",
+        orm: "images/textures/pack1/020_red_nanogrid_glow_ORM.png",
+        emissive: "images/textures/pack1/020_red_nanogrid_glow_emissive.png",
+        repeatX: 1.4,
+        repeatY: 1.4,
+        color: 0xffffff,
+        emissiveColor: 0xf97316,
+        emissiveIntensity: 0.52,
+        metalness: 0.46,
+        roughness: 0.3,
+        normalScaleX: 0.6,
+        normalScaleY: 0.6,
+      },
+      lights: {
+        head: 0xfacc15,
+        cutter: 0xf97316,
+        glow: 0xfb923c,
+      },
+    },
+    {
+      id: "carbon-redline",
+      label: "Carbon Redline",
+      description: "Stealth carbon shell with aggressive red accents.",
+      hull: {
+        baseColor: "images/textures/pack1/019_black_carbon_baseColor.png",
+        normal: "images/textures/pack1/019_black_carbon_normal.png",
+        orm: "images/textures/pack1/019_black_carbon_ORM.png",
+        repeatX: 1.5,
+        repeatY: 1.5,
+        color: 0xffffff,
+        emissiveColor: 0x020617,
+        emissiveIntensity: 0.2,
+        metalness: 0.66,
+        roughness: 0.44,
+        normalScaleX: 0.72,
+        normalScaleY: 0.72,
+      },
+      frame: {
+        baseColor: "images/textures/pack1/011_black_alloy_baseColor.png",
+        normal: "images/textures/pack1/011_black_alloy_normal.png",
+        orm: "images/textures/pack1/011_black_alloy_ORM.png",
+        repeatX: 2,
+        repeatY: 1.2,
+        color: 0xffffff,
+        metalness: 0.78,
+        roughness: 0.42,
+        normalScaleX: 0.5,
+        normalScaleY: 0.5,
+      },
+      visor: {
+        baseColor: "images/textures/pack1/032_red_screen_baseColor.png",
+        normal: "images/textures/pack1/032_red_screen_normal.png",
+        orm: "images/textures/pack1/032_red_screen_ORM.png",
+        emissive: "images/textures/pack1/032_red_screen_emissive.png",
+        repeatX: 1.2,
+        repeatY: 1.2,
+        color: 0xffffff,
+        emissiveColor: 0xdc2626,
+        emissiveIntensity: 1,
+        metalness: 0.38,
+        roughness: 0.18,
+        normalScaleX: 0.62,
+        normalScaleY: 0.62,
+      },
+      cutter: {
+        baseColor: "images/textures/pack1/031_red_nanogrid_glow_baseColor.png",
+        normal: "images/textures/pack1/031_red_nanogrid_glow_normal.png",
+        orm: "images/textures/pack1/031_red_nanogrid_glow_ORM.png",
+        emissive: "images/textures/pack1/031_red_nanogrid_glow_emissive.png",
+        repeatX: 1.5,
+        repeatY: 1.5,
+        color: 0xffffff,
+        emissiveColor: 0xea580c,
+        emissiveIntensity: 0.58,
+        metalness: 0.48,
+        roughness: 0.28,
+        normalScaleX: 0.64,
+        normalScaleY: 0.64,
+      },
+      lights: {
+        head: 0xfda4af,
+        cutter: 0xf97316,
+        glow: 0xfb7185,
+      },
+    },
+  ]);
+  const droneSkinPresetsById = new Map(
+    DRONE_SKIN_PRESETS.map((preset) => [preset.id, preset])
   );
-  const droneHullNormalTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.hullNormal,
-    { repeatX: 1.4, repeatY: 1.4 }
-  );
-  const droneHullOrmTexture = loadDroneSkinTexture(DRONE_SKIN_TEXTURES.hullOrm, {
-    repeatX: 1.4,
-    repeatY: 1.4,
-  });
-  const droneHullEmissiveTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.hullEmissive,
-    { isColorTexture: true, repeatX: 1.4, repeatY: 1.4 }
-  );
-  const droneFrameBaseColorTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.frameBaseColor,
-    { isColorTexture: true, repeatX: 2, repeatY: 1.2 }
-  );
-  const droneFrameNormalTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.frameNormal,
-    { repeatX: 2, repeatY: 1.2 }
-  );
-  const droneFrameOrmTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.frameOrm,
-    { repeatX: 2, repeatY: 1.2 }
-  );
-  const droneVisorBaseColorTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.visorBaseColor,
-    { isColorTexture: true, repeatX: 1.1, repeatY: 1.1 }
-  );
-  const droneVisorNormalTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.visorNormal,
-    { repeatX: 1.1, repeatY: 1.1 }
-  );
-  const droneVisorOrmTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.visorOrm,
-    { repeatX: 1.1, repeatY: 1.1 }
-  );
-  const droneVisorEmissiveTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.visorEmissive,
-    { isColorTexture: true, repeatX: 1.1, repeatY: 1.1 }
-  );
-  const droneCutterBaseColorTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.cutterBaseColor,
-    { isColorTexture: true, repeatX: 1.5, repeatY: 1.5 }
-  );
-  const droneCutterNormalTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.cutterNormal,
-    { repeatX: 1.5, repeatY: 1.5 }
-  );
-  const droneCutterOrmTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.cutterOrm,
-    { repeatX: 1.5, repeatY: 1.5 }
-  );
-  const droneCutterEmissiveTexture = loadDroneSkinTexture(
-    DRONE_SKIN_TEXTURES.cutterEmissive,
-    { isColorTexture: true, repeatX: 1.5, repeatY: 1.5 }
-  );
+  let activeDroneSkinId = DRONE_DEFAULT_SKIN_ID;
   const registerDroneMesh = (mesh, { parent = droneMinerGroup } = {}) => {
     if (!mesh) {
       return null;
@@ -10985,44 +11456,36 @@ export const initScene = (
     return mesh;
   };
 
+  const droneHullMaterial = new THREE.MeshStandardMaterial({
+    color: 0x3b82f6,
+    emissive: 0x111827,
+    emissiveIntensity: 0.28,
+    metalness: 0.62,
+    roughness: 0.52,
+    normalScale: new THREE.Vector2(0.7, 0.7),
+  });
   const droneHull = registerDroneMesh(
     new THREE.Mesh(
       new THREE.SphereGeometry(0.22, 24, 18),
-      new THREE.MeshStandardMaterial({
-        color: droneHullBaseColorTexture ? 0xffffff : 0x3b82f6,
-        emissive: 0x111827,
-        emissiveIntensity: 0.28,
-        metalness: 0.62,
-        roughness: 0.52,
-        map: droneHullBaseColorTexture,
-        normalMap: droneHullNormalTexture,
-        roughnessMap: droneHullOrmTexture,
-        metalnessMap: droneHullOrmTexture,
-        emissiveMap: droneHullEmissiveTexture,
-        normalScale: new THREE.Vector2(0.7, 0.7),
-      })
+      droneHullMaterial
     )
   );
   if (droneHull) {
     droneHull.position.set(0, 0, 0);
   }
 
+  const droneVisorMaterial = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    emissive: 0xef4444,
+    emissiveIntensity: 0.85,
+    metalness: 0.35,
+    roughness: 0.24,
+    normalScale: new THREE.Vector2(0.6, 0.6),
+  });
   const droneVisor = registerDroneMesh(
     new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.05, 0.12, 18),
-      new THREE.MeshStandardMaterial({
-        color: droneVisorBaseColorTexture ? 0xffffff : 0xe2e8f0,
-        emissive: 0xef4444,
-        emissiveIntensity: 0.85,
-        metalness: 0.35,
-        roughness: 0.24,
-        map: droneVisorBaseColorTexture,
-        normalMap: droneVisorNormalTexture,
-        roughnessMap: droneVisorOrmTexture,
-        metalnessMap: droneVisorOrmTexture,
-        emissiveMap: droneVisorEmissiveTexture,
-        normalScale: new THREE.Vector2(0.6, 0.6),
-      })
+      droneVisorMaterial
     )
   );
   if (droneVisor) {
@@ -11031,13 +11494,9 @@ export const initScene = (
   }
 
   const droneThrusterMaterial = new THREE.MeshStandardMaterial({
-    color: droneFrameBaseColorTexture ? 0xffffff : 0x1f2937,
+    color: 0x1f2937,
     metalness: 0.7,
     roughness: 0.48,
-    map: droneFrameBaseColorTexture,
-    normalMap: droneFrameNormalTexture,
-    roughnessMap: droneFrameOrmTexture,
-    metalnessMap: droneFrameOrmTexture,
     normalScale: new THREE.Vector2(0.55, 0.55),
   });
   trackDroneMaterial(droneThrusterMaterial);
@@ -11057,19 +11516,16 @@ export const initScene = (
   rotorGroup.position.set(0, 0.18, 0);
   droneMinerGroup.add(rotorGroup);
 
+  const rotorHubMaterial = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8,
+    metalness: 0.72,
+    roughness: 0.36,
+    normalScale: new THREE.Vector2(0.55, 0.55),
+  });
   const rotorHub = registerDroneMesh(
     new THREE.Mesh(
       new THREE.CylinderGeometry(0.03, 0.03, 0.04, 16),
-      new THREE.MeshStandardMaterial({
-        color: droneFrameBaseColorTexture ? 0xffffff : 0x94a3b8,
-        metalness: 0.72,
-        roughness: 0.36,
-        map: droneFrameBaseColorTexture,
-        normalMap: droneFrameNormalTexture,
-        roughnessMap: droneFrameOrmTexture,
-        metalnessMap: droneFrameOrmTexture,
-        normalScale: new THREE.Vector2(0.55, 0.55),
-      })
+      rotorHubMaterial
     ),
     { parent: rotorGroup }
   );
@@ -11078,13 +11534,9 @@ export const initScene = (
   }
 
   const rotorBladeMaterial = new THREE.MeshStandardMaterial({
-    color: droneFrameBaseColorTexture ? 0xffffff : 0xcbd5f5,
+    color: 0xcbd5f5,
     metalness: 0.42,
     roughness: 0.54,
-    map: droneFrameBaseColorTexture,
-    normalMap: droneFrameNormalTexture,
-    roughnessMap: droneFrameOrmTexture,
-    metalnessMap: droneFrameOrmTexture,
     normalScale: new THREE.Vector2(0.45, 0.45),
   });
   trackDroneMaterial(rotorBladeMaterial);
@@ -11099,16 +11551,11 @@ export const initScene = (
   });
 
   const droneCutterMaterial = new THREE.MeshStandardMaterial({
-    color: droneCutterBaseColorTexture ? 0xffffff : 0xf97316,
+    color: 0xf97316,
     emissive: 0xf97316,
     emissiveIntensity: 0.48,
     metalness: 0.45,
     roughness: 0.32,
-    map: droneCutterBaseColorTexture,
-    normalMap: droneCutterNormalTexture,
-    roughnessMap: droneCutterOrmTexture,
-    metalnessMap: droneCutterOrmTexture,
-    emissiveMap: droneCutterEmissiveTexture,
     normalScale: new THREE.Vector2(0.6, 0.6),
   });
   trackDroneMaterial(droneCutterMaterial);
@@ -11141,6 +11588,198 @@ export const initScene = (
   const droneCutterLight = new THREE.PointLight(0xf97316, 0.8, 2.6, 2.5);
   droneCutterLight.position.set(0, -0.22, 0.04);
   droneMinerGroup.add(droneCutterLight);
+
+  const resolveDroneSkinPreset = (skinId) => {
+    const normalizedId =
+      typeof skinId === "string" && skinId.trim() !== ""
+        ? skinId.trim().toLowerCase()
+        : DRONE_DEFAULT_SKIN_ID;
+
+    if (droneSkinPresetsById.has(normalizedId)) {
+      return droneSkinPresetsById.get(normalizedId);
+    }
+
+    return (
+      droneSkinPresetsById.get(DRONE_DEFAULT_SKIN_ID) ??
+      DRONE_SKIN_PRESETS[0] ??
+      null
+    );
+  };
+
+  const applyDroneSkinSurface = (
+    material,
+    surfaceConfig,
+    {
+      defaultColor = 0xffffff,
+      defaultEmissiveColor = 0x000000,
+      includeEmissiveMap = false,
+      defaultNormalScaleX = 1,
+      defaultNormalScaleY = 1,
+      defaultEmissiveIntensity = 0,
+      defaultMetalness = 0.5,
+      defaultRoughness = 0.5,
+    } = {}
+  ) => {
+    if (!material) {
+      return;
+    }
+
+    const config = surfaceConfig && typeof surfaceConfig === "object" ? surfaceConfig : {};
+    const repeatX = Number.isFinite(config.repeatX) && config.repeatX > 0 ? config.repeatX : 1;
+    const repeatY = Number.isFinite(config.repeatY) && config.repeatY > 0 ? config.repeatY : 1;
+
+    material.color.setHex(
+      Number.isFinite(config.color) ? config.color : defaultColor
+    );
+    material.emissive.setHex(
+      Number.isFinite(config.emissiveColor)
+        ? config.emissiveColor
+        : defaultEmissiveColor
+    );
+    material.emissiveIntensity = Number.isFinite(config.emissiveIntensity)
+      ? config.emissiveIntensity
+      : defaultEmissiveIntensity;
+    material.metalness = Number.isFinite(config.metalness)
+      ? config.metalness
+      : defaultMetalness;
+    material.roughness = Number.isFinite(config.roughness)
+      ? config.roughness
+      : defaultRoughness;
+
+    material.map =
+      typeof config.baseColor === "string"
+        ? loadDroneSkinTexture(config.baseColor, {
+            isColorTexture: true,
+            repeatX,
+            repeatY,
+          })
+        : null;
+    material.normalMap =
+      typeof config.normal === "string"
+        ? loadDroneSkinTexture(config.normal, { repeatX, repeatY })
+        : null;
+
+    const ormTexture =
+      typeof config.orm === "string"
+        ? loadDroneSkinTexture(config.orm, { repeatX, repeatY })
+        : null;
+    material.roughnessMap = ormTexture;
+    material.metalnessMap = ormTexture;
+
+    if (includeEmissiveMap) {
+      material.emissiveMap =
+        typeof config.emissive === "string"
+          ? loadDroneSkinTexture(config.emissive, {
+              isColorTexture: true,
+              repeatX,
+              repeatY,
+            })
+          : null;
+    } else {
+      material.emissiveMap = null;
+    }
+
+    const normalScaleX = Number.isFinite(config.normalScaleX)
+      ? config.normalScaleX
+      : defaultNormalScaleX;
+    const normalScaleY = Number.isFinite(config.normalScaleY)
+      ? config.normalScaleY
+      : defaultNormalScaleY;
+    material.normalScale.set(normalScaleX, normalScaleY);
+    material.needsUpdate = true;
+  };
+
+  const applyDroneSkinPreset = (preset) => {
+    if (!preset) {
+      return activeDroneSkinId;
+    }
+
+    applyDroneSkinSurface(droneHullMaterial, preset.hull, {
+      defaultColor: 0x3b82f6,
+      defaultEmissiveColor: 0x111827,
+      includeEmissiveMap: true,
+      defaultNormalScaleX: 0.7,
+      defaultNormalScaleY: 0.7,
+      defaultEmissiveIntensity: 0.28,
+      defaultMetalness: 0.62,
+      defaultRoughness: 0.52,
+    });
+
+    [droneThrusterMaterial, rotorHubMaterial, rotorBladeMaterial].forEach(
+      (material) => {
+        applyDroneSkinSurface(material, preset.frame, {
+          defaultColor: 0x1f2937,
+          defaultEmissiveColor: 0x000000,
+          includeEmissiveMap: false,
+          defaultNormalScaleX: 0.52,
+          defaultNormalScaleY: 0.52,
+          defaultEmissiveIntensity: 0,
+          defaultMetalness: 0.7,
+          defaultRoughness: 0.48,
+        });
+      }
+    );
+
+    applyDroneSkinSurface(droneVisorMaterial, preset.visor, {
+      defaultColor: 0xe2e8f0,
+      defaultEmissiveColor: 0xef4444,
+      includeEmissiveMap: true,
+      defaultNormalScaleX: 0.6,
+      defaultNormalScaleY: 0.6,
+      defaultEmissiveIntensity: 0.85,
+      defaultMetalness: 0.35,
+      defaultRoughness: 0.24,
+    });
+
+    applyDroneSkinSurface(droneCutterMaterial, preset.cutter, {
+      defaultColor: 0xf97316,
+      defaultEmissiveColor: 0xf97316,
+      includeEmissiveMap: true,
+      defaultNormalScaleX: 0.6,
+      defaultNormalScaleY: 0.6,
+      defaultEmissiveIntensity: 0.48,
+      defaultMetalness: 0.45,
+      defaultRoughness: 0.32,
+    });
+
+    if (Number.isFinite(preset?.lights?.head)) {
+      droneHeadLight.color.setHex(preset.lights.head);
+    } else {
+      droneHeadLight.color.setHex(0x93c5fd);
+    }
+    if (Number.isFinite(preset?.lights?.cutter)) {
+      droneCutterLight.color.setHex(preset.lights.cutter);
+    } else {
+      droneCutterLight.color.setHex(0xf97316);
+    }
+    if (Number.isFinite(preset?.lights?.glow)) {
+      droneCutterGlowMaterial.color.setHex(preset.lights.glow);
+      droneCutterGlowMaterial.needsUpdate = true;
+    } else {
+      droneCutterGlowMaterial.color.setHex(0xfcd34d);
+      droneCutterGlowMaterial.needsUpdate = true;
+    }
+
+    activeDroneSkinId = preset.id;
+    return activeDroneSkinId;
+  };
+
+  const applyDroneSkinPresetById = (skinId) => {
+    const preset = resolveDroneSkinPreset(skinId);
+    if (!preset) {
+      return null;
+    }
+    return applyDroneSkinPreset(preset);
+  };
+
+  const getDroneSkinOptions = () =>
+    DRONE_SKIN_PRESETS.map((preset) => ({
+      id: preset.id,
+      label: preset.label,
+      description: preset.description,
+    }));
+
+  applyDroneSkinPresetById(settings?.droneSkinId);
 
   const DRONE_MINER_HOVER_AMPLITUDE = 0.08;
   const DRONE_MINER_HOVER_SPEED = 2.3;
@@ -13288,6 +13927,7 @@ export const initScene = (
 
     updateTerminalInteractableState(false);
     updateLiftInteractableState(false);
+    setQuickAccessHoverState(null, null);
     setManifestEditModeEnabled(false);
     cancelActivePlacement(new PlacementCancelledError("Pointer lock released"));
   });
@@ -13437,13 +14077,14 @@ export const initScene = (
   };
 
   const getTargetedTerminalZone = () => {
-    if (quickAccessInteractables.length === 0) {
+    const quickAccessTargets = getActiveQuickAccessInteractables();
+    if (quickAccessTargets.length === 0) {
       return null;
     }
 
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     const intersections = raycaster.intersectObjects(
-      quickAccessInteractables,
+      quickAccessTargets,
       false
     );
 
@@ -13451,17 +14092,9 @@ export const initScene = (
       return null;
     }
 
-    const intersection = intersections.find((candidate) => {
-      const zonesProviderCandidate =
-        candidate.object.userData?.getQuickAccessZones;
-      const sizeProviderCandidate =
-        candidate.object.userData?.getQuickAccessTextureSize;
-
-      return (
-        typeof zonesProviderCandidate === "function" &&
-        typeof sizeProviderCandidate === "function"
-      );
-    });
+    const intersection = intersections.find(
+      (candidate) => findQuickAccessSurface(candidate.object) !== null
+    );
 
     if (
       !intersection ||
@@ -13471,9 +14104,13 @@ export const initScene = (
       return null;
     }
 
-    const zones = intersection.object.userData.getQuickAccessZones();
-    const textureSize =
-      intersection.object.userData.getQuickAccessTextureSize();
+    const targetSurface = findQuickAccessSurface(intersection.object);
+    if (!targetSurface) {
+      return null;
+    }
+
+    const zones = targetSurface.userData.getQuickAccessZones();
+    const textureSize = targetSurface.userData.getQuickAccessTextureSize();
 
     if (
       !Array.isArray(zones) ||
@@ -13499,7 +14136,10 @@ export const initScene = (
       return null;
     }
 
-    return matchedZone;
+    return {
+      ...matchedZone,
+      sourceObject: targetSurface,
+    };
   };
 
   const handleCanvasClick = () => {
@@ -13523,10 +14163,6 @@ export const initScene = (
           controls.unlock();
         }
       }
-      return;
-    }
-
-    if (quickAccessInteractables.length === 0) {
       return;
     }
 
@@ -14273,19 +14909,18 @@ export const initScene = (
       updateLiftInteractableState(false);
     }
 
-    const hoveredZoneId = matchedZone?.id ?? null;
-    if (hoveredZoneId !== currentMonitorHoveredZoneId) {
-      currentMonitorHoveredZoneId = hoveredZoneId;
-      const setHoveredZone = monitorScreen?.userData?.setHoveredZone;
-      if (typeof setHoveredZone === "function") {
-        setHoveredZone(currentMonitorHoveredZoneId);
-      }
-    }
+    setQuickAccessHoverState(
+      matchedZone?.sourceObject ?? null,
+      matchedZone?.id ?? null
+    );
 
-    const updateDisplayTexture = monitorScreen?.userData?.updateDisplayTexture;
-    if (typeof updateDisplayTexture === "function") {
-      updateDisplayTexture(delta, clock.elapsedTime);
-    }
+    const quickAccessTargets = getActiveQuickAccessInteractables();
+    quickAccessTargets.forEach((target) => {
+      const updateDisplayTexture = target?.userData?.updateDisplayTexture;
+      if (typeof updateDisplayTexture === "function") {
+        updateDisplayTexture(delta, clock.elapsedTime);
+      }
+    });
 
     playerStateSaveAccumulator += delta;
 
@@ -14384,6 +15019,9 @@ export const initScene = (
       droneMinerState.hasBasePosition
         ? droneMinerState.basePosition.clone()
         : null,
+    getDroneSkinOptions: () => getDroneSkinOptions(),
+    getActiveDroneSkinId: () => activeDroneSkinId,
+    setActiveDroneSkinById: (skinId) => applyDroneSkinPresetById(skinId),
     getOutsideTerrainTileSize: () => {
       if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
         return null;
@@ -14615,6 +15253,7 @@ export const initScene = (
       droneMinerGeometries.length = 0;
       droneMinerMaterials.length = 0;
       droneMinerTextures.length = 0;
+      droneSkinTextureCache.clear();
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }

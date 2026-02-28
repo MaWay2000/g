@@ -5423,6 +5423,31 @@
       </section>
     </template>
 
+    <template id="quick-access-modal-drone-customization">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header">
+        <p class="quick-access-modal__eyebrow">Engineering bay</p>
+        <h2 class="quick-access-modal__title">Drone Customization</h2>
+        <p class="quick-access-modal__subtitle">
+          Select a skin profile for your drone miner. Changes apply immediately.
+        </p>
+      </header>
+      <section class="quick-access-modal__section quick-access-modal__section--lift">
+        <h3 class="quick-access-modal__section-title">Available skins</h3>
+        <ul class="lift-selector" data-drone-skin-list></ul>
+        <p class="lift-selector__empty" data-drone-skin-empty hidden>
+          No drone skins available.
+        </p>
+      </section>
+    </template>
+
     <script type="importmap">
       {
         "imports": {
