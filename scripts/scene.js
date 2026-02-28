@@ -8494,7 +8494,7 @@ export const initScene = (
       const height = 512;
       const actionZone = {
         id: "drone-customization",
-        title: "Drone Customization",
+        title: "Drone Setup",
         description: "Skin and livery station",
         minX: 64,
         maxX: width - 64,
@@ -8569,7 +8569,7 @@ export const initScene = (
         context.fillStyle = hovered ? "rgba(7, 44, 36, 0.92)" : "rgba(148, 163, 184, 0.9)";
         context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
         context.fillText(
-          "Open customization station",
+          "Open setup station",
           actionZone.minX + 46,
           actionZone.minY + 164
         );
