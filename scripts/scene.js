@@ -10841,6 +10841,7 @@ export const initScene = (
 
   const droneMinerGeometries = [];
   const droneMinerMaterials = [];
+  const droneMinerTextures = [];
   const trackDroneGeometry = (geometry) => {
     if (geometry && !droneMinerGeometries.includes(geometry)) {
       droneMinerGeometries.push(geometry);
@@ -10860,6 +10861,117 @@ export const initScene = (
       droneMinerMaterials.push(material);
     }
   };
+  const trackDroneTexture = (texture) => {
+    if (texture && !droneMinerTextures.includes(texture)) {
+      droneMinerTextures.push(texture);
+    }
+    return texture ?? null;
+  };
+  const loadDroneSkinTexture = (
+    path,
+    { isColorTexture = false, repeatX = 1, repeatY = 1 } = {}
+  ) => {
+    const resolvedUrl = resolveAssetUrl(path);
+
+    if (!resolvedUrl) {
+      return null;
+    }
+
+    try {
+      const texture = textureLoader.load(resolvedUrl);
+      texture.colorSpace = isColorTexture
+        ? THREE.SRGBColorSpace
+        : THREE.NoColorSpace;
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(
+        Number.isFinite(repeatX) && repeatX > 0 ? repeatX : 1,
+        Number.isFinite(repeatY) && repeatY > 0 ? repeatY : 1
+      );
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return trackDroneTexture(texture);
+    } catch (error) {
+      console.warn(`Unable to load drone skin texture: ${path}`, error);
+      return null;
+    }
+  };
+  const DRONE_SKIN_TEXTURES = Object.freeze({
+    hullBaseColor: "images/textures/pack5/001_honeycomb_baseColor.png",
+    hullNormal: "images/textures/pack5/001_honeycomb_normal.png",
+    hullOrm: "images/textures/pack5/001_honeycomb_ORM.png",
+    hullEmissive: "images/textures/pack5/001_honeycomb_emissive.png",
+    frameBaseColor: "images/textures/pack1/003_hex_plate_black_baseColor.png",
+    frameNormal: "images/textures/pack1/003_hex_plate_black_normal.png",
+    frameOrm: "images/textures/pack1/003_hex_plate_black_ORM.png",
+    visorBaseColor: "images/textures/pack1/010_red_screen_baseColor.png",
+    visorNormal: "images/textures/pack1/010_red_screen_normal.png",
+    visorOrm: "images/textures/pack1/010_red_screen_ORM.png",
+    visorEmissive: "images/textures/pack1/010_red_screen_emissive.png",
+    cutterBaseColor: "images/textures/pack1/009_red_nanogrid_glow_baseColor.png",
+    cutterNormal: "images/textures/pack1/009_red_nanogrid_glow_normal.png",
+    cutterOrm: "images/textures/pack1/009_red_nanogrid_glow_ORM.png",
+    cutterEmissive: "images/textures/pack1/009_red_nanogrid_glow_emissive.png",
+  });
+  const droneHullBaseColorTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.hullBaseColor,
+    { isColorTexture: true, repeatX: 1.4, repeatY: 1.4 }
+  );
+  const droneHullNormalTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.hullNormal,
+    { repeatX: 1.4, repeatY: 1.4 }
+  );
+  const droneHullOrmTexture = loadDroneSkinTexture(DRONE_SKIN_TEXTURES.hullOrm, {
+    repeatX: 1.4,
+    repeatY: 1.4,
+  });
+  const droneHullEmissiveTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.hullEmissive,
+    { isColorTexture: true, repeatX: 1.4, repeatY: 1.4 }
+  );
+  const droneFrameBaseColorTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.frameBaseColor,
+    { isColorTexture: true, repeatX: 2, repeatY: 1.2 }
+  );
+  const droneFrameNormalTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.frameNormal,
+    { repeatX: 2, repeatY: 1.2 }
+  );
+  const droneFrameOrmTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.frameOrm,
+    { repeatX: 2, repeatY: 1.2 }
+  );
+  const droneVisorBaseColorTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.visorBaseColor,
+    { isColorTexture: true, repeatX: 1.1, repeatY: 1.1 }
+  );
+  const droneVisorNormalTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.visorNormal,
+    { repeatX: 1.1, repeatY: 1.1 }
+  );
+  const droneVisorOrmTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.visorOrm,
+    { repeatX: 1.1, repeatY: 1.1 }
+  );
+  const droneVisorEmissiveTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.visorEmissive,
+    { isColorTexture: true, repeatX: 1.1, repeatY: 1.1 }
+  );
+  const droneCutterBaseColorTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.cutterBaseColor,
+    { isColorTexture: true, repeatX: 1.5, repeatY: 1.5 }
+  );
+  const droneCutterNormalTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.cutterNormal,
+    { repeatX: 1.5, repeatY: 1.5 }
+  );
+  const droneCutterOrmTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.cutterOrm,
+    { repeatX: 1.5, repeatY: 1.5 }
+  );
+  const droneCutterEmissiveTexture = loadDroneSkinTexture(
+    DRONE_SKIN_TEXTURES.cutterEmissive,
+    { isColorTexture: true, repeatX: 1.5, repeatY: 1.5 }
+  );
   const registerDroneMesh = (mesh, { parent = droneMinerGroup } = {}) => {
     if (!mesh) {
       return null;
@@ -10877,11 +10989,17 @@ export const initScene = (
     new THREE.Mesh(
       new THREE.SphereGeometry(0.22, 24, 18),
       new THREE.MeshStandardMaterial({
-        color: 0x3b82f6,
-        emissive: 0x1d4ed8,
-        emissiveIntensity: 0.25,
-        metalness: 0.5,
-        roughness: 0.32,
+        color: droneHullBaseColorTexture ? 0xffffff : 0x3b82f6,
+        emissive: 0x111827,
+        emissiveIntensity: 0.28,
+        metalness: 0.62,
+        roughness: 0.52,
+        map: droneHullBaseColorTexture,
+        normalMap: droneHullNormalTexture,
+        roughnessMap: droneHullOrmTexture,
+        metalnessMap: droneHullOrmTexture,
+        emissiveMap: droneHullEmissiveTexture,
+        normalScale: new THREE.Vector2(0.7, 0.7),
       })
     )
   );
@@ -10893,11 +11011,17 @@ export const initScene = (
     new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.05, 0.12, 18),
       new THREE.MeshStandardMaterial({
-        color: 0xe2e8f0,
-        emissive: 0x93c5fd,
-        emissiveIntensity: 0.65,
-        metalness: 0.15,
-        roughness: 0.2,
+        color: droneVisorBaseColorTexture ? 0xffffff : 0xe2e8f0,
+        emissive: 0xef4444,
+        emissiveIntensity: 0.85,
+        metalness: 0.35,
+        roughness: 0.24,
+        map: droneVisorBaseColorTexture,
+        normalMap: droneVisorNormalTexture,
+        roughnessMap: droneVisorOrmTexture,
+        metalnessMap: droneVisorOrmTexture,
+        emissiveMap: droneVisorEmissiveTexture,
+        normalScale: new THREE.Vector2(0.6, 0.6),
       })
     )
   );
@@ -10907,9 +11031,14 @@ export const initScene = (
   }
 
   const droneThrusterMaterial = new THREE.MeshStandardMaterial({
-    color: 0x1f2937,
-    metalness: 0.55,
-    roughness: 0.4,
+    color: droneFrameBaseColorTexture ? 0xffffff : 0x1f2937,
+    metalness: 0.7,
+    roughness: 0.48,
+    map: droneFrameBaseColorTexture,
+    normalMap: droneFrameNormalTexture,
+    roughnessMap: droneFrameOrmTexture,
+    metalnessMap: droneFrameOrmTexture,
+    normalScale: new THREE.Vector2(0.55, 0.55),
   });
   trackDroneMaterial(droneThrusterMaterial);
   [-0.18, 0.18].forEach((offset) => {
@@ -10932,9 +11061,14 @@ export const initScene = (
     new THREE.Mesh(
       new THREE.CylinderGeometry(0.03, 0.03, 0.04, 16),
       new THREE.MeshStandardMaterial({
-        color: 0x94a3b8,
-        metalness: 0.6,
-        roughness: 0.25,
+        color: droneFrameBaseColorTexture ? 0xffffff : 0x94a3b8,
+        metalness: 0.72,
+        roughness: 0.36,
+        map: droneFrameBaseColorTexture,
+        normalMap: droneFrameNormalTexture,
+        roughnessMap: droneFrameOrmTexture,
+        metalnessMap: droneFrameOrmTexture,
+        normalScale: new THREE.Vector2(0.55, 0.55),
       })
     ),
     { parent: rotorGroup }
@@ -10944,9 +11078,14 @@ export const initScene = (
   }
 
   const rotorBladeMaterial = new THREE.MeshStandardMaterial({
-    color: 0xcbd5f5,
-    metalness: 0.35,
-    roughness: 0.3,
+    color: droneFrameBaseColorTexture ? 0xffffff : 0xcbd5f5,
+    metalness: 0.42,
+    roughness: 0.54,
+    map: droneFrameBaseColorTexture,
+    normalMap: droneFrameNormalTexture,
+    roughnessMap: droneFrameOrmTexture,
+    metalnessMap: droneFrameOrmTexture,
+    normalScale: new THREE.Vector2(0.45, 0.45),
   });
   trackDroneMaterial(rotorBladeMaterial);
   [0, Math.PI / 2].forEach((angle) => {
@@ -10960,11 +11099,17 @@ export const initScene = (
   });
 
   const droneCutterMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf97316,
-    emissive: 0xf59e0b,
-    emissiveIntensity: 0.45,
-    metalness: 0.4,
-    roughness: 0.3,
+    color: droneCutterBaseColorTexture ? 0xffffff : 0xf97316,
+    emissive: 0xf97316,
+    emissiveIntensity: 0.48,
+    metalness: 0.45,
+    roughness: 0.32,
+    map: droneCutterBaseColorTexture,
+    normalMap: droneCutterNormalTexture,
+    roughnessMap: droneCutterOrmTexture,
+    metalnessMap: droneCutterOrmTexture,
+    emissiveMap: droneCutterEmissiveTexture,
+    normalScale: new THREE.Vector2(0.6, 0.6),
   });
   trackDroneMaterial(droneCutterMaterial);
   const droneCutter = registerDroneMesh(
@@ -14462,8 +14607,14 @@ export const initScene = (
           material.dispose();
         }
       });
+      droneMinerTextures.forEach((texture) => {
+        if (texture && typeof texture.dispose === "function") {
+          texture.dispose();
+        }
+      });
       droneMinerGeometries.length = 0;
       droneMinerMaterials.length = 0;
+      droneMinerTextures.length = 0;
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
