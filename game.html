@@ -2050,6 +2050,27 @@
         color: rgba(148, 163, 184, 0.95);
       }
 
+      .drone-customization-layout {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.4fr);
+        gap: 1rem;
+        align-items: start;
+      }
+
+      .drone-customization-layout .quick-access-modal__section {
+        margin-top: 0;
+      }
+
+      .drone-customization-layout .quick-access-modal__section + .quick-access-modal__section {
+        margin-top: 0;
+      }
+
+      @media (max-width: 980px) {
+        .drone-customization-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+
       .quick-access-modal__card-grid {
         display: grid;
         gap: 1rem;
@@ -5484,33 +5505,35 @@
           Select a skin profile for your drone miner. Changes apply immediately.
         </p>
       </header>
-      <section class="quick-access-modal__section">
-        <h3 class="quick-access-modal__section-title">Preview</h3>
-        <div class="drone-skin-preview">
-          <canvas
-            class="drone-skin-preview__canvas"
-            width="960"
-            height="540"
-            data-drone-skin-preview-canvas
-            aria-label="Drone skin preview"
-          ></canvas>
-          <div class="drone-skin-preview__meta">
-            <p class="drone-skin-preview__title" data-drone-skin-preview-title>
-              Drone skin preview
-            </p>
-            <p class="drone-skin-preview__desc" data-drone-skin-preview-description>
-              Hover any skin to preview the drone look.
-            </p>
+      <div class="drone-customization-layout">
+        <section class="quick-access-modal__section quick-access-modal__section--lift">
+          <h3 class="quick-access-modal__section-title">Available skins</h3>
+          <ul class="lift-selector" data-drone-skin-list></ul>
+          <p class="lift-selector__empty" data-drone-skin-empty hidden>
+            No drone skins available.
+          </p>
+        </section>
+        <section class="quick-access-modal__section">
+          <h3 class="quick-access-modal__section-title">Preview</h3>
+          <div class="drone-skin-preview">
+            <canvas
+              class="drone-skin-preview__canvas"
+              width="960"
+              height="540"
+              data-drone-skin-preview-canvas
+              aria-label="Drone skin preview"
+            ></canvas>
+            <div class="drone-skin-preview__meta">
+              <p class="drone-skin-preview__title" data-drone-skin-preview-title>
+                Drone skin preview
+              </p>
+              <p class="drone-skin-preview__desc" data-drone-skin-preview-description>
+                Hover any skin to preview the drone look.
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
-      <section class="quick-access-modal__section quick-access-modal__section--lift">
-        <h3 class="quick-access-modal__section-title">Available skins</h3>
-        <ul class="lift-selector" data-drone-skin-list></ul>
-        <p class="lift-selector__empty" data-drone-skin-empty hidden>
-          No drone skins available.
-        </p>
-      </section>
+        </section>
+      </div>
     </template>
 
     <script type="importmap">
