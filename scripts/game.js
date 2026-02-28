@@ -1182,6 +1182,7 @@ const GEO_SCAN_MAX_HP = Math.max(
     : [1])
 );
 const terrainLifeByCell = new Map();
+let progressResetInProgress = false;
 const applyStoredTerrainLife = () => {
   const storedTerrainLife = loadStoredTerrainLife();
 
@@ -1201,6 +1202,10 @@ const applyStoredTerrainLife = () => {
 };
 let persistTerrainLifeTimeoutId = 0;
 const schedulePersistTerrainLife = () => {
+  if (progressResetInProgress) {
+    return;
+  }
+
   if (persistTerrainLifeTimeoutId) {
     window.clearTimeout(persistTerrainLifeTimeoutId);
   }
@@ -6629,6 +6634,10 @@ const persistInventoryState = () => {
 };
 
 const schedulePersistInventoryState = () => {
+  if (progressResetInProgress) {
+    return;
+  }
+
   if (persistInventoryStateTimeoutId) {
     window.clearTimeout(persistInventoryStateTimeoutId);
   }
@@ -10146,10 +10155,19 @@ function handleReset(event) {
 
   setErrorMessage("");
   setButtonBusyState(resetButton, true);
+  progressResetInProgress = true;
   geoVisorBatteryPersistenceEnabled = false;
   if (persistGeoVisorBatteryTimeoutId) {
     window.clearTimeout(persistGeoVisorBatteryTimeoutId);
     persistGeoVisorBatteryTimeoutId = 0;
+  }
+  if (persistTerrainLifeTimeoutId) {
+    window.clearTimeout(persistTerrainLifeTimeoutId);
+    persistTerrainLifeTimeoutId = 0;
+  }
+  if (persistInventoryStateTimeoutId) {
+    window.clearTimeout(persistInventoryStateTimeoutId);
+    persistInventoryStateTimeoutId = 0;
   }
 
   let shouldReload = false;
@@ -10202,6 +10220,7 @@ function handleReset(event) {
     }
 
     if (!shouldReload) {
+      progressResetInProgress = false;
       geoVisorBatteryPersistenceEnabled = true;
       setButtonBusyState(resetButton, false);
     }
