@@ -140,8 +140,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const EDIT_MODE_HIGHLIGHT_BASE_OPACITY = 0.35;
   const EDIT_MODE_HIGHLIGHT_PULSE_OPACITY = 0.45;
   const EDIT_MODE_HIGHLIGHT_PULSE_SPEED = 0.008;
-  const PLACEMENT_CONFIRM_PULSE_DURATION_MS = 260;
-  const PLACEMENT_CONFIRM_PULSE_MAX_ACTIVE = 8;
   const manifestEditModeState = {
     enabled: false,
     hovered: null,
@@ -168,9 +166,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const settleSortPositionA = new THREE.Vector3();
   const settleSortPositionB = new THREE.Vector3();
   const previewSettleWorldPosition = new THREE.Vector3();
-  const placementConfirmPulseBounds = new THREE.Box3();
-  const placementConfirmPulseCenter = new THREE.Vector3();
-  const placementConfirmPulseSize = new THREE.Vector3();
   const previewSettleInfluenceBoxA = new THREE.Box3();
   const previewSettleInfluenceBoxB = new THREE.Box3();
   const previewSettleInfluenceBoxC = new THREE.Box3();
@@ -196,7 +191,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     editHighlightGeometry,
     editHighlightMaterial
   );
-  const placementConfirmPulseCleanupHandlers = new Set();
   editHighlightMesh.visible = false;
   editHighlightMesh.renderOrder = 999;
   if (scene?.isObject3D && typeof scene.add === "function") {
@@ -686,126 +680,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       }
       return isColliderDescriptorCollisionEnabled(descriptor);
     });
-  };
-
-  const disposeOldestPlacementConfirmPulse = () => {
-    const oldest = placementConfirmPulseCleanupHandlers.values().next();
-    if (oldest.done || typeof oldest.value !== "function") {
-      return;
-    }
-
-    oldest.value();
-  };
-
-  const spawnPlacementConfirmPulse = (container) => {
-    if (!container?.isObject3D || !scene?.isObject3D) {
-      return;
-    }
-
-    container.updateWorldMatrix(true, true);
-    placementConfirmPulseBounds.setFromObject(container);
-    if (placementConfirmPulseBounds.isEmpty()) {
-      return;
-    }
-
-    while (
-      placementConfirmPulseCleanupHandlers.size >=
-      PLACEMENT_CONFIRM_PULSE_MAX_ACTIVE
-    ) {
-      const previousSize = placementConfirmPulseCleanupHandlers.size;
-      disposeOldestPlacementConfirmPulse();
-      if (placementConfirmPulseCleanupHandlers.size >= previousSize) {
-        break;
-      }
-    }
-
-    placementConfirmPulseBounds.expandByScalar(EDIT_MODE_HIGHLIGHT_PADDING * 0.8);
-    placementConfirmPulseBounds.getCenter(placementConfirmPulseCenter);
-    placementConfirmPulseBounds.getSize(placementConfirmPulseSize);
-    placementConfirmPulseSize.x = Math.max(
-      EDIT_MODE_HIGHLIGHT_MIN_SIZE,
-      placementConfirmPulseSize.x
-    );
-    placementConfirmPulseSize.y = Math.max(
-      EDIT_MODE_HIGHLIGHT_MIN_SIZE,
-      placementConfirmPulseSize.y
-    );
-    placementConfirmPulseSize.z = Math.max(
-      EDIT_MODE_HIGHLIGHT_MIN_SIZE,
-      placementConfirmPulseSize.z
-    );
-
-    const baseScaleX = placementConfirmPulseSize.x * 1.02;
-    const baseScaleY = placementConfirmPulseSize.y * 1.02;
-    const baseScaleZ = placementConfirmPulseSize.z * 1.02;
-    const pulseMaterial = new THREE.LineBasicMaterial({
-      color: new THREE.Color(0xf59e0b),
-      transparent: true,
-      opacity: 0.95,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    const pulseMesh = new THREE.LineSegments(editHighlightGeometry, pulseMaterial);
-    pulseMesh.position.copy(placementConfirmPulseCenter);
-    pulseMesh.scale.set(baseScaleX, baseScaleY, baseScaleZ);
-    pulseMesh.renderOrder = 1001;
-    scene.add(pulseMesh);
-
-    let animationFrameId = 0;
-    let disposed = false;
-    const startedAt = performance.now();
-    const cleanup = () => {
-      if (disposed) {
-        return;
-      }
-
-      disposed = true;
-      if (animationFrameId) {
-        window.cancelAnimationFrame(animationFrameId);
-        animationFrameId = 0;
-      }
-
-      placementConfirmPulseCleanupHandlers.delete(cleanup);
-
-      if (pulseMesh.parent && typeof pulseMesh.parent.remove === "function") {
-        pulseMesh.parent.remove(pulseMesh);
-      }
-      pulseMaterial.dispose();
-    };
-
-    placementConfirmPulseCleanupHandlers.add(cleanup);
-
-    const animatePulse = (timestamp) => {
-      if (disposed) {
-        return;
-      }
-
-      const elapsedMs = timestamp - startedAt;
-      const progress = THREE.MathUtils.clamp(
-        elapsedMs / PLACEMENT_CONFIRM_PULSE_DURATION_MS,
-        0,
-        1
-      );
-      const fade = 1 - progress;
-      const scaleMultiplier = THREE.MathUtils.lerp(1, 1.18, progress);
-
-      pulseMesh.scale.set(
-        baseScaleX * scaleMultiplier,
-        baseScaleY * scaleMultiplier,
-        baseScaleZ * scaleMultiplier
-      );
-      pulseMaterial.opacity = 0.95 * fade;
-
-      if (progress >= 1) {
-        cleanup();
-        return;
-      }
-
-      animationFrameId = window.requestAnimationFrame(animatePulse);
-    };
-
-    animationFrameId = window.requestAnimationFrame(animatePulse);
   };
 
   const refreshColliderDescriptorBounds = (descriptor) => {
@@ -3201,8 +3075,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       notifyManifestPlacementsChanged();
     }
 
-    spawnPlacementConfirmPulse(placement.container);
-
     if (typeof placement.resolve === "function") {
       placement.resolve(placement.container);
     }
@@ -3694,12 +3566,6 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
   const dispose = () => {
     cancelActivePlacement(new PlacementCancelledError("Scene disposed"));
     setManifestEditModeEnabled(false);
-    Array.from(placementConfirmPulseCleanupHandlers).forEach((cleanup) => {
-      if (typeof cleanup === "function") {
-        cleanup();
-      }
-    });
-    placementConfirmPulseCleanupHandlers.clear();
     manifestPlacements.clear();
     externalEditablePlacements.clear();
     if (

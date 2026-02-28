@@ -10526,9 +10526,6 @@ export const initScene = (
   const RESOURCE_SESSION_PLAYER_SOURCE = "player";
   const RESOURCE_SESSION_DRONE_SOURCE = "drone-miner";
   const DRONE_MINER_RANDOM_TARGET_RADIUS_TILES = 3;
-  const RESOURCE_COLLECTION_BURST_MAX_ACTIVE = 6;
-  const RESOURCE_COLLECTION_BURST_SUCCESS_DURATION_MS = 320;
-  const RESOURCE_COLLECTION_BURST_FAIL_DURATION_MS = 220;
   const createResourceSessionState = (source) => ({
     isActive: false,
     startPosition: new THREE.Vector3(),
@@ -10541,7 +10538,6 @@ export const initScene = (
   [RESOURCE_SESSION_PLAYER_SOURCE, RESOURCE_SESSION_DRONE_SOURCE].forEach((source) => {
     resourceSessionRegistry.set(source, createResourceSessionState(source));
   });
-  const resourceCollectionBurstCleanupHandlers = new Set();
   const getResourceSession = (source = RESOURCE_SESSION_PLAYER_SOURCE) => {
     const resolvedSource =
       typeof source === "string" && source.length > 0
@@ -10556,129 +10552,6 @@ export const initScene = (
     }
 
     return resourceSessionRegistry.get(resolvedSource);
-  };
-
-  const disposeOldestResourceCollectionBurst = () => {
-    const oldest = resourceCollectionBurstCleanupHandlers.values().next();
-    if (oldest.done || typeof oldest.value !== "function") {
-      return;
-    }
-
-    oldest.value();
-  };
-
-  const spawnResourceCollectionBurst = ({ position, success = true } = {}) => {
-    if (!scene?.isObject3D || !position) {
-      return;
-    }
-
-    const x = Number(position.x);
-    const y = Number(position.y);
-    const z = Number(position.z);
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-      return;
-    }
-
-    while (
-      resourceCollectionBurstCleanupHandlers.size >=
-      RESOURCE_COLLECTION_BURST_MAX_ACTIVE
-    ) {
-      const previousSize = resourceCollectionBurstCleanupHandlers.size;
-      disposeOldestResourceCollectionBurst();
-      if (resourceCollectionBurstCleanupHandlers.size >= previousSize) {
-        break;
-      }
-    }
-
-    const pulseColor = success ? 0xf59e0b : 0x38bdf8;
-    const durationMs = success
-      ? RESOURCE_COLLECTION_BURST_SUCCESS_DURATION_MS
-      : RESOURCE_COLLECTION_BURST_FAIL_DURATION_MS;
-    const ringGeometry = new THREE.RingGeometry(
-      success ? 0.15 : 0.12,
-      success ? 0.28 : 0.22,
-      20
-    );
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: pulseColor,
-      transparent: true,
-      opacity: success ? 0.86 : 0.62,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(x, y + 0.02, z);
-    ring.renderOrder = 950;
-    scene.add(ring);
-
-    const pulseLight = new THREE.PointLight(
-      pulseColor,
-      success ? 1.3 : 0.75,
-      success ? 2.5 : 1.7,
-      2.2
-    );
-    pulseLight.position.set(x, y + 0.08, z);
-    scene.add(pulseLight);
-
-    let animationFrameId = 0;
-    let disposed = false;
-    const startedAt = performance.now();
-
-    const cleanup = () => {
-      if (disposed) {
-        return;
-      }
-
-      disposed = true;
-      if (animationFrameId) {
-        window.cancelAnimationFrame(animationFrameId);
-        animationFrameId = 0;
-      }
-
-      resourceCollectionBurstCleanupHandlers.delete(cleanup);
-
-      if (ring.parent && typeof ring.parent.remove === "function") {
-        ring.parent.remove(ring);
-      }
-      ringGeometry.dispose();
-      ringMaterial.dispose();
-
-      if (pulseLight.parent && typeof pulseLight.parent.remove === "function") {
-        pulseLight.parent.remove(pulseLight);
-      }
-    };
-
-    resourceCollectionBurstCleanupHandlers.add(cleanup);
-
-    const animateBurst = (timestamp) => {
-      if (disposed) {
-        return;
-      }
-
-      const elapsedMs = timestamp - startedAt;
-      const progress = THREE.MathUtils.clamp(elapsedMs / durationMs, 0, 1);
-      const fade = 1 - progress;
-      const scale = THREE.MathUtils.lerp(
-        success ? 0.72 : 0.68,
-        success ? 2.1 : 1.55,
-        progress
-      );
-
-      ring.scale.setScalar(scale);
-      ringMaterial.opacity = (success ? 0.86 : 0.62) * fade;
-      pulseLight.intensity = (success ? 1.3 : 0.75) * fade;
-
-      if (progress >= 1) {
-        cleanup();
-        return;
-      }
-
-      animationFrameId = window.requestAnimationFrame(animateBurst);
-    };
-
-    animationFrameId = window.requestAnimationFrame(animateBurst);
   };
 
   const findResourceTarget = (object) => {
@@ -11625,11 +11498,6 @@ export const initScene = (
         eventDetail.success = false;
       }
 
-      spawnResourceCollectionBurst({
-        position: baseDetail?.position,
-        success: false,
-      });
-
       dispatchResourceCollectionDetail({
         ...baseDetail,
         source: sessionSource,
@@ -11649,11 +11517,6 @@ export const initScene = (
         eventDetail.success = false;
       }
 
-      spawnResourceCollectionBurst({
-        position: baseDetail?.position,
-        success: false,
-      });
-
       dispatchResourceCollectionDetail({
         ...baseDetail,
         found: false,
@@ -11671,11 +11534,6 @@ export const initScene = (
       element && typeof element === "object"
         ? { ...element, weight: elementWeight }
         : { weight: elementWeight };
-
-    spawnResourceCollectionBurst({
-      position: baseDetail?.position,
-      success: true,
-    });
 
     dispatchResourceCollectionDetail({
       ...baseDetail,
@@ -14606,12 +14464,6 @@ export const initScene = (
       });
       droneMinerGeometries.length = 0;
       droneMinerMaterials.length = 0;
-      Array.from(resourceCollectionBurstCleanupHandlers).forEach((cleanup) => {
-        if (typeof cleanup === "function") {
-          cleanup();
-        }
-      });
-      resourceCollectionBurstCleanupHandlers.clear();
       if (typeof lastUpdatedDisplay.userData?.dispose === "function") {
         lastUpdatedDisplay.userData.dispose();
       }
