@@ -12,10 +12,6 @@
     "label": "Floor 1 (GLB)"
   },
   {
-    "path": "suit.glb",
-    "label": "Suit (GLB)"
-  },
-  {
     "path": "wall.glb",
     "label": "Wall (GLB)"
   },
