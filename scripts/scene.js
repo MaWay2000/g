@@ -8346,148 +8346,516 @@ export const initScene = (
     });
 
     const floorMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x101722),
-      roughness: 0.7,
-      metalness: 0.18,
+      color: new THREE.Color(0x18120d),
+      roughness: 0.82,
+      metalness: 0.34,
+    });
+    const panelMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x24170f),
+      roughness: 0.64,
+      metalness: 0.48,
+    });
+    const trimMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x3a2316),
+      roughness: 0.42,
+      metalness: 0.62,
+    });
+    const conduitMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x2b1d14),
+      roughness: 0.5,
+      metalness: 0.58,
+    });
+    const monitorShellMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x2d1b12),
+      roughness: 0.42,
+      metalness: 0.6,
     });
 
     const floor = new THREE.Mesh(
       new THREE.BoxGeometry(bayWidth, floorThickness, bayDepth),
       floorMaterial
     );
-    floor.position.y = roomFloorY - floorThickness / 2;
+    floor.position.set(0, roomFloorY - floorThickness / 2, 0);
     group.add(floor);
 
-    const catwalkMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x1f2937),
-      roughness: 0.5,
-      metalness: 0.2,
-    });
-
-    const gantry = new THREE.Mesh(
-      new THREE.BoxGeometry(bayWidth * 0.7, 0.12, 0.6),
-      catwalkMaterial
+    const wallHeight = 2.45;
+    const sideWallThickness = 0.26;
+    const sideWallGeometry = new THREE.BoxGeometry(sideWallThickness, wallHeight, bayDepth);
+    const sideWallLeft = new THREE.Mesh(sideWallGeometry, floorMaterial);
+    sideWallLeft.position.set(
+      -bayWidth / 2 + sideWallThickness / 2,
+      roomFloorY + wallHeight / 2,
+      0
     );
-    gantry.position.set(0, roomFloorY + 0.18, 0);
-    group.add(gantry);
+    group.add(sideWallLeft);
+    const sideWallRight = sideWallLeft.clone();
+    sideWallRight.position.x *= -1;
+    group.add(sideWallRight);
 
-    const beamMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x4b5563),
-      roughness: 0.38,
-      metalness: 0.62,
-    });
-
-    const createSupportBeam = (x, z) => {
-      const beam = new THREE.Mesh(
-        new THREE.BoxGeometry(0.18, 2.6, 0.18),
-        beamMaterial
-      );
-      beam.position.set(x, roomFloorY + 1.3, z);
-      return beam;
-    };
-
-    const beamOffsetX = bayWidth / 2 - 0.4;
-    const beamOffsetZ = bayDepth / 2 - 0.4;
-    const beams = [
-      createSupportBeam(beamOffsetX, beamOffsetZ),
-      createSupportBeam(-beamOffsetX, beamOffsetZ),
-      createSupportBeam(beamOffsetX, -beamOffsetZ),
-      createSupportBeam(-beamOffsetX, -beamOffsetZ),
-    ];
-    beams.forEach((beam) => group.add(beam));
-
-    const pipeMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x374151),
-      metalness: 0.7,
-      roughness: 0.28,
-    });
-
-    const coolantPipe = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.12, bayWidth * 0.9, 24),
-      pipeMaterial
+    const backWallThickness = 0.24;
+    const backWall = new THREE.Mesh(
+      new THREE.BoxGeometry(bayWidth - sideWallThickness * 2, wallHeight, backWallThickness),
+      floorMaterial
     );
-    coolantPipe.rotation.z = Math.PI / 2;
-    coolantPipe.position.set(0, roomFloorY + 1.1, -bayDepth / 2 + 0.55);
-    group.add(coolantPipe);
-
-    const returnPipe = coolantPipe.clone();
-    returnPipe.position.z = bayDepth / 2 - 0.55;
-    group.add(returnPipe);
-
-    const generatorMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x1f2933),
-      roughness: 0.3,
-      metalness: 0.65,
-      emissive: new THREE.Color(0x0f172a),
-      emissiveIntensity: 0.2,
-    });
-
-    const generatorHousing = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.6, 0.8, 1.1, 24),
-      generatorMaterial
+    backWall.position.set(
+      0,
+      roomFloorY + wallHeight / 2,
+      bayDepth / 2 - backWallThickness / 2
     );
-    generatorHousing.position.set(0, roomFloorY + 0.55, -bayDepth * 0.18);
-    group.add(generatorHousing);
+    group.add(backWall);
 
-    const generatorCore = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.35, 0.35, 0.9, 24),
+    const ceiling = new THREE.Mesh(
+      new THREE.BoxGeometry(bayWidth, 0.26, bayDepth),
+      floorMaterial
+    );
+    ceiling.position.set(0, roomFloorY + wallHeight, 0);
+    group.add(ceiling);
+
+    const floorPanelCols = 10;
+    const floorPanelRows = 6;
+    const panelGap = 0.06;
+    const panelHeight = 0.028;
+    const panelInnerWidth = bayWidth - 1.2;
+    const panelInnerDepth = bayDepth - 1.2;
+    const panelWidth = panelInnerWidth / floorPanelCols - panelGap;
+    const panelDepth = panelInnerDepth / floorPanelRows - panelGap;
+    const panelStartX = -panelInnerWidth / 2 + panelWidth / 2;
+    const panelStartZ = -panelInnerDepth / 2 + panelDepth / 2;
+    const floorPanels = [];
+    for (let row = 0; row < floorPanelRows; row += 1) {
+      for (let col = 0; col < floorPanelCols; col += 1) {
+        const floorPanel = new THREE.Mesh(
+          new THREE.BoxGeometry(panelWidth, panelHeight, panelDepth),
+          panelMaterial
+        );
+        floorPanel.position.set(
+          panelStartX + col * (panelWidth + panelGap),
+          roomFloorY + panelHeight / 2,
+          panelStartZ + row * (panelDepth + panelGap)
+        );
+        group.add(floorPanel);
+        floorPanels.push(floorPanel);
+      }
+    }
+
+    const commandTableWidth = bayWidth * 0.44;
+    const commandTableDepth = bayDepth * 0.34;
+    const commandTableBase = new THREE.Mesh(
+      new THREE.BoxGeometry(commandTableWidth * 0.88, 0.66, commandTableDepth * 0.84),
+      panelMaterial
+    );
+    commandTableBase.position.set(0, roomFloorY + 0.33, 0);
+    group.add(commandTableBase);
+
+    const commandTableTop = new THREE.Mesh(
+      new THREE.BoxGeometry(commandTableWidth, 0.14, commandTableDepth),
+      trimMaterial
+    );
+    commandTableTop.position.set(0, roomFloorY + 0.72, 0);
+    group.add(commandTableTop);
+
+    const commandTableInset = new THREE.Mesh(
+      new THREE.BoxGeometry(commandTableWidth * 0.84, 0.03, commandTableDepth * 0.72),
       new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x0f172a),
-        emissive: new THREE.Color(0x22d3ee),
-        emissiveIntensity: 1.1,
-        metalness: 0.35,
-        roughness: 0.25,
+        color: new THREE.Color(0x120c08),
+        roughness: 0.2,
+        metalness: 0.54,
+        emissive: new THREE.Color(0x2d1508),
+        emissiveIntensity: 0.36,
       })
     );
-    generatorCore.position.set(0, roomFloorY + 0.55, -bayDepth * 0.18);
-    group.add(generatorCore);
+    commandTableInset.position.set(0, roomFloorY + 0.8, 0);
+    group.add(commandTableInset);
 
-    const energyPulse = new THREE.Mesh(
-      new THREE.SphereGeometry(0.42, 24, 24),
+    const commandTableLegGeometry = new THREE.BoxGeometry(0.16, 0.56, 0.16);
+    const commandTableLegOffsets = [
+      [-commandTableWidth * 0.38, 0.28, -commandTableDepth * 0.36],
+      [commandTableWidth * 0.38, 0.28, -commandTableDepth * 0.36],
+      [-commandTableWidth * 0.38, 0.28, commandTableDepth * 0.36],
+      [commandTableWidth * 0.38, 0.28, commandTableDepth * 0.36],
+    ];
+    const commandTableLegs = commandTableLegOffsets.map(([x, y, z]) => {
+      const leg = new THREE.Mesh(commandTableLegGeometry, trimMaterial);
+      leg.position.set(x, roomFloorY + y, z);
+      group.add(leg);
+      return leg;
+    });
+
+    const createEngineeringMonitorTexture = (label = "SYS") => {
+      const width = 512;
+      const height = 320;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+
+      const backgroundGradient = context.createLinearGradient(0, 0, width, height);
+      backgroundGradient.addColorStop(0, "#090806");
+      backgroundGradient.addColorStop(1, "#1b100a");
+      context.fillStyle = backgroundGradient;
+      context.fillRect(0, 0, width, height);
+
+      context.strokeStyle = "rgba(255, 179, 97, 0.16)";
+      context.lineWidth = 1;
+      for (let x = 0; x < width; x += 32) {
+        context.beginPath();
+        context.moveTo(x + 0.5, 0);
+        context.lineTo(x + 0.5, height);
+        context.stroke();
+      }
+      for (let y = 0; y < height; y += 24) {
+        context.beginPath();
+        context.moveTo(0, y + 0.5);
+        context.lineTo(width, y + 0.5);
+        context.stroke();
+      }
+
+      context.fillStyle = "rgba(255, 198, 133, 0.9)";
+      context.font = "700 28px 'Segoe UI', sans-serif";
+      context.fillText(label, 24, 40);
+
+      context.font = "500 16px 'Segoe UI', sans-serif";
+      for (let row = 0; row < 10; row += 1) {
+        const value = ((row + 3) * 137 + label.length * 29).toString(16).padStart(4, "0");
+        context.fillStyle = row % 2 === 0 ? "rgba(255, 186, 116, 0.86)" : "rgba(255, 144, 70, 0.66)";
+        context.fillText(`CH-${row + 1}  ${value}`, 26, 74 + row * 20);
+      }
+
+      context.strokeStyle = "rgba(255, 166, 72, 0.9)";
+      context.lineWidth = 2;
+      context.beginPath();
+      for (let step = 0; step < 24; step += 1) {
+        const x = 22 + (width - 44) * (step / 23);
+        const wave =
+          Math.sin((step / 23) * Math.PI * 2.6 + label.length * 0.15) * 22 +
+          Math.sin((step / 23) * Math.PI * 7.2) * 8;
+        const y = height - 52 + wave;
+        if (step === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
+      }
+      context.stroke();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+      return texture;
+    };
+
+    const createConsoleBank = ({
+      x = 0,
+      z = 0,
+      rotationY = 0,
+      width = 2.2,
+      depth = 0.68,
+      label = "OPS",
+    } = {}) => {
+      const consoleGroup = new THREE.Group();
+      consoleGroup.position.set(x, roomFloorY, z);
+      consoleGroup.rotation.y = rotationY;
+      group.add(consoleGroup);
+
+      const consoleBase = new THREE.Mesh(
+        new THREE.BoxGeometry(width, 0.68, depth),
+        panelMaterial
+      );
+      consoleBase.position.set(0, 0.34, 0);
+      consoleGroup.add(consoleBase);
+
+      const consoleTop = new THREE.Mesh(
+        new THREE.BoxGeometry(width, 0.08, depth * 0.94),
+        trimMaterial
+      );
+      consoleTop.position.set(0, 0.74, 0);
+      consoleGroup.add(consoleTop);
+
+      const monitorCount = Math.max(2, Math.round(width / 0.72));
+      const monitorWidth = 0.46;
+      const monitorHeight = 0.32;
+      const monitorSpacing = width / monitorCount;
+      for (let index = 0; index < monitorCount; index += 1) {
+        const monitorX = -width / 2 + monitorSpacing * (index + 0.5);
+        const monitorFrame = new THREE.Mesh(
+          new THREE.BoxGeometry(monitorWidth, monitorHeight, 0.05),
+          monitorShellMaterial
+        );
+        monitorFrame.position.set(monitorX, 0.99, -depth * 0.11);
+        monitorFrame.rotation.x = -THREE.MathUtils.degToRad(14);
+        consoleGroup.add(monitorFrame);
+
+        const monitorTexture = createEngineeringMonitorTexture(`${label}-${index + 1}`);
+        const monitorScreen = new THREE.Mesh(
+          new THREE.PlaneGeometry(monitorWidth * 0.82, monitorHeight * 0.72),
+          new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            map: monitorTexture,
+            emissive: new THREE.Color(0x6b3410),
+            emissiveMap: monitorTexture,
+            emissiveIntensity: 1.05,
+            metalness: 0.08,
+            roughness: 0.26,
+          })
+        );
+        monitorScreen.position.set(monitorX, 0.99, -depth * 0.08);
+        monitorScreen.rotation.x = monitorFrame.rotation.x;
+        consoleGroup.add(monitorScreen);
+      }
+
+      return consoleGroup;
+    };
+
+    const backConsole = createConsoleBank({
+      x: 0,
+      z: bayDepth / 2 - 0.66,
+      rotationY: Math.PI,
+      width: bayWidth * 0.76,
+      depth: 0.76,
+      label: "ENG",
+    });
+    const leftConsole = createConsoleBank({
+      x: -bayWidth / 2 + 0.66,
+      z: 0,
+      rotationY: Math.PI / 2,
+      width: bayDepth * 0.52,
+      depth: 0.72,
+      label: "LFT",
+    });
+    const rightConsole = createConsoleBank({
+      x: bayWidth / 2 - 0.66,
+      z: 0.48,
+      rotationY: -Math.PI / 2,
+      width: bayDepth * 0.4,
+      depth: 0.72,
+      label: "RGT",
+    });
+    const consoleGroups = [backConsole, leftConsole, rightConsole];
+
+    const createHologramTexture = () => {
+      const width = 1024;
+      const height = 640;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+
+      context.clearRect(0, 0, width, height);
+      context.strokeStyle = "rgba(255, 151, 55, 0.42)";
+      context.lineWidth = 1;
+      for (let x = 0; x <= width; x += 34) {
+        context.beginPath();
+        context.moveTo(x + 0.5, 0);
+        context.lineTo(x + 0.5, height);
+        context.stroke();
+      }
+      for (let y = 0; y <= height; y += 34) {
+        context.beginPath();
+        context.moveTo(0, y + 0.5);
+        context.lineTo(width, y + 0.5);
+        context.stroke();
+      }
+
+      context.strokeStyle = "rgba(255, 168, 83, 0.96)";
+      context.lineWidth = 3;
+      context.shadowColor = "rgba(255, 151, 64, 0.9)";
+      context.shadowBlur = 16;
+      for (let row = 0; row < 16; row += 1) {
+        context.beginPath();
+        for (let step = 0; step <= 46; step += 1) {
+          const x = 24 + (width - 48) * (step / 46);
+          const normalizedX = step / 46;
+          const ridge =
+            Math.sin(normalizedX * Math.PI * 2.4 + row * 0.19) * 0.34 +
+            Math.cos(normalizedX * Math.PI * 5.1 - row * 0.11) * 0.12 +
+            Math.exp(-Math.pow((normalizedX - 0.55) * 2.2, 2)) * 0.95;
+          const wave = ridge * 54 + (row - 7.5) * 14;
+          const y = height * 0.55 - wave;
+          if (step === 0) {
+            context.moveTo(x, y);
+          } else {
+            context.lineTo(x, y);
+          }
+        }
+        context.stroke();
+      }
+      context.shadowBlur = 0;
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+      return texture;
+    };
+
+    const hologramTexture = createHologramTexture();
+    const hologramSurface = new THREE.Mesh(
+      new THREE.PlaneGeometry(commandTableWidth * 0.8, commandTableDepth * 0.62),
       new THREE.MeshBasicMaterial({
-        color: 0x22d3ee,
+        color: 0xffffff,
+        map: hologramTexture,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    hologramSurface.position.set(0, roomFloorY + 0.83, 0);
+    hologramSurface.rotation.x = -Math.PI / 2;
+    group.add(hologramSurface);
+
+    const hologramCore = new THREE.Mesh(
+      new THREE.SphereGeometry(0.36, 24, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xff8a33,
+        transparent: true,
+        opacity: 0.24,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       })
     );
-    energyPulse.position.copy(generatorCore.position);
-    group.add(energyPulse);
+    hologramCore.position.set(0, roomFloorY + 1.02, 0);
+    group.add(hologramCore);
 
-    const engineeringLight = new THREE.PointLight(
-      0x22d3ee,
-      1.3,
-      bayDepth * 1.4,
-      2
-    );
-    engineeringLight.position.set(0, roomFloorY + 1.8, -bayDepth * 0.18);
-    group.add(engineeringLight);
+    const hologramLight = new THREE.PointLight(0xff8f38, 1.9, bayWidth * 0.92, 2);
+    hologramLight.position.set(0, roomFloorY + 1.55, 0);
+    group.add(hologramLight);
 
-    const maintenanceConsole = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.75, 0.4),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x1f2a37),
-        roughness: 0.4,
-        metalness: 0.5,
-        emissive: new THREE.Color(0x0c4a6e),
-        emissiveIntensity: 0.3,
-      })
-    );
-    maintenanceConsole.position.set(0, roomFloorY + 0.55, bayDepth / 2 - 0.6);
-    group.add(maintenanceConsole);
+    const ambientWarmLight = new THREE.PointLight(0xff9348, 0.85, bayDepth * 1.8, 2);
+    ambientWarmLight.position.set(0, roomFloorY + 2.08, bayDepth * 0.12);
+    group.add(ambientWarmLight);
 
-    const consoleScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.95, 0.45),
-      new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
-        transparent: true,
-        opacity: 0.75,
-      })
-    );
-    consoleScreen.position.set(0, roomFloorY + 0.72, bayDepth / 2 - 0.38);
-    consoleScreen.rotation.x = -THREE.MathUtils.degToRad(12);
-    group.add(consoleScreen);
+    const warmEmitterMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0xffbc73),
+      emissive: new THREE.Color(0xff8a33),
+      emissiveIntensity: 0.95,
+      roughness: 0.22,
+      metalness: 0.16,
+    });
+    const ceilingLightFixtures = [];
+    const ceilingLightEmitters = [];
+    const ceilingPointLights = [];
+    const createCeilingLight = (x, z, span = 1.35) => {
+      const fixture = new THREE.Mesh(
+        new THREE.BoxGeometry(span, 0.12, 0.28),
+        trimMaterial
+      );
+      fixture.position.set(x, roomFloorY + wallHeight - 0.12, z);
+      group.add(fixture);
+      ceilingLightFixtures.push(fixture);
+
+      const emitter = new THREE.Mesh(
+        new THREE.BoxGeometry(span * 0.86, 0.02, 0.14),
+        warmEmitterMaterial
+      );
+      emitter.position.set(x, roomFloorY + wallHeight - 0.18, z);
+      group.add(emitter);
+      ceilingLightEmitters.push(emitter);
+
+      const light = new THREE.PointLight(0xffa65f, 1.2, bayDepth * 0.8, 2);
+      light.position.set(x, roomFloorY + wallHeight - 0.2, z);
+      group.add(light);
+      ceilingPointLights.push(light);
+    };
+
+    createCeilingLight(0, -bayDepth * 0.29, 1.8);
+    createCeilingLight(0, 0.02, 1.42);
+    createCeilingLight(0, bayDepth * 0.32, 1.26);
+    createCeilingLight(-bayWidth * 0.3, bayDepth * 0.06, 1.06);
+    createCeilingLight(bayWidth * 0.32, -bayDepth * 0.02, 1.06);
+
+    const conduitRuns = [];
+    const createConduitRun = ({ x = 0, z = 0, y = wallHeight - 0.24, length = 2, axis = "x" }) => {
+      const conduit = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, length, 16),
+        conduitMaterial
+      );
+      conduit.position.set(x, roomFloorY + y, z);
+      if (axis === "x") {
+        conduit.rotation.z = Math.PI / 2;
+      } else if (axis === "z") {
+        conduit.rotation.x = Math.PI / 2;
+      }
+      group.add(conduit);
+      conduitRuns.push({ mesh: conduit, offset: y });
+    };
+
+    createConduitRun({
+      z: -bayDepth * 0.36,
+      length: bayWidth * 0.92,
+      axis: "x",
+    });
+    createConduitRun({
+      z: -bayDepth * 0.2,
+      y: wallHeight - 0.17,
+      length: bayWidth * 0.92,
+      axis: "x",
+    });
+    createConduitRun({
+      z: bayDepth * 0.29,
+      length: bayWidth * 0.88,
+      axis: "x",
+    });
+    createConduitRun({
+      x: -bayWidth * 0.38,
+      z: bayDepth * 0.06,
+      y: wallHeight - 0.26,
+      length: bayDepth * 0.64,
+      axis: "z",
+    });
+    createConduitRun({
+      x: bayWidth * 0.39,
+      z: -bayDepth * 0.04,
+      y: wallHeight - 0.22,
+      length: bayDepth * 0.58,
+      axis: "z",
+    });
+
+    const floorCableMeshes = [];
+    const createFloorCable = (points, radius = 0.03) => {
+      if (!Array.isArray(points) || points.length < 2) {
+        return;
+      }
+      const curve = new THREE.CatmullRomCurve3(points);
+      const cable = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 24, radius, 10, false),
+        conduitMaterial
+      );
+      cable.position.y = roomFloorY + 0.015;
+      group.add(cable);
+      floorCableMeshes.push(cable);
+    };
+
+    createFloorCable([
+      new THREE.Vector3(commandTableWidth * 0.42, 0, commandTableDepth * 0.4),
+      new THREE.Vector3(commandTableWidth * 0.52, 0, commandTableDepth * 0.58),
+      new THREE.Vector3(commandTableWidth * 0.66, 0, bayDepth * 0.24),
+      new THREE.Vector3(commandTableWidth * 0.72, 0, bayDepth * 0.06),
+    ]);
+    createFloorCable([
+      new THREE.Vector3(-commandTableWidth * 0.34, 0, commandTableDepth * 0.42),
+      new THREE.Vector3(-commandTableWidth * 0.48, 0, commandTableDepth * 0.6),
+      new THREE.Vector3(-bayWidth * 0.34, 0, bayDepth * 0.28),
+      new THREE.Vector3(-bayWidth * 0.41, 0, bayDepth * 0.1),
+    ]);
+    createFloorCable([
+      new THREE.Vector3(commandTableWidth * 0.12, 0, -commandTableDepth * 0.44),
+      new THREE.Vector3(commandTableWidth * 0.02, 0, -commandTableDepth * 0.62),
+      new THREE.Vector3(-commandTableWidth * 0.08, 0, -bayDepth * 0.24),
+      new THREE.Vector3(-commandTableWidth * 0.22, 0, -bayDepth * 0.34),
+    ]);
 
     const createDroneCustomizationDisplay = () => {
       const width = 960;
@@ -8495,11 +8863,11 @@ export const initScene = (
       const actionZone = {
         id: "drone-customization",
         title: "Drone Setup",
-        description: "Skin and livery station",
-        minX: 64,
-        maxX: width - 64,
-        minY: 164,
-        maxY: height - 58,
+        description: "Open setup station",
+        minX: 72,
+        maxX: width - 72,
+        minY: 168,
+        maxY: height - 56,
       };
 
       const canvas = document.createElement("canvas");
@@ -8525,17 +8893,17 @@ export const initScene = (
         context.clearRect(0, 0, width, height);
 
         const bgGradient = context.createLinearGradient(0, 0, width, height);
-        bgGradient.addColorStop(0, "#04121f");
-        bgGradient.addColorStop(1, "#0a1f2d");
+        bgGradient.addColorStop(0, "#130e09");
+        bgGradient.addColorStop(1, "#25160e");
         context.fillStyle = bgGradient;
         context.fillRect(0, 0, width, height);
 
-        context.strokeStyle = "rgba(148, 163, 184, 0.35)";
+        context.strokeStyle = "rgba(255, 170, 96, 0.35)";
         context.lineWidth = 3;
         context.strokeRect(10, 10, width - 20, height - 20);
 
-        context.fillStyle = "rgba(148, 163, 184, 0.82)";
-        context.font = "600 32px 'Segoe UI', 'Inter', sans-serif";
+        context.fillStyle = "rgba(255, 199, 136, 0.9)";
+        context.font = "600 34px 'Segoe UI', sans-serif";
         context.fillText("ENGINEERING CONSOLE", 56, 72);
 
         const zoneWidth = actionZone.maxX - actionZone.minX;
@@ -8547,35 +8915,35 @@ export const initScene = (
           actionZone.maxY
         );
         if (hovered) {
-          zoneGradient.addColorStop(0, "rgba(16, 185, 129, 0.92)");
-          zoneGradient.addColorStop(1, "rgba(20, 184, 166, 0.78)");
+          zoneGradient.addColorStop(0, "rgba(255, 177, 100, 0.92)");
+          zoneGradient.addColorStop(1, "rgba(255, 136, 46, 0.84)");
         } else {
-          zoneGradient.addColorStop(0, "rgba(15, 118, 210, 0.56)");
-          zoneGradient.addColorStop(1, "rgba(56, 189, 248, 0.32)");
+          zoneGradient.addColorStop(0, "rgba(181, 97, 33, 0.62)");
+          zoneGradient.addColorStop(1, "rgba(255, 140, 51, 0.46)");
         }
 
         context.fillStyle = zoneGradient;
         context.fillRect(actionZone.minX, actionZone.minY, zoneWidth, zoneHeight);
         context.lineWidth = hovered ? 4 : 2;
         context.strokeStyle = hovered
-          ? "rgba(134, 239, 172, 0.92)"
-          : "rgba(148, 163, 184, 0.45)";
+          ? "rgba(255, 221, 171, 0.94)"
+          : "rgba(245, 158, 91, 0.54)";
         context.strokeRect(actionZone.minX, actionZone.minY, zoneWidth, zoneHeight);
 
-        context.fillStyle = hovered ? "#052e2b" : "#e2e8f0";
-        context.font = "700 72px 'Segoe UI', 'Inter', sans-serif";
+        context.fillStyle = hovered ? "#371807" : "#f5f5f4";
+        context.font = "700 74px 'Segoe UI', sans-serif";
         context.fillText("DRONE SETUP", actionZone.minX + 44, actionZone.minY + 108);
 
-        context.fillStyle = hovered ? "rgba(7, 44, 36, 0.92)" : "rgba(148, 163, 184, 0.9)";
-        context.font = "500 34px 'Segoe UI', 'Inter', sans-serif";
+        context.fillStyle = hovered ? "rgba(55, 24, 7, 0.9)" : "rgba(255, 215, 170, 0.9)";
+        context.font = "500 34px 'Segoe UI', sans-serif";
         context.fillText(
           "Open setup station",
           actionZone.minX + 46,
           actionZone.minY + 164
         );
 
-        context.fillStyle = hovered ? "rgba(22, 101, 52, 0.95)" : "rgba(51, 65, 85, 0.85)";
-        context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
+        context.fillStyle = hovered ? "rgba(120, 53, 15, 0.95)" : "rgba(120, 53, 15, 0.8)";
+        context.font = "600 28px 'Segoe UI', sans-serif";
         context.fillText(
           hovered ? "READY" : "STANDBY",
           actionZone.maxX - 188,
@@ -8621,12 +8989,12 @@ export const initScene = (
       };
     };
 
-    const droneCustomizationTableX = bayWidth * 0.24;
-    const droneCustomizationTableZ = -bayDepth / 2 + 2.25;
-    const droneCustomizationTableTopOffset = 0.82;
+    const droneCustomizationTableX = bayWidth * 0.32;
+    const droneCustomizationTableZ = -bayDepth * 0.06;
+    const droneCustomizationTableTopOffset = 0.8;
     const droneCustomizationTableTop = new THREE.Mesh(
-      new THREE.BoxGeometry(1.35, 0.08, 0.72),
-      catwalkMaterial
+      new THREE.BoxGeometry(1.45, 0.08, 0.76),
+      panelMaterial
     );
     droneCustomizationTableTop.position.set(
       droneCustomizationTableX,
@@ -8637,14 +9005,14 @@ export const initScene = (
 
     const droneCustomizationTableLegGeometry = new THREE.BoxGeometry(0.1, 0.74, 0.1);
     const droneCustomizationTableLegOffsets = [
-      [-0.56, 0.37, -0.26],
-      [0.56, 0.37, -0.26],
-      [-0.56, 0.37, 0.26],
-      [0.56, 0.37, 0.26],
+      [-0.58, 0.37, -0.28],
+      [0.58, 0.37, -0.28],
+      [-0.58, 0.37, 0.28],
+      [0.58, 0.37, 0.28],
     ];
     const droneCustomizationTableLegs = droneCustomizationTableLegOffsets.map(
       ([x, y, z]) => {
-        const leg = new THREE.Mesh(droneCustomizationTableLegGeometry, beamMaterial);
+        const leg = new THREE.Mesh(droneCustomizationTableLegGeometry, trimMaterial);
         leg.position.set(
           droneCustomizationTableX + x,
           roomFloorY + y,
@@ -8659,23 +9027,23 @@ export const initScene = (
     const droneCustomizationScreenMaterial = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       map: droneCustomizationDisplay.texture,
-      emissive: new THREE.Color(0x0f172a),
+      emissive: new THREE.Color(0x6b3410),
       emissiveMap: droneCustomizationDisplay.texture,
-      emissiveIntensity: 0.4,
-      metalness: 0.16,
-      roughness: 0.22,
+      emissiveIntensity: 1.1,
+      metalness: 0.14,
+      roughness: 0.2,
       side: THREE.DoubleSide,
     });
     const droneCustomizationScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.86, 0.42),
+      new THREE.PlaneGeometry(0.9, 0.44),
       droneCustomizationScreenMaterial
     );
     droneCustomizationScreen.position.set(
       droneCustomizationTableX,
-      roomFloorY + 1.07,
-      droneCustomizationTableZ - 0.08
+      roomFloorY + 1.06,
+      droneCustomizationTableZ - 0.1
     );
-    droneCustomizationScreen.rotation.x = -THREE.MathUtils.degToRad(18);
+    droneCustomizationScreen.rotation.x = -THREE.MathUtils.degToRad(17);
     droneCustomizationScreen.userData.getQuickAccessZones = () =>
       droneCustomizationDisplay.getQuickAccessZones();
     droneCustomizationScreen.userData.getQuickAccessTextureSize = () =>
@@ -8694,16 +9062,16 @@ export const initScene = (
     const droneCustomizationPad = new THREE.Mesh(
       new THREE.CylinderGeometry(0.18, 0.22, 0.06, 24),
       new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x0f172a),
-        roughness: 0.28,
-        metalness: 0.55,
-        emissive: new THREE.Color(0x0ea5e9),
+        color: new THREE.Color(0x1f130c),
+        roughness: 0.32,
+        metalness: 0.62,
+        emissive: new THREE.Color(0xff8a33),
         emissiveIntensity: 0.4,
       })
     );
     droneCustomizationPad.position.set(
       droneCustomizationTableX - 0.34,
-      roomFloorY + 0.88,
+      roomFloorY + 0.87,
       droneCustomizationTableZ + 0.05
     );
     group.add(droneCustomizationPad);
@@ -8711,9 +9079,9 @@ export const initScene = (
     const droneCustomizationBeacon = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 14, 12),
       new THREE.MeshBasicMaterial({
-        color: 0x22d3ee,
+        color: 0xff8f38,
         transparent: true,
-        opacity: 0.7,
+        opacity: 0.76,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       })
@@ -8739,25 +9107,49 @@ export const initScene = (
 
     const adjustableEntries = [
       { object: floor, offset: -floorThickness / 2 },
-      { object: gantry, offset: 0.18 },
-      { object: generatorHousing, offset: 0.55 },
-      { object: generatorCore, offset: 0.55 },
-      { object: energyPulse, offset: 0.55 },
-      { object: maintenanceConsole, offset: 0.55 },
-      { object: consoleScreen, offset: 0.72 },
-      { object: coolantPipe, offset: 1.1 },
-      { object: returnPipe, offset: 1.1 },
+      { object: sideWallLeft, offset: wallHeight / 2 },
+      { object: sideWallRight, offset: wallHeight / 2 },
+      { object: backWall, offset: wallHeight / 2 },
+      { object: ceiling, offset: wallHeight },
+      { object: commandTableBase, offset: 0.33 },
+      { object: commandTableTop, offset: 0.72 },
+      { object: commandTableInset, offset: 0.8 },
+      { object: hologramSurface, offset: 0.83 },
+      { object: hologramCore, offset: 1.02 },
+      { object: hologramLight, offset: 1.55 },
+      { object: ambientWarmLight, offset: 2.08 },
       { object: droneCustomizationTableTop, offset: droneCustomizationTableTopOffset },
-      { object: droneCustomizationScreen, offset: 1.07 },
-      { object: droneCustomizationPad, offset: 0.88 },
+      { object: droneCustomizationScreen, offset: 1.06 },
+      { object: droneCustomizationPad, offset: 0.87 },
       { object: droneCustomizationBeacon, offset: 1.02 },
     ];
 
-    beams.forEach((beam) => {
-      adjustableEntries.push({ object: beam, offset: 1.3 });
+    floorPanels.forEach((panel) => {
+      adjustableEntries.push({ object: panel, offset: panelHeight / 2 });
+    });
+    commandTableLegs.forEach((leg) => {
+      adjustableEntries.push({ object: leg, offset: 0.28 });
+    });
+    consoleGroups.forEach((consoleGroup) => {
+      adjustableEntries.push({ object: consoleGroup, offset: 0 });
     });
     droneCustomizationTableLegs.forEach((leg) => {
       adjustableEntries.push({ object: leg, offset: 0.37 });
+    });
+    ceilingLightFixtures.forEach((fixture) => {
+      adjustableEntries.push({ object: fixture, offset: wallHeight - 0.12 });
+    });
+    ceilingLightEmitters.forEach((emitter) => {
+      adjustableEntries.push({ object: emitter, offset: wallHeight - 0.18 });
+    });
+    ceilingPointLights.forEach((light) => {
+      adjustableEntries.push({ object: light, offset: wallHeight - 0.2 });
+    });
+    conduitRuns.forEach(({ mesh, offset }) => {
+      adjustableEntries.push({ object: mesh, offset });
+    });
+    floorCableMeshes.forEach((cable) => {
+      adjustableEntries.push({ object: cable, offset: 0.015 });
     });
 
     const mapOverlay = createStoredAreaOverlay({
@@ -8790,7 +9182,6 @@ export const initScene = (
           object.position.y = roomFloorY + offset;
         }
       });
-      engineeringLight.position.y = roomFloorY + 1.8;
     };
 
     const teleportOffset = new THREE.Vector3(0, 0, -bayDepth / 2 + 1.8);
