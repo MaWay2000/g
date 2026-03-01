@@ -9384,7 +9384,7 @@ export const initScene = (
     };
 
     const droneCustomizationConsoleX = 0;
-    const droneCustomizationConsoleZ = -commandTableDepth * 0.28;
+    const droneCustomizationConsoleZ = -commandTableDepth * 0.42;
     const droneCustomizationSurfaceOffset = 0.8;
 
     const droneCustomizationDisplay = createDroneCustomizationDisplay();
