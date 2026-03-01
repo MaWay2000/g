@@ -8475,7 +8475,8 @@ export const initScene = (
     floor.position.set(0, roomFloorY - floorThickness / 2, 0);
     group.add(floor);
 
-    const wallHeight = 2.45;
+    // Keep the engineering bay ceiling above lift-door top with a small clearance.
+    const wallHeight = Math.max(2.45, BASE_DOOR_HEIGHT + 0.35);
     const sideWallThickness = 0.26;
     const sideWallGeometry = new THREE.BoxGeometry(sideWallThickness, wallHeight, bayDepth);
     const sideWallLeft = new THREE.Mesh(sideWallGeometry, floorMaterial);
