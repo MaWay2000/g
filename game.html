@@ -1792,6 +1792,8 @@
       }
 
       .quick-access-modal__dialog {
+        --quick-access-dialog-offset-x: 0px;
+        --quick-access-dialog-offset-y: 0px;
         position: relative;
         width: min(1040px, 96vw);
         max-height: min(88vh, 680px);
@@ -1800,15 +1802,54 @@
         border: 1px solid rgba(148, 163, 184, 0.35);
         box-shadow: 0 40px 120px rgba(15, 23, 42, 0.6);
         overflow: hidden;
-        transform: translateY(12px) scale(0.96);
+        transform: translate3d(
+            var(--quick-access-dialog-offset-x),
+            calc(var(--quick-access-dialog-offset-y) + 12px),
+            0
+          )
+          scale(0.96);
         transition: transform 320ms ease 60ms, opacity 320ms ease 60ms;
         opacity: 0;
         z-index: 2;
       }
 
       .quick-access-modal.is-open .quick-access-modal__dialog {
-        transform: translateY(0) scale(1);
+        transform: translate3d(
+            var(--quick-access-dialog-offset-x),
+            var(--quick-access-dialog-offset-y),
+            0
+          )
+          scale(1);
         opacity: 1;
+      }
+
+      .quick-access-modal__dialog.is-dragging {
+        transition: none;
+      }
+
+      .quick-access-modal.quick-access-modal--drone-setup {
+        align-items: flex-start;
+        padding-top: clamp(0.8rem, 3.5vh, 2.25rem);
+      }
+
+      .quick-access-modal.quick-access-modal--drone-setup .quick-access-modal__dialog {
+        width: min(1120px, 96vw);
+        max-height: min(90vh, 760px);
+      }
+
+      .quick-access-modal.quick-access-modal--drone-setup
+        .quick-access-modal__header[data-quick-access-drag-handle] {
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
+        padding-right: calc(44px + clamp(1rem, 1.8vw, 1.35rem));
+      }
+
+      .quick-access-modal.quick-access-modal--drone-setup
+        .quick-access-modal__header[data-quick-access-drag-handle].is-dragging,
+      .quick-access-modal.quick-access-modal--drone-setup
+        .quick-access-modal__header[data-quick-access-drag-handle]:active {
+        cursor: grabbing;
       }
 
       .quick-access-modal__content {
@@ -2088,6 +2129,10 @@
 
       .drone-customization-panel[hidden] {
         display: none !important;
+      }
+
+      .drone-customization-panel {
+        min-height: clamp(300px, 50vh, 540px);
       }
 
       .drone-customization-placeholder {
@@ -5563,7 +5608,7 @@
       >
         &times;
       </button>
-      <header class="quick-access-modal__header">
+      <header class="quick-access-modal__header" data-quick-access-drag-handle>
         <h2 class="quick-access-modal__title">Drone Setup</h2>
       </header>
       <nav class="drone-customization-tabs" role="tablist" aria-label="Drone setup tabs">

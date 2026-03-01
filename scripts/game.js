@@ -3397,6 +3397,21 @@ let lastFocusedElement = null;
 let missionModalActive = false;
 let marketModalActive = false;
 let droneCustomizationModalActive = false;
+const QUICK_ACCESS_MODAL_MARGIN = 16;
+const QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID = "drone-customization";
+const quickAccessModalLayoutState = {
+  optionId: null,
+  offsetX: 0,
+  offsetY: 0,
+  dragging: false,
+  pointerId: null,
+  pointerOffsetX: 0,
+  pointerOffsetY: 0,
+  baseLeft: 0,
+  baseTop: 0,
+  width: 0,
+  height: 0,
+};
 const DRONE_CUSTOMIZATION_TAB_IDS = Object.freeze(["parts", "skins", "model"]);
 const DRONE_CUSTOMIZATION_DEFAULT_TAB_ID = "skins";
 let droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
@@ -4750,6 +4765,326 @@ const attemptToRestorePointerLock = () => {
   }
 
   controls.lock();
+};
+
+const clearQuickAccessModalDialogOffset = () => {
+  if (!(quickAccessModalDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  quickAccessModalDialog.style.removeProperty("--quick-access-dialog-offset-x");
+  quickAccessModalDialog.style.removeProperty("--quick-access-dialog-offset-y");
+  quickAccessModalLayoutState.offsetX = 0;
+  quickAccessModalLayoutState.offsetY = 0;
+};
+
+const getQuickAccessViewportDimensions = () => {
+  const docElement = typeof document !== "undefined" ? document.documentElement : null;
+  const width = Math.max(
+    0,
+    typeof window !== "undefined" && Number.isFinite(window.innerWidth)
+      ? window.innerWidth
+      : 0,
+    docElement && Number.isFinite(docElement.clientWidth)
+      ? docElement.clientWidth
+      : 0
+  );
+  const height = Math.max(
+    0,
+    typeof window !== "undefined" && Number.isFinite(window.innerHeight)
+      ? window.innerHeight
+      : 0,
+    docElement && Number.isFinite(docElement.clientHeight)
+      ? docElement.clientHeight
+      : 0
+  );
+
+  return { width, height };
+};
+
+const getQuickAccessDialogBaseMetrics = () => {
+  if (!(quickAccessModalDialog instanceof HTMLElement)) {
+    return null;
+  }
+
+  const rect = quickAccessModalDialog.getBoundingClientRect();
+  return {
+    width: rect.width,
+    height: rect.height,
+    baseLeft: rect.left - quickAccessModalLayoutState.offsetX,
+    baseTop: rect.top - quickAccessModalLayoutState.offsetY,
+  };
+};
+
+const clampQuickAccessDialogOffset = (offsetX, offsetY) => {
+  const numericOffsetX = Number.isFinite(offsetX) ? offsetX : 0;
+  const numericOffsetY = Number.isFinite(offsetY) ? offsetY : 0;
+  const viewport = getQuickAccessViewportDimensions();
+  const hasDragMetrics =
+    quickAccessModalLayoutState.width > 0 && quickAccessModalLayoutState.height > 0;
+
+  const fallbackMetrics = getQuickAccessDialogBaseMetrics();
+  const width = hasDragMetrics
+    ? quickAccessModalLayoutState.width
+    : (fallbackMetrics?.width ?? 0);
+  const height = hasDragMetrics
+    ? quickAccessModalLayoutState.height
+    : (fallbackMetrics?.height ?? 0);
+  const baseLeft = hasDragMetrics
+    ? quickAccessModalLayoutState.baseLeft
+    : (fallbackMetrics?.baseLeft ?? 0);
+  const baseTop = hasDragMetrics
+    ? quickAccessModalLayoutState.baseTop
+    : (fallbackMetrics?.baseTop ?? 0);
+
+  let nextOffsetX = Math.round(numericOffsetX);
+  let nextOffsetY = Math.round(numericOffsetY);
+
+  if (viewport.width > 0 && width > 0) {
+    const minOffsetX = QUICK_ACCESS_MODAL_MARGIN - baseLeft;
+    const maxOffsetX =
+      viewport.width - QUICK_ACCESS_MODAL_MARGIN - width - baseLeft;
+    nextOffsetX = Math.min(Math.max(nextOffsetX, minOffsetX), maxOffsetX);
+  }
+
+  if (viewport.height > 0 && height > 0) {
+    const minOffsetY = QUICK_ACCESS_MODAL_MARGIN - baseTop;
+    const maxOffsetY =
+      viewport.height - QUICK_ACCESS_MODAL_MARGIN - height - baseTop;
+    nextOffsetY = Math.min(Math.max(nextOffsetY, minOffsetY), maxOffsetY);
+  }
+
+  return { x: nextOffsetX, y: nextOffsetY };
+};
+
+const setQuickAccessModalDialogOffset = (
+  offsetX,
+  offsetY,
+  { clamp = true } = {}
+) => {
+  if (!(quickAccessModalDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  const resolvedOffset = clamp
+    ? clampQuickAccessDialogOffset(offsetX, offsetY)
+    : {
+        x: Math.round(Number.isFinite(offsetX) ? offsetX : 0),
+        y: Math.round(Number.isFinite(offsetY) ? offsetY : 0),
+      };
+
+  quickAccessModalDialog.style.setProperty(
+    "--quick-access-dialog-offset-x",
+    `${resolvedOffset.x}px`
+  );
+  quickAccessModalDialog.style.setProperty(
+    "--quick-access-dialog-offset-y",
+    `${resolvedOffset.y}px`
+  );
+
+  quickAccessModalLayoutState.offsetX = resolvedOffset.x;
+  quickAccessModalLayoutState.offsetY = resolvedOffset.y;
+};
+
+const removeQuickAccessModalDragListeners = () => {
+  window.removeEventListener("pointermove", handleQuickAccessModalDragPointerMove);
+  window.removeEventListener("pointerup", handleQuickAccessModalDragPointerUp);
+  window.removeEventListener("pointercancel", handleQuickAccessModalDragPointerUp);
+};
+
+function handleQuickAccessModalDragPointerMove(event) {
+  if (
+    !quickAccessModalLayoutState.dragging ||
+    event.pointerId !== quickAccessModalLayoutState.pointerId
+  ) {
+    return;
+  }
+
+  const nextLeft = event.clientX - quickAccessModalLayoutState.pointerOffsetX;
+  const nextTop = event.clientY - quickAccessModalLayoutState.pointerOffsetY;
+  const nextOffsetX = nextLeft - quickAccessModalLayoutState.baseLeft;
+  const nextOffsetY = nextTop - quickAccessModalLayoutState.baseTop;
+  setQuickAccessModalDialogOffset(nextOffsetX, nextOffsetY, { clamp: true });
+
+  event.preventDefault();
+}
+
+function handleQuickAccessModalDragPointerUp(event) {
+  if (
+    !quickAccessModalLayoutState.dragging ||
+    event.pointerId !== quickAccessModalLayoutState.pointerId
+  ) {
+    return;
+  }
+
+  removeQuickAccessModalDragListeners();
+  quickAccessModalLayoutState.dragging = false;
+  quickAccessModalLayoutState.pointerId = null;
+  quickAccessModalLayoutState.width = 0;
+  quickAccessModalLayoutState.height = 0;
+  quickAccessModalLayoutState.baseLeft = 0;
+  quickAccessModalLayoutState.baseTop = 0;
+
+  if (quickAccessModalDialog instanceof HTMLElement) {
+    quickAccessModalDialog.classList.remove("is-dragging");
+  }
+
+  if (quickAccessModalContent instanceof HTMLElement) {
+    quickAccessModalContent
+      .querySelectorAll("[data-quick-access-drag-handle].is-dragging")
+      .forEach((handle) => handle.classList.remove("is-dragging"));
+  }
+
+  if (quickAccessModal instanceof HTMLElement) {
+    quickAccessModal.classList.remove("is-dragging");
+  }
+
+  setQuickAccessModalDialogOffset(
+    quickAccessModalLayoutState.offsetX,
+    quickAccessModalLayoutState.offsetY,
+    { clamp: true }
+  );
+}
+
+const handleQuickAccessModalDragPointerDown = (event) => {
+  if (
+    quickAccessModalLayoutState.optionId !== QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID
+  ) {
+    return;
+  }
+
+  if (!(quickAccessModalDialog instanceof HTMLElement)) {
+    return;
+  }
+
+  if (typeof event.button === "number" && event.button !== 0) {
+    return;
+  }
+
+  if (quickAccessModalLayoutState.dragging) {
+    return;
+  }
+
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const dragHandle = target.closest("[data-quick-access-drag-handle]");
+  if (
+    !(dragHandle instanceof HTMLElement) ||
+    !(quickAccessModalContent instanceof HTMLElement) ||
+    !quickAccessModalContent.contains(dragHandle)
+  ) {
+    return;
+  }
+
+  if (
+    target.closest(
+      "button, a, input, textarea, select, [role='button'], [role='tab']"
+    )
+  ) {
+    return;
+  }
+
+  if (!(quickAccessModal instanceof HTMLElement) || quickAccessModal.hidden) {
+    return;
+  }
+
+  const rect = quickAccessModalDialog.getBoundingClientRect();
+  quickAccessModalLayoutState.dragging = true;
+  quickAccessModalLayoutState.pointerId = event.pointerId;
+  quickAccessModalLayoutState.pointerOffsetX = event.clientX - rect.left;
+  quickAccessModalLayoutState.pointerOffsetY = event.clientY - rect.top;
+  quickAccessModalLayoutState.width = rect.width;
+  quickAccessModalLayoutState.height = rect.height;
+  quickAccessModalLayoutState.baseLeft = rect.left - quickAccessModalLayoutState.offsetX;
+  quickAccessModalLayoutState.baseTop = rect.top - quickAccessModalLayoutState.offsetY;
+
+  quickAccessModalDialog.classList.add("is-dragging");
+  dragHandle.classList.add("is-dragging");
+  quickAccessModal.classList.add("is-dragging");
+
+  removeQuickAccessModalDragListeners();
+  window.addEventListener("pointermove", handleQuickAccessModalDragPointerMove, {
+    passive: false,
+  });
+  window.addEventListener("pointerup", handleQuickAccessModalDragPointerUp);
+  window.addEventListener("pointercancel", handleQuickAccessModalDragPointerUp);
+
+  event.preventDefault();
+};
+
+const syncQuickAccessModalLayoutMode = (optionId = null) => {
+  const normalizedOptionId =
+    typeof optionId === "string" && optionId.trim() !== "" ? optionId.trim() : null;
+  const isDroneSetup = normalizedOptionId === QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID;
+
+  quickAccessModalLayoutState.optionId = normalizedOptionId;
+
+  if (quickAccessModal instanceof HTMLElement) {
+    quickAccessModal.classList.toggle("quick-access-modal--drone-setup", isDroneSetup);
+    if (isDroneSetup) {
+      quickAccessModal.dataset.modalId = normalizedOptionId;
+    } else {
+      delete quickAccessModal.dataset.modalId;
+      quickAccessModal.classList.remove("is-dragging");
+    }
+  }
+
+  if (!isDroneSetup) {
+    clearQuickAccessModalDialogOffset();
+  }
+};
+
+const resetQuickAccessModalLayoutState = () => {
+  removeQuickAccessModalDragListeners();
+  quickAccessModalLayoutState.dragging = false;
+  quickAccessModalLayoutState.pointerId = null;
+  quickAccessModalLayoutState.pointerOffsetX = 0;
+  quickAccessModalLayoutState.pointerOffsetY = 0;
+  quickAccessModalLayoutState.baseLeft = 0;
+  quickAccessModalLayoutState.baseTop = 0;
+  quickAccessModalLayoutState.width = 0;
+  quickAccessModalLayoutState.height = 0;
+  quickAccessModalLayoutState.optionId = null;
+
+  if (quickAccessModalDialog instanceof HTMLElement) {
+    quickAccessModalDialog.classList.remove("is-dragging");
+  }
+
+  if (quickAccessModalContent instanceof HTMLElement) {
+    quickAccessModalContent
+      .querySelectorAll("[data-quick-access-drag-handle].is-dragging")
+      .forEach((handle) => handle.classList.remove("is-dragging"));
+  }
+
+  if (quickAccessModal instanceof HTMLElement) {
+    quickAccessModal.classList.remove("quick-access-modal--drone-setup", "is-dragging");
+    delete quickAccessModal.dataset.modalId;
+  }
+
+  clearQuickAccessModalDialogOffset();
+};
+
+const handleQuickAccessModalWindowResize = () => {
+  if (
+    !(quickAccessModal instanceof HTMLElement) ||
+    quickAccessModal.hidden ||
+    quickAccessModalLayoutState.optionId !== QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID
+  ) {
+    return;
+  }
+
+  if (quickAccessModalLayoutState.dragging) {
+    return;
+  }
+
+  setQuickAccessModalDialogOffset(
+    quickAccessModalLayoutState.offsetX,
+    quickAccessModalLayoutState.offsetY,
+    { clamp: true }
+  );
 };
 
 const QUICK_ACCESS_MATRIX_ENABLED = false;
@@ -8871,6 +9206,7 @@ const finishClosingQuickAccessModal = () => {
   missionModalActive = false;
   droneCustomizationModalActive = false;
   teardownQuickAccessModalContent();
+  resetQuickAccessModalLayoutState();
   quickAccessModal.hidden = true;
   quickAccessModalContent.innerHTML = "";
   stopQuickAccessMatrix();
@@ -8949,6 +9285,8 @@ const openQuickAccessModal = (option) => {
   quickAccessModalContent.innerHTML = "";
   quickAccessModalContent.appendChild(template.content.cloneNode(true));
   quickAccessModalContent.scrollTop = 0;
+  syncQuickAccessModalLayoutMode(option?.id ?? null);
+  clearQuickAccessModalDialogOffset();
   initializeQuickAccessModalContent(option);
 
   quickAccessModalClose = quickAccessModalDialog.querySelector(
@@ -8985,6 +9323,12 @@ const openLiftModal = () => {
 };
 
 if (quickAccessModal instanceof HTMLElement) {
+  quickAccessModal.addEventListener(
+    "pointerdown",
+    handleQuickAccessModalDragPointerDown,
+    { passive: false }
+  );
+
   quickAccessModal.addEventListener("click", (event) => {
     const target =
       event.target instanceof HTMLElement
@@ -9092,6 +9436,8 @@ if (inventoryTabButtons.length > 0) {
 }
 
 if (typeof window !== "undefined") {
+  window.addEventListener("resize", handleQuickAccessModalWindowResize);
+  window.addEventListener("orientationchange", handleQuickAccessModalWindowResize);
   window.addEventListener("resize", handleInventoryWindowResize);
   window.addEventListener("orientationchange", handleInventoryWindowResize);
 }
