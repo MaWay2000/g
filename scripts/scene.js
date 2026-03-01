@@ -8632,53 +8632,69 @@ export const initScene = (
       panelMount.add(rightFrame);
     };
 
+    const backWallUsableWidth = bayWidth - sideWallThickness * 2 - 0.2;
+    const backPanelGap = 0.28;
+    const backPanelHeight = Math.min(
+      wallHeight * 0.84,
+      (backWallUsableWidth - backPanelGap) / 3
+    );
+    const backPanelWidth = backPanelHeight * 1.5;
+    const backPanelCenterOffsetX = backPanelWidth / 2 + backPanelGap / 2;
+    const backPanelCenterY = wallHeight * 0.52;
+    const backPanelZ = bayDepth / 2 - backWallThickness - 0.01;
+
     createWallpaperPanel({
       texturePath: "./images/game/area/engi-bay/m1.png",
-      width: bayWidth * 0.48,
-      height: wallHeight * 0.5,
-      x: 0,
-      y: wallHeight * 0.6,
-      z: bayDepth / 2 - backWallThickness - 0.01,
+      width: backPanelWidth,
+      height: backPanelHeight,
+      x: -backPanelCenterOffsetX,
+      y: backPanelCenterY,
+      z: backPanelZ,
       rotationY: Math.PI,
       opacity: 0.88,
       frameDepth: 0.038,
     });
     createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/m2.png",
+      width: backPanelWidth,
+      height: backPanelHeight,
+      x: backPanelCenterOffsetX,
+      y: backPanelCenterY,
+      z: backPanelZ,
+      rotationY: Math.PI,
+      opacity: 0.88,
+      frameDepth: 0.038,
+    });
+
+    const sidePanelHeight = wallHeight * 0.82;
+    const sidePanelWidth = sidePanelHeight * 0.5;
+    const sidePanelY = wallHeight * 0.54;
+
+    createWallpaperPanel({
       texturePath: "./images/game/area/engi-bay/mars_map_1.png",
-      width: bayDepth * 0.24,
-      height: wallHeight * 0.36,
+      width: sidePanelWidth,
+      height: sidePanelHeight,
       x: -bayWidth / 2 + sideWallThickness + 0.01,
-      y: wallHeight * 0.56,
-      z: -bayDepth * 0.06,
+      y: sidePanelY,
+      z: -bayDepth * 0.02,
       rotationY: Math.PI / 2,
     });
     createWallpaperPanel({
       texturePath: "./images/game/area/engi-bay/mars_map_2.png",
-      width: bayDepth * 0.24,
-      height: wallHeight * 0.36,
+      width: sidePanelWidth,
+      height: sidePanelHeight,
       x: bayWidth / 2 - sideWallThickness - 0.01,
-      y: wallHeight * 0.56,
-      z: bayDepth * 0.08,
+      y: sidePanelY,
+      z: bayDepth * 0.2,
       rotationY: -Math.PI / 2,
     });
     createWallpaperPanel({
-      texturePath: "./images/game/area/engi-bay/m2.png",
-      width: bayWidth * 0.22,
-      height: wallHeight * 0.28,
-      x: -bayWidth * 0.34,
-      y: wallHeight * 0.38,
-      z: bayDepth / 2 - backWallThickness - 0.01,
-      rotationY: Math.PI,
-      opacity: 0.84,
-      frameDepth: 0.034,
-    });
-    createWallpaperPanel({
       texturePath: "./images/game/area/engi-bay/mars_map_3.png",
-      width: bayDepth * 0.2,
-      height: wallHeight * 0.38,
+      width: sidePanelWidth,
+      height: sidePanelHeight,
       x: bayWidth / 2 - sideWallThickness - 0.01,
-      y: wallHeight * 0.56,
-      z: -bayDepth * 0.3,
+      y: sidePanelY,
+      z: -bayDepth * 0.22,
       rotationY: -Math.PI / 2,
     });
 
