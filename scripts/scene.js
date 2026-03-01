@@ -8514,7 +8514,15 @@ export const initScene = (
     // Keep the engineering bay ceiling above lift-door top with a small clearance.
     const wallHeight = Math.max(2.45, BASE_DOOR_HEIGHT + 0.35);
     const sideWallThickness = 0.26;
-    const sideWallGeometry = new THREE.BoxGeometry(sideWallThickness, wallHeight, bayDepth);
+    const backWallThickness = 0.24;
+    const wallSeamOverlap = 0.08;
+    const sideWallDepth =
+      bayDepth + backWallThickness * 2 + wallSeamOverlap * 2;
+    const sideWallGeometry = new THREE.BoxGeometry(
+      sideWallThickness,
+      wallHeight,
+      sideWallDepth
+    );
     const sideWallLeft = new THREE.Mesh(sideWallGeometry, wallMaterial);
     sideWallLeft.position.set(
       -bayWidth / 2 + sideWallThickness / 2,
@@ -8526,9 +8534,12 @@ export const initScene = (
     sideWallRight.position.x *= -1;
     group.add(sideWallRight);
 
-    const backWallThickness = 0.24;
     const backWall = new THREE.Mesh(
-      new THREE.BoxGeometry(bayWidth - sideWallThickness * 2, wallHeight, backWallThickness),
+      new THREE.BoxGeometry(
+        bayWidth - sideWallThickness * 2 + wallSeamOverlap * 2,
+        wallHeight,
+        backWallThickness
+      ),
       wallMaterial
     );
     backWall.position.set(
