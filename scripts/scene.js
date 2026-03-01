@@ -8535,6 +8535,62 @@ export const initScene = (
       }
     });
     const faultyWallpaperPanels = [];
+    const faultyPanelStatusMessages = Object.freeze([
+      "Data error",
+      "Signal interupted",
+      "Connection lost",
+    ]);
+
+    const createFaultyStatusOverlay = ({ width = 1, height = 1 } = {}) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1024;
+      canvas.height = 256;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(width * 0.74, height * 0.16),
+        material
+      );
+      mesh.position.y = -height * 0.34;
+
+      const drawMessage = (message) => {
+        const text = typeof message === "string" ? message : "";
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "rgba(5, 2, 1, 0.64)";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = "rgba(255, 156, 84, 0.6)";
+        context.lineWidth = 4;
+        context.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+        context.font = "700 86px 'Segoe UI', sans-serif";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillStyle = "rgba(255, 177, 112, 0.96)";
+        context.shadowColor = "rgba(255, 133, 66, 0.75)";
+        context.shadowBlur = 18;
+        context.fillText(text.toUpperCase(), canvas.width / 2, canvas.height / 2);
+        context.shadowBlur = 0;
+        texture.needsUpdate = true;
+      };
+
+      return { mesh, material, drawMessage };
+    };
 
     const createWallpaperPanel = ({
       texturePath = "",
@@ -8614,12 +8670,33 @@ export const initScene = (
       panel.renderOrder = 2;
       panelMount.add(panel);
       if (malfunctionEffect) {
+        const statusOverlay = createFaultyStatusOverlay({
+          width: resolvedWidth,
+          height: resolvedHeight,
+        });
+        if (statusOverlay?.mesh) {
+          statusOverlay.mesh.position.z = panel.position.z + 0.002;
+          statusOverlay.mesh.renderOrder = panel.renderOrder + 1;
+          panelMount.add(statusOverlay.mesh);
+        }
+        const initialMessageIndex =
+          faultyPanelStatusMessages.length > 0
+            ? Math.floor(Math.random() * faultyPanelStatusMessages.length)
+            : 0;
+        if (statusOverlay && faultyPanelStatusMessages.length > 0) {
+          statusOverlay.drawMessage(
+            faultyPanelStatusMessages[initialMessageIndex]
+          );
+        }
         faultyWallpaperPanels.push({
           material: panel.material,
           baseOpacity: opacity,
           baseEmissiveIntensity: Number.isFinite(panel.material.emissiveIntensity)
             ? panel.material.emissiveIntensity
             : 0.26,
+          statusOverlay,
+          messageIndex: initialMessageIndex,
+          messageCountdown: THREE.MathUtils.randFloat(3, 10),
           phase: Math.random() * Math.PI * 2,
           jitterSpeed: THREE.MathUtils.randFloat(9.5, 16.5),
           eventCountdown: THREE.MathUtils.randFloat(0.15, 0.75),
@@ -9524,14 +9601,39 @@ export const initScene = (
 
       faultyWallpaperPanels.forEach((state) => {
         const material = state?.material;
+        const overlayMaterial = state?.statusOverlay?.material;
         if (!material) {
           return;
+        }
+
+        if (state?.statusOverlay && faultyPanelStatusMessages.length > 0) {
+          state.messageCountdown -= dt;
+          if (state.messageCountdown <= 0) {
+            let nextMessageIndex = Math.floor(
+              Math.random() * faultyPanelStatusMessages.length
+            );
+            if (
+              faultyPanelStatusMessages.length > 1 &&
+              nextMessageIndex === state.messageIndex
+            ) {
+              nextMessageIndex =
+                (nextMessageIndex + 1) % faultyPanelStatusMessages.length;
+            }
+            state.messageIndex = nextMessageIndex;
+            state.statusOverlay.drawMessage(
+              faultyPanelStatusMessages[nextMessageIndex]
+            );
+            state.messageCountdown = THREE.MathUtils.randFloat(3, 10);
+          }
         }
 
         if (state.blackoutRemaining > 0) {
           state.blackoutRemaining = Math.max(0, state.blackoutRemaining - dt);
           material.opacity = Math.max(0.06, state.baseOpacity * 0.08);
           material.emissiveIntensity = state.baseEmissiveIntensity * 0.04;
+          if (overlayMaterial) {
+            overlayMaterial.opacity = 0.04;
+          }
           return;
         }
 
@@ -9563,6 +9665,13 @@ export const initScene = (
           state.baseOpacity
         );
         material.emissiveIntensity = state.baseEmissiveIntensity * (0.35 + clampedIntensity * 1.18);
+        if (overlayMaterial) {
+          overlayMaterial.opacity = THREE.MathUtils.clamp(
+            0.2 + clampedIntensity * 0.58,
+            0.16,
+            0.9
+          );
+        }
       });
     };
 
