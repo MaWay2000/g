@@ -9084,6 +9084,40 @@ export const initScene = (
       { object: leftConsole.colliderObject ?? leftConsole.group },
       { object: rightConsole.colliderObject ?? rightConsole.group },
     ];
+    const hologramTileImageCache = new Map();
+    const hologramTileImagePromises = new Map();
+
+    const loadHologramTileImage = (texturePath) => {
+      if (!texturePath) {
+        return Promise.resolve(null);
+      }
+      if (hologramTileImageCache.has(texturePath)) {
+        return Promise.resolve(hologramTileImageCache.get(texturePath));
+      }
+      if (hologramTileImagePromises.has(texturePath)) {
+        return hologramTileImagePromises.get(texturePath);
+      }
+
+      const promise = new Promise((resolve) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.crossOrigin = "anonymous";
+        image.onload = () => {
+          hologramTileImageCache.set(texturePath, image);
+          hologramTileImagePromises.delete(texturePath);
+          resolve(image);
+        };
+        image.onerror = () => {
+          hologramTileImageCache.set(texturePath, null);
+          hologramTileImagePromises.delete(texturePath);
+          resolve(null);
+        };
+        image.src = texturePath;
+      });
+
+      hologramTileImagePromises.set(texturePath, promise);
+      return promise;
+    };
 
     const resolveOutsideMapForHologram = () => {
       let mapDefinition = null;
@@ -9357,31 +9391,6 @@ export const initScene = (
         return null;
       }
 
-      const warmTint = new THREE.Color(0xffb673);
-      for (let row = 0; row < mapHeight; row += 1) {
-        for (let column = 0; column < mapWidth; column += 1) {
-          const index = row * mapWidth + column;
-          const cell = cells[index];
-          const terrainId = getOutsideTerrainById(cell?.terrainId ?? "void").id;
-          const terrain = getOutsideTerrainById(terrainId);
-          const baseColor = new THREE.Color(terrain?.color ?? "#f8fafc");
-          const mixedColor = baseColor.clone().lerp(warmTint, terrainId === "void" ? 0.22 : 0.58);
-          const heightValue = clampOutsideHeight(heights[index]);
-          const brightness =
-            terrainId === "void"
-              ? 0.16
-              : 0.36 + THREE.MathUtils.clamp(heightValue / OUTSIDE_HEIGHT_MAX, 0, 1) * 0.64;
-          mixedColor.multiplyScalar(brightness);
-
-          const drawX = column * safeTileSize;
-          const drawY = row * safeTileSize;
-          context.fillStyle = `rgb(${Math.round(mixedColor.r * 255)}, ${Math.round(
-            mixedColor.g * 255
-          )}, ${Math.round(mixedColor.b * 255)})`;
-          context.fillRect(drawX, drawY, safeTileSize, safeTileSize);
-        }
-      }
-
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.flipY = false;
@@ -9390,6 +9399,73 @@ export const initScene = (
       texture.magFilter = THREE.LinearFilter;
       texture.wrapS = THREE.ClampToEdgeWrapping;
       texture.wrapT = THREE.ClampToEdgeWrapping;
+      const drawFallbackTile = (drawX, drawY, terrainId) => {
+        context.fillStyle =
+          terrainId === "void" ? "rgb(18, 12, 9)" : "rgb(34, 24, 16)";
+        context.fillRect(drawX, drawY, safeTileSize, safeTileSize);
+      };
+      const drawTiles = () => {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        for (let row = 0; row < mapHeight; row += 1) {
+          for (let column = 0; column < mapWidth; column += 1) {
+            const index = row * mapWidth + column;
+            const cell = cells[index];
+            const terrainId = getOutsideTerrainById(cell?.terrainId ?? "void").id;
+            const tileId =
+              cell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+            const texturePath = getOutsideTerrainTilePath(tileId, index);
+            const tileImage = texturePath
+              ? hologramTileImageCache.get(texturePath)
+              : null;
+            const drawX = column * safeTileSize;
+            const drawY = row * safeTileSize;
+
+            if (tileImage) {
+              context.drawImage(
+                tileImage,
+                drawX,
+                drawY,
+                safeTileSize,
+                safeTileSize
+              );
+            } else {
+              drawFallbackTile(drawX, drawY, terrainId);
+            }
+
+            if (terrainId === "void") {
+              context.save();
+              context.fillStyle = "rgba(8, 6, 4, 0.6)";
+              context.fillRect(drawX, drawY, safeTileSize, safeTileSize);
+              context.restore();
+            }
+          }
+        }
+        texture.needsUpdate = true;
+      };
+      drawTiles();
+
+      const texturePathsToLoad = new Set();
+      cells.forEach((cell, index) => {
+        const terrainId = getOutsideTerrainById(cell?.terrainId ?? "void").id;
+        const tileId =
+          cell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+        const texturePath = getOutsideTerrainTilePath(tileId, index);
+        if (texturePath) {
+          texturePathsToLoad.add(texturePath);
+        }
+      });
+      if (texturePathsToLoad.size > 0) {
+        Promise.all(
+          [...texturePathsToLoad].map((texturePath) =>
+            loadHologramTileImage(texturePath)
+          )
+        )
+          .then(() => {
+            drawTiles();
+          })
+          .catch(() => {});
+      }
+
       texture.needsUpdate = true;
       return texture;
     };
