@@ -9134,7 +9134,7 @@ export const initScene = (
       droneCustomizationTableZ - 0.1
     );
     droneCustomizationScreen.rotation.set(
-      -THREE.MathUtils.degToRad(17),
+      THREE.MathUtils.degToRad(17),
       Math.PI,
       0
     );
@@ -9152,6 +9152,40 @@ export const initScene = (
       droneCustomizationDisplay.dispose();
     };
     group.add(droneCustomizationScreen);
+
+    const droneCustomizationKeyboardBase = new THREE.Mesh(
+      new THREE.BoxGeometry(0.46, 0.03, 0.2),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x1b120c),
+        roughness: 0.52,
+        metalness: 0.42,
+      })
+    );
+    droneCustomizationKeyboardBase.position.set(
+      droneCustomizationTableX,
+      roomFloorY + droneCustomizationTableTopOffset + 0.04,
+      droneCustomizationTableZ - 0.2
+    );
+    droneCustomizationKeyboardBase.rotation.x = -THREE.MathUtils.degToRad(6);
+    group.add(droneCustomizationKeyboardBase);
+
+    const droneCustomizationKeyboardKeys = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 0.012, 0.145),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x2f1f14),
+        roughness: 0.44,
+        metalness: 0.28,
+        emissive: new THREE.Color(0x1f0f06),
+        emissiveIntensity: 0.2,
+      })
+    );
+    droneCustomizationKeyboardKeys.position.set(
+      droneCustomizationTableX,
+      roomFloorY + droneCustomizationTableTopOffset + 0.056,
+      droneCustomizationTableZ - 0.2
+    );
+    droneCustomizationKeyboardKeys.rotation.copy(droneCustomizationKeyboardBase.rotation);
+    group.add(droneCustomizationKeyboardKeys);
 
     const liftDoor = createHangarDoor(ENGINEERING_BAY_DOOR_THEME, {
       includeBackWall: true,
@@ -9180,6 +9214,14 @@ export const initScene = (
       { object: ambientWarmLight, offset: 2.08 },
       { object: droneCustomizationTableTop, offset: droneCustomizationTableTopOffset },
       { object: droneCustomizationScreen, offset: 1.06 },
+      {
+        object: droneCustomizationKeyboardBase,
+        offset: droneCustomizationTableTopOffset + 0.04,
+      },
+      {
+        object: droneCustomizationKeyboardKeys,
+        offset: droneCustomizationTableTopOffset + 0.056,
+      },
     ];
 
     floorPanels.forEach((panel) => {
