@@ -8561,6 +8561,7 @@ export const initScene = (
         transparent: true,
         opacity: 0.72,
         depthWrite: false,
+        depthTest: false,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
       });
@@ -8675,7 +8676,7 @@ export const initScene = (
           height: resolvedHeight,
         });
         if (statusOverlay?.mesh) {
-          statusOverlay.mesh.position.z = panel.position.z + 0.002;
+          statusOverlay.mesh.position.z = panel.position.z + 0.02;
           statusOverlay.mesh.renderOrder = panel.renderOrder + 1;
           panelMount.add(statusOverlay.mesh);
         }
