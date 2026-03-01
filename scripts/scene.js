@@ -8534,6 +8534,7 @@ export const initScene = (
         );
       }
     });
+    const faultyWallpaperPanels = [];
 
     const createWallpaperPanel = ({
       texturePath = "",
@@ -8545,6 +8546,7 @@ export const initScene = (
       rotationY = 0,
       opacity = 0.86,
       frameDepth = 0.032,
+      malfunctionEffect = false,
     } = {}) => {
       const baseTexture = engineeringPanelTextures.get(texturePath) ?? null;
       if (!baseTexture) {
@@ -8601,6 +8603,20 @@ export const initScene = (
       panel.position.z = frameDepth * 0.7;
       panel.renderOrder = 2;
       panelMount.add(panel);
+      if (malfunctionEffect) {
+        faultyWallpaperPanels.push({
+          material: panel.material,
+          baseOpacity: opacity,
+          baseEmissiveIntensity: Number.isFinite(panel.material.emissiveIntensity)
+            ? panel.material.emissiveIntensity
+            : 0.26,
+          phase: Math.random() * Math.PI * 2,
+          jitterSpeed: THREE.MathUtils.randFloat(9.5, 16.5),
+          eventCountdown: THREE.MathUtils.randFloat(0.15, 0.75),
+          blinkRemaining: 0,
+          blackoutRemaining: 0,
+        });
+      }
 
       const frameThickness = Math.max(0.04, Math.min(width, height) * 0.07);
       const topFrame = new THREE.Mesh(
@@ -8653,6 +8669,7 @@ export const initScene = (
       rotationY: Math.PI,
       opacity: 0.88,
       frameDepth: 0.038,
+      malfunctionEffect: true,
     });
     createWallpaperPanel({
       texturePath: "./images/game/area/engi-bay/m2.png",
@@ -8664,6 +8681,7 @@ export const initScene = (
       rotationY: Math.PI,
       opacity: 0.88,
       frameDepth: 0.038,
+      malfunctionEffect: true,
     });
 
     const sidePanelHeight = wallHeight * 0.82;
@@ -9482,6 +9500,60 @@ export const initScene = (
       });
     };
 
+    const updatePanelMalfunctionEffects = ({ delta = 0, elapsedTime = 0 } = {}) => {
+      if (
+        !Array.isArray(faultyWallpaperPanels) ||
+        faultyWallpaperPanels.length === 0
+      ) {
+        return;
+      }
+      const dt = Number.isFinite(delta) ? Math.max(0, delta) : 0;
+      const elapsed = Number.isFinite(elapsedTime) ? elapsedTime : performance.now() * 0.001;
+
+      faultyWallpaperPanels.forEach((state) => {
+        const material = state?.material;
+        if (!material) {
+          return;
+        }
+
+        if (state.blackoutRemaining > 0) {
+          state.blackoutRemaining = Math.max(0, state.blackoutRemaining - dt);
+          material.opacity = Math.max(0.06, state.baseOpacity * 0.08);
+          material.emissiveIntensity = state.baseEmissiveIntensity * 0.04;
+          return;
+        }
+
+        state.eventCountdown -= dt;
+        if (state.eventCountdown <= 0) {
+          const eventRoll = Math.random();
+          if (eventRoll < 0.16) {
+            state.blackoutRemaining = THREE.MathUtils.randFloat(0.03, 0.11);
+            state.blinkRemaining = 0;
+          } else if (eventRoll < 0.62) {
+            state.blinkRemaining = THREE.MathUtils.randFloat(0.05, 0.16);
+          }
+          state.eventCountdown = THREE.MathUtils.randFloat(0.16, 1.25);
+        }
+
+        let intensity = 0.92 + Math.sin(elapsed * state.jitterSpeed + state.phase) * 0.08;
+        intensity += (Math.random() - 0.5) * 0.12;
+
+        if (state.blinkRemaining > 0) {
+          state.blinkRemaining = Math.max(0, state.blinkRemaining - dt);
+          const blinkWave = Math.sin(state.blinkRemaining * 88 + state.phase * 4.3);
+          intensity *= blinkWave > 0 ? 0.32 : 1.1;
+        }
+
+        const clampedIntensity = THREE.MathUtils.clamp(intensity, 0.18, 1.08);
+        material.opacity = THREE.MathUtils.clamp(
+          state.baseOpacity * clampedIntensity,
+          0.14,
+          state.baseOpacity
+        );
+        material.emissiveIntensity = state.baseEmissiveIntensity * (0.35 + clampedIntensity * 1.18);
+      });
+    };
+
     const teleportOffset = new THREE.Vector3(0, 0, -bayDepth / 2 + 1.8);
 
     return {
@@ -9490,6 +9562,9 @@ export const initScene = (
       liftDoors: [liftDoor, ...mapLiftDoors],
       quickAccessInteractables: [droneCustomizationScreen],
       updateForRoomHeight,
+      update: (payload = {}) => {
+        updatePanelMalfunctionEffects(payload);
+      },
       teleportOffset,
       starFields: [],
       bounds: floorBounds,
