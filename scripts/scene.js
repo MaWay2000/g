@@ -2658,12 +2658,12 @@ export const initScene = (
     emblemColor: 0xc2410c,
     emblemEmissiveColor: 0x3f1908,
     frameColor: 0x1f1611,
-    backWallColor: 0x24170f,
+    backWallColor: 0x1a110b,
     backWallRoughness: 0.64,
     backWallMetalness: 0.48,
     backWallUseGrunge: false,
-    backWallEmissiveColor: 0x160c07,
-    backWallEmissiveIntensity: 0.24,
+    backWallEmissiveColor: 0x0b0604,
+    backWallEmissiveIntensity: 0.16,
     trimColor: 0x92400e,
     trimEmissiveColor: 0x3f1c08,
     panelColor: 0x2b1b13,
@@ -8468,25 +8468,25 @@ export const initScene = (
     });
 
     const floorMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x24170f),
+      color: new THREE.Color(0x1a110b),
       roughness: 0.64,
       metalness: 0.48,
-      emissive: new THREE.Color(0x160c07),
-      emissiveIntensity: 0.24,
+      emissive: new THREE.Color(0x0b0604),
+      emissiveIntensity: 0.16,
     });
     const wallMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x24170f),
+      color: new THREE.Color(0x1a110b),
       roughness: 0.64,
       metalness: 0.48,
-      emissive: new THREE.Color(0x160c07),
-      emissiveIntensity: 0.24,
+      emissive: new THREE.Color(0x0b0604),
+      emissiveIntensity: 0.16,
     });
     const panelMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x24170f),
+      color: new THREE.Color(0x1a110b),
       roughness: 0.64,
       metalness: 0.48,
-      emissive: new THREE.Color(0x160c07),
-      emissiveIntensity: 0.24,
+      emissive: new THREE.Color(0x0b0604),
+      emissiveIntensity: 0.16,
     });
     const trimMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x3a2316),
