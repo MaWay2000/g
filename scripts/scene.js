@@ -9054,7 +9054,10 @@ export const initScene = (
         consoleGroup.add(monitorScreen);
       }
 
-      return consoleGroup;
+      return {
+        group: consoleGroup,
+        colliderObject: consoleBase,
+      };
     };
 
     const leftConsole = createConsoleBank({
@@ -9073,7 +9076,14 @@ export const initScene = (
       depth: 0.72,
       label: "RGT",
     });
-    const consoleGroups = [leftConsole, rightConsole];
+    const consoleGroups = [leftConsole.group, rightConsole.group];
+    const environmentColliderDescriptors = [
+      { object: commandTableBase },
+      { object: commandTableTop },
+      { object: commandTableInset },
+      { object: leftConsole.colliderObject ?? leftConsole.group },
+      { object: rightConsole.colliderObject ?? rightConsole.group },
+    ];
 
     const resolveOutsideMapForHologram = () => {
       let mapDefinition = null;
@@ -10058,7 +10068,10 @@ export const initScene = (
       teleportOffset,
       starFields: [],
       bounds: floorBounds,
-      colliderDescriptors: mapColliderDescriptors,
+      colliderDescriptors: [
+        ...environmentColliderDescriptors,
+        ...mapColliderDescriptors,
+      ],
       terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
       readyPromise: mapOverlay?.readyPromise,
