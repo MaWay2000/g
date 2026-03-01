@@ -2659,6 +2659,9 @@ export const initScene = (
     emblemEmissiveColor: 0x3f1908,
     frameColor: 0x1f1611,
     backWallColor: 0x18120d,
+    backWallRoughness: 0.82,
+    backWallMetalness: 0.34,
+    backWallUseGrunge: false,
     trimColor: 0x92400e,
     trimEmissiveColor: 0x3f1c08,
     panelColor: 0x2b1b13,
@@ -2964,15 +2967,22 @@ export const initScene = (
     const backWallDepth = 0.18;
 
     if (includeBackWall) {
+      const backWallRoughness = Number.isFinite(theme.backWallRoughness)
+        ? theme.backWallRoughness
+        : 0.68;
+      const backWallMetalness = Number.isFinite(theme.backWallMetalness)
+        ? theme.backWallMetalness
+        : 0.32;
+      const useBackWallGrunge = theme.backWallUseGrunge !== false;
       const backWallMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(
           Number.isFinite(theme.backWallColor) ? theme.backWallColor : 0x0b1113
         ),
-        roughness: 0.68,
-        metalness: 0.32,
-        map: grungeTexture,
-        roughnessMap: grungeTexture,
-        metalnessMap: grungeTexture,
+        roughness: backWallRoughness,
+        metalness: backWallMetalness,
+        map: useBackWallGrunge ? grungeTexture : null,
+        roughnessMap: useBackWallGrunge ? grungeTexture : null,
+        metalnessMap: useBackWallGrunge ? grungeTexture : null,
       });
       const backWall = new THREE.Mesh(
         new THREE.BoxGeometry(
