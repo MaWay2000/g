@@ -2649,6 +2649,38 @@ export const initScene = (
     emblemColor: 0x2563eb,
     emblemEmissiveColor: 0x10243f,
   };
+  const ENGINEERING_BAY_DOOR_THEME = {
+    accentColor: 0xb45309,
+    accentEmissiveColor: 0x3f1e08,
+    seamGlowColor: 0xfb923c,
+    doorLightColor: 0xfb923c,
+    overheadLightColor: 0xc2410c,
+    emblemColor: 0xc2410c,
+    emblemEmissiveColor: 0x3f1908,
+    frameColor: 0x1f1611,
+    backWallColor: 0x120c09,
+    trimColor: 0x92400e,
+    trimEmissiveColor: 0x3f1c08,
+    panelColor: 0x2b1b13,
+    panelEmissiveColor: 0x150c08,
+    seamColor: 0x1a120d,
+    windowFrameColor: 0x2a1b14,
+    windowColor: 0xffd2a0,
+    windowEmissiveColor: 0xffb76b,
+    windowGlowColor: 0xffa35c,
+    windowHaloColor: 0xffd19d,
+    ventColor: 0x20140e,
+    boltColor: 0x17100c,
+    controlPanelColor: 0x21150f,
+    controlPanelEmissiveColor: 0x3f1c08,
+    controlPanelEdgeColor: 0xfb923c,
+    controlPanelGlowColor: 0xfb923c,
+    liftAreaLabelTextColor: "#fed7aa",
+    liftAreaLabelBorderColor: "#7c2d12",
+    liftAreaEdgeColor: 0xfb923c,
+    liftAreaGlowColor: 0xfb923c,
+    liftAreaLightColor: 0xfb923c,
+  };
   const EXTERIOR_PORTAL_DOOR_THEME = {
     accentColor: 0x0d9488,
     accentEmissiveColor: 0x043d3d,
@@ -2896,7 +2928,9 @@ export const initScene = (
     const grungeTexture = createGrungeTexture();
 
     const frameMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x131a1c),
+      color: new THREE.Color(
+        Number.isFinite(theme.frameColor) ? theme.frameColor : 0x131a1c
+      ),
       roughness: 0.52,
       metalness: 0.58,
       map: grungeTexture,
@@ -2931,7 +2965,9 @@ export const initScene = (
 
     if (includeBackWall) {
       const backWallMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x0b1113),
+        color: new THREE.Color(
+          Number.isFinite(theme.backWallColor) ? theme.backWallColor : 0x0b1113
+        ),
         roughness: 0.68,
         metalness: 0.32,
         map: grungeTexture,
@@ -2955,10 +2991,16 @@ export const initScene = (
     }
 
     const trimMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x7f1d1d),
+      color: new THREE.Color(
+        Number.isFinite(theme.trimColor) ? theme.trimColor : 0x7f1d1d
+      ),
       metalness: 0.42,
       roughness: 0.36,
-      emissive: new THREE.Color(0x1f0303),
+      emissive: new THREE.Color(
+        Number.isFinite(theme.trimEmissiveColor)
+          ? theme.trimEmissiveColor
+          : 0x1f0303
+      ),
       emissiveIntensity: 0.32,
     });
 
@@ -2983,14 +3025,20 @@ export const initScene = (
     group.add(bottomTrim);
 
     const panelMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x202b2b),
+      color: new THREE.Color(
+        Number.isFinite(theme.panelColor) ? theme.panelColor : 0x202b2b
+      ),
       roughness: 0.48,
       metalness: 0.62,
       map: grungeTexture,
       roughnessMap: grungeTexture,
       metalnessMap: grungeTexture,
       normalScale: new THREE.Vector2(0.3, 0.3),
-      emissive: new THREE.Color(0x050d0e),
+      emissive: new THREE.Color(
+        Number.isFinite(theme.panelEmissiveColor)
+          ? theme.panelEmissiveColor
+          : 0x050d0e
+      ),
       emissiveIntensity: 0.4,
     });
 
@@ -3060,7 +3108,9 @@ export const initScene = (
     group.add(rightPanel);
 
     const seamMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x111a1b),
+      color: new THREE.Color(
+        Number.isFinite(theme.seamColor) ? theme.seamColor : 0x111a1b
+      ),
       roughness: 0.38,
       metalness: 0.52,
       map: grungeTexture,
@@ -3099,15 +3149,23 @@ export const initScene = (
     group.add(bottomPanelGlow);
 
     const windowFrameMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x1c2527),
+      color: new THREE.Color(
+        Number.isFinite(theme.windowFrameColor) ? theme.windowFrameColor : 0x1c2527
+      ),
       metalness: 0.6,
       roughness: 0.32,
       map: grungeTexture,
     });
 
     const windowMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0xb7e3ff),
-      emissive: new THREE.Color(0x9bdcfb),
+      color: new THREE.Color(
+        Number.isFinite(theme.windowColor) ? theme.windowColor : 0xb7e3ff
+      ),
+      emissive: new THREE.Color(
+        Number.isFinite(theme.windowEmissiveColor)
+          ? theme.windowEmissiveColor
+          : 0x9bdcfb
+      ),
       emissiveIntensity: 0.95,
       transparent: true,
       opacity: 0.78,
@@ -3150,7 +3208,9 @@ export const initScene = (
 
     const windowFrameGeometry = createWindowFrameGeometry();
     const windowGlowMaterial = new THREE.MeshBasicMaterial({
-      color: 0x93c5fd,
+      color: Number.isFinite(theme.windowGlowColor)
+        ? theme.windowGlowColor
+        : 0x93c5fd,
       transparent: true,
       opacity: 0.55,
       side: THREE.DoubleSide,
@@ -3200,7 +3260,9 @@ export const initScene = (
       group.add(rearGlow);
 
       const windowHaloMaterial = new THREE.MeshBasicMaterial({
-        color: 0x9bdcfb,
+        color: Number.isFinite(theme.windowHaloColor)
+          ? theme.windowHaloColor
+          : 0x9bdcfb,
         transparent: true,
         opacity: 0.22,
         side: THREE.DoubleSide,
@@ -3224,7 +3286,9 @@ export const initScene = (
     createWindow(panelWidth * 0.25);
 
     const ventMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x111a1a),
+      color: new THREE.Color(
+        Number.isFinite(theme.ventColor) ? theme.ventColor : 0x111a1a
+      ),
       metalness: 0.4,
       roughness: 0.55,
       map: grungeTexture,
@@ -3276,7 +3340,9 @@ export const initScene = (
     group.add(rightEmblem);
 
     const boltMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x0e1516),
+      color: new THREE.Color(
+        Number.isFinite(theme.boltColor) ? theme.boltColor : 0x0e1516
+      ),
       metalness: 0.6,
       roughness: 0.3,
     });
@@ -3299,10 +3365,16 @@ export const initScene = (
     });
 
     const controlPanelMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x111b1f),
+      color: new THREE.Color(
+        Number.isFinite(theme.controlPanelColor) ? theme.controlPanelColor : 0x111b1f
+      ),
       roughness: 0.42,
       metalness: 0.48,
-      emissive: new THREE.Color(0x0f172a),
+      emissive: new THREE.Color(
+        Number.isFinite(theme.controlPanelEmissiveColor)
+          ? theme.controlPanelEmissiveColor
+          : 0x0f172a
+      ),
       emissiveIntensity: 0.45,
     });
 
@@ -3323,7 +3395,9 @@ export const initScene = (
     const controlPanelEdges = new THREE.LineSegments(
       new THREE.EdgesGeometry(controlPanel.geometry),
       new THREE.LineBasicMaterial({
-        color: 0x38bdf8,
+        color: Number.isFinite(theme.controlPanelEdgeColor)
+          ? theme.controlPanelEdgeColor
+          : 0x38bdf8,
         transparent: true,
         opacity: 0.75,
       })
@@ -3334,7 +3408,9 @@ export const initScene = (
     const controlPanelGlow = new THREE.Mesh(
       new THREE.PlaneGeometry(0.74, 1.62),
       new THREE.MeshBasicMaterial({
-        color: 0x0ea5e9,
+        color: Number.isFinite(theme.controlPanelGlowColor)
+          ? theme.controlPanelGlowColor
+          : 0x0ea5e9,
         transparent: true,
         opacity: 0.18,
         blending: THREE.AdditiveBlending,
@@ -3348,11 +3424,23 @@ export const initScene = (
     const liftAccessStyles = {
       area: {
         label: ["AREA", "SELECT"],
-        labelTextColor: "#bae6fd",
-        labelBorderColor: "#1e3a8a",
-        edgeColor: 0x38bdf8,
-        glowColor: 0x0ea5e9,
-        lightColor: 0x38bdf8,
+        labelTextColor:
+          typeof theme.liftAreaLabelTextColor === "string"
+            ? theme.liftAreaLabelTextColor
+            : "#bae6fd",
+        labelBorderColor:
+          typeof theme.liftAreaLabelBorderColor === "string"
+            ? theme.liftAreaLabelBorderColor
+            : "#1e3a8a",
+        edgeColor: Number.isFinite(theme.liftAreaEdgeColor)
+          ? theme.liftAreaEdgeColor
+          : 0x38bdf8,
+        glowColor: Number.isFinite(theme.liftAreaGlowColor)
+          ? theme.liftAreaGlowColor
+          : 0x0ea5e9,
+        lightColor: Number.isFinite(theme.liftAreaLightColor)
+          ? theme.liftAreaLightColor
+          : 0x38bdf8,
       },
       direct: {
         label: ["DIRECT", "ACCESS"],
@@ -4606,7 +4694,12 @@ export const initScene = (
     }
   };
 
-  const createStoredAreaOverlay = ({ areaId, floorBounds, roomFloorY }) => {
+  const createStoredAreaOverlay = ({
+    areaId,
+    floorBounds,
+    roomFloorY,
+    liftDoorTheme = null,
+  }) => {
     const storedMap = loadStoredMapForArea(areaId);
     if (!storedMap) {
       return null;
@@ -7388,7 +7481,11 @@ export const initScene = (
           }
           const placementPosition = getPlacementWorldPosition(placement);
           if (placement.path === DOOR_MARKER_PATH) {
-            const door = createHangarDoor();
+            const door = createHangarDoor(
+              liftDoorTheme && typeof liftDoorTheme === "object"
+                ? liftDoorTheme
+                : undefined
+            );
             const placementCollisionEnabled =
               isMapMakerPlacementCollisionEnabled(placement);
             setMapMakerPlacementCollisionState(
@@ -9093,7 +9190,7 @@ export const initScene = (
     );
     group.add(droneCustomizationBeacon);
 
-    const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
+    const liftDoor = createHangarDoor(ENGINEERING_BAY_DOOR_THEME, {
       includeBackWall: true,
     });
     liftDoor.position.set(
@@ -9156,6 +9253,7 @@ export const initScene = (
       areaId: "engineering-bay",
       floorBounds,
       roomFloorY,
+      liftDoorTheme: ENGINEERING_BAY_DOOR_THEME,
     });
     const mapColliderDescriptors = Array.isArray(mapOverlay?.colliderDescriptors)
       ? mapOverlay.colliderDescriptors
