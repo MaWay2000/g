@@ -9821,7 +9821,9 @@ export const initScene = (
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
     const liftSideWall = backWall.clone();
-    liftSideWall.position.z = -bayDepth / 2 + backWallThickness / 2;
+    // Keep the front engineering wall flush with the room boundary.
+    // The previous inset position created a visible recessed dark pocket.
+    liftSideWall.position.z = -bayDepth / 2 - backWallThickness / 2 - 0.01;
     group.add(liftSideWall);
 
     const adjustableEntries = [
