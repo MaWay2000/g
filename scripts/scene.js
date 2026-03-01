@@ -12142,6 +12142,24 @@ export const initScene = (
   const DRONE_MINER_TRAVEL_SPEED = 6;
   const DRONE_MINER_MIN_TRANSITION_DURATION = 0.7;
   const DRONE_MINER_MAX_TRANSITION_DURATION = 20;
+  const resolveActiveDroneModelScale = () => {
+    const activePreset = resolveDroneModelPreset(activeDroneModelId);
+    const presetScale =
+      Number.isFinite(activePreset?.scale) && activePreset.scale > 0
+        ? activePreset.scale
+        : 1;
+    return presetScale;
+  };
+  const resolveDroneHoverLift = () => {
+    const modelScale = resolveActiveDroneModelScale();
+    return DRONE_MINER_HOVER_LIFT + Math.max(0, (modelScale - 1) * 0.25);
+  };
+  const resolveDroneLaunchStartDistance = () => {
+    const modelScale = resolveActiveDroneModelScale();
+    return (
+      DRONE_MINER_LAUNCH_START_DISTANCE + Math.max(0, (modelScale - 1) * 0.8)
+    );
+  };
   const droneMinerState = {
     active: false,
     basePosition: new THREE.Vector3(),
@@ -12231,7 +12249,7 @@ export const initScene = (
         droneMinerState.basePosition,
         droneMinerState.basePosition.y
       ) +
-      DRONE_MINER_HOVER_LIFT +
+      resolveDroneHoverLift() +
       DRONE_MINER_SURFACE_MARGIN;
 
     if (droneMinerState.basePosition.y < minBaseY) {
@@ -12260,7 +12278,7 @@ export const initScene = (
     droneLaunchStartPosition.copy(launchOrigin);
     droneLaunchStartPosition.addScaledVector(
       droneLaunchDirection,
-      DRONE_MINER_LAUNCH_START_DISTANCE
+      resolveDroneLaunchStartDistance()
     );
 
     const launchSurfaceBaseY = resolveDroneSurfaceBaseHeight(
@@ -12268,7 +12286,7 @@ export const initScene = (
       launchOrigin.y
     );
     droneLaunchStartPosition.y =
-      launchSurfaceBaseY + DRONE_MINER_HOVER_LIFT + DRONE_MINER_SURFACE_MARGIN;
+      launchSurfaceBaseY + resolveDroneHoverLift() + DRONE_MINER_SURFACE_MARGIN;
 
     return droneLaunchStartPosition;
   };
@@ -12337,7 +12355,7 @@ export const initScene = (
     );
     droneMinerState.transitionTarget.set(
       spawnPoint.x,
-      spawnSurfaceBaseY + DRONE_MINER_HOVER_LIFT + DRONE_MINER_SURFACE_MARGIN,
+      spawnSurfaceBaseY + resolveDroneHoverLift() + DRONE_MINER_SURFACE_MARGIN,
       spawnPoint.z
     );
 
@@ -12403,7 +12421,7 @@ export const initScene = (
       );
       droneReturnTarget.y =
         Math.max(returnBaseY, returnSurfaceBaseY) +
-        DRONE_MINER_HOVER_LIFT +
+        resolveDroneHoverLift() +
         DRONE_MINER_SURFACE_MARGIN;
 
       droneReturnDirection
