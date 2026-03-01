@@ -8469,8 +8469,10 @@ export const initScene = (
 
     const floorMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x24170f),
-      roughness: 0.82,
-      metalness: 0.34,
+      roughness: 0.64,
+      metalness: 0.48,
+      emissive: new THREE.Color(0x160c07),
+      emissiveIntensity: 0.24,
     });
     const wallMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x24170f),
@@ -8483,6 +8485,8 @@ export const initScene = (
       color: new THREE.Color(0x24170f),
       roughness: 0.64,
       metalness: 0.48,
+      emissive: new THREE.Color(0x160c07),
+      emissiveIntensity: 0.24,
     });
     const trimMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x3a2316),
