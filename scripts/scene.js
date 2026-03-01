@@ -9357,27 +9357,32 @@ export const initScene = (
         return null;
       }
 
-      const warmTint = new THREE.Color(0xffb673);
       for (let row = 0; row < mapHeight; row += 1) {
         for (let column = 0; column < mapWidth; column += 1) {
           const index = row * mapWidth + column;
           const cell = cells[index];
           const terrainId = getOutsideTerrainById(cell?.terrainId ?? "void").id;
-          const terrain = getOutsideTerrainById(terrainId);
-          const baseColor = new THREE.Color(terrain?.color ?? "#f8fafc");
-          const mixedColor = baseColor.clone().lerp(warmTint, terrainId === "void" ? 0.22 : 0.58);
           const heightValue = clampOutsideHeight(heights[index]);
-          const brightness =
+          const heightRatio = THREE.MathUtils.clamp(
+            heightValue / OUTSIDE_HEIGHT_MAX,
+            0,
+            1
+          );
+          const intensity =
             terrainId === "void"
-              ? 0.16
-              : 0.36 + THREE.MathUtils.clamp(heightValue / OUTSIDE_HEIGHT_MAX, 0, 1) * 0.64;
-          mixedColor.multiplyScalar(brightness);
+              ? 0.06
+              : 0.28 + heightRatio * 0.72;
+          const alpha =
+            terrainId === "void"
+              ? 0.06
+              : 0.24 + heightRatio * 0.52;
+          const channel = Math.round(255 * intensity);
 
           const drawX = column * safeTileSize;
           const drawY = row * safeTileSize;
-          context.fillStyle = `rgb(${Math.round(mixedColor.r * 255)}, ${Math.round(
-            mixedColor.g * 255
-          )}, ${Math.round(mixedColor.b * 255)})`;
+          context.fillStyle = `rgba(${channel}, ${channel}, ${channel}, ${alpha.toFixed(
+            3
+          )})`;
           context.fillRect(drawX, drawY, safeTileSize, safeTileSize);
         }
       }
@@ -9414,10 +9419,10 @@ export const initScene = (
     const hologramScaleY = 0.24;
 
     const hologramSurfaceMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(0xffc08a),
+      color: new THREE.Color(0xffa65a),
       map: hologramTexture,
       transparent: true,
-      opacity: 0.84,
+      opacity: 0.62,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -10017,9 +10022,9 @@ export const initScene = (
       const primaryPulse = 0.5 + Math.sin(elapsed * 2.15) * 0.5;
       const secondaryPulse = 0.5 + Math.sin(elapsed * 3.4 + 1.2) * 0.5;
       hologramSurfaceMaterial.opacity = THREE.MathUtils.clamp(
-        0.66 + primaryPulse * 0.24,
-        0.5,
-        0.94
+        0.36 + primaryPulse * 0.26,
+        0.24,
+        0.72
       );
       hologramWireMaterial.opacity = THREE.MathUtils.clamp(
         0.28 + secondaryPulse * 0.32,
