@@ -8466,6 +8466,8 @@ export const initScene = (
       color: new THREE.Color(0x24170f),
       roughness: 0.64,
       metalness: 0.48,
+      emissive: new THREE.Color(0x160c07),
+      emissiveIntensity: 0.24,
     });
     const panelMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x24170f),
@@ -9794,7 +9796,7 @@ export const initScene = (
     group.add(droneCustomizationKeyboardKeys);
 
     const liftDoor = createHangarDoor(ENGINEERING_BAY_DOOR_THEME, {
-      includeBackWall: false,
+      includeBackWall: true,
     });
     liftDoor.position.set(
       0,
