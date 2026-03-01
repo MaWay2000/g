@@ -9383,39 +9383,9 @@ export const initScene = (
       };
     };
 
-    const droneCustomizationTableX = 0;
-    const droneCustomizationTableZ = bayDepth / 2 - 1.05;
-    const droneCustomizationTableTopOffset = 0.8;
-    const droneCustomizationTableTop = new THREE.Mesh(
-      new THREE.BoxGeometry(1.45, 0.08, 0.76),
-      panelMaterial
-    );
-    droneCustomizationTableTop.position.set(
-      droneCustomizationTableX,
-      roomFloorY + droneCustomizationTableTopOffset,
-      droneCustomizationTableZ
-    );
-    group.add(droneCustomizationTableTop);
-
-    const droneCustomizationTableLegGeometry = new THREE.BoxGeometry(0.1, 0.74, 0.1);
-    const droneCustomizationTableLegOffsets = [
-      [-0.58, 0.37, -0.28],
-      [0.58, 0.37, -0.28],
-      [-0.58, 0.37, 0.28],
-      [0.58, 0.37, 0.28],
-    ];
-    const droneCustomizationTableLegs = droneCustomizationTableLegOffsets.map(
-      ([x, y, z]) => {
-        const leg = new THREE.Mesh(droneCustomizationTableLegGeometry, trimMaterial);
-        leg.position.set(
-          droneCustomizationTableX + x,
-          roomFloorY + y,
-          droneCustomizationTableZ + z
-        );
-        group.add(leg);
-        return leg;
-      }
-    );
+    const droneCustomizationConsoleX = 0;
+    const droneCustomizationConsoleZ = -commandTableDepth * 0.28;
+    const droneCustomizationSurfaceOffset = 0.8;
 
     const droneCustomizationDisplay = createDroneCustomizationDisplay();
     const droneCustomizationScreenMaterial = new THREE.MeshStandardMaterial({
@@ -9433,9 +9403,9 @@ export const initScene = (
       droneCustomizationScreenMaterial
     );
     droneCustomizationScreen.position.set(
-      droneCustomizationTableX,
-      roomFloorY + 1.06,
-      droneCustomizationTableZ - 0.1
+      droneCustomizationConsoleX,
+      roomFloorY + droneCustomizationSurfaceOffset + 0.26,
+      droneCustomizationConsoleZ
     );
     droneCustomizationScreen.rotation.set(
       THREE.MathUtils.degToRad(17),
@@ -9466,9 +9436,9 @@ export const initScene = (
       })
     );
     droneCustomizationKeyboardBase.position.set(
-      droneCustomizationTableX,
-      roomFloorY + droneCustomizationTableTopOffset + 0.04,
-      droneCustomizationTableZ - 0.2
+      droneCustomizationConsoleX,
+      roomFloorY + droneCustomizationSurfaceOffset + 0.04,
+      droneCustomizationConsoleZ - 0.1
     );
     droneCustomizationKeyboardBase.rotation.x = -THREE.MathUtils.degToRad(6);
     group.add(droneCustomizationKeyboardBase);
@@ -9484,9 +9454,9 @@ export const initScene = (
       })
     );
     droneCustomizationKeyboardKeys.position.set(
-      droneCustomizationTableX,
-      roomFloorY + droneCustomizationTableTopOffset + 0.056,
-      droneCustomizationTableZ - 0.2
+      droneCustomizationConsoleX,
+      roomFloorY + droneCustomizationSurfaceOffset + 0.056,
+      droneCustomizationConsoleZ - 0.1
     );
     droneCustomizationKeyboardKeys.rotation.copy(droneCustomizationKeyboardBase.rotation);
     group.add(droneCustomizationKeyboardKeys);
@@ -9516,15 +9486,17 @@ export const initScene = (
       { object: hologramCore, offset: 1.02 },
       { object: hologramLight, offset: 1.55 },
       { object: ambientWarmLight, offset: 2.08 },
-      { object: droneCustomizationTableTop, offset: droneCustomizationTableTopOffset },
-      { object: droneCustomizationScreen, offset: 1.06 },
+      {
+        object: droneCustomizationScreen,
+        offset: droneCustomizationSurfaceOffset + 0.26,
+      },
       {
         object: droneCustomizationKeyboardBase,
-        offset: droneCustomizationTableTopOffset + 0.04,
+        offset: droneCustomizationSurfaceOffset + 0.04,
       },
       {
         object: droneCustomizationKeyboardKeys,
-        offset: droneCustomizationTableTopOffset + 0.056,
+        offset: droneCustomizationSurfaceOffset + 0.056,
       },
       ...wallpaperAdjustableEntries,
     ];
@@ -9537,9 +9509,6 @@ export const initScene = (
     });
     consoleGroups.forEach((consoleGroup) => {
       adjustableEntries.push({ object: consoleGroup, offset: 0 });
-    });
-    droneCustomizationTableLegs.forEach((leg) => {
-      adjustableEntries.push({ object: leg, offset: 0.37 });
     });
     ceilingLightFixtures.forEach((fixture) => {
       adjustableEntries.push({ object: fixture, offset: wallHeight - 0.12 });
