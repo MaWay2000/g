@@ -9799,12 +9799,28 @@ export const initScene = (
     liftDoor.rotation.y = 0;
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
+    const liftSideWallThickness = 0.24;
+    const liftSideWall = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        bayWidth - sideWallThickness * 2,
+        wallHeight,
+        liftSideWallThickness
+      ),
+      floorMaterial
+    );
+    liftSideWall.position.set(
+      0,
+      roomFloorY + wallHeight / 2,
+      -bayDepth / 2 - liftSideWallThickness / 2 - 0.03
+    );
+    group.add(liftSideWall);
 
     const adjustableEntries = [
       { object: floor, offset: -floorThickness / 2 },
       { object: sideWallLeft, offset: wallHeight / 2 },
       { object: sideWallRight, offset: wallHeight / 2 },
       { object: backWall, offset: wallHeight / 2 },
+      { object: liftSideWall, offset: wallHeight / 2 },
       { object: ceiling, offset: wallHeight },
       { object: commandTableBase, offset: 0.33 },
       { object: commandTableTop, offset: 0.72 },
