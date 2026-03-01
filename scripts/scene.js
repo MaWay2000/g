@@ -9388,9 +9388,6 @@ export const initScene = (
             mixedColor.g * 255
           )}, ${Math.round(mixedColor.b * 255)})`;
           context.fillRect(drawX, drawY, safeTileSize, safeTileSize);
-          context.strokeStyle = "rgba(255, 198, 133, 0.34)";
-          context.lineWidth = 1;
-          context.strokeRect(drawX + 0.5, drawY + 0.5, safeTileSize - 1, safeTileSize - 1);
         }
       }
 
@@ -9457,6 +9454,7 @@ export const initScene = (
     );
     hologramWireframe.position.set(0, roomFloorY + 0.816, 0);
     hologramWireframe.scale.set(hologramScaleX, hologramScaleY, hologramScaleZ);
+    hologramWireframe.visible = false;
     group.add(hologramWireframe);
 
     const hologramBaseRingMaterial = new THREE.MeshBasicMaterial({
