@@ -9811,7 +9811,7 @@ export const initScene = (
     liftSideWall.position.set(
       0,
       roomFloorY + wallHeight / 2,
-      -bayDepth / 2 - liftSideWallThickness / 2 - 0.03
+      -bayDepth / 2 - liftSideWallThickness / 2 + 0.02
     );
     group.add(liftSideWall);
 
