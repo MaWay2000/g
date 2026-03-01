@@ -2658,7 +2658,7 @@ export const initScene = (
     emblemColor: 0xc2410c,
     emblemEmissiveColor: 0x3f1908,
     frameColor: 0x1f1611,
-    backWallColor: 0x18120d,
+    backWallColor: 0x24170f,
     backWallRoughness: 0.82,
     backWallMetalness: 0.34,
     backWallUseGrunge: false,
@@ -8462,6 +8462,11 @@ export const initScene = (
       roughness: 0.82,
       metalness: 0.34,
     });
+    const wallMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x24170f),
+      roughness: 0.82,
+      metalness: 0.34,
+    });
     const panelMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x24170f),
       roughness: 0.64,
@@ -8494,7 +8499,7 @@ export const initScene = (
     const wallHeight = Math.max(2.45, BASE_DOOR_HEIGHT + 0.35);
     const sideWallThickness = 0.26;
     const sideWallGeometry = new THREE.BoxGeometry(sideWallThickness, wallHeight, bayDepth);
-    const sideWallLeft = new THREE.Mesh(sideWallGeometry, floorMaterial);
+    const sideWallLeft = new THREE.Mesh(sideWallGeometry, wallMaterial);
     sideWallLeft.position.set(
       -bayWidth / 2 + sideWallThickness / 2,
       roomFloorY + wallHeight / 2,
@@ -8508,7 +8513,7 @@ export const initScene = (
     const backWallThickness = 0.24;
     const backWall = new THREE.Mesh(
       new THREE.BoxGeometry(bayWidth - sideWallThickness * 2, wallHeight, backWallThickness),
-      floorMaterial
+      wallMaterial
     );
     backWall.position.set(
       0,
@@ -9806,7 +9811,7 @@ export const initScene = (
         wallHeight,
         liftSideWallThickness
       ),
-      floorMaterial
+      wallMaterial
     );
     liftSideWall.position.set(
       0,
