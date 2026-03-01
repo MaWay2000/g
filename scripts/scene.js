@@ -8546,6 +8546,8 @@ export const initScene = (
       rotationY = 0,
       opacity = 0.86,
       frameDepth = 0.032,
+      showFrame = true,
+      panelDepthOffset = null,
       malfunctionEffect = false,
     } = {}) => {
       const baseTexture = engineeringPanelTextures.get(texturePath) ?? null;
@@ -8598,9 +8600,17 @@ export const initScene = (
           transparent: true,
           opacity,
           side: THREE.DoubleSide,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
         })
       );
-      panel.position.z = frameDepth * 0.7;
+      const resolvedPanelDepthOffset = Number.isFinite(panelDepthOffset)
+        ? panelDepthOffset
+        : showFrame
+          ? frameDepth * 0.7
+          : 0.012;
+      panel.position.z = resolvedPanelDepthOffset;
       panel.renderOrder = 2;
       panelMount.add(panel);
       if (malfunctionEffect) {
@@ -8618,45 +8628,45 @@ export const initScene = (
         });
       }
 
-      const frameThickness = Math.max(0.04, Math.min(width, height) * 0.07);
-      const topFrame = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          resolvedWidth + frameThickness * 2,
+      if (showFrame) {
+        const frameThickness = Math.max(0.04, Math.min(width, height) * 0.07);
+        const topFrame = new THREE.Mesh(
+          new THREE.BoxGeometry(
+            resolvedWidth + frameThickness * 2,
+            frameThickness,
+            frameDepth
+          ),
+          trimMaterial
+        );
+        topFrame.position.y = resolvedHeight / 2 + frameThickness / 2;
+        panelMount.add(topFrame);
+
+        const bottomFrame = topFrame.clone();
+        bottomFrame.position.y *= -1;
+        panelMount.add(bottomFrame);
+
+        const sideFrameGeometry = new THREE.BoxGeometry(
           frameThickness,
+          resolvedHeight,
           frameDepth
-        ),
-        trimMaterial
-      );
-      topFrame.position.y = resolvedHeight / 2 + frameThickness / 2;
-      panelMount.add(topFrame);
+        );
+        const leftFrame = new THREE.Mesh(sideFrameGeometry, trimMaterial);
+        leftFrame.position.x = -(resolvedWidth / 2 + frameThickness / 2);
+        panelMount.add(leftFrame);
 
-      const bottomFrame = topFrame.clone();
-      bottomFrame.position.y *= -1;
-      panelMount.add(bottomFrame);
-
-      const sideFrameGeometry = new THREE.BoxGeometry(
-        frameThickness,
-        resolvedHeight,
-        frameDepth
-      );
-      const leftFrame = new THREE.Mesh(sideFrameGeometry, trimMaterial);
-      leftFrame.position.x = -(resolvedWidth / 2 + frameThickness / 2);
-      panelMount.add(leftFrame);
-
-      const rightFrame = leftFrame.clone();
-      rightFrame.position.x *= -1;
-      panelMount.add(rightFrame);
+        const rightFrame = leftFrame.clone();
+        rightFrame.position.x *= -1;
+        panelMount.add(rightFrame);
+      }
     };
 
     const backWallUsableWidth = bayWidth - sideWallThickness * 2 - 0.2;
-    const backPanelGap = 0.28;
-    const backPanelHeight = Math.min(
-      wallHeight * 0.84,
-      (backWallUsableWidth - backPanelGap) / 3
-    );
-    const backPanelWidth = backPanelHeight * 1.5;
+    const backPanelGap = 0.14;
+    const backPanelHeight = wallHeight * 0.94;
+    const maxBackPanelWidth = (backWallUsableWidth - backPanelGap) / 2;
+    const backPanelWidth = Math.min(backPanelHeight * 1.5, maxBackPanelWidth);
     const backPanelCenterOffsetX = backPanelWidth / 2 + backPanelGap / 2;
-    const backPanelCenterY = wallHeight * 0.52;
+    const backPanelCenterY = wallHeight * 0.5;
     const backPanelZ = bayDepth / 2 - backWallThickness - 0.01;
 
     createWallpaperPanel({
@@ -8668,7 +8678,8 @@ export const initScene = (
       z: backPanelZ,
       rotationY: Math.PI,
       opacity: 0.88,
-      frameDepth: 0.038,
+      showFrame: false,
+      panelDepthOffset: 0.014,
       malfunctionEffect: true,
     });
     createWallpaperPanel({
@@ -8680,7 +8691,8 @@ export const initScene = (
       z: backPanelZ,
       rotationY: Math.PI,
       opacity: 0.88,
-      frameDepth: 0.038,
+      showFrame: false,
+      panelDepthOffset: 0.014,
       malfunctionEffect: true,
     });
 
