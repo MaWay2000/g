@@ -9141,12 +9141,25 @@ export const initScene = (
         uvs.push(...quadUvs[0], ...quadUvs[2], ...quadUvs[3]);
       };
       const HOLOGRAM_HEIGHT_VALUE_MAX = 255;
+      const HOLOGRAM_DYNAMIC_MIN_RANGE = 16;
       const HOLOGRAM_WORLD_HEIGHT_MAX = 1;
+      const mapMaxHeightValue = cells.reduce((maxHeightValue, cell, index) => {
+        const terrainId = getOutsideTerrainById(cell?.terrainId ?? "void").id;
+        if (terrainId === "void") {
+          return maxHeightValue;
+        }
+        const clampedHeightValue = clampOutsideHeight(heights[index]);
+        return Math.max(maxHeightValue, clampedHeightValue);
+      }, 0);
+      const effectiveHeightRange = Math.min(
+        HOLOGRAM_HEIGHT_VALUE_MAX,
+        Math.max(1, HOLOGRAM_DYNAMIC_MIN_RANGE, mapMaxHeightValue)
+      );
       const getCellHeight = (index) => {
         const clampedHeightValue = clampOutsideHeight(heights[index]);
         return (
           (HOLOGRAM_WORLD_HEIGHT_MAX * clampedHeightValue) /
-          HOLOGRAM_HEIGHT_VALUE_MAX
+          effectiveHeightRange
         );
       };
       const isVoidCell = (index) =>
