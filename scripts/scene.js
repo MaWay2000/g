@@ -8561,6 +8561,12 @@ export const initScene = (
       );
       wallpaperSliceTexture.needsUpdate = true;
 
+      const panelMount = new THREE.Group();
+      panelMount.position.set(x, roomFloorY + y, z);
+      panelMount.rotation.y = rotationY;
+      group.add(panelMount);
+      wallpaperAdjustableEntries.push({ object: panelMount, offset: y });
+
       const panel = new THREE.Mesh(
         new THREE.PlaneGeometry(width, height),
         new THREE.MeshStandardMaterial({
@@ -8576,19 +8582,38 @@ export const initScene = (
           side: THREE.DoubleSide,
         })
       );
-      panel.position.set(x, roomFloorY + y, z);
-      panel.rotation.y = rotationY;
-      group.add(panel);
-      wallpaperAdjustableEntries.push({ object: panel, offset: y });
+      panel.position.z = frameDepth * 0.7;
+      panel.renderOrder = 2;
+      panelMount.add(panel);
 
-      const frame = new THREE.Mesh(
-        new THREE.BoxGeometry(width + 0.12, height + 0.12, frameDepth),
+      const frameThickness = Math.max(0.04, Math.min(width, height) * 0.07);
+      const topFrame = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          width + frameThickness * 2,
+          frameThickness,
+          frameDepth
+        ),
         trimMaterial
       );
-      frame.position.set(x, roomFloorY + y, z);
-      frame.rotation.y = rotationY;
-      group.add(frame);
-      wallpaperAdjustableEntries.push({ object: frame, offset: y });
+      topFrame.position.y = height / 2 + frameThickness / 2;
+      panelMount.add(topFrame);
+
+      const bottomFrame = topFrame.clone();
+      bottomFrame.position.y *= -1;
+      panelMount.add(bottomFrame);
+
+      const sideFrameGeometry = new THREE.BoxGeometry(
+        frameThickness,
+        height,
+        frameDepth
+      );
+      const leftFrame = new THREE.Mesh(sideFrameGeometry, trimMaterial);
+      leftFrame.position.x = -(width / 2 + frameThickness / 2);
+      panelMount.add(leftFrame);
+
+      const rightFrame = leftFrame.clone();
+      rightFrame.position.x *= -1;
+      panelMount.add(rightFrame);
     };
 
     createWallpaperPanel({
