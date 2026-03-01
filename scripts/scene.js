@@ -9146,8 +9146,7 @@ export const initScene = (
       const normalizedHeight = THREE.MathUtils.clamp(rawHeight / 255, 0, 1);
       const terrainId = hologramMapData.cells[cellIndex]?.terrainId ?? "void";
       const isVoid = terrainId === "void";
-      const terrainElevation = getOutsideTerrainElevation(rawHeight);
-      const displacement = isVoid ? -0.02 : 0.02 + terrainElevation * 0.55;
+      const displacement = isVoid ? -0.012 : 0.008 + normalizedHeight * 0.24;
       hologramVertices.setZ(index, displacement);
     }
     hologramVertices.needsUpdate = true;
