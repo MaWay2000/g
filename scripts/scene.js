@@ -8789,6 +8789,34 @@ export const initScene = (
       malfunctionEffect: true,
     });
 
+    const sideWallFillHeight = wallHeight * 0.94;
+    const sideWallFillWidth = bayDepth * 0.78;
+    const sideWallFillY = wallHeight * 0.5;
+    createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/m1.png",
+      width: sideWallFillWidth,
+      height: sideWallFillHeight,
+      x: -bayWidth / 2 + sideWallThickness + 0.01,
+      y: sideWallFillY,
+      z: 0,
+      rotationY: Math.PI / 2,
+      opacity: 0.32,
+      showFrame: false,
+      panelDepthOffset: 0.008,
+    });
+    createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/m2.png",
+      width: sideWallFillWidth,
+      height: sideWallFillHeight,
+      x: bayWidth / 2 - sideWallThickness - 0.01,
+      y: sideWallFillY,
+      z: 0,
+      rotationY: -Math.PI / 2,
+      opacity: 0.32,
+      showFrame: false,
+      panelDepthOffset: 0.008,
+    });
+
     const sidePanelHeight = wallHeight * 0.82;
     const sidePanelWidth = sidePanelHeight * 0.5;
     const sidePanelY = wallHeight * 0.54;
