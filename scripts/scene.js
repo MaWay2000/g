@@ -9140,8 +9140,15 @@ export const initScene = (
         uvs.push(...quadUvs[0], ...quadUvs[1], ...quadUvs[2]);
         uvs.push(...quadUvs[0], ...quadUvs[2], ...quadUvs[3]);
       };
-      const getCellHeight = (index) =>
-        getOutsideTerrainElevation(clampOutsideHeight(heights[index]));
+      const HOLOGRAM_HEIGHT_VALUE_MAX = 255;
+      const HOLOGRAM_WORLD_HEIGHT_MAX = 1;
+      const getCellHeight = (index) => {
+        const clampedHeightValue = clampOutsideHeight(heights[index]);
+        return (
+          (HOLOGRAM_WORLD_HEIGHT_MAX * clampedHeightValue) /
+          HOLOGRAM_HEIGHT_VALUE_MAX
+        );
+      };
       const isVoidCell = (index) =>
         getOutsideTerrainById(cells[index]?.terrainId ?? "void").id === "void";
       const isHeightDrop = (fromHeight, toHeight) => fromHeight - toHeight > 0.001;
