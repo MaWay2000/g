@@ -9804,20 +9804,8 @@ export const initScene = (
     liftDoor.rotation.y = 0;
     liftDoor.userData.floorOffset = 0;
     group.add(liftDoor);
-    const liftSideWallThickness = 0.24;
-    const liftSideWall = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        bayWidth - sideWallThickness * 2,
-        wallHeight,
-        liftSideWallThickness
-      ),
-      wallMaterial
-    );
-    liftSideWall.position.set(
-      0,
-      roomFloorY + wallHeight / 2,
-      -bayDepth / 2 - liftSideWallThickness / 2 + 0.02
-    );
+    const liftSideWall = backWall.clone();
+    liftSideWall.position.z = -bayDepth / 2 + backWallThickness / 2;
     group.add(liftSideWall);
 
     const adjustableEntries = [
