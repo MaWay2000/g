@@ -1133,6 +1133,7 @@ const quickAccessModalTemplates = {
 
 const DIGGER_QUICK_SLOT_ID = "digger";
 const DRONE_QUICK_SLOT_ID = "drone-miner";
+const DRONE_ALLOWED_LIFT_FLOOR_IDS = new Set(["operations-exterior"]);
 const STATION_BUILDER_QUICK_SLOT_ID = "arc-welder";
 const INVENTORY_QUICK_SLOT_ID = "inventory";
 
@@ -10647,6 +10648,11 @@ const promptInventoryForDroneFuel = () => {
   openInventoryPanel();
 };
 
+const canUseDroneInCurrentArea = () => {
+  const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
+  return DRONE_ALLOWED_LIFT_FLOOR_IDS.has(activeFloorId);
+};
+
 const scheduleDroneAutomationRetry = () => {
   cancelDroneAutomationRetry();
 
@@ -10790,6 +10796,12 @@ const attemptDroneLaunch = ({ playLaunchSound = false } = {}) => {
     return;
   }
 
+  if (!canUseDroneInCurrentArea()) {
+    droneState.status = "idle";
+    updateDroneStatusUi();
+    return { started: false, reason: "unavailable-area" };
+  }
+
   if (!sceneController?.launchDroneMiner) {
     showDroneResourceToast({
       title: "Drone controls offline",
@@ -10826,6 +10838,10 @@ const attemptDroneLaunch = ({ playLaunchSound = false } = {}) => {
     droneState.status = "idle";
     updateDroneStatusUi();
 
+    if (launchResult?.reason === "unavailable-area") {
+      return;
+    }
+
     if (launchResult?.reason === "no-target" && !droneState.notifiedUnavailable) {
       droneState.notifiedUnavailable = true;
       showDroneResourceToast({
@@ -10861,6 +10877,11 @@ const relaunchDroneAfterRestoreIfNeeded = () => {
 
 const activateDroneAutomation = () => {
   if (droneState.active) {
+    return;
+  }
+
+  if (!canUseDroneInCurrentArea()) {
+    playGeoVisorOutOfBatterySound();
     return;
   }
 
@@ -10920,6 +10941,11 @@ const activateDroneAutomation = () => {
 
 const resumeDroneAutomation = () => {
   if (!droneState.pendingShutdown) {
+    return;
+  }
+
+  if (!canUseDroneInCurrentArea()) {
+    playGeoVisorOutOfBatterySound();
     return;
   }
 
