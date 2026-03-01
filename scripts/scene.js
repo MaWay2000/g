@@ -9133,7 +9133,11 @@ export const initScene = (
       roomFloorY + 1.06,
       droneCustomizationTableZ - 0.1
     );
-    droneCustomizationScreen.rotation.x = -THREE.MathUtils.degToRad(17);
+    droneCustomizationScreen.rotation.set(
+      -THREE.MathUtils.degToRad(17),
+      Math.PI,
+      0
+    );
     droneCustomizationScreen.userData.getQuickAccessZones = () =>
       droneCustomizationDisplay.getQuickAccessZones();
     droneCustomizationScreen.userData.getQuickAccessTextureSize = () =>
@@ -9148,23 +9152,6 @@ export const initScene = (
       droneCustomizationDisplay.dispose();
     };
     group.add(droneCustomizationScreen);
-
-    const droneCustomizationPad = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.22, 0.06, 24),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x1f130c),
-        roughness: 0.32,
-        metalness: 0.62,
-        emissive: new THREE.Color(0xff8a33),
-        emissiveIntensity: 0.4,
-      })
-    );
-    droneCustomizationPad.position.set(
-      droneCustomizationTableX - 0.34,
-      roomFloorY + 0.87,
-      droneCustomizationTableZ + 0.05
-    );
-    group.add(droneCustomizationPad);
 
     const liftDoor = createHangarDoor(ENGINEERING_BAY_DOOR_THEME, {
       includeBackWall: true,
@@ -9193,7 +9180,6 @@ export const initScene = (
       { object: ambientWarmLight, offset: 2.08 },
       { object: droneCustomizationTableTop, offset: droneCustomizationTableTopOffset },
       { object: droneCustomizationScreen, offset: 1.06 },
-      { object: droneCustomizationPad, offset: 0.87 },
     ];
 
     floorPanels.forEach((panel) => {
