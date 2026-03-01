@@ -9050,7 +9050,68 @@ export const initScene = (
       }
     };
 
-    const createOutsideMapHologramTexture = (mapDefinition) => {
+    const downsampleOutsideMapForHologram = (mapDefinition, maxDimension = 64) => {
+      const normalizedMap = normalizeOutsideMap(mapDefinition);
+      const sourceWidth = Math.max(1, Number.parseInt(normalizedMap.width, 10) || 1);
+      const sourceHeight = Math.max(1, Number.parseInt(normalizedMap.height, 10) || 1);
+      const clampMaxDimension = Math.max(2, Number.parseInt(maxDimension, 10) || 64);
+      if (
+        sourceWidth <= clampMaxDimension &&
+        sourceHeight <= clampMaxDimension
+      ) {
+        return normalizedMap;
+      }
+
+      const scale = Math.max(
+        sourceWidth / clampMaxDimension,
+        sourceHeight / clampMaxDimension
+      );
+      const targetWidth = Math.max(2, Math.round(sourceWidth / scale));
+      const targetHeight = Math.max(2, Math.round(sourceHeight / scale));
+      const totalTargetCells = targetWidth * targetHeight;
+      const targetCells = Array.from({ length: totalTargetCells });
+      const targetHeights = Array.from({ length: totalTargetCells }, () => 0);
+      const sourceCells = Array.isArray(normalizedMap.cells)
+        ? normalizedMap.cells
+        : [];
+      const sourceHeights = Array.isArray(normalizedMap.heights)
+        ? normalizedMap.heights
+        : [];
+
+      for (let row = 0; row < targetHeight; row += 1) {
+        for (let column = 0; column < targetWidth; column += 1) {
+          const sourceColumn = Math.min(
+            sourceWidth - 1,
+            Math.floor((column / targetWidth) * sourceWidth)
+          );
+          const sourceRow = Math.min(
+            sourceHeight - 1,
+            Math.floor((row / targetHeight) * sourceHeight)
+          );
+          const sourceIndex = sourceRow * sourceWidth + sourceColumn;
+          const targetIndex = row * targetWidth + column;
+          const sourceCell = sourceCells[sourceIndex];
+          const terrainId = getOutsideTerrainById(sourceCell?.terrainId ?? "void").id;
+          const tileId =
+            sourceCell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+          targetCells[targetIndex] = {
+            terrainId,
+            tileId,
+          };
+          targetHeights[targetIndex] = clampOutsideHeight(sourceHeights[sourceIndex]);
+        }
+      }
+
+      return {
+        ...normalizedMap,
+        width: targetWidth,
+        height: targetHeight,
+        cells: targetCells,
+        heights: targetHeights,
+      };
+    };
+
+    const buildMapMakerHologramGeometry = (mapDefinition) => {
       const mapWidth = Math.max(2, Number.parseInt(mapDefinition?.width, 10) || 2);
       const mapHeight = Math.max(2, Number.parseInt(mapDefinition?.height, 10) || 2);
       const totalCells = mapWidth * mapHeight;
@@ -9071,90 +9132,274 @@ export const initScene = (
         heights.push(0);
       }
 
-      const canvas = document.createElement("canvas");
-      canvas.width = mapWidth;
-      canvas.height = mapHeight;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        return { texture: null, mapWidth, mapHeight, cells, heights };
-      }
+      const positions = [];
+      const uvs = [];
+      const addQuad = (quadPositions, quadUvs) => {
+        positions.push(...quadPositions[0], ...quadPositions[1], ...quadPositions[2]);
+        positions.push(...quadPositions[0], ...quadPositions[2], ...quadPositions[3]);
+        uvs.push(...quadUvs[0], ...quadUvs[1], ...quadUvs[2]);
+        uvs.push(...quadUvs[0], ...quadUvs[2], ...quadUvs[3]);
+      };
+      const getCellHeight = (index) =>
+        getOutsideTerrainElevation(clampOutsideHeight(heights[index]));
+      const isVoidCell = (index) =>
+        getOutsideTerrainById(cells[index]?.terrainId ?? "void").id === "void";
+      const isHeightDrop = (fromHeight, toHeight) => fromHeight - toHeight > 0.001;
+      const xOffset = mapWidth / 2;
+      const zOffset = mapHeight / 2;
 
-      const warmTint = new THREE.Color(0xffa85f);
       for (let row = 0; row < mapHeight; row += 1) {
         for (let column = 0; column < mapWidth; column += 1) {
           const index = row * mapWidth + column;
-          const terrain = getOutsideTerrainById(cells[index]?.terrainId ?? "void");
-          const baseColor = new THREE.Color(terrain?.color ?? "#ff9e52");
-          const terrainColor = baseColor.clone().lerp(warmTint, 0.62);
-          const rawHeight = Number.isFinite(heights[index]) ? heights[index] : 0;
-          const normalizedHeight = THREE.MathUtils.clamp(rawHeight / 255, 0, 1);
-          const brightness =
-            terrain?.id === "void" ? 0.12 : 0.3 + normalizedHeight * 0.7;
-          terrainColor.multiplyScalar(brightness);
-          context.fillStyle = `rgb(${Math.round(terrainColor.r * 255)}, ${Math.round(
-            terrainColor.g * 255
-          )}, ${Math.round(terrainColor.b * 255)})`;
-          context.fillRect(column, mapHeight - 1 - row, 1, 1);
+          if (isVoidCell(index)) {
+            continue;
+          }
+          const elevation = getCellHeight(index);
+          const x0 = column - xOffset;
+          const x1 = column + 1 - xOffset;
+          const z0 = row - zOffset;
+          const z1 = row + 1 - zOffset;
+          const u0 = column / mapWidth;
+          const u1 = (column + 1) / mapWidth;
+          const v0 = row / mapHeight;
+          const v1 = (row + 1) / mapHeight;
+
+          addQuad(
+            [
+              [x0, elevation, z0],
+              [x0, elevation, z1],
+              [x1, elevation, z1],
+              [x1, elevation, z0],
+            ],
+            [
+              [u0, v0],
+              [u0, v1],
+              [u1, v1],
+              [u1, v0],
+            ]
+          );
+
+          const westIndex = column > 0 ? index - 1 : null;
+          const eastIndex = column < mapWidth - 1 ? index + 1 : null;
+          const northIndex = row > 0 ? index - mapWidth : null;
+          const southIndex = row < mapHeight - 1 ? index + mapWidth : null;
+          const westHeight =
+            westIndex !== null && !isVoidCell(westIndex)
+              ? getCellHeight(westIndex)
+              : 0;
+          const eastHeight =
+            eastIndex !== null && !isVoidCell(eastIndex)
+              ? getCellHeight(eastIndex)
+              : 0;
+          const northHeight =
+            northIndex !== null && !isVoidCell(northIndex)
+              ? getCellHeight(northIndex)
+              : 0;
+          const southHeight =
+            southIndex !== null && !isVoidCell(southIndex)
+              ? getCellHeight(southIndex)
+              : 0;
+
+          if (isHeightDrop(elevation, westHeight)) {
+            addQuad(
+              [
+                [x0, elevation, z0],
+                [x0, westHeight, z0],
+                [x0, westHeight, z1],
+                [x0, elevation, z1],
+              ],
+              [
+                [u0, v0],
+                [u0, v1],
+                [u1, v1],
+                [u1, v0],
+              ]
+            );
+          }
+          if (isHeightDrop(elevation, eastHeight)) {
+            addQuad(
+              [
+                [x1, elevation, z1],
+                [x1, eastHeight, z1],
+                [x1, eastHeight, z0],
+                [x1, elevation, z0],
+              ],
+              [
+                [u0, v0],
+                [u0, v1],
+                [u1, v1],
+                [u1, v0],
+              ]
+            );
+          }
+          if (isHeightDrop(elevation, northHeight)) {
+            addQuad(
+              [
+                [x1, elevation, z0],
+                [x1, northHeight, z0],
+                [x0, northHeight, z0],
+                [x0, elevation, z0],
+              ],
+              [
+                [u0, v0],
+                [u0, v1],
+                [u1, v1],
+                [u1, v0],
+              ]
+            );
+          }
+          if (isHeightDrop(elevation, southHeight)) {
+            addQuad(
+              [
+                [x0, elevation, z1],
+                [x0, southHeight, z1],
+                [x1, southHeight, z1],
+                [x1, elevation, z1],
+              ],
+              [
+                [u0, v0],
+                [u0, v1],
+                [u1, v1],
+                [u1, v0],
+              ]
+            );
+          }
         }
       }
 
-      context.strokeStyle = "rgba(255, 172, 94, 0.38)";
-      context.lineWidth = Math.max(1, Math.round(Math.max(mapWidth, mapHeight) / 70));
-      const gridStep = Math.max(1, Math.round(Math.max(mapWidth, mapHeight) / 14));
-      for (let x = 0; x <= mapWidth; x += gridStep) {
-        context.beginPath();
-        context.moveTo(x + 0.5, 0);
-        context.lineTo(x + 0.5, mapHeight);
-        context.stroke();
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3)
+      );
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.computeVertexNormals();
+      return { geometry, mapWidth, mapHeight, cells, heights };
+    };
+
+    const createMapMakerHologramTexture = ({
+      mapWidth,
+      mapHeight,
+      cells,
+      heights,
+      tileSize = 22,
+    } = {}) => {
+      const safeTileSize = Math.max(12, Number.parseInt(tileSize, 10) || 22);
+      const canvas = document.createElement("canvas");
+      canvas.width = mapWidth * safeTileSize;
+      canvas.height = mapHeight * safeTileSize;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
       }
-      for (let y = 0; y <= mapHeight; y += gridStep) {
-        context.beginPath();
-        context.moveTo(0, y + 0.5);
-        context.lineTo(mapWidth, y + 0.5);
-        context.stroke();
+
+      const warmTint = new THREE.Color(0xffb673);
+      const textColor = "#fef3c7";
+      const heightFont = `700 ${Math.max(9, Math.round(safeTileSize * 0.3))}px "Segoe UI", sans-serif`;
+      const tileFont = `700 ${Math.max(8, Math.round(safeTileSize * 0.26))}px "Segoe UI", sans-serif`;
+      const tilePadding = Math.max(2, Math.round(safeTileSize * 0.1));
+      for (let row = 0; row < mapHeight; row += 1) {
+        for (let column = 0; column < mapWidth; column += 1) {
+          const index = row * mapWidth + column;
+          const cell = cells[index];
+          const terrainId = getOutsideTerrainById(cell?.terrainId ?? "void").id;
+          const terrain = getOutsideTerrainById(terrainId);
+          const baseColor = new THREE.Color(terrain?.color ?? "#f8fafc");
+          const mixedColor = baseColor.clone().lerp(warmTint, terrainId === "void" ? 0.22 : 0.58);
+          const heightValue = clampOutsideHeight(heights[index]);
+          const brightness =
+            terrainId === "void"
+              ? 0.16
+              : 0.36 + THREE.MathUtils.clamp(heightValue / OUTSIDE_HEIGHT_MAX, 0, 1) * 0.64;
+          mixedColor.multiplyScalar(brightness);
+
+          const drawX = column * safeTileSize;
+          const drawY = row * safeTileSize;
+          context.fillStyle = `rgb(${Math.round(mixedColor.r * 255)}, ${Math.round(
+            mixedColor.g * 255
+          )}, ${Math.round(mixedColor.b * 255)})`;
+          context.fillRect(drawX, drawY, safeTileSize, safeTileSize);
+          context.strokeStyle = "rgba(255, 198, 133, 0.34)";
+          context.lineWidth = 1;
+          context.strokeRect(drawX + 0.5, drawY + 0.5, safeTileSize - 1, safeTileSize - 1);
+
+          context.save();
+          context.font = heightFont;
+          context.textAlign = "right";
+          context.textBaseline = "top";
+          context.fillStyle = "rgba(2, 6, 23, 0.46)";
+          context.fillRect(
+            drawX + safeTileSize - safeTileSize * 0.42,
+            drawY + 1,
+            safeTileSize * 0.4,
+            safeTileSize * 0.26
+          );
+          context.fillStyle = textColor;
+          context.fillText(
+            String(heightValue),
+            drawX + safeTileSize - tilePadding,
+            drawY + tilePadding * 0.55
+          );
+          context.restore();
+
+          const tileId = cell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
+          const tileLabelMatch = typeof tileId === "string" ? tileId.match(/(\d+)/) : null;
+          const tileLabel = tileLabelMatch ? tileLabelMatch[1] : "-";
+          context.save();
+          context.font = tileFont;
+          context.textAlign = "left";
+          context.textBaseline = "bottom";
+          context.fillStyle = "rgba(2, 6, 23, 0.44)";
+          context.fillRect(
+            drawX + 1,
+            drawY + safeTileSize - safeTileSize * 0.3,
+            safeTileSize * 0.34,
+            safeTileSize * 0.28
+          );
+          context.fillStyle = textColor;
+          context.fillText(
+            tileLabel,
+            drawX + tilePadding * 0.7,
+            drawY + safeTileSize - tilePadding * 0.45
+          );
+          context.restore();
+        }
       }
 
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
+      texture.flipY = false;
       texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
       texture.wrapS = THREE.ClampToEdgeWrapping;
       texture.wrapT = THREE.ClampToEdgeWrapping;
       texture.needsUpdate = true;
-      return { texture, mapWidth, mapHeight, cells, heights };
+      return texture;
     };
 
-    const outsideMapForHologram = resolveOutsideMapForHologram();
-    const hologramMapData = createOutsideMapHologramTexture(outsideMapForHologram);
+    const outsideMapForHologram = downsampleOutsideMapForHologram(
+      resolveOutsideMapForHologram()
+    );
+    const hologramMapData = buildMapMakerHologramGeometry(outsideMapForHologram);
+    const hologramTexture = createMapMakerHologramTexture({
+      mapWidth: hologramMapData.mapWidth,
+      mapHeight: hologramMapData.mapHeight,
+      cells: hologramMapData.cells,
+      heights: hologramMapData.heights,
+      tileSize: 22,
+    });
     const hologramSurfaceWidth = commandTableWidth * 0.8;
     const hologramSurfaceDepth = commandTableDepth * 0.62;
-    const hologramSurfaceGeometry = new THREE.PlaneGeometry(
-      hologramSurfaceWidth,
-      hologramSurfaceDepth,
-      Math.max(1, hologramMapData.mapWidth - 1),
-      Math.max(1, hologramMapData.mapHeight - 1)
-    );
-    const hologramVertices = hologramSurfaceGeometry.attributes.position;
-    for (let index = 0; index < hologramVertices.count; index += 1) {
-      const column = index % hologramMapData.mapWidth;
-      const row = Math.floor(index / hologramMapData.mapWidth);
-      const cellIndex = row * hologramMapData.mapWidth + column;
-      const rawHeight = Number.isFinite(hologramMapData.heights[cellIndex])
-        ? hologramMapData.heights[cellIndex]
-        : 0;
-      const normalizedHeight = THREE.MathUtils.clamp(rawHeight / 255, 0, 1);
-      const terrainId = hologramMapData.cells[cellIndex]?.terrainId ?? "void";
-      const isVoid = terrainId === "void";
-      const displacement = isVoid ? -0.012 : 0.008 + normalizedHeight * 0.24;
-      hologramVertices.setZ(index, displacement);
-    }
-    hologramVertices.needsUpdate = true;
-    hologramSurfaceGeometry.computeVertexNormals();
+    const hologramScaleX =
+      hologramSurfaceWidth / Math.max(1, hologramMapData.mapWidth);
+    const hologramScaleZ =
+      hologramSurfaceDepth / Math.max(1, hologramMapData.mapHeight);
+    const hologramScaleY = 0.24;
 
     const hologramSurfaceMaterial = new THREE.MeshBasicMaterial({
       color: new THREE.Color(0xffc08a),
-      map: hologramMapData.texture,
+      map: hologramTexture,
       transparent: true,
       opacity: 0.84,
       blending: THREE.AdditiveBlending,
@@ -9162,11 +9407,11 @@ export const initScene = (
       side: THREE.DoubleSide,
     });
     const hologramSurface = new THREE.Mesh(
-      hologramSurfaceGeometry,
+      hologramMapData.geometry,
       hologramSurfaceMaterial
     );
-    hologramSurface.position.set(0, roomFloorY + 0.83, 0);
-    hologramSurface.rotation.x = -Math.PI / 2;
+    hologramSurface.position.set(0, roomFloorY + 0.81, 0);
+    hologramSurface.scale.set(hologramScaleX, hologramScaleY, hologramScaleZ);
     group.add(hologramSurface);
 
     const hologramWireMaterial = new THREE.MeshBasicMaterial({
@@ -9179,11 +9424,11 @@ export const initScene = (
       side: THREE.DoubleSide,
     });
     const hologramWireframe = new THREE.Mesh(
-      hologramSurfaceGeometry.clone(),
+      hologramMapData.geometry.clone(),
       hologramWireMaterial
     );
-    hologramWireframe.position.set(0, roomFloorY + 0.838, 0);
-    hologramWireframe.rotation.x = -Math.PI / 2;
+    hologramWireframe.position.set(0, roomFloorY + 0.816, 0);
+    hologramWireframe.scale.set(hologramScaleX, hologramScaleY, hologramScaleZ);
     group.add(hologramWireframe);
 
     const hologramBaseRingMaterial = new THREE.MeshBasicMaterial({
@@ -9202,7 +9447,7 @@ export const initScene = (
       ),
       hologramBaseRingMaterial
     );
-    hologramBaseRing.position.set(0, roomFloorY + 0.832, 0);
+    hologramBaseRing.position.set(0, roomFloorY + 0.806, 0);
     hologramBaseRing.rotation.x = -Math.PI / 2;
     group.add(hologramBaseRing);
 
@@ -9579,9 +9824,9 @@ export const initScene = (
       { object: commandTableBase, offset: 0.33 },
       { object: commandTableTop, offset: 0.72 },
       { object: commandTableInset, offset: 0.8 },
-      { object: hologramSurface, offset: 0.83 },
-      { object: hologramWireframe, offset: 0.838 },
-      { object: hologramBaseRing, offset: 0.832 },
+      { object: hologramSurface, offset: 0.81 },
+      { object: hologramWireframe, offset: 0.816 },
+      { object: hologramBaseRing, offset: 0.806 },
       { object: hologramCore, offset: 1.02 },
       { object: hologramLight, offset: 1.55 },
       { object: ambientWarmLight, offset: 2.08 },
