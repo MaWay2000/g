@@ -7490,11 +7490,7 @@ export const initScene = (
           }
           const placementPosition = getPlacementWorldPosition(placement);
           if (placement.path === DOOR_MARKER_PATH) {
-            const door = createHangarDoor(
-              liftDoorTheme && typeof liftDoorTheme === "object"
-                ? liftDoorTheme
-                : undefined
-            );
+            const door = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
             const placementCollisionEnabled =
               isMapMakerPlacementCollisionEnabled(placement);
             setMapMakerPlacementCollisionState(
