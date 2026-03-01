@@ -8461,6 +8461,11 @@ export const initScene = (
     const bayWidth = roomWidth * ENGINEERING_BAY_WIDTH_FACTOR;
     const bayDepth = roomDepth * ENGINEERING_BAY_DEPTH_FACTOR;
     const floorThickness = 0.5;
+    // Keep wall/floor seams overlapped so no sky leaks through precision gaps.
+    const wallHeight = Math.max(2.45, BASE_DOOR_HEIGHT + 0.35);
+    const sideWallThickness = 0.26;
+    const backWallThickness = 0.24;
+    const wallSeamOverlap = 0.08;
 
     const floorBounds = createFloorBounds(bayWidth, bayDepth, {
       paddingX: 0.75,
@@ -8504,18 +8509,14 @@ export const initScene = (
       metalness: 0.6,
     });
 
+    const floorDepth = bayDepth + backWallThickness + wallSeamOverlap * 2;
     const floor = new THREE.Mesh(
-      new THREE.BoxGeometry(bayWidth, floorThickness, bayDepth),
+      new THREE.BoxGeometry(bayWidth, floorThickness, floorDepth),
       floorMaterial
     );
     floor.position.set(0, roomFloorY - floorThickness / 2, 0);
     group.add(floor);
 
-    // Keep the engineering bay ceiling above lift-door top with a small clearance.
-    const wallHeight = Math.max(2.45, BASE_DOOR_HEIGHT + 0.35);
-    const sideWallThickness = 0.26;
-    const backWallThickness = 0.24;
-    const wallSeamOverlap = 0.08;
     const sideWallDepth =
       bayDepth + backWallThickness * 2 + wallSeamOverlap * 2;
     const sideWallGeometry = new THREE.BoxGeometry(
