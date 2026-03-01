@@ -8468,7 +8468,7 @@ export const initScene = (
     });
 
     const floorMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x18120d),
+      color: new THREE.Color(0x24170f),
       roughness: 0.82,
       metalness: 0.34,
     });
