@@ -8515,6 +8515,13 @@ export const initScene = (
       "./images/game/area/engi-bay/mars_map_2.png",
       "./images/game/area/engi-bay/mars_map_3.png",
     ];
+    const engineeringPanelImageSizeByPath = new Map([
+      ["./images/game/area/engi-bay/m1.png", { width: 1536, height: 1024 }],
+      ["./images/game/area/engi-bay/m2.png", { width: 1536, height: 1024 }],
+      ["./images/game/area/engi-bay/mars_map_1.png", { width: 512, height: 1024 }],
+      ["./images/game/area/engi-bay/mars_map_2.png", { width: 512, height: 1024 }],
+      ["./images/game/area/engi-bay/mars_map_3.png", { width: 512, height: 1024 }],
+    ]);
     const engineeringPanelTextures = new Map();
     engineeringPanelTexturePaths.forEach((texturePath) => {
       try {
@@ -8536,10 +8543,6 @@ export const initScene = (
       y = 1,
       z = 0,
       rotationY = 0,
-      uvOffsetX = 0,
-      uvOffsetY = 0,
-      uvRepeatX = 1,
-      uvRepeatY = 1,
       opacity = 0.86,
       frameDepth = 0.032,
     } = {}) => {
@@ -8548,17 +8551,30 @@ export const initScene = (
         return;
       }
 
+      const imageSize = engineeringPanelImageSizeByPath.get(texturePath) ?? null;
+      const imageAspect =
+        Number.isFinite(imageSize?.width) &&
+        Number.isFinite(imageSize?.height) &&
+        imageSize.height > 0
+          ? imageSize.width / imageSize.height
+          : width / Math.max(1e-3, height);
+      const frameBoundsWidth = Math.max(0.2, width);
+      const frameBoundsHeight = Math.max(0.2, height);
+      const boundsAspect = frameBoundsWidth / frameBoundsHeight;
+      const resolvedWidth =
+        imageAspect >= boundsAspect
+          ? frameBoundsWidth
+          : frameBoundsHeight * imageAspect;
+      const resolvedHeight =
+        imageAspect >= boundsAspect
+          ? frameBoundsWidth / Math.max(1e-3, imageAspect)
+          : frameBoundsHeight;
+
       const wallpaperSliceTexture = baseTexture.clone();
       wallpaperSliceTexture.wrapS = THREE.ClampToEdgeWrapping;
       wallpaperSliceTexture.wrapT = THREE.ClampToEdgeWrapping;
-      wallpaperSliceTexture.repeat.set(
-        Math.max(0.01, uvRepeatX),
-        Math.max(0.01, uvRepeatY)
-      );
-      wallpaperSliceTexture.offset.set(
-        THREE.MathUtils.clamp(uvOffsetX, 0, 0.99),
-        THREE.MathUtils.clamp(uvOffsetY, 0, 0.99)
-      );
+      wallpaperSliceTexture.repeat.set(1, 1);
+      wallpaperSliceTexture.offset.set(0, 0);
       wallpaperSliceTexture.needsUpdate = true;
 
       const panelMount = new THREE.Group();
@@ -8568,7 +8584,7 @@ export const initScene = (
       wallpaperAdjustableEntries.push({ object: panelMount, offset: y });
 
       const panel = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, height),
+        new THREE.PlaneGeometry(resolvedWidth, resolvedHeight),
         new THREE.MeshStandardMaterial({
           color: new THREE.Color(0xffffff),
           map: wallpaperSliceTexture,
@@ -8589,13 +8605,13 @@ export const initScene = (
       const frameThickness = Math.max(0.04, Math.min(width, height) * 0.07);
       const topFrame = new THREE.Mesh(
         new THREE.BoxGeometry(
-          width + frameThickness * 2,
+          resolvedWidth + frameThickness * 2,
           frameThickness,
           frameDepth
         ),
         trimMaterial
       );
-      topFrame.position.y = height / 2 + frameThickness / 2;
+      topFrame.position.y = resolvedHeight / 2 + frameThickness / 2;
       panelMount.add(topFrame);
 
       const bottomFrame = topFrame.clone();
@@ -8604,11 +8620,11 @@ export const initScene = (
 
       const sideFrameGeometry = new THREE.BoxGeometry(
         frameThickness,
-        height,
+        resolvedHeight,
         frameDepth
       );
       const leftFrame = new THREE.Mesh(sideFrameGeometry, trimMaterial);
-      leftFrame.position.x = -(width / 2 + frameThickness / 2);
+      leftFrame.position.x = -(resolvedWidth / 2 + frameThickness / 2);
       panelMount.add(leftFrame);
 
       const rightFrame = leftFrame.clone();
@@ -8624,10 +8640,6 @@ export const initScene = (
       y: wallHeight * 0.6,
       z: bayDepth / 2 - backWallThickness - 0.01,
       rotationY: Math.PI,
-      uvOffsetX: 0.22,
-      uvOffsetY: 0.16,
-      uvRepeatX: 0.56,
-      uvRepeatY: 0.56,
       opacity: 0.88,
       frameDepth: 0.038,
     });
@@ -8639,10 +8651,6 @@ export const initScene = (
       y: wallHeight * 0.56,
       z: -bayDepth * 0.06,
       rotationY: Math.PI / 2,
-      uvOffsetX: 0.12,
-      uvOffsetY: 0.28,
-      uvRepeatX: 0.34,
-      uvRepeatY: 0.44,
     });
     createWallpaperPanel({
       texturePath: "./images/game/area/engi-bay/mars_map_2.png",
@@ -8652,10 +8660,6 @@ export const initScene = (
       y: wallHeight * 0.56,
       z: bayDepth * 0.08,
       rotationY: -Math.PI / 2,
-      uvOffsetX: 0.54,
-      uvOffsetY: 0.24,
-      uvRepeatX: 0.32,
-      uvRepeatY: 0.42,
     });
 
     const ceiling = new THREE.Mesh(
