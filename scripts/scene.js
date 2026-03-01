@@ -8689,14 +8689,12 @@ export const initScene = (
           );
         }
         faultyWallpaperPanels.push({
-          panelMesh: panel,
           material: panel.material,
           baseOpacity: opacity,
           baseEmissiveIntensity: Number.isFinite(panel.material.emissiveIntensity)
             ? panel.material.emissiveIntensity
             : 0.26,
           statusOverlay,
-          hoverAlpha: 0,
           messageIndex: initialMessageIndex,
           messageCountdown: THREE.MathUtils.randFloat(3, 10),
           phase: Math.random() * Math.PI * 2,
@@ -9600,15 +9598,6 @@ export const initScene = (
       }
       const dt = Number.isFinite(delta) ? Math.max(0, delta) : 0;
       const elapsed = Number.isFinite(elapsedTime) ? elapsedTime : performance.now() * 0.001;
-      const hoverTargets = faultyWallpaperPanels
-        .map((state) => state?.panelMesh)
-        .filter((mesh) => mesh?.isObject3D);
-      let hoveredPanel = null;
-      if (controls.isLocked && hoverTargets.length > 0) {
-        raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-        const hoverIntersections = raycaster.intersectObjects(hoverTargets, false);
-        hoveredPanel = hoverIntersections[0]?.object ?? null;
-      }
 
       faultyWallpaperPanels.forEach((state) => {
         const material = state?.material;
@@ -9616,9 +9605,6 @@ export const initScene = (
         if (!material) {
           return;
         }
-        const isHovered = hoveredPanel === state?.panelMesh;
-        const nextHoverAlpha = (state?.hoverAlpha ?? 0) + (isHovered ? 1 : -1) * dt * 8;
-        state.hoverAlpha = THREE.MathUtils.clamp(nextHoverAlpha, 0, 1);
 
         if (state?.statusOverlay && faultyPanelStatusMessages.length > 0) {
           state.messageCountdown -= dt;
@@ -9646,7 +9632,7 @@ export const initScene = (
           material.opacity = Math.max(0.06, state.baseOpacity * 0.08);
           material.emissiveIntensity = state.baseEmissiveIntensity * 0.04;
           if (overlayMaterial) {
-            overlayMaterial.opacity = 0.04 * state.hoverAlpha;
+            overlayMaterial.opacity = 0.18;
           }
           return;
         }
@@ -9685,7 +9671,7 @@ export const initScene = (
             0.16,
             0.9
           );
-          overlayMaterial.opacity = baseOverlayOpacity * state.hoverAlpha;
+          overlayMaterial.opacity = baseOverlayOpacity;
         }
       });
     };
