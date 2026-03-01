@@ -5712,13 +5712,35 @@
         aria-labelledby="drone-setup-tab-model"
         hidden
       >
-        <section class="quick-access-modal__section quick-access-modal__section--lift">
-          <h3 class="quick-access-modal__section-title">Available models</h3>
-          <ul class="lift-selector" data-drone-model-list></ul>
-          <p class="lift-selector__empty" data-drone-model-empty hidden>
-            No drone models available.
-          </p>
-        </section>
+        <div class="drone-customization-layout">
+          <section class="quick-access-modal__section quick-access-modal__section--lift">
+            <h3 class="quick-access-modal__section-title">Available models</h3>
+            <ul class="lift-selector" data-drone-model-list></ul>
+            <p class="lift-selector__empty" data-drone-model-empty hidden>
+              No drone models available.
+            </p>
+          </section>
+          <section class="quick-access-modal__section">
+            <h3 class="quick-access-modal__section-title">Preview</h3>
+            <div class="drone-skin-preview">
+              <canvas
+                class="drone-skin-preview__canvas"
+                width="960"
+                height="540"
+                data-drone-model-preview-canvas
+                aria-label="Drone model preview"
+              ></canvas>
+              <div class="drone-skin-preview__meta">
+                <p class="drone-skin-preview__title" data-drone-model-preview-title>
+                  Drone model preview
+                </p>
+                <p class="drone-skin-preview__desc" data-drone-model-preview-description>
+                  Hover any model to preview the drone frame.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
       </section>
     </template>
 

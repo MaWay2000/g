@@ -5589,6 +5589,9 @@ const getDroneCustomizationModalElements = () => {
       skinEmpty: null,
       modelList: null,
       modelEmpty: null,
+      modelPreviewCanvas: null,
+      modelPreviewTitle: null,
+      modelPreviewDescription: null,
       previewCanvas: null,
       previewTitle: null,
       previewDescription: null,
@@ -5606,6 +5609,15 @@ const getDroneCustomizationModalElements = () => {
     skinEmpty: quickAccessModalContent.querySelector("[data-drone-skin-empty]"),
     modelList: quickAccessModalContent.querySelector("[data-drone-model-list]"),
     modelEmpty: quickAccessModalContent.querySelector("[data-drone-model-empty]"),
+    modelPreviewCanvas: quickAccessModalContent.querySelector(
+      "[data-drone-model-preview-canvas]"
+    ),
+    modelPreviewTitle: quickAccessModalContent.querySelector(
+      "[data-drone-model-preview-title]"
+    ),
+    modelPreviewDescription: quickAccessModalContent.querySelector(
+      "[data-drone-model-preview-description]"
+    ),
     previewCanvas: quickAccessModalContent.querySelector(
       "[data-drone-skin-preview-canvas]"
     ),
@@ -6024,6 +6036,229 @@ const renderDroneSkinPreview = async (skinOption) => {
   context.fillText("Engineering preview", 26, 72);
 };
 
+const renderDroneModelPreview = (modelOption) => {
+  const { modelPreviewCanvas, modelPreviewTitle, modelPreviewDescription } =
+    getDroneCustomizationModalElements();
+  if (!(modelPreviewCanvas instanceof HTMLCanvasElement)) {
+    return;
+  }
+
+  const context = modelPreviewCanvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  const label =
+    typeof modelOption?.label === "string" && modelOption.label.trim() !== ""
+      ? modelOption.label.trim()
+      : "Drone model preview";
+  const baseDescription =
+    typeof modelOption?.description === "string" && modelOption.description.trim() !== ""
+      ? modelOption.description.trim()
+      : "Drone frame profile.";
+  const sizeLabel =
+    typeof modelOption?.preview?.sizeLabel === "string" &&
+    modelOption.preview.sizeLabel.trim() !== ""
+      ? modelOption.preview.sizeLabel.trim()
+      : "";
+  const description =
+    sizeLabel !== "" ? `${baseDescription} Size: ${sizeLabel}.` : baseDescription;
+  const modelScale =
+    Number.isFinite(modelOption?.preview?.scale) && modelOption.preview.scale > 0
+      ? modelOption.preview.scale
+      : 1;
+
+  if (modelPreviewTitle instanceof HTMLElement) {
+    modelPreviewTitle.textContent = label;
+  }
+  if (modelPreviewDescription instanceof HTMLElement) {
+    modelPreviewDescription.textContent = description;
+  }
+
+  const width = modelPreviewCanvas.width || 960;
+  const height = modelPreviewCanvas.height || 540;
+  context.clearRect(0, 0, width, height);
+
+  const bgGradient = context.createLinearGradient(0, 0, width, height);
+  bgGradient.addColorStop(0, "#021224");
+  bgGradient.addColorStop(1, "#0b1f34");
+  context.fillStyle = bgGradient;
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(56, 189, 248, 0.28)";
+  context.lineWidth = 1;
+  for (let x = 0; x < width; x += 40) {
+    context.beginPath();
+    context.moveTo(x + 0.5, 0);
+    context.lineTo(x + 0.5, height);
+    context.stroke();
+  }
+  for (let y = 0; y < height; y += 40) {
+    context.beginPath();
+    context.moveTo(0, y + 0.5);
+    context.lineTo(width, y + 0.5);
+    context.stroke();
+  }
+
+  const centerX = width * 0.5;
+  const centerY = height * 0.56;
+  const unclampedRadius = height * 0.16 * modelScale;
+  const bodyRadius = Math.max(height * 0.11, Math.min(height * 0.25, unclampedRadius));
+  const accentColor =
+    sizeLabel.toLowerCase() === "small"
+      ? "#4ade80"
+      : sizeLabel.toLowerCase() === "big"
+        ? "#f59e0b"
+        : "#60a5fa";
+
+  context.save();
+  const haloGradient = context.createRadialGradient(
+    centerX,
+    centerY,
+    bodyRadius * 0.2,
+    centerX,
+    centerY,
+    bodyRadius * 2.05
+  );
+  haloGradient.addColorStop(0, `${accentColor}66`);
+  haloGradient.addColorStop(1, `${accentColor}00`);
+  context.fillStyle = haloGradient;
+  context.beginPath();
+  context.arc(centerX, centerY, bodyRadius * 2.05, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+
+  const armLengthMultiplier =
+    sizeLabel.toLowerCase() === "small"
+      ? 1.5
+      : sizeLabel.toLowerCase() === "big"
+        ? 2.2
+        : 1.85;
+  const armLength = bodyRadius * armLengthMultiplier;
+  const thrusterWidth = bodyRadius * 0.72;
+  const thrusterHeight = bodyRadius * 0.42;
+
+  fillDronePreviewShape(
+    context,
+    () => {
+      drawRoundedRectPath(
+        context,
+        centerX - armLength - thrusterWidth,
+        centerY - thrusterHeight * 0.5,
+        thrusterWidth,
+        thrusterHeight,
+        14
+      );
+    },
+    null,
+    "#334155",
+    { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
+  );
+  fillDronePreviewShape(
+    context,
+    () => {
+      drawRoundedRectPath(
+        context,
+        centerX + armLength,
+        centerY - thrusterHeight * 0.5,
+        thrusterWidth,
+        thrusterHeight,
+        14
+      );
+    },
+    null,
+    "#334155",
+    { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
+  );
+
+  fillDronePreviewShape(
+    context,
+    () => {
+      context.beginPath();
+      context.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
+      context.closePath();
+    },
+    null,
+    "#64748b",
+    { stroke: "rgba(148, 163, 184, 0.55)", lineWidth: 2.5 }
+  );
+
+  fillDronePreviewShape(
+    context,
+    () => {
+      drawRoundedRectPath(
+        context,
+        centerX - bodyRadius * 0.22,
+        centerY - bodyRadius * 0.22,
+        bodyRadius * 0.44,
+        bodyRadius * 0.9,
+        18
+      );
+    },
+    null,
+    "#e2e8f0",
+    { stroke: `${accentColor}cc`, lineWidth: 2.2 }
+  );
+
+  context.save();
+  context.translate(centerX, centerY - bodyRadius - 42);
+  context.rotate(Math.PI / 10);
+  fillDronePreviewShape(
+    context,
+    () => {
+      drawRoundedRectPath(context, -armLength * 1.25, -8, armLength * 2.5, 16, 8);
+    },
+    null,
+    "#475569",
+    { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
+  );
+  context.restore();
+
+  context.save();
+  context.translate(centerX, centerY - bodyRadius - 42);
+  context.rotate(-Math.PI / 10);
+  fillDronePreviewShape(
+    context,
+    () => {
+      drawRoundedRectPath(context, -armLength * 1.25, -8, armLength * 2.5, 16, 8);
+    },
+    null,
+    "#475569",
+    { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
+  );
+  context.restore();
+
+  fillDronePreviewShape(
+    context,
+    () => {
+      context.beginPath();
+      context.moveTo(centerX, centerY + bodyRadius * 1.12);
+      context.lineTo(centerX - bodyRadius * 0.33, centerY + bodyRadius * 2.04);
+      context.lineTo(centerX + bodyRadius * 0.33, centerY + bodyRadius * 2.04);
+      context.closePath();
+    },
+    null,
+    "#fb923c",
+    { stroke: `${accentColor}cc`, lineWidth: 2.1 }
+  );
+
+  context.fillStyle = "rgba(226, 232, 240, 0.92)";
+  context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
+  context.textAlign = "left";
+  context.fillText(label, 26, 42);
+
+  context.fillStyle = "rgba(148, 163, 184, 0.86)";
+  context.font = "500 20px 'Segoe UI', 'Inter', sans-serif";
+  context.fillText("Engineering preview", 26, 72);
+
+  if (sizeLabel !== "") {
+    context.textAlign = "right";
+    context.fillStyle = `${accentColor}`;
+    context.font = "700 18px 'Segoe UI', 'Inter', sans-serif";
+    context.fillText(sizeLabel.toUpperCase(), width - 26, 42);
+  }
+};
+
 const handleDroneSkinOptionClick = (event) => {
   if (!(event?.currentTarget instanceof HTMLButtonElement)) {
     return;
@@ -6096,6 +6331,9 @@ const renderDroneCustomizationModal = () => {
     skinEmpty,
     modelList,
     modelEmpty,
+    modelPreviewCanvas,
+    modelPreviewTitle,
+    modelPreviewDescription,
     previewCanvas,
     previewTitle,
     previewDescription,
@@ -6122,6 +6360,25 @@ const renderDroneCustomizationModal = () => {
   }
   if (modelEmpty instanceof HTMLElement) {
     modelEmpty.hidden = hasModelOptions;
+  }
+
+  if (!hasModelOptions) {
+    if (modelPreviewTitle instanceof HTMLElement) {
+      modelPreviewTitle.textContent = "Drone model preview";
+    }
+    if (modelPreviewDescription instanceof HTMLElement) {
+      modelPreviewDescription.textContent = "No model data available.";
+    }
+    if (modelPreviewCanvas instanceof HTMLCanvasElement) {
+      const context = modelPreviewCanvas.getContext("2d");
+      if (context) {
+        drawDroneSkinPreviewPlaceholder(
+          context,
+          modelPreviewCanvas.width || 960,
+          modelPreviewCanvas.height || 540
+        );
+      }
+    }
   }
 
   if (!hasOptions) {
@@ -6220,6 +6477,12 @@ const renderDroneCustomizationModal = () => {
   }
 
   const activeModelId = sceneController?.getActiveDroneModelId?.() ?? null;
+  const activeModelOption =
+    modelOptions.find((option) => option?.id === activeModelId) ?? modelOptions[0];
+  if (activeModelOption) {
+    renderDroneModelPreview(activeModelOption);
+  }
+
   modelOptions.forEach((option) => {
     if (!option || typeof option.id !== "string" || option.id.trim() === "") {
       return;
@@ -6264,6 +6527,22 @@ const renderDroneCustomizationModal = () => {
     button.appendChild(status);
 
     button.addEventListener("click", handleDroneModelOptionClick);
+    button.addEventListener("mouseenter", () => {
+      renderDroneModelPreview(option);
+    });
+    button.addEventListener("focus", () => {
+      renderDroneModelPreview(option);
+    });
+    button.addEventListener("mouseleave", () => {
+      if (droneCustomizationModalActive && activeModelOption) {
+        renderDroneModelPreview(activeModelOption);
+      }
+    });
+    button.addEventListener("blur", () => {
+      if (droneCustomizationModalActive && activeModelOption) {
+        renderDroneModelPreview(activeModelOption);
+      }
+    });
     item.appendChild(button);
     modelList.appendChild(item);
   });

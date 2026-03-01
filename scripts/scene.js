@@ -11660,6 +11660,16 @@ export const initScene = (
       id: preset.id,
       label: preset.label,
       description: preset.description,
+      preview: {
+        scale:
+          Number.isFinite(preset?.scale) && preset.scale > 0 ? preset.scale : 1,
+        sizeLabel:
+          Number.isFinite(preset?.scale) && preset.scale < 0.95
+            ? "Small"
+            : Number.isFinite(preset?.scale) && preset.scale > 1.08
+              ? "Big"
+              : "Medium",
+      },
     }));
 
   const resolveDroneSkinPreset = (skinId) => {
