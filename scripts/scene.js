@@ -8661,6 +8661,26 @@ export const initScene = (
       z: bayDepth * 0.08,
       rotationY: -Math.PI / 2,
     });
+    createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/m2.png",
+      width: bayWidth * 0.22,
+      height: wallHeight * 0.28,
+      x: -bayWidth * 0.34,
+      y: wallHeight * 0.38,
+      z: bayDepth / 2 - backWallThickness - 0.01,
+      rotationY: Math.PI,
+      opacity: 0.84,
+      frameDepth: 0.034,
+    });
+    createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/mars_map_3.png",
+      width: bayDepth * 0.2,
+      height: wallHeight * 0.38,
+      x: bayWidth / 2 - sideWallThickness - 0.01,
+      y: wallHeight * 0.56,
+      z: -bayDepth * 0.3,
+      rotationY: -Math.PI / 2,
+    });
 
     const ceiling = new THREE.Mesh(
       new THREE.BoxGeometry(bayWidth, 0.26, bayDepth),
