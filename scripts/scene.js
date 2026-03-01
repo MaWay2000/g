@@ -8710,14 +8710,6 @@ export const initScene = (
       return consoleGroup;
     };
 
-    const backConsole = createConsoleBank({
-      x: 0,
-      z: bayDepth / 2 - 0.66,
-      rotationY: Math.PI,
-      width: bayWidth * 0.76,
-      depth: 0.76,
-      label: "ENG",
-    });
     const leftConsole = createConsoleBank({
       x: -bayWidth / 2 + 0.66,
       z: 0,
@@ -8734,7 +8726,7 @@ export const initScene = (
       depth: 0.72,
       label: "RGT",
     });
-    const consoleGroups = [backConsole, leftConsole, rightConsole];
+    const consoleGroups = [leftConsole, rightConsole];
 
     const createHologramTexture = () => {
       const width = 1024;
@@ -9087,8 +9079,8 @@ export const initScene = (
       };
     };
 
-    const droneCustomizationTableX = bayWidth * 0.32;
-    const droneCustomizationTableZ = -bayDepth * 0.06;
+    const droneCustomizationTableX = 0;
+    const droneCustomizationTableZ = bayDepth / 2 - 1.05;
     const droneCustomizationTableTopOffset = 0.8;
     const droneCustomizationTableTop = new THREE.Mesh(
       new THREE.BoxGeometry(1.45, 0.08, 0.76),
@@ -9174,23 +9166,6 @@ export const initScene = (
     );
     group.add(droneCustomizationPad);
 
-    const droneCustomizationBeacon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.08, 14, 12),
-      new THREE.MeshBasicMaterial({
-        color: 0xff8f38,
-        transparent: true,
-        opacity: 0.76,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    droneCustomizationBeacon.position.set(
-      droneCustomizationTableX - 0.34,
-      roomFloorY + 1.02,
-      droneCustomizationTableZ + 0.05
-    );
-    group.add(droneCustomizationBeacon);
-
     const liftDoor = createHangarDoor(ENGINEERING_BAY_DOOR_THEME, {
       includeBackWall: true,
     });
@@ -9219,7 +9194,6 @@ export const initScene = (
       { object: droneCustomizationTableTop, offset: droneCustomizationTableTopOffset },
       { object: droneCustomizationScreen, offset: 1.06 },
       { object: droneCustomizationPad, offset: 0.87 },
-      { object: droneCustomizationBeacon, offset: 1.02 },
     ];
 
     floorPanels.forEach((panel) => {
