@@ -9794,7 +9794,7 @@ export const initScene = (
     group.add(droneCustomizationKeyboardKeys);
 
     const liftDoor = createHangarDoor(ENGINEERING_BAY_DOOR_THEME, {
-      includeBackWall: true,
+      includeBackWall: false,
     });
     liftDoor.position.set(
       0,
