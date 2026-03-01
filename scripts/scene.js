@@ -8507,6 +8507,114 @@ export const initScene = (
     );
     group.add(backWall);
 
+    const wallpaperAdjustableEntries = [];
+    let engineeringWallpaperTexture = null;
+    try {
+      engineeringWallpaperTexture = loadClampedTexture("./images/wallpapers/10.png");
+    } catch (error) {
+      console.warn("Unable to load engineering bay wallpaper texture", error);
+    }
+
+    const createWallpaperPanel = ({
+      width = 1,
+      height = 1,
+      x = 0,
+      y = 1,
+      z = 0,
+      rotationY = 0,
+      uvOffsetX = 0,
+      uvOffsetY = 0,
+      uvRepeatX = 1,
+      uvRepeatY = 1,
+      opacity = 0.86,
+      frameDepth = 0.032,
+    } = {}) => {
+      if (!engineeringWallpaperTexture) {
+        return;
+      }
+
+      const wallpaperSliceTexture = engineeringWallpaperTexture.clone();
+      wallpaperSliceTexture.wrapS = THREE.ClampToEdgeWrapping;
+      wallpaperSliceTexture.wrapT = THREE.ClampToEdgeWrapping;
+      wallpaperSliceTexture.repeat.set(
+        Math.max(0.01, uvRepeatX),
+        Math.max(0.01, uvRepeatY)
+      );
+      wallpaperSliceTexture.offset.set(
+        THREE.MathUtils.clamp(uvOffsetX, 0, 0.99),
+        THREE.MathUtils.clamp(uvOffsetY, 0, 0.99)
+      );
+      wallpaperSliceTexture.needsUpdate = true;
+
+      const panel = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0xffffff),
+          map: wallpaperSliceTexture,
+          emissive: new THREE.Color(0x3f1f0d),
+          emissiveMap: wallpaperSliceTexture,
+          emissiveIntensity: 0.26,
+          roughness: 0.58,
+          metalness: 0.22,
+          transparent: true,
+          opacity,
+          side: THREE.DoubleSide,
+        })
+      );
+      panel.position.set(x, roomFloorY + y, z);
+      panel.rotation.y = rotationY;
+      group.add(panel);
+      wallpaperAdjustableEntries.push({ object: panel, offset: y });
+
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(width + 0.12, height + 0.12, frameDepth),
+        trimMaterial
+      );
+      frame.position.set(x, roomFloorY + y, z);
+      frame.rotation.y = rotationY;
+      group.add(frame);
+      wallpaperAdjustableEntries.push({ object: frame, offset: y });
+    };
+
+    createWallpaperPanel({
+      width: bayWidth * 0.48,
+      height: wallHeight * 0.5,
+      x: 0,
+      y: wallHeight * 0.6,
+      z: bayDepth / 2 - backWallThickness - 0.01,
+      rotationY: Math.PI,
+      uvOffsetX: 0.22,
+      uvOffsetY: 0.16,
+      uvRepeatX: 0.56,
+      uvRepeatY: 0.56,
+      opacity: 0.88,
+      frameDepth: 0.038,
+    });
+    createWallpaperPanel({
+      width: bayDepth * 0.24,
+      height: wallHeight * 0.36,
+      x: -bayWidth / 2 + sideWallThickness + 0.01,
+      y: wallHeight * 0.56,
+      z: -bayDepth * 0.06,
+      rotationY: Math.PI / 2,
+      uvOffsetX: 0.12,
+      uvOffsetY: 0.28,
+      uvRepeatX: 0.34,
+      uvRepeatY: 0.44,
+    });
+    createWallpaperPanel({
+      width: bayDepth * 0.24,
+      height: wallHeight * 0.36,
+      x: bayWidth / 2 - sideWallThickness - 0.01,
+      y: wallHeight * 0.56,
+      z: bayDepth * 0.08,
+      rotationY: -Math.PI / 2,
+      uvOffsetX: 0.54,
+      uvOffsetY: 0.24,
+      uvRepeatX: 0.32,
+      uvRepeatY: 0.42,
+    });
+
     const ceiling = new THREE.Mesh(
       new THREE.BoxGeometry(bayWidth, 0.26, bayDepth),
       floorMaterial
@@ -9227,6 +9335,7 @@ export const initScene = (
         object: droneCustomizationKeyboardKeys,
         offset: droneCustomizationTableTopOffset + 0.056,
       },
+      ...wallpaperAdjustableEntries,
     ];
 
     floorPanels.forEach((panel) => {
