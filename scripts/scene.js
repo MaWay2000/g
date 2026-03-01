@@ -11168,6 +11168,9 @@ export const initScene = (
   droneMinerGroup.name = "DroneMiner";
   droneMinerGroup.visible = false;
   scene.add(droneMinerGroup);
+  const droneVisualGroup = new THREE.Group();
+  droneVisualGroup.name = "DroneVisualRoot";
+  droneMinerGroup.add(droneVisualGroup);
 
   const droneMinerGeometries = [];
   const droneMinerMaterials = [];
@@ -11237,6 +11240,31 @@ export const initScene = (
       return null;
     }
   };
+  const DRONE_DEFAULT_MODEL_ID = "rover";
+  const DRONE_MODEL_PRESETS = Object.freeze([
+    {
+      id: "scout",
+      label: "Scout",
+      description: "Small airframe tuned for tight routes and quick handling.",
+      scale: 0.82,
+    },
+    {
+      id: "rover",
+      label: "Rover",
+      description: "Medium all-purpose frame for regular mining operations.",
+      scale: 1,
+    },
+    {
+      id: "atltas",
+      label: "Atltas",
+      description: "Big heavy-duty frame with reinforced mining presence.",
+      scale: 1.24,
+    },
+  ]);
+  const droneModelPresetsById = new Map(
+    DRONE_MODEL_PRESETS.map((preset) => [preset.id, preset])
+  );
+  let activeDroneModelId = DRONE_DEFAULT_MODEL_ID;
   const DRONE_DEFAULT_SKIN_ID = "teal-honeycomb";
   const DRONE_SKIN_PRESETS = Object.freeze([
     {
@@ -11443,7 +11471,7 @@ export const initScene = (
     DRONE_SKIN_PRESETS.map((preset) => [preset.id, preset])
   );
   let activeDroneSkinId = DRONE_DEFAULT_SKIN_ID;
-  const registerDroneMesh = (mesh, { parent = droneMinerGroup } = {}) => {
+  const registerDroneMesh = (mesh, { parent = droneVisualGroup } = {}) => {
     if (!mesh) {
       return null;
     }
@@ -11514,7 +11542,7 @@ export const initScene = (
   const rotorGroup = new THREE.Group();
   rotorGroup.name = "DroneRotor";
   rotorGroup.position.set(0, 0.18, 0);
-  droneMinerGroup.add(rotorGroup);
+  droneVisualGroup.add(rotorGroup);
 
   const rotorHubMaterial = new THREE.MeshStandardMaterial({
     color: 0x94a3b8,
@@ -11584,10 +11612,55 @@ export const initScene = (
 
   const droneHeadLight = new THREE.PointLight(0x93c5fd, 0.35, 3.5, 2.2);
   droneHeadLight.position.set(0, 0, 0.18);
-  droneMinerGroup.add(droneHeadLight);
+  droneVisualGroup.add(droneHeadLight);
   const droneCutterLight = new THREE.PointLight(0xf97316, 0.8, 2.6, 2.5);
   droneCutterLight.position.set(0, -0.22, 0.04);
-  droneMinerGroup.add(droneCutterLight);
+  droneVisualGroup.add(droneCutterLight);
+
+  const resolveDroneModelPreset = (modelId) => {
+    const normalizedId =
+      typeof modelId === "string" && modelId.trim() !== ""
+        ? modelId.trim().toLowerCase()
+        : DRONE_DEFAULT_MODEL_ID;
+
+    if (droneModelPresetsById.has(normalizedId)) {
+      return droneModelPresetsById.get(normalizedId);
+    }
+
+    return (
+      droneModelPresetsById.get(DRONE_DEFAULT_MODEL_ID) ??
+      DRONE_MODEL_PRESETS[0] ??
+      null
+    );
+  };
+
+  const applyDroneModelPreset = (preset) => {
+    if (!preset) {
+      return activeDroneModelId;
+    }
+
+    const scale =
+      Number.isFinite(preset?.scale) && preset.scale > 0 ? preset.scale : 1;
+    droneVisualGroup.scale.setScalar(scale);
+    activeDroneModelId = preset.id;
+    return activeDroneModelId;
+  };
+
+  const applyDroneModelPresetById = (modelId) => {
+    const preset = resolveDroneModelPreset(modelId);
+    if (!preset) {
+      return null;
+    }
+
+    return applyDroneModelPreset(preset);
+  };
+
+  const getDroneModelOptions = () =>
+    DRONE_MODEL_PRESETS.map((preset) => ({
+      id: preset.id,
+      label: preset.label,
+      description: preset.description,
+    }));
 
   const resolveDroneSkinPreset = (skinId) => {
     const normalizedId =
@@ -11799,6 +11872,7 @@ export const initScene = (
       },
     }));
 
+  applyDroneModelPresetById(settings?.droneModelId);
   applyDroneSkinPresetById(settings?.droneSkinId);
 
   const DRONE_MINER_HOVER_AMPLITUDE = 0.08;
@@ -15042,6 +15116,9 @@ export const initScene = (
     getDroneSkinOptions: () => getDroneSkinOptions(),
     getActiveDroneSkinId: () => activeDroneSkinId,
     setActiveDroneSkinById: (skinId) => applyDroneSkinPresetById(skinId),
+    getDroneModelOptions: () => getDroneModelOptions(),
+    getActiveDroneModelId: () => activeDroneModelId,
+    setActiveDroneModelById: (modelId) => applyDroneModelPresetById(modelId),
     getOutsideTerrainTileSize: () => {
       if (!Array.isArray(activeTerrainTiles) || activeTerrainTiles.length === 0) {
         return null;

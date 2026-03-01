@@ -5712,12 +5712,13 @@
         aria-labelledby="drone-setup-tab-model"
         hidden
       >
-        <div class="drone-customization-placeholder">
-          <p class="drone-customization-placeholder__title">Model setup</p>
-          <p class="drone-customization-placeholder__text">
-            Model tab is ready. Drone frame variants can be configured here.
+        <section class="quick-access-modal__section quick-access-modal__section--lift">
+          <h3 class="quick-access-modal__section-title">Available models</h3>
+          <ul class="lift-selector" data-drone-model-list></ul>
+          <p class="lift-selector__empty" data-drone-model-empty hidden>
+            No drone models available.
           </p>
-        </div>
+        </section>
       </section>
     </template>
 
