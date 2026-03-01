@@ -11804,6 +11804,44 @@ export const initScene = (
   droneModelRuntimeById.set("scout", { group: scoutModelGroup });
   droneModelRuntimeById.set("rover", { group: roverModelGroup });
   droneModelRuntimeById.set("atltas", { group: atltasModelGroup });
+  const computeDroneModelRuntimeMetrics = (group) => {
+    if (!(group instanceof THREE.Object3D)) {
+      return {
+        localGroundOffset: 0.2,
+        localHorizontalRadius: 0.4,
+      };
+    }
+
+    const bounds = new THREE.Box3().setFromObject(group);
+    if (bounds.isEmpty()) {
+      return {
+        localGroundOffset: 0.2,
+        localHorizontalRadius: 0.4,
+      };
+    }
+
+    const localGroundOffset = Number.isFinite(bounds.min.y)
+      ? Math.max(0, -bounds.min.y)
+      : 0.2;
+    const localHorizontalRadius = Math.max(
+      Number.isFinite(bounds.min.x) ? Math.abs(bounds.min.x) : 0,
+      Number.isFinite(bounds.max.x) ? Math.abs(bounds.max.x) : 0,
+      Number.isFinite(bounds.min.z) ? Math.abs(bounds.min.z) : 0,
+      Number.isFinite(bounds.max.z) ? Math.abs(bounds.max.z) : 0,
+      0.4
+    );
+
+    return {
+      localGroundOffset,
+      localHorizontalRadius,
+    };
+  };
+  droneModelRuntimeById.forEach((runtime, modelId) => {
+    const metrics = computeDroneModelRuntimeMetrics(runtime?.group ?? null);
+    runtime.localGroundOffset = metrics.localGroundOffset;
+    runtime.localHorizontalRadius = metrics.localHorizontalRadius;
+    runtime.motionMode = modelId === "scout" ? "air" : "ground";
+  });
 
   const resolveDroneModelPreset = (modelId) => {
     const normalizedId =
@@ -12132,7 +12170,6 @@ export const initScene = (
   const DRONE_MINER_HOVER_AMPLITUDE = 0.08;
   const DRONE_MINER_HOVER_SPEED = 2.3;
   const DRONE_MINER_ROTOR_SPEED = 8;
-  const DRONE_MINER_HOVER_LIFT = 0.4;
   const DRONE_MINER_SURFACE_MARGIN = 0.05;
   const DRONE_MINER_LAUNCH_START_DISTANCE = 1.4;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD = 0.35;
@@ -12142,23 +12179,61 @@ export const initScene = (
   const DRONE_MINER_TRAVEL_SPEED = 6;
   const DRONE_MINER_MIN_TRANSITION_DURATION = 0.7;
   const DRONE_MINER_MAX_TRANSITION_DURATION = 20;
+  const DRONE_MINER_AIR_CLEARANCE = 0.18;
+  const DRONE_MINER_GROUND_CLEARANCE = 0.02;
+  const resolveActiveDroneModelPreset = () =>
+    resolveDroneModelPreset(activeDroneModelId);
+  const resolveActiveDroneModelRuntime = () => {
+    const activePreset = resolveActiveDroneModelPreset();
+    const activePresetId =
+      typeof activePreset?.id === "string" && activePreset.id.trim() !== ""
+        ? activePreset.id.trim().toLowerCase()
+        : DRONE_DEFAULT_MODEL_ID;
+    return droneModelRuntimeById.get(activePresetId) ?? null;
+  };
   const resolveActiveDroneModelScale = () => {
-    const activePreset = resolveDroneModelPreset(activeDroneModelId);
+    const activePreset = resolveActiveDroneModelPreset();
     const presetScale =
       Number.isFinite(activePreset?.scale) && activePreset.scale > 0
         ? activePreset.scale
         : 1;
     return presetScale;
   };
-  const resolveDroneHoverLift = () => {
+  const resolveActiveDroneMotionMode = () => {
+    const runtime = resolveActiveDroneModelRuntime();
+    if (runtime?.motionMode === "air" || runtime?.motionMode === "ground") {
+      return runtime.motionMode;
+    }
+
+    const activePreset = resolveActiveDroneModelPreset();
+    const modelKind =
+      typeof activePreset?.modelKind === "string"
+        ? activePreset.modelKind.trim().toLowerCase()
+        : "";
+    return modelKind === "scout" ? "air" : "ground";
+  };
+  const resolveDroneRideHeight = () => {
+    const runtime = resolveActiveDroneModelRuntime();
     const modelScale = resolveActiveDroneModelScale();
-    return DRONE_MINER_HOVER_LIFT + Math.max(0, (modelScale - 1) * 0.25);
+    const localGroundOffset =
+      Number.isFinite(runtime?.localGroundOffset) && runtime.localGroundOffset >= 0
+        ? runtime.localGroundOffset
+        : 0.2;
+    const clearance =
+      resolveActiveDroneMotionMode() === "air"
+        ? DRONE_MINER_AIR_CLEARANCE
+        : DRONE_MINER_GROUND_CLEARANCE;
+    return localGroundOffset * modelScale + clearance;
   };
   const resolveDroneLaunchStartDistance = () => {
+    const runtime = resolveActiveDroneModelRuntime();
     const modelScale = resolveActiveDroneModelScale();
-    return (
-      DRONE_MINER_LAUNCH_START_DISTANCE + Math.max(0, (modelScale - 1) * 0.8)
-    );
+    const localHorizontalRadius =
+      Number.isFinite(runtime?.localHorizontalRadius) && runtime.localHorizontalRadius > 0
+        ? runtime.localHorizontalRadius
+        : 0.4;
+    const footprintRadius = localHorizontalRadius * modelScale;
+    return Math.max(DRONE_MINER_LAUNCH_START_DISTANCE, footprintRadius + 1.1);
   };
   const droneMinerState = {
     active: false,
@@ -12244,16 +12319,20 @@ export const initScene = (
       return;
     }
 
-    const minBaseY =
+    const targetBaseY =
       resolveDroneSurfaceBaseHeight(
         droneMinerState.basePosition,
         droneMinerState.basePosition.y
       ) +
-      resolveDroneHoverLift() +
+      resolveDroneRideHeight() +
       DRONE_MINER_SURFACE_MARGIN;
+    if (resolveActiveDroneMotionMode() === "ground") {
+      droneMinerState.basePosition.y = targetBaseY;
+      return;
+    }
 
-    if (droneMinerState.basePosition.y < minBaseY) {
-      droneMinerState.basePosition.y = minBaseY;
+    if (droneMinerState.basePosition.y < targetBaseY) {
+      droneMinerState.basePosition.y = targetBaseY;
     }
   };
   const resolveDroneLaunchStartPosition = () => {
@@ -12286,7 +12365,7 @@ export const initScene = (
       launchOrigin.y
     );
     droneLaunchStartPosition.y =
-      launchSurfaceBaseY + resolveDroneHoverLift() + DRONE_MINER_SURFACE_MARGIN;
+      launchSurfaceBaseY + resolveDroneRideHeight() + DRONE_MINER_SURFACE_MARGIN;
 
     return droneLaunchStartPosition;
   };
@@ -12355,7 +12434,7 @@ export const initScene = (
     );
     droneMinerState.transitionTarget.set(
       spawnPoint.x,
-      spawnSurfaceBaseY + resolveDroneHoverLift() + DRONE_MINER_SURFACE_MARGIN,
+      spawnSurfaceBaseY + resolveDroneRideHeight() + DRONE_MINER_SURFACE_MARGIN,
       spawnPoint.z
     );
 
@@ -12378,15 +12457,29 @@ export const initScene = (
     droneMinerState.hoverPhase = Math.random() * Math.PI * 2;
     droneMinerState.returning = false;
 
-    const normal = intersection.face?.normal;
-    if (normal) {
-      droneMinerState.lookDirection.copy(normal).normalize().multiplyScalar(-1);
-    } else {
-      camera.getWorldDirection(droneMinerState.lookDirection);
-      if (droneMinerState.lookDirection.y > -0.2) {
-        droneMinerState.lookDirection.y = -0.2;
+    if (resolveActiveDroneMotionMode() === "ground") {
+      if (camera?.isObject3D && typeof camera.getWorldDirection === "function") {
+        camera.getWorldDirection(droneMinerState.lookDirection);
+      } else {
+        droneMinerState.lookDirection.set(0, 0, -1);
       }
-      droneMinerState.lookDirection.normalize();
+      droneMinerState.lookDirection.y = 0;
+      if (droneMinerState.lookDirection.lengthSq() <= 1e-6) {
+        droneMinerState.lookDirection.set(0, 0, -1);
+      } else {
+        droneMinerState.lookDirection.normalize();
+      }
+    } else {
+      const normal = intersection.face?.normal;
+      if (normal) {
+        droneMinerState.lookDirection.copy(normal).normalize().multiplyScalar(-1);
+      } else {
+        camera.getWorldDirection(droneMinerState.lookDirection);
+        if (droneMinerState.lookDirection.y > -0.2) {
+          droneMinerState.lookDirection.y = -0.2;
+        }
+        droneMinerState.lookDirection.normalize();
+      }
     }
 
     droneMinerGroup.visible = true;
@@ -12408,6 +12501,10 @@ export const initScene = (
       return;
     }
 
+    const activeMotionMode = resolveActiveDroneMotionMode();
+    const previousBaseX = droneMinerState.basePosition.x;
+    const previousBaseZ = droneMinerState.basePosition.z;
+
     if (droneMinerState.returning) {
       droneReturnTarget.copy(playerObject.position);
       const groundedReturnY = Number.isFinite(playerGroundedHeight)
@@ -12419,10 +12516,15 @@ export const initScene = (
         droneReturnTarget,
         returnBaseY
       );
-      droneReturnTarget.y =
-        Math.max(returnBaseY, returnSurfaceBaseY) +
-        resolveDroneHoverLift() +
-        DRONE_MINER_SURFACE_MARGIN;
+      if (activeMotionMode === "ground") {
+        droneReturnTarget.y =
+          returnSurfaceBaseY + resolveDroneRideHeight() + DRONE_MINER_SURFACE_MARGIN;
+      } else {
+        droneReturnTarget.y =
+          Math.max(returnBaseY, returnSurfaceBaseY) +
+          resolveDroneRideHeight() +
+          DRONE_MINER_SURFACE_MARGIN;
+      }
 
       droneReturnDirection
         .copy(droneReturnTarget)
@@ -12451,8 +12553,13 @@ export const initScene = (
 
       droneMinerState.lookDirection
         .copy(droneReturnTarget)
-        .sub(droneMinerGroup.position)
-        .normalize();
+        .sub(droneMinerGroup.position);
+      if (activeMotionMode === "ground") {
+        droneMinerState.lookDirection.y = 0;
+      }
+      if (droneMinerState.lookDirection.lengthSq() > 1e-6) {
+        droneMinerState.lookDirection.normalize();
+      }
     }
 
     if (!droneMinerState.returning && droneMinerState.transitionActive) {
@@ -12483,25 +12590,57 @@ export const initScene = (
 
     clampDroneBasePositionToSurface();
 
+    if (activeMotionMode === "ground") {
+      const movedX = droneMinerState.basePosition.x - previousBaseX;
+      const movedZ = droneMinerState.basePosition.z - previousBaseZ;
+      const movedHorizontalDistanceSquared = movedX * movedX + movedZ * movedZ;
+      if (movedHorizontalDistanceSquared > 1e-6) {
+        const inverseDistance = 1 / Math.sqrt(movedHorizontalDistanceSquared);
+        droneMinerState.lookDirection.set(
+          movedX * inverseDistance,
+          0,
+          movedZ * inverseDistance
+        );
+      } else if (droneMinerState.lookDirection.lengthSq() < 1e-6) {
+        droneMinerState.lookDirection.set(0, 0, -1);
+      }
+    }
+
     const hoverOffset =
-      Math.sin(elapsedTime * DRONE_MINER_HOVER_SPEED + droneMinerState.hoverPhase) *
-      DRONE_MINER_HOVER_AMPLITUDE;
+      activeMotionMode === "air"
+        ? Math.sin(elapsedTime * DRONE_MINER_HOVER_SPEED + droneMinerState.hoverPhase) *
+          DRONE_MINER_HOVER_AMPLITUDE
+        : 0;
     droneMinerGroup.position.set(
       droneMinerState.basePosition.x,
       droneMinerState.basePosition.y + hoverOffset,
       droneMinerState.basePosition.z
     );
 
-    droneLookDirectionHelper.copy(droneMinerState.lookDirection).normalize();
-    if (droneLookDirectionHelper.lengthSq() < 1e-6) {
-      droneLookDirectionHelper.set(0, -1, 0);
+    droneLookDirectionHelper.copy(droneMinerState.lookDirection);
+    if (activeMotionMode === "ground") {
+      droneLookDirectionHelper.y = 0;
+      if (droneLookDirectionHelper.lengthSq() < 1e-6) {
+        droneLookDirectionHelper.set(0, 0, -1);
+      } else {
+        droneLookDirectionHelper.normalize();
+      }
+      droneLookTarget
+        .copy(droneMinerGroup.position)
+        .add(droneLookDirectionHelper.multiplyScalar(0.6));
+      droneLookTarget.y = droneMinerGroup.position.y;
+    } else {
+      droneLookDirectionHelper.normalize();
+      if (droneLookDirectionHelper.lengthSq() < 1e-6) {
+        droneLookDirectionHelper.set(0, -1, 0);
+      }
+      droneLookTarget
+        .copy(droneMinerGroup.position)
+        .add(droneLookDirectionHelper.multiplyScalar(0.5));
     }
-    droneLookTarget
-      .copy(droneMinerGroup.position)
-      .add(droneLookDirectionHelper.multiplyScalar(0.5));
     droneMinerGroup.lookAt(droneLookTarget);
 
-    if (droneMinerState.rotor) {
+    if (droneMinerState.rotor && activeMotionMode === "air") {
       droneMinerState.rotor.rotation.y += delta * DRONE_MINER_ROTOR_SPEED;
     }
 
