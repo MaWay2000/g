@@ -9314,10 +9314,6 @@ export const initScene = (
       }
 
       const warmTint = new THREE.Color(0xffb673);
-      const textColor = "#fef3c7";
-      const heightFont = `700 ${Math.max(9, Math.round(safeTileSize * 0.3))}px "Segoe UI", sans-serif`;
-      const tileFont = `700 ${Math.max(8, Math.round(safeTileSize * 0.26))}px "Segoe UI", sans-serif`;
-      const tilePadding = Math.max(2, Math.round(safeTileSize * 0.1));
       for (let row = 0; row < mapHeight; row += 1) {
         for (let column = 0; column < mapWidth; column += 1) {
           const index = row * mapWidth + column;
@@ -9342,47 +9338,6 @@ export const initScene = (
           context.strokeStyle = "rgba(255, 198, 133, 0.34)";
           context.lineWidth = 1;
           context.strokeRect(drawX + 0.5, drawY + 0.5, safeTileSize - 1, safeTileSize - 1);
-
-          context.save();
-          context.font = heightFont;
-          context.textAlign = "right";
-          context.textBaseline = "top";
-          context.fillStyle = "rgba(2, 6, 23, 0.46)";
-          context.fillRect(
-            drawX + safeTileSize - safeTileSize * 0.42,
-            drawY + 1,
-            safeTileSize * 0.4,
-            safeTileSize * 0.26
-          );
-          context.fillStyle = textColor;
-          context.fillText(
-            String(heightValue),
-            drawX + safeTileSize - tilePadding,
-            drawY + tilePadding * 0.55
-          );
-          context.restore();
-
-          const tileId = cell?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
-          const tileLabelMatch = typeof tileId === "string" ? tileId.match(/(\d+)/) : null;
-          const tileLabel = tileLabelMatch ? tileLabelMatch[1] : "-";
-          context.save();
-          context.font = tileFont;
-          context.textAlign = "left";
-          context.textBaseline = "bottom";
-          context.fillStyle = "rgba(2, 6, 23, 0.44)";
-          context.fillRect(
-            drawX + 1,
-            drawY + safeTileSize - safeTileSize * 0.3,
-            safeTileSize * 0.34,
-            safeTileSize * 0.28
-          );
-          context.fillStyle = textColor;
-          context.fillText(
-            tileLabel,
-            drawX + tilePadding * 0.7,
-            drawY + safeTileSize - tilePadding * 0.45
-          );
-          context.restore();
         }
       }
 
