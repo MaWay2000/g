@@ -3397,6 +3397,9 @@ let lastFocusedElement = null;
 let missionModalActive = false;
 let marketModalActive = false;
 let droneCustomizationModalActive = false;
+const DRONE_CUSTOMIZATION_TAB_IDS = Object.freeze(["parts", "skins", "model"]);
+const DRONE_CUSTOMIZATION_DEFAULT_TAB_ID = "skins";
+let droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
 const droneSkinPreviewTextureCache = new Map();
 const droneSkinPreviewState = {
   renderToken: 0,
@@ -5245,6 +5248,8 @@ const renderLiftModalFloors = () => {
 const getDroneCustomizationModalElements = () => {
   if (!quickAccessModalContent) {
     return {
+      tabButtons: [],
+      tabPanels: [],
       list: null,
       empty: null,
       previewCanvas: null,
@@ -5254,6 +5259,12 @@ const getDroneCustomizationModalElements = () => {
   }
 
   return {
+    tabButtons: Array.from(
+      quickAccessModalContent.querySelectorAll("[data-drone-setup-tab]")
+    ).filter((button) => button instanceof HTMLButtonElement),
+    tabPanels: Array.from(
+      quickAccessModalContent.querySelectorAll("[data-drone-setup-panel]")
+    ).filter((panel) => panel instanceof HTMLElement),
     list: quickAccessModalContent.querySelector("[data-drone-skin-list]"),
     empty: quickAccessModalContent.querySelector("[data-drone-skin-empty]"),
     previewCanvas: quickAccessModalContent.querySelector(
@@ -5266,6 +5277,71 @@ const getDroneCustomizationModalElements = () => {
       "[data-drone-skin-preview-description]"
     ),
   };
+};
+
+const normalizeDroneCustomizationTabId = (tabId) => {
+  const normalized = typeof tabId === "string" ? tabId.trim().toLowerCase() : "";
+  if (DRONE_CUSTOMIZATION_TAB_IDS.includes(normalized)) {
+    return normalized;
+  }
+  return DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
+};
+
+const syncDroneCustomizationTabState = (
+  requestedTabId = droneCustomizationActiveTab
+) => {
+  const { tabButtons, tabPanels } = getDroneCustomizationModalElements();
+  const nextTabId = normalizeDroneCustomizationTabId(requestedTabId);
+  droneCustomizationActiveTab = nextTabId;
+
+  tabButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const buttonTabId = normalizeDroneCustomizationTabId(button.dataset.droneSetupTab);
+    const isActive = buttonTabId === nextTabId;
+    button.dataset.active = isActive ? "true" : "false";
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
+  });
+
+  tabPanels.forEach((panel) => {
+    if (!(panel instanceof HTMLElement)) {
+      return;
+    }
+    const panelTabId = normalizeDroneCustomizationTabId(panel.dataset.droneSetupPanel);
+    const isActive = panelTabId === nextTabId;
+    panel.hidden = !isActive;
+    panel.setAttribute("aria-hidden", isActive ? "false" : "true");
+  });
+};
+
+const handleDroneCustomizationTabClick = (event) => {
+  if (!(event?.currentTarget instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  const nextTabId = normalizeDroneCustomizationTabId(
+    event.currentTarget.dataset.droneSetupTab
+  );
+  syncDroneCustomizationTabState(nextTabId);
+};
+
+const bindDroneCustomizationTabEvents = () => {
+  const { tabButtons } = getDroneCustomizationModalElements();
+  tabButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    if (button.dataset.droneSetupTabBound === "true") {
+      return;
+    }
+
+    button.dataset.droneSetupTabBound = "true";
+    button.addEventListener("click", handleDroneCustomizationTabClick);
+  });
 };
 
 const toHexColorString = (value, fallback = "#38bdf8") => {
@@ -5647,6 +5723,8 @@ const renderDroneCustomizationModal = () => {
 
   const { list, empty, previewCanvas, previewTitle, previewDescription } =
     getDroneCustomizationModalElements();
+  bindDroneCustomizationTabEvents();
+  syncDroneCustomizationTabState(droneCustomizationActiveTab);
   if (!(list instanceof HTMLElement)) {
     return;
   }
@@ -6316,6 +6394,7 @@ subscribeToMissionState(handleMissionStateChanged);
 
 const teardownQuickAccessModalContent = () => {
   droneCustomizationModalActive = false;
+  droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
   droneSkinPreviewState.renderToken += 1;
   droneSkinPreviewState.pendingSkinId = null;
   teardownMarketModal();
