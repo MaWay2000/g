@@ -2658,7 +2658,7 @@ export const initScene = (
     emblemColor: 0xc2410c,
     emblemEmissiveColor: 0x3f1908,
     frameColor: 0x1f1611,
-    backWallColor: 0x120c09,
+    backWallColor: 0x18120d,
     trimColor: 0x92400e,
     trimEmissiveColor: 0x3f1c08,
     panelColor: 0x2b1b13,
