@@ -8789,8 +8789,8 @@ export const initScene = (
       malfunctionEffect: true,
     });
 
-    const sideWallFillHeight = wallHeight * 0.94;
-    const sideWallFillWidth = bayDepth * 0.78;
+    const sideWallFillHeight = Math.max(0.2, wallHeight - 0.06);
+    const sideWallFillWidth = Math.max(0.2, bayDepth - 0.08);
     const sideWallFillY = wallHeight * 0.5;
     createWallpaperPanel({
       texturePath: "./images/game/area/engi-bay/m1.png",
@@ -8800,7 +8800,7 @@ export const initScene = (
       y: sideWallFillY,
       z: 0,
       rotationY: Math.PI / 2,
-      opacity: 0.32,
+      opacity: 0.56,
       showFrame: false,
       panelDepthOffset: 0.008,
     });
@@ -8812,7 +8812,7 @@ export const initScene = (
       y: sideWallFillY,
       z: 0,
       rotationY: -Math.PI / 2,
-      opacity: 0.32,
+      opacity: 0.56,
       showFrame: false,
       panelDepthOffset: 0.008,
     });
