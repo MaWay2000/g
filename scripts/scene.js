@@ -7071,8 +7071,11 @@ export const initScene = (
           BASE_VIEW_DISTANCE *
           viewSettings.distanceMultiplier *
           VIEW_DISTANCE_CULLING_BUFFER;
+        const minimumWindowDistance = Math.max(cellSize * 3, 120);
         if (!Array.isArray(viewDistanceTargets) || viewDistanceTargets.length === 0) {
-          return baseDistance;
+          return Number.isFinite(baseDistance) && baseDistance > 0
+            ? Math.max(baseDistance, minimumWindowDistance)
+            : minimumWindowDistance;
         }
 
         const maxMultiplier = viewDistanceTargets.reduce((maxDistance, target) => {
@@ -7082,7 +7085,10 @@ export const initScene = (
           return Math.max(maxDistance, multiplier);
         }, 1);
 
-        return baseDistance * maxMultiplier;
+        const resolvedDistance = baseDistance * maxMultiplier;
+        return Number.isFinite(resolvedDistance) && resolvedDistance > 0
+          ? Math.max(resolvedDistance, minimumWindowDistance)
+          : minimumWindowDistance;
       };
 
       const registerTileColliderIfNeeded = (tile, surfaceHeight) => {
@@ -7467,6 +7473,9 @@ export const initScene = (
           rebuildStaticColliders();
         }
       };
+
+      // Seed initial terrain tiles immediately so Surface Area never appears empty on first load.
+      updateTerrainWindowing({ force: true });
 
       if (objectPlacements.length > 0) {
         const mapDisplayName =
