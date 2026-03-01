@@ -6067,6 +6067,19 @@ const renderDroneModelPreview = (modelOption) => {
     Number.isFinite(modelOption?.preview?.scale) && modelOption.preview.scale > 0
       ? modelOption.preview.scale
       : 1;
+  const previewModelKind =
+    typeof modelOption?.preview?.modelKind === "string" &&
+    modelOption.preview.modelKind.trim() !== ""
+      ? modelOption.preview.modelKind.trim().toLowerCase()
+      : "";
+  const modelKind =
+    previewModelKind === "scout" || previewModelKind === "rover" || previewModelKind === "atltas"
+      ? previewModelKind
+      : sizeLabel.toLowerCase() === "small"
+        ? "scout"
+        : sizeLabel.toLowerCase() === "big"
+          ? "atltas"
+          : "rover";
 
   if (modelPreviewTitle instanceof HTMLElement) {
     modelPreviewTitle.textContent = label;
@@ -6100,147 +6113,432 @@ const renderDroneModelPreview = (modelOption) => {
     context.stroke();
   }
 
+  const accentColorByModel = {
+    scout: "#4ade80",
+    rover: "#60a5fa",
+    atltas: "#f59e0b",
+  };
+  const accentColor = accentColorByModel[modelKind] ?? "#60a5fa";
   const centerX = width * 0.5;
   const centerY = height * 0.56;
-  const unclampedRadius = height * 0.16 * modelScale;
-  const bodyRadius = Math.max(height * 0.11, Math.min(height * 0.25, unclampedRadius));
-  const accentColor =
-    sizeLabel.toLowerCase() === "small"
-      ? "#4ade80"
-      : sizeLabel.toLowerCase() === "big"
-        ? "#f59e0b"
-        : "#60a5fa";
+  const unit = Math.max(
+    height * 0.09,
+    Math.min(height * 0.2, height * 0.13 * modelScale)
+  );
 
+  const haloRadiusMultiplier =
+    modelKind === "scout" ? 2.1 : modelKind === "atltas" ? 2.5 : 2.35;
   context.save();
   const haloGradient = context.createRadialGradient(
     centerX,
     centerY,
-    bodyRadius * 0.2,
+    unit * 0.25,
     centerX,
     centerY,
-    bodyRadius * 2.05
+    unit * haloRadiusMultiplier
   );
   haloGradient.addColorStop(0, `${accentColor}66`);
   haloGradient.addColorStop(1, `${accentColor}00`);
   context.fillStyle = haloGradient;
   context.beginPath();
-  context.arc(centerX, centerY, bodyRadius * 2.05, 0, Math.PI * 2);
+  context.arc(centerX, centerY, unit * haloRadiusMultiplier, 0, Math.PI * 2);
   context.fill();
   context.restore();
 
-  const armLengthMultiplier =
-    sizeLabel.toLowerCase() === "small"
-      ? 1.5
-      : sizeLabel.toLowerCase() === "big"
-        ? 2.2
-        : 1.85;
-  const armLength = bodyRadius * armLengthMultiplier;
-  const thrusterWidth = bodyRadius * 0.72;
-  const thrusterHeight = bodyRadius * 0.42;
+  if (modelKind === "scout") {
+    const bodyRadius = unit * 1.15;
+    const armLength = bodyRadius * 1.55;
+    const thrusterWidth = bodyRadius * 0.72;
+    const thrusterHeight = bodyRadius * 0.42;
 
-  fillDronePreviewShape(
-    context,
-    () => {
-      drawRoundedRectPath(
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - armLength - thrusterWidth,
+          centerY - thrusterHeight * 0.5,
+          thrusterWidth,
+          thrusterHeight,
+          14
+        );
+      },
+      null,
+      "#334155",
+      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX + armLength,
+          centerY - thrusterHeight * 0.5,
+          thrusterWidth,
+          thrusterHeight,
+          14
+        );
+      },
+      null,
+      "#334155",
+      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        context.beginPath();
+        context.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
+        context.closePath();
+      },
+      null,
+      "#64748b",
+      { stroke: "rgba(148, 163, 184, 0.55)", lineWidth: 2.5 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyRadius * 0.22,
+          centerY - bodyRadius * 0.22,
+          bodyRadius * 0.44,
+          bodyRadius * 0.9,
+          18
+        );
+      },
+      null,
+      "#e2e8f0",
+      { stroke: `${accentColor}cc`, lineWidth: 2.2 }
+    );
+
+    context.save();
+    context.translate(centerX, centerY - bodyRadius - 42);
+    context.rotate(Math.PI / 10);
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(context, -armLength * 1.22, -8, armLength * 2.44, 16, 8);
+      },
+      null,
+      "#475569",
+      { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
+    );
+    context.restore();
+    context.save();
+    context.translate(centerX, centerY - bodyRadius - 42);
+    context.rotate(-Math.PI / 10);
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(context, -armLength * 1.22, -8, armLength * 2.44, 16, 8);
+      },
+      null,
+      "#475569",
+      { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
+    );
+    context.restore();
+    fillDronePreviewShape(
+      context,
+      () => {
+        context.beginPath();
+        context.moveTo(centerX, centerY + bodyRadius * 1.1);
+        context.lineTo(centerX - bodyRadius * 0.35, centerY + bodyRadius * 2.02);
+        context.lineTo(centerX + bodyRadius * 0.35, centerY + bodyRadius * 2.02);
+        context.closePath();
+      },
+      null,
+      "#fb923c",
+      { stroke: `${accentColor}cc`, lineWidth: 2.1 }
+    );
+  } else if (modelKind === "rover") {
+    const bodyWidth = unit * 3.1;
+    const bodyHeight = unit * 1.1;
+    const wheelRadius = unit * 0.36;
+    const wheelOffsetX = bodyWidth * 0.43;
+    const wheelOffsetY = bodyHeight * 0.8;
+
+    context.fillStyle = "rgba(15, 23, 42, 0.5)";
+    context.beginPath();
+    context.ellipse(centerX, centerY + unit * 0.72, bodyWidth * 0.62, unit * 0.48, 0, 0, Math.PI * 2);
+    context.fill();
+
+    const drawRoverWheel = (x, y) => {
+      fillDronePreviewShape(
         context,
-        centerX - armLength - thrusterWidth,
-        centerY - thrusterHeight * 0.5,
-        thrusterWidth,
-        thrusterHeight,
-        14
+        () => {
+          context.beginPath();
+          context.arc(x, y, wheelRadius, 0, Math.PI * 2);
+          context.closePath();
+        },
+        null,
+        "#1e293b",
+        { stroke: "rgba(148, 163, 184, 0.5)", lineWidth: 2.2 }
       );
-    },
-    null,
-    "#334155",
-    { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
-  );
-  fillDronePreviewShape(
-    context,
-    () => {
-      drawRoundedRectPath(
+      fillDronePreviewShape(
         context,
-        centerX + armLength,
-        centerY - thrusterHeight * 0.5,
-        thrusterWidth,
-        thrusterHeight,
-        14
+        () => {
+          context.beginPath();
+          context.arc(x, y, wheelRadius * 0.48, 0, Math.PI * 2);
+          context.closePath();
+        },
+        null,
+        "#475569",
+        { stroke: `${accentColor}9a`, lineWidth: 1.6 }
       );
-    },
-    null,
-    "#334155",
-    { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
-  );
+    };
 
-  fillDronePreviewShape(
-    context,
-    () => {
-      context.beginPath();
-      context.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
-      context.closePath();
-    },
-    null,
-    "#64748b",
-    { stroke: "rgba(148, 163, 184, 0.55)", lineWidth: 2.5 }
-  );
+    drawRoverWheel(centerX - wheelOffsetX, centerY - wheelOffsetY);
+    drawRoverWheel(centerX + wheelOffsetX, centerY - wheelOffsetY);
+    drawRoverWheel(centerX - wheelOffsetX, centerY + wheelOffsetY);
+    drawRoverWheel(centerX + wheelOffsetX, centerY + wheelOffsetY);
 
-  fillDronePreviewShape(
-    context,
-    () => {
-      drawRoundedRectPath(
-        context,
-        centerX - bodyRadius * 0.22,
-        centerY - bodyRadius * 0.22,
-        bodyRadius * 0.44,
-        bodyRadius * 0.9,
-        18
-      );
-    },
-    null,
-    "#e2e8f0",
-    { stroke: `${accentColor}cc`, lineWidth: 2.2 }
-  );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.44,
+          centerY - wheelOffsetY,
+          bodyWidth * 0.88,
+          bodyHeight * 2,
+          12
+        );
+      },
+      null,
+      "#334155",
+      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 1.8 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.5,
+          centerY - bodyHeight * 0.6,
+          bodyWidth,
+          bodyHeight * 1.2,
+          16
+        );
+      },
+      null,
+      "#64748b",
+      { stroke: "rgba(148, 163, 184, 0.55)", lineWidth: 2.4 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.27,
+          centerY - bodyHeight * 0.98,
+          bodyWidth * 0.54,
+          bodyHeight * 0.76,
+          14
+        );
+      },
+      null,
+      "#94a3b8",
+      { stroke: "rgba(226, 232, 240, 0.7)", lineWidth: 1.8 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.21,
+          centerY - bodyHeight * 0.88,
+          bodyWidth * 0.42,
+          bodyHeight * 0.22,
+          10
+        );
+      },
+      null,
+      "#dbeafe",
+      { stroke: `${accentColor}cc`, lineWidth: 1.6 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.36,
+          centerY - bodyHeight * 1.18,
+          bodyWidth * 0.72,
+          bodyHeight * 0.22,
+          8
+        );
+      },
+      null,
+      "#475569",
+      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 1.6 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.26,
+          centerY + bodyHeight * 0.6,
+          bodyWidth * 0.52,
+          bodyHeight * 0.34,
+          10
+        );
+      },
+      null,
+      "#fb923c",
+      { stroke: `${accentColor}cc`, lineWidth: 1.8 }
+    );
+  } else {
+    const bodyWidth = unit * 3.5;
+    const bodyHeight = unit * 1.2;
+    const trackWidth = unit * 0.62;
+    const trackLength = bodyHeight * 2.35;
 
-  context.save();
-  context.translate(centerX, centerY - bodyRadius - 42);
-  context.rotate(Math.PI / 10);
-  fillDronePreviewShape(
-    context,
-    () => {
-      drawRoundedRectPath(context, -armLength * 1.25, -8, armLength * 2.5, 16, 8);
-    },
-    null,
-    "#475569",
-    { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
-  );
-  context.restore();
+    context.fillStyle = "rgba(15, 23, 42, 0.55)";
+    context.beginPath();
+    context.ellipse(centerX, centerY + unit * 0.8, bodyWidth * 0.72, unit * 0.54, 0, 0, Math.PI * 2);
+    context.fill();
 
-  context.save();
-  context.translate(centerX, centerY - bodyRadius - 42);
-  context.rotate(-Math.PI / 10);
-  fillDronePreviewShape(
-    context,
-    () => {
-      drawRoundedRectPath(context, -armLength * 1.25, -8, armLength * 2.5, 16, 8);
-    },
-    null,
-    "#475569",
-    { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
-  );
-  context.restore();
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.61,
+          centerY - trackLength * 0.5,
+          trackWidth,
+          trackLength,
+          12
+        );
+      },
+      null,
+      "#1f2937",
+      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX + bodyWidth * 0.61 - trackWidth,
+          centerY - trackLength * 0.5,
+          trackWidth,
+          trackLength,
+          12
+        );
+      },
+      null,
+      "#1f2937",
+      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
+    );
 
-  fillDronePreviewShape(
-    context,
-    () => {
-      context.beginPath();
-      context.moveTo(centerX, centerY + bodyRadius * 1.12);
-      context.lineTo(centerX - bodyRadius * 0.33, centerY + bodyRadius * 2.04);
-      context.lineTo(centerX + bodyRadius * 0.33, centerY + bodyRadius * 2.04);
-      context.closePath();
-    },
-    null,
-    "#fb923c",
-    { stroke: `${accentColor}cc`, lineWidth: 2.1 }
-  );
+    [-0.31, 0, 0.31].forEach((factor) => {
+      const y = centerY + trackLength * factor;
+      [-1, 1].forEach((side) => {
+        fillDronePreviewShape(
+          context,
+          () => {
+            context.beginPath();
+            context.arc(centerX + side * bodyWidth * 0.43, y, unit * 0.2, 0, Math.PI * 2);
+            context.closePath();
+          },
+          null,
+          "#334155",
+          { stroke: "rgba(148, 163, 184, 0.35)", lineWidth: 1.4 }
+        );
+      });
+    });
+
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.5,
+          centerY - bodyHeight * 0.68,
+          bodyWidth,
+          bodyHeight * 1.36,
+          18
+        );
+      },
+      null,
+      "#475569",
+      { stroke: "rgba(148, 163, 184, 0.56)", lineWidth: 2.4 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.3,
+          centerY - bodyHeight * 0.9,
+          bodyWidth * 0.38,
+          bodyHeight * 0.8,
+          12
+        );
+      },
+      null,
+      "#94a3b8",
+      { stroke: "rgba(226, 232, 240, 0.72)", lineWidth: 1.7 }
+    );
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(
+          context,
+          centerX - bodyWidth * 0.25,
+          centerY - bodyHeight * 0.82,
+          bodyWidth * 0.22,
+          bodyHeight * 0.24,
+          8
+        );
+      },
+      null,
+      "#dbeafe",
+      { stroke: `${accentColor}cc`, lineWidth: 1.5 }
+    );
+
+    context.save();
+    context.translate(centerX + bodyWidth * 0.28, centerY - bodyHeight * 0.26);
+    context.rotate(-0.48);
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(context, 0, -unit * 0.15, unit * 1.35, unit * 0.3, 8);
+      },
+      null,
+      "#475569",
+      { stroke: "rgba(148, 163, 184, 0.48)", lineWidth: 1.7 }
+    );
+    context.restore();
+    context.save();
+    context.translate(centerX + bodyWidth * 0.6, centerY - bodyHeight * 0.66);
+    context.rotate(-1.1);
+    fillDronePreviewShape(
+      context,
+      () => {
+        drawRoundedRectPath(context, 0, -unit * 0.12, unit * 1.02, unit * 0.24, 8);
+      },
+      null,
+      "#64748b",
+      { stroke: "rgba(148, 163, 184, 0.5)", lineWidth: 1.6 }
+    );
+    context.restore();
+    fillDronePreviewShape(
+      context,
+      () => {
+        context.beginPath();
+        context.moveTo(centerX + bodyWidth * 0.83, centerY - bodyHeight * 0.78);
+        context.lineTo(centerX + bodyWidth * 1.03, centerY - bodyHeight * 0.65);
+        context.lineTo(centerX + bodyWidth * 0.9, centerY - bodyHeight * 0.42);
+        context.lineTo(centerX + bodyWidth * 0.72, centerY - bodyHeight * 0.53);
+        context.closePath();
+      },
+      null,
+      "#fb923c",
+      { stroke: `${accentColor}cc`, lineWidth: 1.9 }
+    );
+  }
 
   context.fillStyle = "rgba(226, 232, 240, 0.92)";
   context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";

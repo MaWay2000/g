@@ -11247,18 +11247,33 @@ export const initScene = (
       label: "Scout",
       description: "Small airframe tuned for tight routes and quick handling.",
       scale: 0.82,
+      sizeLabel: "Small",
+      modelKind: "scout",
+      headLightOffset: { x: 0, y: 0, z: 0.18 },
+      cutterLightOffset: { x: 0, y: -0.22, z: 0.04 },
+      cutterGlowOffset: { x: 0, y: -0.22, z: 0.05 },
     },
     {
       id: "rover",
       label: "Rover",
       description: "Medium all-purpose frame for regular mining operations.",
       scale: 1,
+      sizeLabel: "Medium",
+      modelKind: "rover",
+      headLightOffset: { x: 0, y: 0.04, z: 0.29 },
+      cutterLightOffset: { x: 0, y: -0.1, z: 0.34 },
+      cutterGlowOffset: { x: 0, y: -0.1, z: 0.34 },
     },
     {
       id: "atltas",
       label: "Atltas",
       description: "Big heavy-duty frame with reinforced mining presence.",
       scale: 1.24,
+      sizeLabel: "Big",
+      modelKind: "atltas",
+      headLightOffset: { x: 0, y: 0.22, z: 0.32 },
+      cutterLightOffset: { x: 0.15, y: 0.16, z: 0.65 },
+      cutterGlowOffset: { x: 0.15, y: 0.16, z: 0.65 },
     },
   ]);
   const droneModelPresetsById = new Map(
@@ -11471,7 +11486,20 @@ export const initScene = (
     DRONE_SKIN_PRESETS.map((preset) => [preset.id, preset])
   );
   let activeDroneSkinId = DRONE_DEFAULT_SKIN_ID;
-  const registerDroneMesh = (mesh, { parent = droneVisualGroup } = {}) => {
+  const scoutModelGroup = new THREE.Group();
+  scoutModelGroup.name = "DroneModelScout";
+  droneVisualGroup.add(scoutModelGroup);
+  const roverModelGroup = new THREE.Group();
+  roverModelGroup.name = "DroneModelRover";
+  roverModelGroup.visible = false;
+  droneVisualGroup.add(roverModelGroup);
+  const atltasModelGroup = new THREE.Group();
+  atltasModelGroup.name = "DroneModelAtltas";
+  atltasModelGroup.visible = false;
+  droneVisualGroup.add(atltasModelGroup);
+  const droneModelRuntimeById = new Map();
+
+  const registerDroneMesh = (mesh, { parent = scoutModelGroup } = {}) => {
     if (!mesh) {
       return null;
     }
@@ -11542,7 +11570,7 @@ export const initScene = (
   const rotorGroup = new THREE.Group();
   rotorGroup.name = "DroneRotor";
   rotorGroup.position.set(0, 0.18, 0);
-  droneVisualGroup.add(rotorGroup);
+  scoutModelGroup.add(rotorGroup);
 
   const rotorHubMaterial = new THREE.MeshStandardMaterial({
     color: 0x94a3b8,
@@ -11617,6 +11645,166 @@ export const initScene = (
   droneCutterLight.position.set(0, -0.22, 0.04);
   droneVisualGroup.add(droneCutterLight);
 
+  const createRoverWheel = (parent, x, z, y = -0.12) => {
+    const wheel = registerDroneMesh(
+      new THREE.Mesh(
+        new THREE.CylinderGeometry(0.082, 0.082, 0.065, 20),
+        droneThrusterMaterial
+      ),
+      { parent }
+    );
+    if (wheel) {
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, y, z);
+    }
+    return wheel;
+  };
+
+  registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.18, 0.38), droneHullMaterial),
+    { parent: roverModelGroup }
+  );
+  const roverCabin = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.24), droneHullMaterial),
+    { parent: roverModelGroup }
+  );
+  if (roverCabin) {
+    roverCabin.position.set(0, 0.14, 0.01);
+  }
+  const roverVisor = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.03), droneVisorMaterial),
+    { parent: roverModelGroup }
+  );
+  if (roverVisor) {
+    roverVisor.position.set(0, 0.12, 0.2);
+  }
+  const roverRoofRack = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.05, 0.3), droneThrusterMaterial),
+    { parent: roverModelGroup }
+  );
+  if (roverRoofRack) {
+    roverRoofRack.position.set(0, 0.19, -0.02);
+  }
+  const roverBumper = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.09, 0.13), droneCutterMaterial),
+    { parent: roverModelGroup }
+  );
+  if (roverBumper) {
+    roverBumper.position.set(0, -0.04, 0.28);
+    roverBumper.rotation.x = -0.22;
+  }
+  const roverAxleFront = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.03, 0.03), droneThrusterMaterial),
+    { parent: roverModelGroup }
+  );
+  if (roverAxleFront) {
+    roverAxleFront.position.set(0, -0.11, 0.14);
+  }
+  const roverAxleRear = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.03, 0.03), droneThrusterMaterial),
+    { parent: roverModelGroup }
+  );
+  if (roverAxleRear) {
+    roverAxleRear.position.set(0, -0.11, -0.14);
+  }
+  createRoverWheel(roverModelGroup, -0.24, 0.15);
+  createRoverWheel(roverModelGroup, 0.24, 0.15);
+  createRoverWheel(roverModelGroup, -0.24, -0.15);
+  createRoverWheel(roverModelGroup, 0.24, -0.15);
+
+  registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.24, 0.42), droneHullMaterial),
+    { parent: atltasModelGroup }
+  );
+  const atltasCabin = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.26), droneHullMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasCabin) {
+    atltasCabin.position.set(-0.1, 0.2, 0);
+  }
+  const atltasVisor = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.03), droneVisorMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasVisor) {
+    atltasVisor.position.set(-0.1, 0.21, 0.19);
+  }
+  const atltasTrackLeft = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.6), droneThrusterMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasTrackLeft) {
+    atltasTrackLeft.position.set(-0.4, -0.06, 0);
+  }
+  const atltasTrackRight = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.6), droneThrusterMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasTrackRight) {
+    atltasTrackRight.position.set(0.4, -0.06, 0);
+  }
+  [-0.22, 0, 0.22].forEach((trackZ) => {
+    const leftRoller = registerDroneMesh(
+      new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055, 0.055, 0.13, 14),
+        droneThrusterMaterial
+      ),
+      { parent: atltasModelGroup }
+    );
+    if (leftRoller) {
+      leftRoller.rotation.z = Math.PI / 2;
+      leftRoller.position.set(-0.4, -0.15, trackZ);
+    }
+    const rightRoller = registerDroneMesh(
+      new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055, 0.055, 0.13, 14),
+        droneThrusterMaterial
+      ),
+      { parent: atltasModelGroup }
+    );
+    if (rightRoller) {
+      rightRoller.rotation.z = Math.PI / 2;
+      rightRoller.position.set(0.4, -0.15, trackZ);
+    }
+  });
+  const atltasArmBase = registerDroneMesh(
+    new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.1, 18), droneHullMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasArmBase) {
+    atltasArmBase.rotation.x = Math.PI / 2;
+    atltasArmBase.position.set(0.13, 0.16, 0.14);
+  }
+  const atltasBoom = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.32), droneThrusterMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasBoom) {
+    atltasBoom.position.set(0.13, 0.27, 0.32);
+    atltasBoom.rotation.x = -0.38;
+  }
+  const atltasStick = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.26), droneThrusterMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasStick) {
+    atltasStick.position.set(0.14, 0.34, 0.53);
+    atltasStick.rotation.x = -0.86;
+  }
+  const atltasBucket = registerDroneMesh(
+    new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.13), droneCutterMaterial),
+    { parent: atltasModelGroup }
+  );
+  if (atltasBucket) {
+    atltasBucket.position.set(0.15, 0.17, 0.66);
+    atltasBucket.rotation.x = -1.22;
+  }
+
+  droneModelRuntimeById.set("scout", { group: scoutModelGroup });
+  droneModelRuntimeById.set("rover", { group: roverModelGroup });
+  droneModelRuntimeById.set("atltas", { group: atltasModelGroup });
+
   const resolveDroneModelPreset = (modelId) => {
     const normalizedId =
       typeof modelId === "string" && modelId.trim() !== ""
@@ -11639,10 +11827,60 @@ export const initScene = (
       return activeDroneModelId;
     }
 
+    const normalizedModelId =
+      typeof preset.id === "string" && preset.id.trim() !== ""
+        ? preset.id.trim().toLowerCase()
+        : DRONE_DEFAULT_MODEL_ID;
+    const activeRuntime = droneModelRuntimeById.get(normalizedModelId) ?? null;
+
+    droneModelRuntimeById.forEach((runtime, modelId) => {
+      if (!(runtime?.group instanceof THREE.Group)) {
+        return;
+      }
+      runtime.group.visible = modelId === normalizedModelId;
+    });
+
     const scale =
       Number.isFinite(preset?.scale) && preset.scale > 0 ? preset.scale : 1;
     droneVisualGroup.scale.setScalar(scale);
-    activeDroneModelId = preset.id;
+
+    const resolveOffsetAxis = (offset, axis, fallback) => {
+      if (
+        offset &&
+        typeof offset === "object" &&
+        Number.isFinite(offset[axis])
+      ) {
+        return offset[axis];
+      }
+      return fallback;
+    };
+
+    const headLightOffset = preset?.headLightOffset ?? null;
+    droneHeadLight.position.set(
+      resolveOffsetAxis(headLightOffset, "x", 0),
+      resolveOffsetAxis(headLightOffset, "y", 0),
+      resolveOffsetAxis(headLightOffset, "z", 0.18)
+    );
+
+    const cutterLightOffset = preset?.cutterLightOffset ?? null;
+    droneCutterLight.position.set(
+      resolveOffsetAxis(cutterLightOffset, "x", 0),
+      resolveOffsetAxis(cutterLightOffset, "y", -0.22),
+      resolveOffsetAxis(cutterLightOffset, "z", 0.04)
+    );
+
+    const cutterGlowOffset = preset?.cutterGlowOffset ?? null;
+    droneCutterGlow.position.set(
+      resolveOffsetAxis(cutterGlowOffset, "x", 0),
+      resolveOffsetAxis(cutterGlowOffset, "y", -0.22),
+      resolveOffsetAxis(cutterGlowOffset, "z", 0.05)
+    );
+
+    if (activeRuntime?.group instanceof THREE.Group) {
+      activeRuntime.group.visible = true;
+    }
+
+    activeDroneModelId = normalizedModelId;
     return activeDroneModelId;
   };
 
@@ -11664,11 +11902,17 @@ export const initScene = (
         scale:
           Number.isFinite(preset?.scale) && preset.scale > 0 ? preset.scale : 1,
         sizeLabel:
-          Number.isFinite(preset?.scale) && preset.scale < 0.95
-            ? "Small"
-            : Number.isFinite(preset?.scale) && preset.scale > 1.08
-              ? "Big"
-              : "Medium",
+          typeof preset?.sizeLabel === "string" && preset.sizeLabel.trim() !== ""
+            ? preset.sizeLabel.trim()
+            : Number.isFinite(preset?.scale) && preset.scale < 0.95
+              ? "Small"
+              : Number.isFinite(preset?.scale) && preset.scale > 1.08
+                ? "Big"
+                : "Medium",
+        modelKind:
+          typeof preset?.modelKind === "string" && preset.modelKind.trim() !== ""
+            ? preset.modelKind.trim().toLowerCase()
+            : preset.id,
       },
     }));
 
