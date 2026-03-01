@@ -8514,7 +8514,6 @@ export const initScene = (
       "./images/game/area/engi-bay/mars_map_1.png",
       "./images/game/area/engi-bay/mars_map_2.png",
       "./images/game/area/engi-bay/mars_map_3.png",
-      "./images/wallpapers/10.png",
     ];
     const engineeringPanelImageSizeByPath = new Map([
       ["./images/game/area/engi-bay/m1.png", { width: 1536, height: 1024 }],
@@ -8522,7 +8521,6 @@ export const initScene = (
       ["./images/game/area/engi-bay/mars_map_1.png", { width: 512, height: 1024 }],
       ["./images/game/area/engi-bay/mars_map_2.png", { width: 512, height: 1024 }],
       ["./images/game/area/engi-bay/mars_map_3.png", { width: 512, height: 1024 }],
-      ["./images/wallpapers/10.png", { width: 1152, height: 768 }],
     ]);
     const engineeringPanelTextures = new Map();
     engineeringPanelTexturePaths.forEach((texturePath) => {
@@ -8603,7 +8601,6 @@ export const initScene = (
       y = 1,
       z = 0,
       rotationY = 0,
-      uvRect = null,
       opacity = 0.86,
       frameDepth = 0.032,
       showFrame = true,
@@ -8637,24 +8634,8 @@ export const initScene = (
       const wallpaperSliceTexture = baseTexture.clone();
       wallpaperSliceTexture.wrapS = THREE.ClampToEdgeWrapping;
       wallpaperSliceTexture.wrapT = THREE.ClampToEdgeWrapping;
-      if (uvRect && typeof uvRect === "object") {
-        const u0 = Number.isFinite(uvRect.u0) ? uvRect.u0 : 0;
-        const v0 = Number.isFinite(uvRect.v0) ? uvRect.v0 : 0;
-        const u1 = Number.isFinite(uvRect.u1) ? uvRect.u1 : 1;
-        const v1 = Number.isFinite(uvRect.v1) ? uvRect.v1 : 1;
-        const clampedUMin = THREE.MathUtils.clamp(Math.min(u0, u1), 0, 1);
-        const clampedVMin = THREE.MathUtils.clamp(Math.min(v0, v1), 0, 1);
-        const clampedUMax = THREE.MathUtils.clamp(Math.max(u0, u1), 0, 1);
-        const clampedVMax = THREE.MathUtils.clamp(Math.max(v0, v1), 0, 1);
-        wallpaperSliceTexture.repeat.set(
-          Math.max(1e-3, clampedUMax - clampedUMin),
-          Math.max(1e-3, clampedVMax - clampedVMin)
-        );
-        wallpaperSliceTexture.offset.set(clampedUMin, clampedVMin);
-      } else {
-        wallpaperSliceTexture.repeat.set(1, 1);
-        wallpaperSliceTexture.offset.set(0, 0);
-      }
+      wallpaperSliceTexture.repeat.set(1, 1);
+      wallpaperSliceTexture.offset.set(0, 0);
       wallpaperSliceTexture.needsUpdate = true;
 
       const panelMount = new THREE.Group();
@@ -8824,30 +8805,7 @@ export const initScene = (
       z: -bayDepth * 0.22,
       rotationY: -Math.PI / 2,
     });
-    createWallpaperPanel({
-      texturePath: "./images/wallpapers/10.png",
-      width: bayWidth * 0.22,
-      height: wallHeight * 0.28,
-      x: -bayWidth / 2 + sideWallThickness + 0.01,
-      y: wallHeight * 0.82,
-      z: bayDepth * 0.32,
-      rotationY: Math.PI / 2,
-      uvRect: { u0: 0.04, v0: 0.06, u1: 0.42, v1: 0.56 },
-      opacity: 0.92,
-      frameDepth: 0.04,
-    });
-    createWallpaperPanel({
-      texturePath: "./images/wallpapers/10.png",
-      width: bayWidth * 0.22,
-      height: wallHeight * 0.28,
-      x: bayWidth / 2 - sideWallThickness - 0.01,
-      y: wallHeight * 0.82,
-      z: -bayDepth * 0.34,
-      rotationY: -Math.PI / 2,
-      uvRect: { u0: 0.46, v0: 0.22, u1: 0.9, v1: 0.76 },
-      opacity: 0.92,
-      frameDepth: 0.04,
-    });
+
     const ceiling = new THREE.Mesh(
       new THREE.BoxGeometry(bayWidth, 0.26, bayDepth),
       floorMaterial
@@ -8923,32 +8881,6 @@ export const initScene = (
       leg.position.set(x, roomFloorY + y, z);
       group.add(leg);
       return leg;
-    });
-    createWallpaperPanel({
-      texturePath: "./images/wallpapers/10.png",
-      width: commandTableWidth * 0.32,
-      height: 0.38,
-      x: 0,
-      y: 0.54,
-      z: -commandTableDepth * 0.5 - 0.03,
-      rotationY: Math.PI,
-      uvRect: { u0: 0.16, v0: 0.56, u1: 0.46, v1: 0.94 },
-      opacity: 0.86,
-      frameDepth: 0.03,
-      panelDepthOffset: 0.014,
-    });
-    createWallpaperPanel({
-      texturePath: "./images/wallpapers/10.png",
-      width: commandTableWidth * 0.28,
-      height: 0.28,
-      x: 0,
-      y: 0.92,
-      z: commandTableDepth * 0.5 + 0.03,
-      rotationY: 0,
-      uvRect: { u0: 0.54, v0: 0.48, u1: 0.82, v1: 0.84 },
-      opacity: 0.9,
-      frameDepth: 0.028,
-      panelDepthOffset: 0.012,
     });
 
     const createEngineeringMonitorTexture = (label = "SYS") => {
@@ -9099,361 +9031,6 @@ export const initScene = (
       label: "RGT",
     });
     const consoleGroups = [leftConsole, rightConsole];
-    const peripheralWorkbenchGroups = [];
-    const serverRackGroups = [];
-    const utilityCrateGroups = [];
-    const stoolGroups = [];
-    const serverRackIndicatorStates = [];
-
-    const createPeripheralWorkbench = ({
-      x = 0,
-      z = 0,
-      rotationY = 0,
-      width = 1.7,
-      depth = 0.64,
-      label = "AUX",
-    } = {}) => {
-      const benchGroup = new THREE.Group();
-      benchGroup.position.set(x, roomFloorY, z);
-      benchGroup.rotation.y = rotationY;
-      group.add(benchGroup);
-      peripheralWorkbenchGroups.push(benchGroup);
-
-      const base = new THREE.Mesh(new THREE.BoxGeometry(width, 0.62, depth), panelMaterial);
-      base.position.set(0, 0.31, 0);
-      benchGroup.add(base);
-
-      const top = new THREE.Mesh(
-        new THREE.BoxGeometry(width, 0.08, depth * 0.96),
-        trimMaterial
-      );
-      top.position.set(0, 0.66, 0);
-      benchGroup.add(top);
-
-      const inset = new THREE.Mesh(
-        new THREE.BoxGeometry(width * 0.84, 0.025, depth * 0.68),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x1a120c),
-          roughness: 0.28,
-          metalness: 0.48,
-          emissive: new THREE.Color(0x2b160a),
-          emissiveIntensity: 0.22,
-        })
-      );
-      inset.position.set(0, 0.713, 0.02);
-      benchGroup.add(inset);
-
-      const monitorTexture = createEngineeringMonitorTexture(`${label}-OPS`);
-      const monitorFrame = new THREE.Mesh(
-        new THREE.BoxGeometry(0.74, 0.42, 0.05),
-        monitorShellMaterial
-      );
-      monitorFrame.position.set(0, 0.99, -depth * 0.15);
-      monitorFrame.rotation.x = -THREE.MathUtils.degToRad(17);
-      benchGroup.add(monitorFrame);
-
-      const monitorScreen = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.62, 0.29),
-        new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          map: monitorTexture,
-          emissive: new THREE.Color(0x6f3911),
-          emissiveMap: monitorTexture,
-          emissiveIntensity: 1,
-          roughness: 0.25,
-          metalness: 0.12,
-        })
-      );
-      monitorScreen.position.set(0, 0.99, -depth * 0.12);
-      monitorScreen.rotation.x = monitorFrame.rotation.x;
-      benchGroup.add(monitorScreen);
-
-      const keyboardBase = new THREE.Mesh(
-        new THREE.BoxGeometry(0.44, 0.028, 0.18),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x1a110b),
-          roughness: 0.54,
-          metalness: 0.34,
-        })
-      );
-      keyboardBase.position.set(0, 0.73, -depth * 0.22);
-      keyboardBase.rotation.x = -THREE.MathUtils.degToRad(7);
-      benchGroup.add(keyboardBase);
-
-      const keyboardKeys = new THREE.Mesh(
-        new THREE.BoxGeometry(0.38, 0.012, 0.13),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x2b1c12),
-          roughness: 0.46,
-          metalness: 0.22,
-          emissive: new THREE.Color(0x140804),
-          emissiveIntensity: 0.16,
-        })
-      );
-      keyboardKeys.position.set(0, 0.745, -depth * 0.22);
-      keyboardKeys.rotation.copy(keyboardBase.rotation);
-      benchGroup.add(keyboardKeys);
-
-      const cableCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(0.16, 0.69, -depth * 0.22),
-        new THREE.Vector3(0.2, 0.58, -depth * 0.12),
-        new THREE.Vector3(0.24, 0.42, -depth * 0.04),
-        new THREE.Vector3(0.26, 0.08, 0.06),
-      ]);
-      const cable = new THREE.Mesh(
-        new THREE.TubeGeometry(cableCurve, 18, 0.012, 8, false),
-        conduitMaterial
-      );
-      benchGroup.add(cable);
-    };
-
-    const createServerRack = ({
-      x = 0,
-      z = 0,
-      rotationY = 0,
-      height = 1.96,
-      levels = 6,
-      label = "SRV",
-    } = {}) => {
-      const rackGroup = new THREE.Group();
-      rackGroup.position.set(x, roomFloorY, z);
-      rackGroup.rotation.y = rotationY;
-      group.add(rackGroup);
-      serverRackGroups.push(rackGroup);
-
-      const frameMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x22160f),
-        roughness: 0.56,
-        metalness: 0.62,
-      });
-      const sideThickness = 0.06;
-      const rackWidth = 0.62;
-      const rackDepth = 0.52;
-      const rackLeft = new THREE.Mesh(
-        new THREE.BoxGeometry(sideThickness, height, rackDepth),
-        frameMaterial
-      );
-      rackLeft.position.set(-rackWidth / 2 + sideThickness / 2, height / 2, 0);
-      rackGroup.add(rackLeft);
-
-      const rackRight = rackLeft.clone();
-      rackRight.position.x *= -1;
-      rackGroup.add(rackRight);
-
-      const rackBack = new THREE.Mesh(
-        new THREE.BoxGeometry(rackWidth - sideThickness * 2, height, sideThickness),
-        frameMaterial
-      );
-      rackBack.position.set(0, height / 2, rackDepth / 2 - sideThickness / 2);
-      rackGroup.add(rackBack);
-
-      const rackTop = new THREE.Mesh(
-        new THREE.BoxGeometry(rackWidth, sideThickness, rackDepth),
-        frameMaterial
-      );
-      rackTop.position.set(0, height - sideThickness / 2, 0);
-      rackGroup.add(rackTop);
-
-      const rackBottom = rackTop.clone();
-      rackBottom.position.y = sideThickness / 2;
-      rackGroup.add(rackBottom);
-
-      const usableHeight = height - 0.2;
-      for (let level = 0; level < levels; level += 1) {
-        const levelT = levels > 1 ? level / (levels - 1) : 0;
-        const shelfY = 0.1 + usableHeight * levelT;
-        const module = new THREE.Mesh(
-          new THREE.BoxGeometry(rackWidth * 0.76, 0.16, rackDepth * 0.62),
-          new THREE.MeshStandardMaterial({
-            color: new THREE.Color(level % 2 === 0 ? 0x2e1a10 : 0x21140d),
-            roughness: 0.54,
-            metalness: 0.48,
-          })
-        );
-        module.position.set(0, shelfY, -rackDepth * 0.06);
-        rackGroup.add(module);
-
-        for (let ledIndex = 0; ledIndex < 3; ledIndex += 1) {
-          const ledMaterial = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0xffa860),
-            emissive: new THREE.Color(0xff8a33),
-            emissiveIntensity: 0.58,
-            roughness: 0.35,
-            metalness: 0.15,
-          });
-          const led = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.018, 0.004), ledMaterial);
-          led.position.set(
-            -0.12 + ledIndex * 0.12,
-            0.025,
-            -rackDepth * 0.31 + 0.002
-          );
-          module.add(led);
-          serverRackIndicatorStates.push({
-            material: ledMaterial,
-            baseIntensity: THREE.MathUtils.randFloat(0.4, 0.8),
-            speed: THREE.MathUtils.randFloat(5.5, 11),
-            phase: Math.random() * Math.PI * 2 + level * 0.8 + ledIndex * 0.55,
-          });
-        }
-      }
-
-      const rackLabelTexture = createEngineeringMonitorTexture(label);
-      const rackLabel = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.42, 0.14),
-        new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          map: rackLabelTexture,
-          emissive: new THREE.Color(0x5d2c0e),
-          emissiveMap: rackLabelTexture,
-          emissiveIntensity: 0.68,
-          roughness: 0.36,
-          metalness: 0.18,
-        })
-      );
-      rackLabel.position.set(0, height - 0.16, -rackDepth * 0.26);
-      rackGroup.add(rackLabel);
-    };
-
-    const createUtilityCrateStack = ({
-      x = 0,
-      z = 0,
-      rotationY = 0,
-      crateScale = 1,
-    } = {}) => {
-      const crateGroup = new THREE.Group();
-      crateGroup.position.set(x, roomFloorY, z);
-      crateGroup.rotation.y = rotationY;
-      group.add(crateGroup);
-      utilityCrateGroups.push(crateGroup);
-
-      const crateMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x2b1b12),
-        roughness: 0.63,
-        metalness: 0.28,
-      });
-      const accentMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x754320),
-        emissive: new THREE.Color(0x331608),
-        emissiveIntensity: 0.22,
-        roughness: 0.42,
-        metalness: 0.38,
-      });
-
-      const createCrate = ({ y = 0.18, w = 0.44, h = 0.34, d = 0.34, x = 0, z = 0 }) => {
-        const crate = new THREE.Mesh(
-          new THREE.BoxGeometry(w * crateScale, h * crateScale, d * crateScale),
-          crateMaterial
-        );
-        crate.position.set(x * crateScale, y * crateScale, z * crateScale);
-        crateGroup.add(crate);
-
-        const stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(w * crateScale * 0.88, h * crateScale * 0.18, 0.01),
-          accentMaterial
-        );
-        stripe.position.set(x * crateScale, y * crateScale, z * crateScale + d * crateScale / 2 + 0.006);
-        crateGroup.add(stripe);
-      };
-
-      createCrate({ y: 0.18, w: 0.46, h: 0.34, d: 0.36, x: 0, z: 0 });
-      createCrate({ y: 0.5, w: 0.38, h: 0.28, d: 0.3, x: 0.11, z: -0.03 });
-    };
-
-    const createTechStool = ({ x = 0, z = 0, rotationY = 0 } = {}) => {
-      const stoolGroup = new THREE.Group();
-      stoolGroup.position.set(x, roomFloorY, z);
-      stoolGroup.rotation.y = rotationY;
-      group.add(stoolGroup);
-      stoolGroups.push(stoolGroup);
-
-      const seat = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.19, 0.18, 0.08, 20),
-        trimMaterial
-      );
-      seat.position.y = 0.58;
-      stoolGroup.add(seat);
-
-      const stem = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.055, 0.46, 14),
-        panelMaterial
-      );
-      stem.position.y = 0.31;
-      stoolGroup.add(stem);
-
-      const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.2, 0.05, 18),
-        panelMaterial
-      );
-      base.position.y = 0.025;
-      stoolGroup.add(base);
-    };
-
-    createPeripheralWorkbench({
-      x: -bayWidth * 0.24,
-      z: bayDepth / 2 - 0.42,
-      rotationY: Math.PI,
-      width: 1.72,
-      depth: 0.66,
-      label: "B-L",
-    });
-    createPeripheralWorkbench({
-      x: bayWidth * 0.24,
-      z: bayDepth / 2 - 0.42,
-      rotationY: Math.PI,
-      width: 1.72,
-      depth: 0.66,
-      label: "B-R",
-    });
-    createPeripheralWorkbench({
-      x: -bayWidth / 2 + 0.58,
-      z: -bayDepth * 0.24,
-      rotationY: Math.PI / 2,
-      width: 1.58,
-      depth: 0.6,
-      label: "S-L",
-    });
-
-    createServerRack({
-      x: bayWidth / 2 - 0.52,
-      z: bayDepth * 0.38,
-      rotationY: -Math.PI / 2,
-      label: "SRV-A",
-    });
-    createServerRack({
-      x: -bayWidth / 2 + 0.52,
-      z: bayDepth * 0.36,
-      rotationY: Math.PI / 2,
-      label: "SRV-B",
-    });
-
-    createUtilityCrateStack({
-      x: bayWidth * 0.32,
-      z: -bayDepth * 0.2,
-      rotationY: Math.PI * 0.16,
-      crateScale: 1,
-    });
-    createUtilityCrateStack({
-      x: -bayWidth * 0.34,
-      z: -bayDepth * 0.28,
-      rotationY: -Math.PI * 0.12,
-      crateScale: 0.94,
-    });
-
-    createTechStool({
-      x: -bayWidth * 0.26,
-      z: 0.14,
-      rotationY: Math.PI / 2,
-    });
-    createTechStool({
-      x: bayWidth * 0.24,
-      z: 0.52,
-      rotationY: -Math.PI / 2,
-    });
-    createTechStool({
-      x: 0.42,
-      z: bayDepth * 0.12,
-      rotationY: Math.PI,
-    });
 
     const createHologramTexture = () => {
       const width = 1024;
@@ -9933,18 +9510,6 @@ export const initScene = (
     consoleGroups.forEach((consoleGroup) => {
       adjustableEntries.push({ object: consoleGroup, offset: 0 });
     });
-    peripheralWorkbenchGroups.forEach((benchGroup) => {
-      adjustableEntries.push({ object: benchGroup, offset: 0 });
-    });
-    serverRackGroups.forEach((rackGroup) => {
-      adjustableEntries.push({ object: rackGroup, offset: 0 });
-    });
-    utilityCrateGroups.forEach((crateGroup) => {
-      adjustableEntries.push({ object: crateGroup, offset: 0 });
-    });
-    stoolGroups.forEach((stoolGroup) => {
-      adjustableEntries.push({ object: stoolGroup, offset: 0 });
-    });
     ceilingLightFixtures.forEach((fixture) => {
       adjustableEntries.push({ object: fixture, offset: wallHeight - 0.12 });
     });
@@ -10080,26 +9645,6 @@ export const initScene = (
         }
       });
     };
-    const updateServerRackIndicators = ({ elapsedTime = 0 } = {}) => {
-      if (!Array.isArray(serverRackIndicatorStates) || serverRackIndicatorStates.length === 0) {
-        return;
-      }
-      const elapsed = Number.isFinite(elapsedTime) ? elapsedTime : performance.now() * 0.001;
-      serverRackIndicatorStates.forEach((state) => {
-        const material = state?.material;
-        if (!material) {
-          return;
-        }
-        const wave =
-          0.55 + 0.45 * Math.sin(elapsed * state.speed + state.phase) + (Math.random() - 0.5) * 0.18;
-        const intensity = THREE.MathUtils.clamp(
-          state.baseIntensity * (0.62 + wave * 0.9),
-          0.08,
-          1.4
-        );
-        material.emissiveIntensity = intensity;
-      });
-    };
 
     const teleportOffset = new THREE.Vector3(0, 0, -bayDepth / 2 + 1.8);
 
@@ -10111,7 +9656,6 @@ export const initScene = (
       updateForRoomHeight,
       update: (payload = {}) => {
         updatePanelMalfunctionEffects(payload);
-        updateServerRackIndicators(payload);
       },
       teleportOffset,
       starFields: [],
