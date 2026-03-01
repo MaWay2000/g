@@ -9605,6 +9605,10 @@ export const initScene = (
         if (!material) {
           return;
         }
+        if (overlayMaterial) {
+          // Keep status text always visible, even during display glitches.
+          overlayMaterial.opacity = 0.82;
+        }
 
         if (state?.statusOverlay && faultyPanelStatusMessages.length > 0) {
           state.messageCountdown -= dt;
@@ -9631,9 +9635,6 @@ export const initScene = (
           state.blackoutRemaining = Math.max(0, state.blackoutRemaining - dt);
           material.opacity = Math.max(0.06, state.baseOpacity * 0.08);
           material.emissiveIntensity = state.baseEmissiveIntensity * 0.04;
-          if (overlayMaterial) {
-            overlayMaterial.opacity = 0.04;
-          }
           return;
         }
 
@@ -9665,13 +9666,6 @@ export const initScene = (
           state.baseOpacity
         );
         material.emissiveIntensity = state.baseEmissiveIntensity * (0.35 + clampedIntensity * 1.18);
-        if (overlayMaterial) {
-          overlayMaterial.opacity = THREE.MathUtils.clamp(
-            0.2 + clampedIntensity * 0.58,
-            0.16,
-            0.9
-          );
-        }
       });
     };
 
