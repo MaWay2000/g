@@ -8508,14 +8508,28 @@ export const initScene = (
     group.add(backWall);
 
     const wallpaperAdjustableEntries = [];
-    let engineeringWallpaperTexture = null;
-    try {
-      engineeringWallpaperTexture = loadClampedTexture("./images/wallpapers/10.png");
-    } catch (error) {
-      console.warn("Unable to load engineering bay wallpaper texture", error);
-    }
+    const engineeringPanelTexturePaths = [
+      "./images/game/area/engi-bay/m1.png",
+      "./images/game/area/engi-bay/m2.png",
+      "./images/game/area/engi-bay/mars_map_1.png",
+      "./images/game/area/engi-bay/mars_map_2.png",
+      "./images/game/area/engi-bay/mars_map_3.png",
+    ];
+    const engineeringPanelTextures = new Map();
+    engineeringPanelTexturePaths.forEach((texturePath) => {
+      try {
+        engineeringPanelTextures.set(texturePath, loadClampedTexture(texturePath));
+      } catch (error) {
+        console.warn(
+          "Unable to load engineering bay panel texture",
+          texturePath,
+          error
+        );
+      }
+    });
 
     const createWallpaperPanel = ({
+      texturePath = "",
       width = 1,
       height = 1,
       x = 0,
@@ -8529,11 +8543,12 @@ export const initScene = (
       opacity = 0.86,
       frameDepth = 0.032,
     } = {}) => {
-      if (!engineeringWallpaperTexture) {
+      const baseTexture = engineeringPanelTextures.get(texturePath) ?? null;
+      if (!baseTexture) {
         return;
       }
 
-      const wallpaperSliceTexture = engineeringWallpaperTexture.clone();
+      const wallpaperSliceTexture = baseTexture.clone();
       wallpaperSliceTexture.wrapS = THREE.ClampToEdgeWrapping;
       wallpaperSliceTexture.wrapT = THREE.ClampToEdgeWrapping;
       wallpaperSliceTexture.repeat.set(
@@ -8577,6 +8592,7 @@ export const initScene = (
     };
 
     createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/m1.png",
       width: bayWidth * 0.48,
       height: wallHeight * 0.5,
       x: 0,
@@ -8591,6 +8607,7 @@ export const initScene = (
       frameDepth: 0.038,
     });
     createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/mars_map_1.png",
       width: bayDepth * 0.24,
       height: wallHeight * 0.36,
       x: -bayWidth / 2 + sideWallThickness + 0.01,
@@ -8603,6 +8620,7 @@ export const initScene = (
       uvRepeatY: 0.44,
     });
     createWallpaperPanel({
+      texturePath: "./images/game/area/engi-bay/mars_map_2.png",
       width: bayDepth * 0.24,
       height: wallHeight * 0.36,
       x: bayWidth / 2 - sideWallThickness - 0.01,
