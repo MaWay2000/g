@@ -12172,6 +12172,8 @@ export const initScene = (
   const DRONE_MINER_ROTOR_SPEED = 8;
   const DRONE_MINER_SURFACE_MARGIN = 0.05;
   const DRONE_MINER_LAUNCH_START_DISTANCE = 1.4;
+  const DRONE_MINER_AIR_TURN_SPEED = 4.8;
+  const DRONE_MINER_GROUND_TURN_SPEED = 1.8;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD = 0.35;
   const DRONE_MINER_MIN_RETURN_SPEED = 2.5;
   const DRONE_MINER_RETURN_DISTANCE_THRESHOLD_SQUARED =
@@ -12240,6 +12242,7 @@ export const initScene = (
     basePosition: new THREE.Vector3(),
     hoverPhase: 0,
     lookDirection: new THREE.Vector3(0, -1, 0),
+    renderLookDirection: new THREE.Vector3(0, -1, 0),
     returning: false,
     rotor: rotorGroup,
     cutterMaterial: droneCutterMaterial,
@@ -12285,6 +12288,7 @@ export const initScene = (
         storedLookDirection.y,
         storedLookDirection.z
       );
+      droneMinerState.renderLookDirection.copy(droneMinerState.lookDirection);
     }
 
     droneMinerState.active = Boolean(storedDroneSceneState.active);
@@ -12298,11 +12302,78 @@ export const initScene = (
 
   applyStoredDroneSceneState();
   const droneLookDirectionHelper = new THREE.Vector3();
+  const droneLookDirectionTarget = new THREE.Vector3();
+  const droneFallbackGroundLookDirection = new THREE.Vector3(0, 0, -1);
+  const droneFallbackAirLookDirection = new THREE.Vector3(0, -1, 0);
   const droneLookTarget = new THREE.Vector3();
   const droneReturnTarget = new THREE.Vector3();
   const droneReturnDirection = new THREE.Vector3();
   const droneLaunchDirection = new THREE.Vector3();
   const droneLaunchStartPosition = new THREE.Vector3();
+  const updateDroneRenderLookDirection = (
+    desiredDirection,
+    motionMode = "air",
+    delta = 0
+  ) => {
+    const isGroundMotion = motionMode === "ground";
+    const fallbackDirection = isGroundMotion
+      ? droneFallbackGroundLookDirection
+      : droneFallbackAirLookDirection;
+    const targetDirection = droneLookDirectionTarget;
+    if (desiredDirection instanceof THREE.Vector3) {
+      targetDirection.copy(desiredDirection);
+    } else {
+      targetDirection.copy(fallbackDirection);
+    }
+    if (isGroundMotion) {
+      targetDirection.y = 0;
+    }
+    if (targetDirection.lengthSq() <= 1e-6) {
+      targetDirection.copy(fallbackDirection);
+    } else {
+      targetDirection.normalize();
+    }
+
+    const renderDirection = droneMinerState.renderLookDirection;
+    if (isGroundMotion) {
+      renderDirection.y = 0;
+    }
+    if (renderDirection.lengthSq() <= 1e-6) {
+      renderDirection.copy(targetDirection);
+      return renderDirection;
+    }
+    renderDirection.normalize();
+
+    const turnSpeed = isGroundMotion
+      ? DRONE_MINER_GROUND_TURN_SPEED
+      : DRONE_MINER_AIR_TURN_SPEED;
+    const maxTurnDelta =
+      Number.isFinite(delta) && delta > 0 ? turnSpeed * delta : Number.POSITIVE_INFINITY;
+    const angle = Math.acos(
+      THREE.MathUtils.clamp(renderDirection.dot(targetDirection), -1, 1)
+    );
+    if (
+      !Number.isFinite(angle) ||
+      angle <= 1e-5 ||
+      !Number.isFinite(maxTurnDelta) ||
+      maxTurnDelta >= angle
+    ) {
+      renderDirection.copy(targetDirection);
+      return renderDirection;
+    }
+
+    const blend = Math.max(0, Math.min(1, maxTurnDelta / angle));
+    renderDirection.lerp(targetDirection, blend);
+    if (isGroundMotion) {
+      renderDirection.y = 0;
+    }
+    if (renderDirection.lengthSq() <= 1e-6) {
+      renderDirection.copy(targetDirection);
+    } else {
+      renderDirection.normalize();
+    }
+    return renderDirection;
+  };
   const resolveDroneSurfaceBaseHeight = (position, fallbackY = roomFloorY) => {
     const terrainHeight = getTerrainGroundHeight(position);
     if (Number.isFinite(terrainHeight)) {
@@ -12617,26 +12688,24 @@ export const initScene = (
       droneMinerState.basePosition.z
     );
 
-    droneLookDirectionHelper.copy(droneMinerState.lookDirection);
+    droneLookDirectionHelper.copy(
+      updateDroneRenderLookDirection(
+        droneMinerState.lookDirection,
+        activeMotionMode,
+        delta
+      )
+    );
     if (activeMotionMode === "ground") {
-      droneLookDirectionHelper.y = 0;
-      if (droneLookDirectionHelper.lengthSq() < 1e-6) {
-        droneLookDirectionHelper.set(0, 0, -1);
-      } else {
-        droneLookDirectionHelper.normalize();
-      }
-      droneLookTarget
-        .copy(droneMinerGroup.position)
-        .add(droneLookDirectionHelper.multiplyScalar(0.6));
+      droneLookTarget.copy(droneMinerGroup.position).addScaledVector(
+        droneLookDirectionHelper,
+        0.6
+      );
       droneLookTarget.y = droneMinerGroup.position.y;
     } else {
-      droneLookDirectionHelper.normalize();
-      if (droneLookDirectionHelper.lengthSq() < 1e-6) {
-        droneLookDirectionHelper.set(0, -1, 0);
-      }
-      droneLookTarget
-        .copy(droneMinerGroup.position)
-        .add(droneLookDirectionHelper.multiplyScalar(0.5));
+      droneLookTarget.copy(droneMinerGroup.position).addScaledVector(
+        droneLookDirectionHelper,
+        0.5
+      );
     }
     droneMinerGroup.lookAt(droneLookTarget);
 
