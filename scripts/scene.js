@@ -9185,14 +9185,6 @@ export const initScene = (
         heights.push(0);
       }
 
-      const positions = [];
-      const uvs = [];
-      const addQuad = (quadPositions, quadUvs) => {
-        positions.push(...quadPositions[0], ...quadPositions[1], ...quadPositions[2]);
-        positions.push(...quadPositions[0], ...quadPositions[2], ...quadPositions[3]);
-        uvs.push(...quadUvs[0], ...quadUvs[1], ...quadUvs[2]);
-        uvs.push(...quadUvs[0], ...quadUvs[2], ...quadUvs[3]);
-      };
       const HOLOGRAM_HEIGHT_VALUE_MAX = 255;
       const HOLOGRAM_DYNAMIC_MIN_RANGE = 16;
       const HOLOGRAM_WORLD_HEIGHT_MAX = 1;
@@ -9208,7 +9200,7 @@ export const initScene = (
         HOLOGRAM_HEIGHT_VALUE_MAX,
         Math.max(1, HOLOGRAM_DYNAMIC_MIN_RANGE, mapMaxHeightValue)
       );
-      const getCellHeight = (index) => {
+      const getRawCellHeight = (index) => {
         const clampedHeightValue = clampOutsideHeight(heights[index]);
         return (
           (HOLOGRAM_WORLD_HEIGHT_MAX * clampedHeightValue) /
@@ -9217,135 +9209,134 @@ export const initScene = (
       };
       const isVoidCell = (index) =>
         getOutsideTerrainById(cells[index]?.terrainId ?? "void").id === "void";
-      const isHeightDrop = (fromHeight, toHeight) => fromHeight - toHeight > 0.001;
-      const xOffset = mapWidth / 2;
-      const zOffset = mapHeight / 2;
+      const rawHeights = new Float32Array(totalCells);
+      const smoothedHeights = new Float32Array(totalCells);
 
+      for (let index = 0; index < totalCells; index += 1) {
+        rawHeights[index] = isVoidCell(index) ? 0 : getRawCellHeight(index);
+      }
+
+      // Blur raw cell heights so the hologram resembles terrain hills,
+      // not sharp stepped voxels.
       for (let row = 0; row < mapHeight; row += 1) {
         for (let column = 0; column < mapWidth; column += 1) {
           const index = row * mapWidth + column;
           if (isVoidCell(index)) {
+            smoothedHeights[index] = 0;
             continue;
           }
-          const elevation = getCellHeight(index);
-          const x0 = column - xOffset;
-          const x1 = column + 1 - xOffset;
-          const z0 = row - zOffset;
-          const z1 = row + 1 - zOffset;
-          const u0 = column / mapWidth;
-          const u1 = (column + 1) / mapWidth;
-          const v0 = row / mapHeight;
-          const v1 = (row + 1) / mapHeight;
 
-          addQuad(
-            [
-              [x0, elevation, z0],
-              [x0, elevation, z1],
-              [x1, elevation, z1],
-              [x1, elevation, z0],
-            ],
-            [
-              [u0, v0],
-              [u0, v1],
-              [u1, v1],
-              [u1, v0],
-            ]
-          );
+          let weightedHeight = rawHeights[index] * 0.36;
+          let totalWeight = 0.36;
 
-          const westIndex = column > 0 ? index - 1 : null;
-          const eastIndex = column < mapWidth - 1 ? index + 1 : null;
-          const northIndex = row > 0 ? index - mapWidth : null;
-          const southIndex = row < mapHeight - 1 ? index + mapWidth : null;
-          const westHeight =
-            westIndex !== null && !isVoidCell(westIndex)
-              ? getCellHeight(westIndex)
-              : 0;
-          const eastHeight =
-            eastIndex !== null && !isVoidCell(eastIndex)
-              ? getCellHeight(eastIndex)
-              : 0;
-          const northHeight =
-            northIndex !== null && !isVoidCell(northIndex)
-              ? getCellHeight(northIndex)
-              : 0;
-          const southHeight =
-            southIndex !== null && !isVoidCell(southIndex)
-              ? getCellHeight(southIndex)
-              : 0;
+          for (let deltaRow = -1; deltaRow <= 1; deltaRow += 1) {
+            for (let deltaColumn = -1; deltaColumn <= 1; deltaColumn += 1) {
+              if (deltaRow === 0 && deltaColumn === 0) {
+                continue;
+              }
 
-          if (isHeightDrop(elevation, westHeight)) {
-            addQuad(
-              [
-                [x0, elevation, z0],
-                [x0, westHeight, z0],
-                [x0, westHeight, z1],
-                [x0, elevation, z1],
-              ],
-              [
-                [u0, v0],
-                [u0, v1],
-                [u1, v1],
-                [u1, v0],
-              ]
-            );
+              const sampleRow = row + deltaRow;
+              const sampleColumn = column + deltaColumn;
+              if (
+                sampleRow < 0 ||
+                sampleRow >= mapHeight ||
+                sampleColumn < 0 ||
+                sampleColumn >= mapWidth
+              ) {
+                continue;
+              }
+
+              const sampleIndex = sampleRow * mapWidth + sampleColumn;
+              const manhattanDistance =
+                Math.abs(deltaRow) + Math.abs(deltaColumn);
+              const sampleWeight = manhattanDistance === 1 ? 0.11 : 0.05;
+              weightedHeight += rawHeights[sampleIndex] * sampleWeight;
+              totalWeight += sampleWeight;
+            }
           }
-          if (isHeightDrop(elevation, eastHeight)) {
-            addQuad(
-              [
-                [x1, elevation, z1],
-                [x1, eastHeight, z1],
-                [x1, eastHeight, z0],
-                [x1, elevation, z0],
-              ],
-              [
-                [u0, v0],
-                [u0, v1],
-                [u1, v1],
-                [u1, v0],
-              ]
-            );
+
+          smoothedHeights[index] =
+            totalWeight > 0 ? weightedHeight / totalWeight : rawHeights[index];
+        }
+      }
+
+      const vertexColumns = mapWidth + 1;
+      const vertexRows = mapHeight + 1;
+      const vertexCount = vertexColumns * vertexRows;
+      const positions = new Float32Array(vertexCount * 3);
+      const uvs = new Float32Array(vertexCount * 2);
+
+      const sampleCornerHeight = (column, row) => {
+        let weightedHeight = 0;
+        let totalWeight = 0;
+        const addSample = (sampleColumn, sampleRow) => {
+          if (
+            sampleRow < 0 ||
+            sampleRow >= mapHeight ||
+            sampleColumn < 0 ||
+            sampleColumn >= mapWidth
+          ) {
+            return;
           }
-          if (isHeightDrop(elevation, northHeight)) {
-            addQuad(
-              [
-                [x1, elevation, z0],
-                [x1, northHeight, z0],
-                [x0, northHeight, z0],
-                [x0, elevation, z0],
-              ],
-              [
-                [u0, v0],
-                [u0, v1],
-                [u1, v1],
-                [u1, v0],
-              ]
-            );
-          }
-          if (isHeightDrop(elevation, southHeight)) {
-            addQuad(
-              [
-                [x0, elevation, z1],
-                [x0, southHeight, z1],
-                [x1, southHeight, z1],
-                [x1, elevation, z1],
-              ],
-              [
-                [u0, v0],
-                [u0, v1],
-                [u1, v1],
-                [u1, v0],
-              ]
-            );
-          }
+          const sampleIndex = sampleRow * mapWidth + sampleColumn;
+          weightedHeight += smoothedHeights[sampleIndex];
+          totalWeight += 1;
+        };
+
+        addSample(column - 1, row - 1);
+        addSample(column, row - 1);
+        addSample(column - 1, row);
+        addSample(column, row);
+
+        if (totalWeight <= 0) {
+          return 0;
+        }
+        return weightedHeight / totalWeight;
+      };
+
+      for (let row = 0; row <= mapHeight; row += 1) {
+        for (let column = 0; column <= mapWidth; column += 1) {
+          const vertexIndex = row * vertexColumns + column;
+          const basePositionIndex = vertexIndex * 3;
+          const baseUvIndex = vertexIndex * 2;
+          positions[basePositionIndex] = column - mapWidth / 2;
+          positions[basePositionIndex + 1] = sampleCornerHeight(column, row);
+          positions[basePositionIndex + 2] = row - mapHeight / 2;
+          uvs[baseUvIndex] = column / mapWidth;
+          uvs[baseUvIndex + 1] = row / mapHeight;
+        }
+      }
+
+      const indexCount = mapWidth * mapHeight * 6;
+      const useUint32Index = vertexCount > 65535;
+      const indices = useUint32Index
+        ? new Uint32Array(indexCount)
+        : new Uint16Array(indexCount);
+      let indexOffset = 0;
+      for (let row = 0; row < mapHeight; row += 1) {
+        for (let column = 0; column < mapWidth; column += 1) {
+          const topLeft = row * vertexColumns + column;
+          const topRight = topLeft + 1;
+          const bottomLeft = (row + 1) * vertexColumns + column;
+          const bottomRight = bottomLeft + 1;
+
+          indices[indexOffset] = topLeft;
+          indices[indexOffset + 1] = bottomLeft;
+          indices[indexOffset + 2] = topRight;
+          indices[indexOffset + 3] = topRight;
+          indices[indexOffset + 4] = bottomLeft;
+          indices[indexOffset + 5] = bottomRight;
+          indexOffset += 6;
         }
       }
 
       const geometry = new THREE.BufferGeometry();
+      geometry.setIndex(new THREE.BufferAttribute(indices, 1));
       geometry.setAttribute(
         "position",
-        new THREE.Float32BufferAttribute(positions, 3)
+        new THREE.BufferAttribute(positions, 3)
       );
-      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
       geometry.computeVertexNormals();
       return { geometry, mapWidth, mapHeight, cells, heights };
     };
