@@ -8559,9 +8559,9 @@ export const initScene = (
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        opacity: 0.72,
+        opacity: 0.52,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
       });
@@ -8755,7 +8755,7 @@ export const initScene = (
       y: backPanelCenterY,
       z: backPanelZ,
       rotationY: Math.PI,
-      opacity: 0.88,
+      opacity: 0.72,
       showFrame: false,
       panelDepthOffset: 0.014,
       malfunctionEffect: true,
@@ -8768,7 +8768,7 @@ export const initScene = (
       y: backPanelCenterY,
       z: backPanelZ,
       rotationY: Math.PI,
-      opacity: 0.88,
+      opacity: 0.72,
       showFrame: false,
       panelDepthOffset: 0.014,
       malfunctionEffect: true,
@@ -9168,6 +9168,7 @@ export const initScene = (
     );
     hologramSurface.position.set(0, roomFloorY + 0.83, 0);
     hologramSurface.rotation.x = -Math.PI / 2;
+    hologramSurface.rotation.z = Math.PI;
     group.add(hologramSurface);
 
     const hologramWireMaterial = new THREE.MeshBasicMaterial({
@@ -9185,6 +9186,7 @@ export const initScene = (
     );
     hologramWireframe.position.set(0, roomFloorY + 0.838, 0);
     hologramWireframe.rotation.x = -Math.PI / 2;
+    hologramWireframe.rotation.z = Math.PI;
     group.add(hologramWireframe);
 
     const hologramBaseRingMaterial = new THREE.MeshBasicMaterial({
