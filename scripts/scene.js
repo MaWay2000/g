@@ -9032,98 +9032,195 @@ export const initScene = (
     });
     const consoleGroups = [leftConsole, rightConsole];
 
-    const createHologramTexture = () => {
-      const width = 1024;
-      const height = 640;
+    const resolveOutsideMapForHologram = () => {
+      let mapDefinition = null;
+      try {
+        mapDefinition = loadOutsideMapFromStorage();
+      } catch (error) {
+        console.warn("Unable to load outside map for engineering hologram", error);
+      }
+      if (!mapDefinition) {
+        mapDefinition = createDefaultOutsideMap();
+      }
+      try {
+        return normalizeOutsideMap(mapDefinition);
+      } catch (error) {
+        console.warn("Unable to normalize outside map for engineering hologram", error);
+        return createDefaultOutsideMap();
+      }
+    };
+
+    const createOutsideMapHologramTexture = (mapDefinition) => {
+      const mapWidth = Math.max(2, Number.parseInt(mapDefinition?.width, 10) || 2);
+      const mapHeight = Math.max(2, Number.parseInt(mapDefinition?.height, 10) || 2);
+      const totalCells = mapWidth * mapHeight;
+      const cells = Array.isArray(mapDefinition?.cells)
+        ? mapDefinition.cells.slice(0, totalCells)
+        : [];
+      const heights = Array.isArray(mapDefinition?.heights)
+        ? mapDefinition.heights.slice(0, totalCells)
+        : [];
+
+      while (cells.length < totalCells) {
+        cells.push({
+          terrainId: "void",
+          tileId: getOutsideTerrainDefaultTileId("void"),
+        });
+      }
+      while (heights.length < totalCells) {
+        heights.push(0);
+      }
+
       const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = mapWidth;
+      canvas.height = mapHeight;
       const context = canvas.getContext("2d");
       if (!context) {
-        return null;
+        return { texture: null, mapWidth, mapHeight, cells, heights };
       }
 
-      context.clearRect(0, 0, width, height);
-      context.strokeStyle = "rgba(255, 151, 55, 0.42)";
-      context.lineWidth = 1;
-      for (let x = 0; x <= width; x += 34) {
+      const warmTint = new THREE.Color(0xffa85f);
+      for (let row = 0; row < mapHeight; row += 1) {
+        for (let column = 0; column < mapWidth; column += 1) {
+          const index = row * mapWidth + column;
+          const terrain = getOutsideTerrainById(cells[index]?.terrainId ?? "void");
+          const baseColor = new THREE.Color(terrain?.color ?? "#ff9e52");
+          const terrainColor = baseColor.clone().lerp(warmTint, 0.62);
+          const rawHeight = Number.isFinite(heights[index]) ? heights[index] : 0;
+          const normalizedHeight = THREE.MathUtils.clamp(rawHeight / 255, 0, 1);
+          const brightness =
+            terrain?.id === "void" ? 0.12 : 0.3 + normalizedHeight * 0.7;
+          terrainColor.multiplyScalar(brightness);
+          context.fillStyle = `rgb(${Math.round(terrainColor.r * 255)}, ${Math.round(
+            terrainColor.g * 255
+          )}, ${Math.round(terrainColor.b * 255)})`;
+          context.fillRect(column, mapHeight - 1 - row, 1, 1);
+        }
+      }
+
+      context.strokeStyle = "rgba(255, 172, 94, 0.38)";
+      context.lineWidth = Math.max(1, Math.round(Math.max(mapWidth, mapHeight) / 70));
+      const gridStep = Math.max(1, Math.round(Math.max(mapWidth, mapHeight) / 14));
+      for (let x = 0; x <= mapWidth; x += gridStep) {
         context.beginPath();
         context.moveTo(x + 0.5, 0);
-        context.lineTo(x + 0.5, height);
+        context.lineTo(x + 0.5, mapHeight);
         context.stroke();
       }
-      for (let y = 0; y <= height; y += 34) {
+      for (let y = 0; y <= mapHeight; y += gridStep) {
         context.beginPath();
         context.moveTo(0, y + 0.5);
-        context.lineTo(width, y + 0.5);
+        context.lineTo(mapWidth, y + 0.5);
         context.stroke();
       }
-
-      context.strokeStyle = "rgba(255, 168, 83, 0.96)";
-      context.lineWidth = 3;
-      context.shadowColor = "rgba(255, 151, 64, 0.9)";
-      context.shadowBlur = 16;
-      for (let row = 0; row < 16; row += 1) {
-        context.beginPath();
-        for (let step = 0; step <= 46; step += 1) {
-          const x = 24 + (width - 48) * (step / 46);
-          const normalizedX = step / 46;
-          const ridge =
-            Math.sin(normalizedX * Math.PI * 2.4 + row * 0.19) * 0.34 +
-            Math.cos(normalizedX * Math.PI * 5.1 - row * 0.11) * 0.12 +
-            Math.exp(-Math.pow((normalizedX - 0.55) * 2.2, 2)) * 0.95;
-          const wave = ridge * 54 + (row - 7.5) * 14;
-          const y = height * 0.55 - wave;
-          if (step === 0) {
-            context.moveTo(x, y);
-          } else {
-            context.lineTo(x, y);
-          }
-        }
-        context.stroke();
-      }
-      context.shadowBlur = 0;
 
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
       texture.needsUpdate = true;
-      return texture;
+      return { texture, mapWidth, mapHeight, cells, heights };
     };
 
-    const hologramTexture = createHologramTexture();
+    const outsideMapForHologram = resolveOutsideMapForHologram();
+    const hologramMapData = createOutsideMapHologramTexture(outsideMapForHologram);
+    const hologramSurfaceWidth = commandTableWidth * 0.8;
+    const hologramSurfaceDepth = commandTableDepth * 0.62;
+    const hologramSurfaceGeometry = new THREE.PlaneGeometry(
+      hologramSurfaceWidth,
+      hologramSurfaceDepth,
+      Math.max(1, hologramMapData.mapWidth - 1),
+      Math.max(1, hologramMapData.mapHeight - 1)
+    );
+    const hologramVertices = hologramSurfaceGeometry.attributes.position;
+    for (let index = 0; index < hologramVertices.count; index += 1) {
+      const column = index % hologramMapData.mapWidth;
+      const row = Math.floor(index / hologramMapData.mapWidth);
+      const cellIndex = row * hologramMapData.mapWidth + column;
+      const rawHeight = Number.isFinite(hologramMapData.heights[cellIndex])
+        ? hologramMapData.heights[cellIndex]
+        : 0;
+      const normalizedHeight = THREE.MathUtils.clamp(rawHeight / 255, 0, 1);
+      const terrainId = hologramMapData.cells[cellIndex]?.terrainId ?? "void";
+      const isVoid = terrainId === "void";
+      const displacement = isVoid ? -0.012 : 0.008 + normalizedHeight * 0.24;
+      hologramVertices.setZ(index, displacement);
+    }
+    hologramVertices.needsUpdate = true;
+    hologramSurfaceGeometry.computeVertexNormals();
+
+    const hologramSurfaceMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0xffc08a),
+      map: hologramMapData.texture,
+      transparent: true,
+      opacity: 0.84,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
     const hologramSurface = new THREE.Mesh(
-      new THREE.PlaneGeometry(commandTableWidth * 0.8, commandTableDepth * 0.62),
-      new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        map: hologramTexture,
-        transparent: true,
-        opacity: 0.88,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      })
+      hologramSurfaceGeometry,
+      hologramSurfaceMaterial
     );
     hologramSurface.position.set(0, roomFloorY + 0.83, 0);
     hologramSurface.rotation.x = -Math.PI / 2;
     group.add(hologramSurface);
 
+    const hologramWireMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0xff9445),
+      wireframe: true,
+      transparent: true,
+      opacity: 0.48,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const hologramWireframe = new THREE.Mesh(
+      hologramSurfaceGeometry.clone(),
+      hologramWireMaterial
+    );
+    hologramWireframe.position.set(0, roomFloorY + 0.838, 0);
+    hologramWireframe.rotation.x = -Math.PI / 2;
+    group.add(hologramWireframe);
+
+    const hologramBaseRingMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(0xff8c3d),
+      transparent: true,
+      opacity: 0.34,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const hologramBaseRing = new THREE.Mesh(
+      new THREE.RingGeometry(
+        commandTableWidth * 0.14,
+        commandTableWidth * 0.28,
+        56
+      ),
+      hologramBaseRingMaterial
+    );
+    hologramBaseRing.position.set(0, roomFloorY + 0.832, 0);
+    hologramBaseRing.rotation.x = -Math.PI / 2;
+    group.add(hologramBaseRing);
+
+    const hologramCoreMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff8a33,
+      transparent: true,
+      opacity: 0.22,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
     const hologramCore = new THREE.Mesh(
-      new THREE.SphereGeometry(0.36, 24, 20),
-      new THREE.MeshBasicMaterial({
-        color: 0xff8a33,
-        transparent: true,
-        opacity: 0.24,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
+      new THREE.SphereGeometry(0.24, 24, 20),
+      hologramCoreMaterial
     );
     hologramCore.position.set(0, roomFloorY + 1.02, 0);
     group.add(hologramCore);
 
-    const hologramLight = new THREE.PointLight(0xff8f38, 1.9, bayWidth * 0.92, 2);
+    const hologramLight = new THREE.PointLight(0xff8f38, 1.95, bayWidth * 0.92, 2);
     hologramLight.position.set(0, roomFloorY + 1.55, 0);
     group.add(hologramLight);
 
@@ -9483,6 +9580,8 @@ export const initScene = (
       { object: commandTableTop, offset: 0.72 },
       { object: commandTableInset, offset: 0.8 },
       { object: hologramSurface, offset: 0.83 },
+      { object: hologramWireframe, offset: 0.838 },
+      { object: hologramBaseRing, offset: 0.832 },
       { object: hologramCore, offset: 1.02 },
       { object: hologramLight, offset: 1.55 },
       { object: ambientWarmLight, offset: 2.08 },
@@ -9645,6 +9744,35 @@ export const initScene = (
         }
       });
     };
+    const updateOutsideMapHologram = ({ elapsedTime = 0 } = {}) => {
+      const elapsed = Number.isFinite(elapsedTime) ? elapsedTime : performance.now() * 0.001;
+      const primaryPulse = 0.5 + Math.sin(elapsed * 2.15) * 0.5;
+      const secondaryPulse = 0.5 + Math.sin(elapsed * 3.4 + 1.2) * 0.5;
+      hologramSurfaceMaterial.opacity = THREE.MathUtils.clamp(
+        0.66 + primaryPulse * 0.24,
+        0.5,
+        0.94
+      );
+      hologramWireMaterial.opacity = THREE.MathUtils.clamp(
+        0.28 + secondaryPulse * 0.32,
+        0.16,
+        0.74
+      );
+      hologramBaseRingMaterial.opacity = THREE.MathUtils.clamp(
+        0.16 + primaryPulse * 0.26,
+        0.12,
+        0.56
+      );
+      hologramCoreMaterial.opacity = THREE.MathUtils.clamp(
+        0.12 + secondaryPulse * 0.2,
+        0.08,
+        0.4
+      );
+      const coreScale = 0.86 + primaryPulse * 0.28;
+      hologramCore.scale.set(coreScale, coreScale, coreScale);
+      hologramCore.position.y = roomFloorY + 1.02 + (secondaryPulse - 0.5) * 0.03;
+      hologramLight.intensity = 1.5 + primaryPulse * 0.95;
+    };
 
     const teleportOffset = new THREE.Vector3(0, 0, -bayDepth / 2 + 1.8);
 
@@ -9656,6 +9784,7 @@ export const initScene = (
       updateForRoomHeight,
       update: (payload = {}) => {
         updatePanelMalfunctionEffects(payload);
+        updateOutsideMapHologram(payload);
       },
       teleportOffset,
       starFields: [],
