@@ -2662,6 +2662,8 @@ export const initScene = (
     backWallRoughness: 0.64,
     backWallMetalness: 0.48,
     backWallUseGrunge: false,
+    backWallEmissiveColor: 0x160c07,
+    backWallEmissiveIntensity: 0.24,
     trimColor: 0x92400e,
     trimEmissiveColor: 0x3f1c08,
     panelColor: 0x2b1b13,
@@ -2973,6 +2975,12 @@ export const initScene = (
       const backWallMetalness = Number.isFinite(theme.backWallMetalness)
         ? theme.backWallMetalness
         : 0.32;
+      const backWallEmissiveColor = Number.isFinite(theme.backWallEmissiveColor)
+        ? theme.backWallEmissiveColor
+        : 0x000000;
+      const backWallEmissiveIntensity = Number.isFinite(theme.backWallEmissiveIntensity)
+        ? theme.backWallEmissiveIntensity
+        : 0;
       const useBackWallGrunge = theme.backWallUseGrunge !== false;
       const backWallMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(
@@ -2980,6 +2988,8 @@ export const initScene = (
         ),
         roughness: backWallRoughness,
         metalness: backWallMetalness,
+        emissive: new THREE.Color(backWallEmissiveColor),
+        emissiveIntensity: backWallEmissiveIntensity,
         map: useBackWallGrunge ? grungeTexture : null,
         roughnessMap: useBackWallGrunge ? grungeTexture : null,
         metalnessMap: useBackWallGrunge ? grungeTexture : null,
