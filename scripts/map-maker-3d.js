@@ -891,109 +891,104 @@ export const initMapMaker3d = ({
         glowMaterial
       );
     } else if (areaId === "operations-exterior") {
-      const outsideCellWidth = clampPositiveNumber(mapCellSizeX, 1);
-      const outsideCellDepth = clampPositiveNumber(mapCellSizeZ, 1);
       const centerColumn = Math.floor(map.width / 2);
-      const northRow = 0;
-      const northCenterIndex = northRow * map.width + centerColumn;
-      const entranceBaseY = getDisplayTerrainHeight(
-        map.heights?.[northCenterIndex]
-      );
+      const centerRow = Math.floor(map.height / 2);
+      const centerIndex = centerRow * map.width + centerColumn;
+      const entranceBaseY = getDisplayTerrainHeight(map.heights?.[centerIndex]);
+
+      // Match the same reference placement used by the in-game Surface Area entrance.
+      const returnDoorWidth = 8.5 * ROOM_SCALE_FACTOR;
+      const returnDoorHeight = 13.5 * ROOM_SCALE_FACTOR;
+      const platformDepth = BASE_ROOM_DEPTH * 0.58;
+      const entranceDepth = platformDepth * 0.56;
+      const entranceWidth = returnDoorWidth + 1.6;
+      const entranceThickness = 0.16;
+      const entranceTopY = entranceBaseY + returnDoorHeight * 1.05;
+      const entranceHeight = returnDoorHeight * 1.05 * 4;
+      const entranceCenterY = entranceTopY - entranceHeight / 2;
+      const entranceFrontZ = entranceDepth / 2;
+      const returnDoorZ = entranceFrontZ - 0.42;
+      const tunnelFrontZ = returnDoorZ - 0.42;
+      const tunnelRearZ = tunnelFrontZ + entranceDepth;
+      const tunnelCenterZ = (tunnelFrontZ + tunnelRearZ) / 2;
+      const tunnelRearWallZ = tunnelRearZ + entranceThickness / 2;
 
       const landingPad = createAreaReferenceMesh(
         new THREE.BoxGeometry(
-          Math.min(
-            Math.max(outsideCellWidth * 4.6, 18),
-            Math.max(outsideCellWidth * 3.2, referenceWidth * 0.2)
-          ),
+          Math.max(2.6, entranceWidth * 0.95),
           0.06,
-          Math.max(outsideCellDepth * 1.4, 8)
+          Math.max(1.2, platformDepth * 0.42)
         ),
-        trimMaterial
+        platformMaterial
       );
       landingPad.position.set(
         0,
         entranceBaseY + 0.03,
-        -halfDepth + Math.max(outsideCellDepth * 1.7, 10)
+        returnDoorZ - 0.6 - (platformDepth * 0.42) / 2
       );
       areaReferenceGroup.add(landingPad);
 
-      const entranceSpan = Math.min(
-        Math.max(outsideCellWidth * 4, 22),
-        Math.max(outsideCellWidth * 2.8, referenceWidth - outsideCellWidth)
-      );
-      const entranceHeight = Math.max(outsideCellDepth * 0.52, 6.5);
-      const entranceDepth = Math.max(outsideCellDepth * 0.18, 0.14);
-      const entranceZ = -halfDepth + Math.max(outsideCellDepth * 0.72, 6);
-
-      const tunnelFrame = createAreaReferenceMesh(
-        new THREE.BoxGeometry(entranceSpan, entranceHeight, entranceDepth),
-        wallMaterial
-      );
-      tunnelFrame.position.set(0, entranceBaseY + entranceHeight / 2, entranceZ);
-      areaReferenceGroup.add(tunnelFrame);
-
-      const tunnelRoof = createAreaReferenceMesh(
+      const roof = createAreaReferenceMesh(
         new THREE.BoxGeometry(
-          entranceSpan,
-          Math.max(outsideCellDepth * 0.16, 0.14),
-          Math.max(outsideCellDepth * 0.75, 0.7)
+          entranceWidth + entranceThickness * 2,
+          entranceThickness,
+          entranceDepth
         ),
         trimMaterial
       );
-      tunnelRoof.position.set(
+      roof.position.set(
         0,
-        entranceBaseY + entranceHeight + Math.max(outsideCellDepth * 0.08, 0.1),
-        entranceZ + Math.max(outsideCellDepth * 0.28, 0.26)
+        entranceTopY + entranceThickness / 2,
+        tunnelCenterZ
       );
-      areaReferenceGroup.add(tunnelRoof);
+      areaReferenceGroup.add(roof);
 
-      const sidePillarOffset = entranceSpan * 0.5 - Math.max(outsideCellWidth * 0.12, 0.14);
-      [-1, 1].forEach((side) => {
-        const pillar = createAreaReferenceMesh(
-          new THREE.BoxGeometry(
-            Math.max(outsideCellWidth * 0.16, 0.16),
-            entranceHeight,
-            Math.max(outsideCellDepth * 0.24, 0.22)
-          ),
-          trimMaterial
-        );
-        pillar.position.set(
-          side * sidePillarOffset,
-          entranceBaseY + entranceHeight / 2,
-          entranceZ
-        );
-        areaReferenceGroup.add(pillar);
-      });
+      const sideWallGeometry = new THREE.BoxGeometry(
+        entranceThickness,
+        entranceHeight,
+        entranceDepth
+      );
+      const sideOffsetX = entranceWidth / 2 + entranceThickness / 2;
+      const leftWall = createAreaReferenceMesh(sideWallGeometry, wallMaterial);
+      leftWall.position.set(-sideOffsetX, entranceCenterY, tunnelCenterZ);
+      areaReferenceGroup.add(leftWall);
 
-      const doorOffset = Math.max(outsideCellWidth * 0.82, entranceSpan * 0.2);
-      [-1, 1].forEach((side) => {
-        addDoorFrame(
-          {
-            centerX: side * doorOffset,
-            centerZ: entranceZ + Math.max(outsideCellDepth * 0.08, 0.04),
-            width: Math.max(outsideCellWidth * 0.86, 4.2),
-            height: Math.max(outsideCellDepth * 0.48, 5.2),
-            depth: Math.max(outsideCellDepth * 0.1, 0.08),
-          },
-          trimMaterial,
-          glowMaterial
-        );
-      });
+      const rightWall = createAreaReferenceMesh(sideWallGeometry, wallMaterial);
+      rightWall.position.set(sideOffsetX, entranceCenterY, tunnelCenterZ);
+      areaReferenceGroup.add(rightWall);
+
+      const rearWall = createAreaReferenceMesh(
+        new THREE.BoxGeometry(
+          entranceWidth + entranceThickness * 2,
+          entranceHeight,
+          entranceThickness
+        ),
+        wallMaterial
+      );
+      rearWall.position.set(0, entranceCenterY, tunnelRearWallZ);
+      areaReferenceGroup.add(rearWall);
+
+      addDoorFrame(
+        {
+          centerX: 0,
+          centerZ: returnDoorZ,
+          width: returnDoorWidth,
+          height: returnDoorHeight,
+          depth: Math.max(0.08, entranceThickness * 0.75),
+        },
+        trimMaterial,
+        glowMaterial
+      );
 
       const threshold = createAreaReferenceMesh(
         new THREE.BoxGeometry(
-          entranceSpan,
-          Math.max(outsideCellDepth * 0.08, 0.08),
-          Math.max(outsideCellDepth * 0.5, 0.5)
+          entranceWidth + entranceThickness * 1.2,
+          0.08,
+          Math.max(0.4, entranceThickness * 3)
         ),
         platformMaterial
       );
-      threshold.position.set(
-        0,
-        entranceBaseY + Math.max(outsideCellDepth * 0.04, 0.04),
-        entranceZ + Math.max(outsideCellDepth * 0.24, 0.25)
-      );
+      threshold.position.set(0, entranceBaseY + 0.04, returnDoorZ - 0.06);
       areaReferenceGroup.add(threshold);
     } else if (areaId === "engineering-bay") {
       const gantry = createAreaReferenceMesh(
