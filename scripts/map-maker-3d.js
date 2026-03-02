@@ -762,10 +762,8 @@ export const initMapMaker3d = ({
     const areaId = selectedAreaId;
     const scaledWidth = map.width * mapCellSizeX;
     const scaledDepth = map.height * mapCellSizeZ;
-    const referenceWidth =
-      areaId === "operations-exterior" ? map.width : scaledWidth;
-    const referenceDepth =
-      areaId === "operations-exterior" ? map.height : scaledDepth;
+    const referenceWidth = scaledWidth;
+    const referenceDepth = scaledDepth;
     const halfWidth = referenceWidth / 2;
     const halfDepth = referenceDepth / 2;
     const wallHeight = areaId === "exterior-outpost" ? 1.1 : 1.9;
@@ -893,58 +891,90 @@ export const initMapMaker3d = ({
         glowMaterial
       );
     } else if (areaId === "operations-exterior") {
+      const outsideCellWidth = clampPositiveNumber(mapCellSizeX, 1);
+      const outsideCellDepth = clampPositiveNumber(mapCellSizeZ, 1);
+      const centerColumn = Math.floor(map.width / 2);
+      const northRow = 0;
+      const northCenterIndex = northRow * map.width + centerColumn;
+      const entranceBaseY = getDisplayTerrainHeight(
+        map.heights?.[northCenterIndex]
+      );
+
       const landingPad = createAreaReferenceMesh(
         new THREE.BoxGeometry(
-          Math.max(2, referenceWidth * 0.48),
+          Math.min(
+            Math.max(outsideCellWidth * 4.6, 18),
+            Math.max(outsideCellWidth * 3.2, referenceWidth * 0.2)
+          ),
           0.06,
-          Math.max(1.2, referenceDepth * 0.24)
+          Math.max(outsideCellDepth * 1.4, 8)
         ),
         trimMaterial
       );
-      landingPad.position.set(0, 0.03, -referenceDepth * 0.15);
+      landingPad.position.set(
+        0,
+        entranceBaseY + 0.03,
+        -halfDepth + Math.max(outsideCellDepth * 1.7, 10)
+      );
       areaReferenceGroup.add(landingPad);
 
       const entranceSpan = Math.min(
-        Math.max(2.2, referenceWidth * 0.14),
-        Math.max(2.2, referenceWidth - 0.8)
+        Math.max(outsideCellWidth * 4, 22),
+        Math.max(outsideCellWidth * 2.8, referenceWidth - outsideCellWidth)
       );
-      const entranceHeight = 2.1;
-      const entranceDepth = 0.14;
-      const entranceZ = -halfDepth + 0.22;
+      const entranceHeight = Math.max(outsideCellDepth * 0.52, 6.5);
+      const entranceDepth = Math.max(outsideCellDepth * 0.18, 0.14);
+      const entranceZ = -halfDepth + Math.max(outsideCellDepth * 0.72, 6);
 
       const tunnelFrame = createAreaReferenceMesh(
         new THREE.BoxGeometry(entranceSpan, entranceHeight, entranceDepth),
         wallMaterial
       );
-      tunnelFrame.position.set(0, entranceHeight / 2, entranceZ);
+      tunnelFrame.position.set(0, entranceBaseY + entranceHeight / 2, entranceZ);
       areaReferenceGroup.add(tunnelFrame);
 
       const tunnelRoof = createAreaReferenceMesh(
-        new THREE.BoxGeometry(entranceSpan, 0.14, 0.7),
+        new THREE.BoxGeometry(
+          entranceSpan,
+          Math.max(outsideCellDepth * 0.16, 0.14),
+          Math.max(outsideCellDepth * 0.75, 0.7)
+        ),
         trimMaterial
       );
-      tunnelRoof.position.set(0, entranceHeight + 0.1, entranceZ + 0.26);
+      tunnelRoof.position.set(
+        0,
+        entranceBaseY + entranceHeight + Math.max(outsideCellDepth * 0.08, 0.1),
+        entranceZ + Math.max(outsideCellDepth * 0.28, 0.26)
+      );
       areaReferenceGroup.add(tunnelRoof);
 
-      const sidePillarOffset = entranceSpan * 0.5 - 0.14;
+      const sidePillarOffset = entranceSpan * 0.5 - Math.max(outsideCellWidth * 0.12, 0.14);
       [-1, 1].forEach((side) => {
         const pillar = createAreaReferenceMesh(
-          new THREE.BoxGeometry(0.16, entranceHeight, 0.22),
+          new THREE.BoxGeometry(
+            Math.max(outsideCellWidth * 0.16, 0.16),
+            entranceHeight,
+            Math.max(outsideCellDepth * 0.24, 0.22)
+          ),
           trimMaterial
         );
-        pillar.position.set(side * sidePillarOffset, entranceHeight / 2, entranceZ);
+        pillar.position.set(
+          side * sidePillarOffset,
+          entranceBaseY + entranceHeight / 2,
+          entranceZ
+        );
         areaReferenceGroup.add(pillar);
       });
 
-      const doorOffset = Math.min(1.2, Math.max(0.55, entranceSpan * 0.27));
+      const doorOffset = Math.max(outsideCellWidth * 0.82, entranceSpan * 0.2);
       [-1, 1].forEach((side) => {
         addDoorFrame(
           {
             centerX: side * doorOffset,
-            centerZ: entranceZ + 0.04,
-            width: 0.82,
-            height: 1.75,
-            depth: 0.08,
+            centerZ: entranceZ + Math.max(outsideCellDepth * 0.08, 0.04),
+            width: Math.max(outsideCellWidth * 0.86, 4.2),
+            height: Math.max(outsideCellDepth * 0.48, 5.2),
+            depth: Math.max(outsideCellDepth * 0.1, 0.08),
           },
           trimMaterial,
           glowMaterial
@@ -952,10 +982,18 @@ export const initMapMaker3d = ({
       });
 
       const threshold = createAreaReferenceMesh(
-        new THREE.BoxGeometry(entranceSpan, 0.08, 0.5),
+        new THREE.BoxGeometry(
+          entranceSpan,
+          Math.max(outsideCellDepth * 0.08, 0.08),
+          Math.max(outsideCellDepth * 0.5, 0.5)
+        ),
         platformMaterial
       );
-      threshold.position.set(0, 0.04, entranceZ + 0.25);
+      threshold.position.set(
+        0,
+        entranceBaseY + Math.max(outsideCellDepth * 0.04, 0.04),
+        entranceZ + Math.max(outsideCellDepth * 0.24, 0.25)
+      );
       areaReferenceGroup.add(threshold);
     } else if (areaId === "engineering-bay") {
       const gantry = createAreaReferenceMesh(
