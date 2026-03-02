@@ -4542,6 +4542,7 @@ export const initScene = (
 
   const MAP_MAKER_DEFAULT_AREA_ID = "operations-exterior";
   const MAP_MAKER_DOOR_MARKER_PATH = "door-marker";
+  const MAP_MAKER_MAIN_SURFACE_DOOR_ID = "main-surface-entrance";
   const MAP_MAKER_HEIGHT_MIN = 0;
   const MAP_MAKER_HEIGHT_MAX = 255;
   const MAP_MAKER_HEIGHT_FLOOR = 0.05;
@@ -6069,6 +6070,7 @@ export const initScene = (
       const objectPlacements = Array.isArray(normalizedMap.objects)
         ? normalizedMap.objects
         : [];
+      let mainSurfaceDoorPlacementWorld = null;
       let shouldPersistGeneratedPlacementIds = false;
 
       const generateOutsideObjectPlacementId = (fallbackIndex = 0) =>
@@ -7510,6 +7512,14 @@ export const initScene = (
           }
           const placementPosition = getPlacementWorldPosition(placement);
           if (placement.path === DOOR_MARKER_PATH) {
+            const placementDoorId =
+              typeof placement.id === "string" ? placement.id.trim() : "";
+            const isMainSurfaceDoor =
+              placementDoorId === MAP_MAKER_MAIN_SURFACE_DOOR_ID;
+            if (isMainSurfaceDoor) {
+              mainSurfaceDoorPlacementWorld = placementPosition;
+              return;
+            }
             const door = createHangarDoor(COMMAND_CENTER_DOOR_THEME);
             const placementCollisionEnabled =
               isMapMakerPlacementCollisionEnabled(placement);
@@ -7748,6 +7758,7 @@ export const initScene = (
           x: 0,
           z: mapCenterZ,
         },
+        mainSurfaceDoorPlacementWorld,
         getSurfaceYAtWorldPosition,
         bounds: {
           minX: mapLeftEdge,
@@ -7919,26 +7930,42 @@ export const initScene = (
     const returnDoorWidth = returnDoor.userData?.width ?? BASE_DOOR_WIDTH;
     const returnDoorHeight = returnDoor.userData?.height ?? BASE_DOOR_HEIGHT;
 
-    const outsideMapCenterX = builtOutsideTerrain?.center?.x ?? 0;
-    const outsideMapCenterZ =
+    const fallbackOutsideMapCenterX = builtOutsideTerrain?.center?.x ?? 0;
+    const fallbackOutsideMapCenterZ =
       Number.isFinite(outsideMapBounds?.minZ) && Number.isFinite(outsideMapBounds?.maxZ)
         ? (outsideMapBounds.minZ + outsideMapBounds.maxZ) / 2
         : builtOutsideTerrain?.center?.z ?? 0;
+    const mainSurfaceDoorWorld = builtOutsideTerrain?.mainSurfaceDoorPlacementWorld;
+    const mainSurfaceDoorWorldX = Number.isFinite(mainSurfaceDoorWorld?.x)
+      ? mainSurfaceDoorWorld.x
+      : null;
+    const mainSurfaceDoorWorldZ = Number.isFinite(mainSurfaceDoorWorld?.z)
+      ? mainSurfaceDoorWorld.z
+      : null;
+    const outsideMapCenterX = Number.isFinite(mainSurfaceDoorWorldX)
+      ? mainSurfaceDoorWorldX
+      : fallbackOutsideMapCenterX;
+
+    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
+    const entranceCenterZ = Number.isFinite(mainSurfaceDoorWorldZ)
+      ? mainSurfaceDoorWorldZ - entranceDepth / 2 + 0.42
+      : fallbackOutsideMapCenterZ;
+    const entranceSurfaceSampleZ = Number.isFinite(mainSurfaceDoorWorldZ)
+      ? mainSurfaceDoorWorldZ
+      : entranceCenterZ;
     const entranceSurfaceY =
       typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"
         ? builtOutsideTerrain.getSurfaceYAtWorldPosition(
             outsideMapCenterX,
-            outsideMapCenterZ
+            entranceSurfaceSampleZ
           )
         : roomFloorY;
     const entranceBaseY = Number.isFinite(entranceSurfaceY)
       ? entranceSurfaceY
       : roomFloorY;
 
-    const entranceDepth = OPERATIONS_EXTERIOR_PLATFORM_DEPTH * 0.56;
     const entranceWidth = returnDoorWidth + 1.6;
     const entranceThickness = 0.16;
-    const entranceCenterZ = outsideMapCenterZ;
     const entranceTopY = entranceBaseY + returnDoorHeight * 1.05;
     const sampleTunnelSurfaceY =
       typeof builtOutsideTerrain?.getSurfaceYAtWorldPosition === "function"

@@ -169,6 +169,12 @@ const DEFAULT_GENERATE_HEIGHT_MAX = 64;
 const DEFAULT_GENERATE_HILLS = 8;
 const OBJECT_MANIFEST_URL = "models/manifest.json";
 const DOOR_MARKER_PATH = "door-marker";
+const MAIN_SURFACE_DOOR_ID = "main-surface-entrance";
+const MAIN_SURFACE_DOOR_NAME = "Main Surface Entrance";
+const MAIN_SURFACE_DOOR_DESTINATION_TYPE = "area";
+const MAIN_SURFACE_DOOR_DESTINATION_ID = "operations-concourse";
+const MAP_MAKER_OBJECT_HEIGHT_FLOOR = 0.05;
+const MAP_MAKER_OBJECT_HEIGHT_SCALE = 6;
 const LOCAL_AUTO_SAVE_DELAY_MS = 350;
 
 const DOOR_DESTINATION_AREAS = MAP_AREAS.map(({ id, label }) => ({ id, label }));
@@ -234,6 +240,135 @@ function clampHeightValue(value) {
     return HEIGHT_MIN;
   }
   return Math.min(HEIGHT_MAX, Math.max(HEIGHT_MIN, numeric));
+}
+
+function isMainSurfaceDoorPlacement(placement) {
+  const placementId =
+    typeof placement?.id === "string" ? placement.id.trim() : "";
+  return placement?.path === DOOR_MARKER_PATH && placementId === MAIN_SURFACE_DOOR_ID;
+}
+
+function getMapLocalDoorHeightForCell(map, index) {
+  const rawHeight = Number.isFinite(map?.heights?.[index]) ? map.heights[index] : HEIGHT_MIN;
+  const clampedHeight = clampHeightValue(rawHeight);
+  return (
+    MAP_MAKER_OBJECT_HEIGHT_FLOOR +
+    (MAP_MAKER_OBJECT_HEIGHT_SCALE * clampedHeight) / HEIGHT_MAX
+  );
+}
+
+function snapMainDoorPositionToMap(position, map) {
+  const width = Math.max(1, Number.parseInt(map?.width, 10) || 1);
+  const height = Math.max(1, Number.parseInt(map?.height, 10) || 1);
+  const fallback = createMainSurfaceDoorPlacement(map).position;
+  const rawX = Number.isFinite(position?.x) ? position.x : fallback.x;
+  const rawZ = Number.isFinite(position?.z) ? position.z : fallback.z;
+
+  const clampedColumn = Math.min(
+    width - 1,
+    Math.max(0, Math.round(rawX + width / 2 - 0.5))
+  );
+  const clampedRow = Math.min(
+    height - 1,
+    Math.max(0, Math.round(rawZ + height / 2))
+  );
+
+  return {
+    x: clampedColumn - width / 2 + 0.5,
+    z: clampedRow - height / 2,
+  };
+}
+
+function createMainSurfaceDoorPlacement(map) {
+  const width = Math.max(1, Number.parseInt(map?.width, 10) || 1);
+  const height = Math.max(1, Number.parseInt(map?.height, 10) || 1);
+  const column = Math.floor(width / 2);
+  const row = Math.floor(height / 2);
+  const index = row * width + column;
+  return {
+    path: DOOR_MARKER_PATH,
+    id: MAIN_SURFACE_DOOR_ID,
+    name: MAIN_SURFACE_DOOR_NAME,
+    position: {
+      x: column - width / 2 + 0.5,
+      y: getMapLocalDoorHeightForCell(map, index),
+      // Door markers align to the cell front edge, not center.
+      z: row - height / 2,
+    },
+    rotation: { ...DEFAULT_OBJECT_TRANSFORM.rotation },
+    scale: { ...DEFAULT_OBJECT_TRANSFORM.scale },
+    destinationType: MAIN_SURFACE_DOOR_DESTINATION_TYPE,
+    destinationId: MAIN_SURFACE_DOOR_DESTINATION_ID,
+    destination: `${MAIN_SURFACE_DOOR_DESTINATION_TYPE}:${MAIN_SURFACE_DOOR_DESTINATION_ID}`,
+  };
+}
+
+function ensureMainSurfaceDoorPlacement(map, areaId = null) {
+  if (!map || typeof map !== "object") {
+    return map;
+  }
+  const resolvedAreaId =
+    typeof areaId === "string" && areaId.trim().length > 0
+      ? areaId.trim()
+      : typeof map.region === "string"
+        ? map.region.trim()
+        : "";
+  if (resolvedAreaId !== "operations-exterior") {
+    return map;
+  }
+
+  const existing = Array.isArray(map.objects) ? map.objects : [];
+  const fallbackPlacement = createMainSurfaceDoorPlacement(map);
+  const mainDoorEntries = existing
+    .map((placement, index) => ({ placement, index }))
+    .filter(({ placement }) => isMainSurfaceDoorPlacement(placement));
+  const primaryMainDoor = mainDoorEntries[0]?.placement ?? null;
+  const normalizedMainDoor = {
+    ...fallbackPlacement,
+    ...(primaryMainDoor ?? {}),
+    path: DOOR_MARKER_PATH,
+    id: MAIN_SURFACE_DOOR_ID,
+    name:
+      typeof primaryMainDoor?.name === "string" && primaryMainDoor.name.trim()
+        ? primaryMainDoor.name.trim()
+        : MAIN_SURFACE_DOOR_NAME,
+    destinationType: MAIN_SURFACE_DOOR_DESTINATION_TYPE,
+    destinationId: MAIN_SURFACE_DOOR_DESTINATION_ID,
+    destination: `${MAIN_SURFACE_DOOR_DESTINATION_TYPE}:${MAIN_SURFACE_DOOR_DESTINATION_ID}`,
+    position: (() => {
+      const basePosition = normalizeObjectVector(
+        primaryMainDoor?.position,
+        fallbackPlacement.position
+      );
+      const snapped = snapMainDoorPositionToMap(basePosition, map);
+      const index = Math.min(
+        map.width * map.height - 1,
+        Math.max(
+          0,
+          Math.round(snapped.z + map.height / 2) * map.width +
+            Math.round(snapped.x + map.width / 2 - 0.5)
+        )
+      );
+      return {
+        x: snapped.x,
+        y: Number.isFinite(basePosition.y)
+          ? basePosition.y
+          : getMapLocalDoorHeightForCell(map, index),
+        z: snapped.z,
+      };
+    })(),
+    rotation: normalizeObjectVector(
+      primaryMainDoor?.rotation,
+      fallbackPlacement.rotation
+    ),
+    scale: normalizeObjectVector(primaryMainDoor?.scale, fallbackPlacement.scale),
+  };
+
+  const withoutMainDoorDuplicates = existing.filter(
+    (placement) => !isMainSurfaceDoorPlacement(placement)
+  );
+  map.objects = [...withoutMainDoorDuplicates, normalizedMainDoor];
+  return map;
 }
 
 function clampHillsCount(value, maxCells) {
@@ -490,7 +625,7 @@ function commitHistoryEntry() {
 
 function applyMapSnapshot(snapshot) {
   const normalized = normalizeMapDefinition(snapshot);
-  state.map = normalized;
+  state.map = ensureMainSurfaceDoorPlacement(normalized, state.selectedAreaId);
   clearSelection();
   updateMetadataDisplays();
   renderGrid();
@@ -1055,6 +1190,9 @@ function removeDoorPlacementAtIndex(index) {
   if (existing[index]?.path !== DOOR_MARKER_PATH) {
     return;
   }
+  if (isMainSurfaceDoorPlacement(existing[index])) {
+    return;
+  }
   const snapshot = cloneMapDefinition(state.map);
   state.map.objects = existing.filter((_, entryIndex) => entryIndex !== index);
   updateJsonPreview();
@@ -1081,6 +1219,7 @@ function focusPlacedObject(placement, index = null) {
 function formatDoorListEntry(placement, order) {
   const index = getCellIndexFromWorldPosition(placement?.position ?? null);
   const width = state.map.width;
+  const isMainSurfaceDoor = isMainSurfaceDoorPlacement(placement);
   const nameFromPlacement =
     typeof placement?.name === "string" && placement.name.trim().length > 0
       ? placement.name.trim()
@@ -1101,20 +1240,38 @@ function formatDoorListEntry(placement, order) {
     const x = index % width;
     const y = Math.floor(index / width);
     return {
-      name: nameFromPlacement ?? `Door ${x + 1}, ${y + 1}`,
-      id: idFromPlacement ?? `door-${x + 1}-${y + 1}`,
-      sortIndex: index,
-      destinationType,
-      destinationId,
+      name: isMainSurfaceDoor
+        ? nameFromPlacement ?? MAIN_SURFACE_DOOR_NAME
+        : nameFromPlacement ?? `Door ${x + 1}, ${y + 1}`,
+      id: isMainSurfaceDoor
+        ? MAIN_SURFACE_DOOR_ID
+        : idFromPlacement ?? `door-${x + 1}-${y + 1}`,
+      sortIndex: isMainSurfaceDoor ? -1 : index,
+      destinationType: isMainSurfaceDoor
+        ? MAIN_SURFACE_DOOR_DESTINATION_TYPE
+        : destinationType,
+      destinationId: isMainSurfaceDoor
+        ? MAIN_SURFACE_DOOR_DESTINATION_ID
+        : destinationId,
+      isProtected: isMainSurfaceDoor,
     };
   }
   const fallbackIndex = order + 1;
   return {
-    name: nameFromPlacement ?? `Door ${fallbackIndex}`,
-    id: idFromPlacement ?? `door-${fallbackIndex}`,
-    sortIndex: Number.POSITIVE_INFINITY,
-    destinationType,
-    destinationId,
+    name: isMainSurfaceDoor
+      ? nameFromPlacement ?? MAIN_SURFACE_DOOR_NAME
+      : nameFromPlacement ?? `Door ${fallbackIndex}`,
+    id: isMainSurfaceDoor
+      ? MAIN_SURFACE_DOOR_ID
+      : idFromPlacement ?? `door-${fallbackIndex}`,
+    sortIndex: isMainSurfaceDoor ? -1 : Number.POSITIVE_INFINITY,
+    destinationType: isMainSurfaceDoor
+      ? MAIN_SURFACE_DOOR_DESTINATION_TYPE
+      : destinationType,
+    destinationId: isMainSurfaceDoor
+      ? MAIN_SURFACE_DOOR_DESTINATION_ID
+      : destinationId,
+    isProtected: isMainSurfaceDoor,
   };
 }
 
@@ -1161,11 +1318,18 @@ function updateDoorList() {
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "object-list-remove door-list-remove";
-    removeButton.setAttribute("aria-label", `Remove ${entry.name}`);
-    removeButton.textContent = "x";
-    removeButton.addEventListener("click", () => {
-      removeDoorPlacementAtIndex(entry.index);
-    });
+    if (entry.isProtected) {
+      removeButton.disabled = true;
+      removeButton.title = "Main entrance door cannot be removed";
+      removeButton.setAttribute("aria-label", `${entry.name} is protected`);
+      removeButton.textContent = "-";
+    } else {
+      removeButton.setAttribute("aria-label", `Remove ${entry.name}`);
+      removeButton.textContent = "x";
+      removeButton.addEventListener("click", () => {
+        removeDoorPlacementAtIndex(entry.index);
+      });
+    }
     header.append(focusButton, removeButton);
     const destination = document.createElement("div");
     destination.className = "door-list-destination";
@@ -1178,6 +1342,10 @@ function updateDoorList() {
     const select = document.createElement("select");
     select.className = "door-destination-select";
     select.id = selectId;
+    if (entry.isProtected) {
+      select.disabled = true;
+      select.title = "Main entrance destination is fixed";
+    }
     const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = "Select area or door";
@@ -1215,6 +1383,9 @@ function updateDoorList() {
     }
 
     select.addEventListener("change", (event) => {
+      if (entry.isProtected) {
+        return;
+      }
       const value = event.target.value;
       const snapshot = cloneMapDefinition(state.map);
       if (!value) {
@@ -1383,13 +1554,39 @@ function updateObjectList() {
   elements.objectListEmpty.setAttribute("aria-hidden", String(hasObjects));
   elements.objectListCount.textContent = String(objects.length);
 }
-function removeDoorMarkersAtPosition(placements, position) {
+function hasMainSurfaceDoorAtPosition(placements, position) {
+  if (!position) {
+    return false;
+  }
+  const targetIndex = getCellIndexFromWorldPosition(position);
+  if (!Number.isFinite(targetIndex)) {
+    return false;
+  }
+  return placements.some((placement) => {
+    if (!isMainSurfaceDoorPlacement(placement)) {
+      return false;
+    }
+    const placementIndex = getCellIndexFromWorldPosition(
+      placement?.position ?? null
+    );
+    return Number.isFinite(placementIndex) && placementIndex === targetIndex;
+  });
+}
+
+function removeDoorMarkersAtPosition(
+  placements,
+  position,
+  { preserveProtected = false } = {}
+) {
   if (!position) {
     return placements;
   }
   const targetIndex = getCellIndexFromWorldPosition(position);
   return placements.filter((placement) => {
     if (placement?.path !== DOOR_MARKER_PATH) {
+      return true;
+    }
+    if (preserveProtected && isMainSurfaceDoorPlacement(placement)) {
       return true;
     }
     if (!Number.isFinite(targetIndex)) {
@@ -1413,7 +1610,9 @@ function removeDoorMarkersAtIndex(index) {
   const existing = Array.isArray(state.map.objects)
     ? state.map.objects
     : [];
-  const nextObjects = removeDoorMarkersAtPosition(existing, position);
+  const nextObjects = removeDoorMarkersAtPosition(existing, position, {
+    preserveProtected: true,
+  });
   if (nextObjects.length === existing.length) {
     return;
   }
@@ -1746,6 +1945,7 @@ function selectArea(areaId) {
   state.map = cachedMap
     ? cloneMapDefinition(cachedMap)
     : storedMap ?? createDefaultMapForArea(area.id);
+  ensureMainSurfaceDoorPlacement(state.map, area.id);
   clearSelection();
   resetHistoryState();
   updateMetadataDisplays();
@@ -1794,7 +1994,10 @@ function loadMapFromStorageForArea(areaId, { removeInvalid = true } = {}) {
 
   try {
     const parsed = JSON.parse(serialized);
-    return normalizeMapDefinition(parsed);
+    return ensureMainSurfaceDoorPlacement(
+      normalizeMapDefinition(parsed),
+      areaId
+    );
   } catch (error) {
     console.warn("Stored area map is invalid", error);
     if (removeInvalid) {
@@ -1891,6 +2094,7 @@ function saveMapToLocalStorage({ showAlert = true, showFeedback = true } = {}) {
   }
   try {
     const normalized = normalizeMapDefinition(state.map);
+    ensureMainSurfaceDoorPlacement(normalized, state.selectedAreaId);
     storage.setItem(getAreaStorageKey(), JSON.stringify(normalized));
     state.map = normalized;
     state.areaMapCache.set(state.selectedAreaId, cloneMapDefinition(state.map));
@@ -1962,7 +2166,7 @@ function restoreMapFromLocalStorage({
   }
 
   const snapshot = cloneMapDefinition(state.map);
-  state.map = parsedMap;
+  state.map = ensureMainSurfaceDoorPlacement(parsedMap, state.selectedAreaId);
   clearSelection();
   updateMetadataDisplays();
   renderGrid();
@@ -2111,6 +2315,7 @@ function resizeMap(width, height) {
   state.map.height = clampedHeight;
   state.map.cells = newCells;
   state.map.heights = newHeights;
+  ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
   clearSelection();
   updateMetadataDisplays();
   renderGrid();
@@ -2695,14 +2900,22 @@ function setActivePaletteTab(tabId) {
           const existing = Array.isArray(state.map.objects)
             ? state.map.objects
             : [];
+          if (
+            placement.path === DOOR_MARKER_PATH &&
+            hasMainSurfaceDoorAtPosition(existing, placement.position ?? null)
+          ) {
+            return;
+          }
           const baseObjects =
             placement.path === DOOR_MARKER_PATH
               ? removeDoorMarkersAtPosition(
                   existing,
-                  placement.position ?? null
+                  placement.position ?? null,
+                  { preserveProtected: true }
                 )
               : existing;
           state.map.objects = [...baseObjects, placement];
+          ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
           updateJsonPreview();
           landscapeViewer?.setObjectPlacements?.(state.map.objects);
           pushUndoSnapshot(snapshot);
@@ -2751,12 +2964,20 @@ function setActivePaletteTab(tabId) {
             ),
           };
           if (currentPlacement.path === DOOR_MARKER_PATH) {
+            const isMovingMainDoor = isMainSurfaceDoorPlacement(currentPlacement);
             const withoutTarget = existing.filter(
               (_, entryIndex) => entryIndex !== targetIndex
             );
+            if (
+              !isMovingMainDoor &&
+              hasMainSurfaceDoorAtPosition(withoutTarget, nextPlacement.position ?? null)
+            ) {
+              return;
+            }
             const deduped = removeDoorMarkersAtPosition(
               withoutTarget,
-              nextPlacement.position ?? null
+              nextPlacement.position ?? null,
+              { preserveProtected: !isMovingMainDoor }
             );
             state.map.objects = [...deduped, nextPlacement];
           } else {
@@ -2764,6 +2985,7 @@ function setActivePaletteTab(tabId) {
               entryIndex === targetIndex ? nextPlacement : entry
             );
           }
+          ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
           updateJsonPreview();
           landscapeViewer?.setObjectPlacements?.(state.map.objects);
           pushUndoSnapshot(snapshot);
@@ -2900,7 +3122,7 @@ async function applyImportedMap(mapDefinition, { pushHistory = true } = {}) {
   const resolved = await resolveExternalHeights(mapDefinition);
   const normalized = normalizeMapDefinition(resolved);
 
-  state.map = normalized;
+  state.map = ensureMainSurfaceDoorPlacement(normalized, state.selectedAreaId);
   clearSelection();
 
   updateMetadataDisplays();
@@ -2915,6 +3137,7 @@ async function applyImportedMap(mapDefinition, { pushHistory = true } = {}) {
 function resetMap() {
   const snapshot = cloneMapDefinition(state.map);
   state.map = createDefaultMapForArea(state.selectedAreaId);
+  ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
   setTerrain(TERRAIN_TYPES[1]);
   clearSelection();
   updateMetadataDisplays();
@@ -3167,6 +3390,7 @@ function handleFileSelection(event) {
 }
 
 function initControls() {
+  ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
   renderPalette();
   renderGrid();
   updateMetadataDisplays();

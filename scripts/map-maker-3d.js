@@ -22,6 +22,7 @@ const TERRAIN_TILE_NUMBERS = new Map(
   OUTSIDE_TERRAIN_TILES.map((tile, index) => [tile.id, String(index + 1)])
 );
 const DOOR_MARKER_PATH = "door-marker";
+const MAIN_SURFACE_DOOR_ID = "main-surface-entrance";
 const DOOR_MARKER_COLOR = "#f97316";
 const DOOR_MARKER_FRAME_COLOR = "#0f172a";
 const DEFAULT_MAP_AREA_ID = "operations-exterior";
@@ -891,9 +892,35 @@ export const initMapMaker3d = ({
         glowMaterial
       );
     } else if (areaId === "operations-exterior") {
+      const mainDoorPlacement = Array.isArray(map.objects)
+        ? map.objects.find(
+            (placement) =>
+              placement?.path === DOOR_MARKER_PATH &&
+              typeof placement?.id === "string" &&
+              placement.id.trim() === MAIN_SURFACE_DOOR_ID
+          ) ?? null
+        : null;
+      const hasMainDoorPosition =
+        Number.isFinite(mainDoorPlacement?.position?.x) &&
+        Number.isFinite(mainDoorPlacement?.position?.z);
+      const entranceCenterX = hasMainDoorPosition
+        ? getMapLocalToWorldX(mainDoorPlacement.position.x)
+        : 0;
+      const mainDoorWorldZ = hasMainDoorPosition
+        ? getMapLocalToWorldZ(mainDoorPlacement.position.z)
+        : null;
       const centerColumn = Math.floor(map.width / 2);
       const centerRow = Math.floor(map.height / 2);
-      const centerIndex = centerRow * map.width + centerColumn;
+      let centerIndex = centerRow * map.width + centerColumn;
+      if (hasMainDoorPosition) {
+        const mappedDoorIndex = getCellIndexFromWorldPosition({
+          x: entranceCenterX,
+          z: mainDoorWorldZ,
+        });
+        if (Number.isFinite(mappedDoorIndex)) {
+          centerIndex = mappedDoorIndex;
+        }
+      }
       const entranceBaseY = getDisplayTerrainHeight(map.heights?.[centerIndex]);
 
       // Match the same reference placement used by the in-game Surface Area entrance.
@@ -906,8 +933,11 @@ export const initMapMaker3d = ({
       const entranceTopY = entranceBaseY + returnDoorHeight * 1.05;
       const entranceHeight = returnDoorHeight * 1.05 * 4;
       const entranceCenterY = entranceTopY - entranceHeight / 2;
-      const entranceFrontZ = entranceDepth / 2;
-      const returnDoorZ = entranceFrontZ - 0.42;
+      const fallbackEntranceFrontZ = entranceDepth / 2;
+      const fallbackReturnDoorZ = fallbackEntranceFrontZ - 0.42;
+      const returnDoorZ = Number.isFinite(mainDoorWorldZ)
+        ? mainDoorWorldZ
+        : fallbackReturnDoorZ;
       const tunnelFrontZ = returnDoorZ - 0.42;
       const tunnelRearZ = tunnelFrontZ + entranceDepth;
       const tunnelCenterZ = (tunnelFrontZ + tunnelRearZ) / 2;
@@ -922,7 +952,7 @@ export const initMapMaker3d = ({
         platformMaterial
       );
       landingPad.position.set(
-        0,
+        entranceCenterX,
         entranceBaseY + 0.03,
         returnDoorZ - 0.6 - (platformDepth * 0.42) / 2
       );
@@ -937,7 +967,7 @@ export const initMapMaker3d = ({
         trimMaterial
       );
       roof.position.set(
-        0,
+        entranceCenterX,
         entranceTopY + entranceThickness / 2,
         tunnelCenterZ
       );
@@ -950,11 +980,19 @@ export const initMapMaker3d = ({
       );
       const sideOffsetX = entranceWidth / 2 + entranceThickness / 2;
       const leftWall = createAreaReferenceMesh(sideWallGeometry, wallMaterial);
-      leftWall.position.set(-sideOffsetX, entranceCenterY, tunnelCenterZ);
+      leftWall.position.set(
+        entranceCenterX - sideOffsetX,
+        entranceCenterY,
+        tunnelCenterZ
+      );
       areaReferenceGroup.add(leftWall);
 
       const rightWall = createAreaReferenceMesh(sideWallGeometry, wallMaterial);
-      rightWall.position.set(sideOffsetX, entranceCenterY, tunnelCenterZ);
+      rightWall.position.set(
+        entranceCenterX + sideOffsetX,
+        entranceCenterY,
+        tunnelCenterZ
+      );
       areaReferenceGroup.add(rightWall);
 
       const rearWall = createAreaReferenceMesh(
@@ -965,20 +1003,8 @@ export const initMapMaker3d = ({
         ),
         wallMaterial
       );
-      rearWall.position.set(0, entranceCenterY, tunnelRearWallZ);
+      rearWall.position.set(entranceCenterX, entranceCenterY, tunnelRearWallZ);
       areaReferenceGroup.add(rearWall);
-
-      addDoorFrame(
-        {
-          centerX: 0,
-          centerZ: returnDoorZ,
-          width: returnDoorWidth,
-          height: returnDoorHeight,
-          depth: Math.max(0.08, entranceThickness * 0.75),
-        },
-        trimMaterial,
-        glowMaterial
-      );
 
       const threshold = createAreaReferenceMesh(
         new THREE.BoxGeometry(
@@ -988,7 +1014,11 @@ export const initMapMaker3d = ({
         ),
         platformMaterial
       );
-      threshold.position.set(0, entranceBaseY + 0.04, returnDoorZ - 0.06);
+      threshold.position.set(
+        entranceCenterX,
+        entranceBaseY + 0.04,
+        returnDoorZ - 0.06
+      );
       areaReferenceGroup.add(threshold);
     } else if (areaId === "engineering-bay") {
       const gantry = createAreaReferenceMesh(
