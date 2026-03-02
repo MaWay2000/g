@@ -1703,6 +1703,20 @@ export const initMapMaker3d = ({
       return;
     }
     objectPlacements.forEach(async (placement, placementIndex) => {
+      const placementId =
+        typeof placement?.id === "string" ? placement.id.trim() : "";
+      const isLegacyMainSurfaceDoorMarker =
+        placement?.path === DOOR_MARKER_PATH &&
+        placement?.destinationType === "area" &&
+        placement?.destinationId === "operations-concourse";
+      const hideMainSurfaceDoorMarker =
+        selectedAreaId === "operations-exterior" &&
+        placement?.path === DOOR_MARKER_PATH &&
+        (placementId === MAIN_SURFACE_DOOR_ID ||
+          isLegacyMainSurfaceDoorMarker);
+      if (hideMainSurfaceDoorMarker) {
+        return;
+      }
       const model = await loadModel(placement.path);
       if (token !== objectPlacementToken || !model) {
         return;

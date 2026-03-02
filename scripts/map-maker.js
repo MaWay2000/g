@@ -248,6 +248,20 @@ function isMainSurfaceDoorPlacement(placement) {
   return placement?.path === DOOR_MARKER_PATH && placementId === MAIN_SURFACE_DOOR_ID;
 }
 
+function isLegacyMainSurfaceDoorPlacement(placement) {
+  if (!placement || placement.path !== DOOR_MARKER_PATH) {
+    return false;
+  }
+  if (isMainSurfaceDoorPlacement(placement)) {
+    return false;
+  }
+  const destination = resolvePlacementDestination(placement);
+  return (
+    destination?.destinationType === MAIN_SURFACE_DOOR_DESTINATION_TYPE &&
+    destination?.destinationId === MAIN_SURFACE_DOOR_DESTINATION_ID
+  );
+}
+
 function getMapLocalDoorHeightForCell(map, index) {
   const rawHeight = Number.isFinite(map?.heights?.[index]) ? map.heights[index] : HEIGHT_MIN;
   const clampedHeight = clampHeightValue(rawHeight);
@@ -324,19 +338,7 @@ function ensureMainSurfaceDoorPlacement(map, areaId = null) {
     .filter(({ placement }) => isMainSurfaceDoorPlacement(placement));
   const legacyMainDoorEntries = existing
     .map((placement, index) => ({ placement, index }))
-    .filter(({ placement }) => {
-      if (!placement || placement.path !== DOOR_MARKER_PATH) {
-        return false;
-      }
-      if (isMainSurfaceDoorPlacement(placement)) {
-        return false;
-      }
-      const destination = resolvePlacementDestination(placement);
-      return (
-        destination?.destinationType === MAIN_SURFACE_DOOR_DESTINATION_TYPE &&
-        destination?.destinationId === MAIN_SURFACE_DOOR_DESTINATION_ID
-      );
-    });
+    .filter(({ placement }) => isLegacyMainSurfaceDoorPlacement(placement));
   const primaryMainDoorEntry =
     mainDoorEntries[0] ?? legacyMainDoorEntries[0] ?? null;
   const primaryMainDoor = primaryMainDoorEntry?.placement ?? null;
@@ -386,6 +388,9 @@ function ensureMainSurfaceDoorPlacement(map, areaId = null) {
 
   const withoutMainDoorDuplicates = existing.filter((placement, index) => {
     if (isMainSurfaceDoorPlacement(placement)) {
+      return false;
+    }
+    if (isLegacyMainSurfaceDoorPlacement(placement)) {
       return false;
     }
     if (Number.isFinite(primaryMainDoorIndex) && index === primaryMainDoorIndex) {
