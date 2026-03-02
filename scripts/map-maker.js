@@ -1360,12 +1360,8 @@ function updateDoorList() {
     focusButton.append(title);
     focusButton.addEventListener("click", () => {
       state.activeDoorListIndex = entry.index;
-      setDoorMode("move", { force: true });
-      if (typeof landscapeViewer?.selectDoorForMoveIndex === "function") {
-        landscapeViewer.selectDoorForMoveIndex(entry.index);
-      } else {
-        focusPlacedObject(entry.placement, entry.index);
-      }
+      setDoorMode("view", { force: true });
+      focusPlacedObject(entry.placement, entry.index);
       updateDoorList();
     });
     const moveButton = document.createElement("button");
@@ -1821,7 +1817,7 @@ function syncDoorModeButtons() {
 }
 
 function setDoorMode(mode, { force = false } = {}) {
-  if (mode && !["place", "remove", "move"].includes(mode)) {
+  if (mode && !["view", "place", "remove", "move"].includes(mode)) {
     return;
   }
   const nextMode = force ? mode : state.doorMode === mode ? null : mode;
@@ -2912,6 +2908,8 @@ function setActivePaletteTab(tabId) {
     setTerrainMenu("brush");
   } else if (tabId === "height" && state.heightMode !== "brush") {
     setHeightMode("brush");
+  } else if (tabId === "doors" && !state.doorMode) {
+    setDoorMode("view", { force: true });
   }
 
   let activePanelId = null;
