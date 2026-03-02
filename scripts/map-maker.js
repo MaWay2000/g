@@ -144,6 +144,7 @@ const state = {
   heightBrushSize: 1,
   heightValue: 0,
   doorMode: null,
+  activeDoorListIndex: null,
   showHeights: false,
   showTextures: true,
   showTileNumbers: true,
@@ -1310,6 +1311,15 @@ function updateDoorList() {
   if (!elements.doorList || !elements.doorListEmpty || !elements.doorListCount) {
     return;
   }
+  const activeIndex = Number.parseInt(state.activeDoorListIndex, 10);
+  if (
+    !Number.isFinite(activeIndex) ||
+    activeIndex < 0 ||
+    activeIndex >= (Array.isArray(state.map.objects) ? state.map.objects.length : 0) ||
+    state.map.objects?.[activeIndex]?.path !== DOOR_MARKER_PATH
+  ) {
+    state.activeDoorListIndex = null;
+  }
   const placements = getDoorPlacements();
   const entries = placements
     .map(({ placement, index }, order) => ({
@@ -1328,11 +1338,16 @@ function updateDoorList() {
   entries.forEach((entry) => {
     const item = document.createElement("li");
     item.className = "door-list-item";
+    const isActive = Number.isFinite(state.activeDoorListIndex)
+      ? entry.index === state.activeDoorListIndex
+      : false;
+    item.dataset.active = String(isActive);
     const header = document.createElement("div");
     header.className = "door-list-item-head";
     const focusButton = document.createElement("button");
     focusButton.type = "button";
     focusButton.className = "object-list-focus door-list-focus";
+    focusButton.dataset.active = String(isActive);
     const title = document.createElement("div");
     title.className = "door-list-item-title";
     const name = document.createElement("div");
@@ -1344,7 +1359,14 @@ function updateDoorList() {
     title.append(name, id);
     focusButton.append(title);
     focusButton.addEventListener("click", () => {
-      focusPlacedObject(entry.placement, entry.index);
+      state.activeDoorListIndex = entry.index;
+      setDoorMode("move", { force: true });
+      if (typeof landscapeViewer?.selectDoorForMoveIndex === "function") {
+        landscapeViewer.selectDoorForMoveIndex(entry.index);
+      } else {
+        focusPlacedObject(entry.placement, entry.index);
+      }
+      updateDoorList();
     });
     const moveButton = document.createElement("button");
     moveButton.type = "button";
@@ -1353,12 +1375,14 @@ function updateDoorList() {
     moveButton.title = `Move ${entry.name}`;
     moveButton.textContent = "M";
     moveButton.addEventListener("click", () => {
-      setDoorMode("move");
+      state.activeDoorListIndex = entry.index;
+      setDoorMode("move", { force: true });
       if (typeof landscapeViewer?.selectDoorForMoveIndex === "function") {
         landscapeViewer.selectDoorForMoveIndex(entry.index);
       } else {
         focusPlacedObject(entry.placement, entry.index);
       }
+      updateDoorList();
     });
     const removeButton = document.createElement("button");
     removeButton.type = "button";
@@ -1372,6 +1396,9 @@ function updateDoorList() {
       removeButton.setAttribute("aria-label", `Remove ${entry.name}`);
       removeButton.textContent = "x";
       removeButton.addEventListener("click", () => {
+        if (state.activeDoorListIndex === entry.index) {
+          state.activeDoorListIndex = null;
+        }
         removeDoorPlacementAtIndex(entry.index);
       });
     }
@@ -1793,11 +1820,11 @@ function syncDoorModeButtons() {
   });
 }
 
-function setDoorMode(mode) {
+function setDoorMode(mode, { force = false } = {}) {
   if (mode && !["place", "remove", "move"].includes(mode)) {
     return;
   }
-  const nextMode = state.doorMode === mode ? null : mode;
+  const nextMode = force ? mode : state.doorMode === mode ? null : mode;
   state.doorMode = nextMode;
   syncDoorModeButtons();
 }
@@ -2960,6 +2987,9 @@ function setActivePaletteTab(tabId) {
                 )
               : existing;
           state.map.objects = [...baseObjects, placement];
+          if (placement.path === DOOR_MARKER_PATH) {
+            state.activeDoorListIndex = state.map.objects.length - 1;
+          }
           ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
           updateJsonPreview();
           if (placement.path === DOOR_MARKER_PATH) {
@@ -3029,6 +3059,7 @@ function setActivePaletteTab(tabId) {
               { preserveProtected: !isMovingMainDoor }
             );
             state.map.objects = [...deduped, nextPlacement];
+            state.activeDoorListIndex = state.map.objects.length - 1;
           } else {
             state.map.objects = existing.map((entry, entryIndex) =>
               entryIndex === targetIndex ? nextPlacement : entry
