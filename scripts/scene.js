@@ -9448,7 +9448,7 @@ export const initScene = (
       transparent: true,
       opacity: 0.22,
       blending: THREE.AdditiveBlending,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
