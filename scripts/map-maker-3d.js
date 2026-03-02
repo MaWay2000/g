@@ -2353,6 +2353,23 @@ export const initMapMaker3d = ({
     return { index, placement };
   };
 
+  const selectDoorForMoveIndex = (index) => {
+    const doorIndex = Number.parseInt(index, 10);
+    if (!Number.isFinite(doorIndex) || doorIndex < 0 || doorIndex >= objectPlacements.length) {
+      return false;
+    }
+    const placement = objectPlacements[doorIndex];
+    if (!placement || placement.path !== DOOR_MARKER_PATH) {
+      return false;
+    }
+    doorMoveSelectionIndex = doorIndex;
+    objectMoveSelectionIndex = null;
+    focusPlacement(placement, doorIndex);
+    updateMoveSelectionVisibility();
+    void updateObjectPreview(previewIndex);
+    return true;
+  };
+
   const updateObjectPreview = async (index) => {
     previewIndex = Number.isFinite(index) ? index : null;
     const activeTab =
@@ -2758,6 +2775,7 @@ export const initMapMaker3d = ({
     setObjectPlacements: updateObjectPlacements,
     focusObject,
     focusObjectByIndex,
+    selectDoorForMoveIndex,
     setSelection,
     resize: resizeRenderer,
     dispose,

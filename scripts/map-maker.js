@@ -322,7 +322,27 @@ function ensureMainSurfaceDoorPlacement(map, areaId = null) {
   const mainDoorEntries = existing
     .map((placement, index) => ({ placement, index }))
     .filter(({ placement }) => isMainSurfaceDoorPlacement(placement));
-  const primaryMainDoor = mainDoorEntries[0]?.placement ?? null;
+  const legacyMainDoorEntries = existing
+    .map((placement, index) => ({ placement, index }))
+    .filter(({ placement }) => {
+      if (!placement || placement.path !== DOOR_MARKER_PATH) {
+        return false;
+      }
+      if (isMainSurfaceDoorPlacement(placement)) {
+        return false;
+      }
+      const destination = resolvePlacementDestination(placement);
+      return (
+        destination?.destinationType === MAIN_SURFACE_DOOR_DESTINATION_TYPE &&
+        destination?.destinationId === MAIN_SURFACE_DOOR_DESTINATION_ID
+      );
+    });
+  const primaryMainDoorEntry =
+    mainDoorEntries[0] ?? legacyMainDoorEntries[0] ?? null;
+  const primaryMainDoor = primaryMainDoorEntry?.placement ?? null;
+  const primaryMainDoorIndex = Number.isFinite(primaryMainDoorEntry?.index)
+    ? primaryMainDoorEntry.index
+    : null;
   const normalizedMainDoor = {
     ...fallbackPlacement,
     ...(primaryMainDoor ?? {}),
@@ -364,9 +384,15 @@ function ensureMainSurfaceDoorPlacement(map, areaId = null) {
     scale: normalizeObjectVector(primaryMainDoor?.scale, fallbackPlacement.scale),
   };
 
-  const withoutMainDoorDuplicates = existing.filter(
-    (placement) => !isMainSurfaceDoorPlacement(placement)
-  );
+  const withoutMainDoorDuplicates = existing.filter((placement, index) => {
+    if (isMainSurfaceDoorPlacement(placement)) {
+      return false;
+    }
+    if (Number.isFinite(primaryMainDoorIndex) && index === primaryMainDoorIndex) {
+      return false;
+    }
+    return true;
+  });
   map.objects = [...withoutMainDoorDuplicates, normalizedMainDoor];
   return map;
 }
@@ -1315,6 +1341,20 @@ function updateDoorList() {
     focusButton.addEventListener("click", () => {
       focusPlacedObject(entry.placement, entry.index);
     });
+    const moveButton = document.createElement("button");
+    moveButton.type = "button";
+    moveButton.className = "object-list-remove door-list-remove";
+    moveButton.setAttribute("aria-label", `Move ${entry.name}`);
+    moveButton.title = `Move ${entry.name}`;
+    moveButton.textContent = "M";
+    moveButton.addEventListener("click", () => {
+      setDoorMode("move");
+      if (typeof landscapeViewer?.selectDoorForMoveIndex === "function") {
+        landscapeViewer.selectDoorForMoveIndex(entry.index);
+      } else {
+        focusPlacedObject(entry.placement, entry.index);
+      }
+    });
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "object-list-remove door-list-remove";
@@ -1330,7 +1370,7 @@ function updateDoorList() {
         removeDoorPlacementAtIndex(entry.index);
       });
     }
-    header.append(focusButton, removeButton);
+    header.append(focusButton, moveButton, removeButton);
     const destination = document.createElement("div");
     destination.className = "door-list-destination";
     const destinationLabel = document.createElement("label");

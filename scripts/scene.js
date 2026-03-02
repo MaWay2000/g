@@ -6071,6 +6071,7 @@ export const initScene = (
         ? normalizedMap.objects
         : [];
       let mainSurfaceDoorPlacementWorld = null;
+      let hasExplicitMainSurfaceDoorPlacement = false;
       let shouldPersistGeneratedPlacementIds = false;
 
       const generateOutsideObjectPlacementId = (fallbackIndex = 0) =>
@@ -7516,7 +7517,25 @@ export const initScene = (
               typeof placement.id === "string" ? placement.id.trim() : "";
             const isMainSurfaceDoor =
               placementDoorId === MAP_MAKER_MAIN_SURFACE_DOOR_ID;
+            const destinationType =
+              typeof placement.destinationType === "string"
+                ? placement.destinationType
+                : null;
+            const destinationId =
+              typeof placement.destinationId === "string"
+                ? placement.destinationId
+                : null;
+            const isLegacyMainSurfaceDoor =
+              !hasExplicitMainSurfaceDoorPlacement &&
+              !isMainSurfaceDoor &&
+              destinationType === "area" &&
+              destinationId === "operations-concourse";
             if (isMainSurfaceDoor) {
+              hasExplicitMainSurfaceDoorPlacement = true;
+              mainSurfaceDoorPlacementWorld = placementPosition;
+              return;
+            }
+            if (isLegacyMainSurfaceDoor) {
               mainSurfaceDoorPlacementWorld = placementPosition;
               return;
             }
@@ -7540,14 +7559,6 @@ export const initScene = (
               door.userData.doorId = resolvedDoorId;
               doorMarkersById.set(resolvedDoorId, door);
             }
-            const destinationType =
-              typeof placement.destinationType === "string"
-                ? placement.destinationType
-                : null;
-            const destinationId =
-              typeof placement.destinationId === "string"
-                ? placement.destinationId
-                : null;
             if (destinationType === "area" && destinationId) {
               door.userData.liftFloorId = destinationId;
               door.userData?.liftUi?.setAccessType?.("area");
