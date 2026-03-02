@@ -892,6 +892,71 @@ export const initMapMaker3d = ({
         trimMaterial,
         glowMaterial
       );
+    } else if (areaId === "operations-exterior") {
+      const landingPad = createAreaReferenceMesh(
+        new THREE.BoxGeometry(
+          Math.max(2, referenceWidth * 0.48),
+          0.06,
+          Math.max(1.2, referenceDepth * 0.24)
+        ),
+        trimMaterial
+      );
+      landingPad.position.set(0, 0.03, -referenceDepth * 0.15);
+      areaReferenceGroup.add(landingPad);
+
+      const entranceSpan = Math.min(
+        Math.max(2.2, referenceWidth * 0.14),
+        Math.max(2.2, referenceWidth - 0.8)
+      );
+      const entranceHeight = 2.1;
+      const entranceDepth = 0.14;
+      const entranceZ = -halfDepth + 0.22;
+
+      const tunnelFrame = createAreaReferenceMesh(
+        new THREE.BoxGeometry(entranceSpan, entranceHeight, entranceDepth),
+        wallMaterial
+      );
+      tunnelFrame.position.set(0, entranceHeight / 2, entranceZ);
+      areaReferenceGroup.add(tunnelFrame);
+
+      const tunnelRoof = createAreaReferenceMesh(
+        new THREE.BoxGeometry(entranceSpan, 0.14, 0.7),
+        trimMaterial
+      );
+      tunnelRoof.position.set(0, entranceHeight + 0.1, entranceZ + 0.26);
+      areaReferenceGroup.add(tunnelRoof);
+
+      const sidePillarOffset = entranceSpan * 0.5 - 0.14;
+      [-1, 1].forEach((side) => {
+        const pillar = createAreaReferenceMesh(
+          new THREE.BoxGeometry(0.16, entranceHeight, 0.22),
+          trimMaterial
+        );
+        pillar.position.set(side * sidePillarOffset, entranceHeight / 2, entranceZ);
+        areaReferenceGroup.add(pillar);
+      });
+
+      const doorOffset = Math.min(1.2, Math.max(0.55, entranceSpan * 0.27));
+      [-1, 1].forEach((side) => {
+        addDoorFrame(
+          {
+            centerX: side * doorOffset,
+            centerZ: entranceZ + 0.04,
+            width: 0.82,
+            height: 1.75,
+            depth: 0.08,
+          },
+          trimMaterial,
+          glowMaterial
+        );
+      });
+
+      const threshold = createAreaReferenceMesh(
+        new THREE.BoxGeometry(entranceSpan, 0.08, 0.5),
+        platformMaterial
+      );
+      threshold.position.set(0, 0.04, entranceZ + 0.25);
+      areaReferenceGroup.add(threshold);
     } else if (areaId === "engineering-bay") {
       const gantry = createAreaReferenceMesh(
         new THREE.BoxGeometry(Math.max(2.4, referenceWidth * 0.7), 0.12, 0.6),
