@@ -9370,12 +9370,12 @@ export const initScene = (
           );
           const intensity =
             terrainId === "void"
-              ? 0.06
-              : 0.28 + heightRatio * 0.72;
+              ? 0
+              : 0.42 + heightRatio * 0.58;
           const alpha =
             terrainId === "void"
-              ? 0.06
-              : 0.24 + heightRatio * 0.52;
+              ? 0
+              : 0.34 + heightRatio * 0.56;
           const channel = Math.round(255 * intensity);
 
           const drawX = column * safeTileSize;
@@ -9403,6 +9403,9 @@ export const initScene = (
       resolveOutsideMapForHologram()
     );
     const hologramMapData = buildMapMakerHologramGeometry(outsideMapForHologram);
+    const hologramWireMapData = buildMapMakerHologramGeometry(
+      downsampleOutsideMapForHologram(outsideMapForHologram, 22)
+    );
     const hologramTexture = createMapMakerHologramTexture({
       mapWidth: hologramMapData.mapWidth,
       mapHeight: hologramMapData.mapHeight,
@@ -9417,6 +9420,10 @@ export const initScene = (
     const hologramScaleZ =
       hologramSurfaceDepth / Math.max(1, hologramMapData.mapHeight);
     const hologramScaleY = 0.24;
+    const hologramWireScaleX =
+      hologramSurfaceWidth / Math.max(1, hologramWireMapData.mapWidth);
+    const hologramWireScaleZ =
+      hologramSurfaceDepth / Math.max(1, hologramWireMapData.mapHeight);
 
     const hologramSurfaceMaterial = new THREE.MeshBasicMaterial({
       color: new THREE.Color(0xffa65a),
@@ -9439,18 +9446,18 @@ export const initScene = (
       color: new THREE.Color(0xff9445),
       wireframe: true,
       transparent: true,
-      opacity: 0.48,
+      opacity: 0.22,
       blending: THREE.AdditiveBlending,
+      depthTest: false,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
     const hologramWireframe = new THREE.Mesh(
-      hologramMapData.geometry.clone(),
+      hologramWireMapData.geometry,
       hologramWireMaterial
     );
     hologramWireframe.position.set(0, roomFloorY + 0.816, 0);
-    hologramWireframe.scale.set(hologramScaleX, hologramScaleY, hologramScaleZ);
-    hologramWireframe.visible = false;
+    hologramWireframe.scale.set(hologramWireScaleX, hologramScaleY, hologramWireScaleZ);
     group.add(hologramWireframe);
 
     const hologramBaseRingMaterial = new THREE.MeshBasicMaterial({
@@ -10027,9 +10034,9 @@ export const initScene = (
         0.72
       );
       hologramWireMaterial.opacity = THREE.MathUtils.clamp(
-        0.28 + secondaryPulse * 0.32,
-        0.16,
-        0.74
+        0.12 + secondaryPulse * 0.18,
+        0.08,
+        0.36
       );
       hologramBaseRingMaterial.opacity = THREE.MathUtils.clamp(
         0.16 + primaryPulse * 0.26,
