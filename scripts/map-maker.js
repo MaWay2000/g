@@ -2962,7 +2962,11 @@ function setActivePaletteTab(tabId) {
           state.map.objects = [...baseObjects, placement];
           ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
           updateJsonPreview();
-          landscapeViewer?.setObjectPlacements?.(state.map.objects);
+          if (placement.path === DOOR_MARKER_PATH) {
+            updateLandscapeViewer();
+          } else {
+            landscapeViewer?.setObjectPlacements?.(state.map.objects);
+          }
           pushUndoSnapshot(snapshot);
         },
         onMoveObject: ({ index, placement } = {}) => {
@@ -3032,7 +3036,11 @@ function setActivePaletteTab(tabId) {
           }
           ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
           updateJsonPreview();
-          landscapeViewer?.setObjectPlacements?.(state.map.objects);
+          if (currentPlacement.path === DOOR_MARKER_PATH) {
+            updateLandscapeViewer();
+          } else {
+            landscapeViewer?.setObjectPlacements?.(state.map.objects);
+          }
           pushUndoSnapshot(snapshot);
         },
         onRemoveObject: ({ index, path } = {}) => {
