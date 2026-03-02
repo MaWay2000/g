@@ -9399,8 +9399,9 @@ export const initScene = (
       return texture;
     };
 
+    const outsideMapForHologramSource = resolveOutsideMapForHologram();
     const outsideMapForHologram = downsampleOutsideMapForHologram(
-      resolveOutsideMapForHologram()
+      outsideMapForHologramSource
     );
     const hologramMapData = buildMapMakerHologramGeometry(outsideMapForHologram);
     const hologramWireMapData = buildMapMakerHologramGeometry(
@@ -9424,6 +9425,42 @@ export const initScene = (
       hologramSurfaceWidth / Math.max(1, hologramWireMapData.mapWidth);
     const hologramWireScaleZ =
       hologramSurfaceDepth / Math.max(1, hologramWireMapData.mapHeight);
+    const createHologramDoorLabelTexture = (labelText = "DOOR") => {
+      const text =
+        typeof labelText === "string" && labelText.trim().length > 0
+          ? labelText.trim().toUpperCase()
+          : "DOOR";
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 164;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return null;
+      }
+
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "rgba(38, 16, 4, 0.55)";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.strokeStyle = "rgba(255, 175, 94, 0.72)";
+      context.lineWidth = 4;
+      context.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+      context.font = "700 82px 'Segoe UI', sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillStyle = "rgba(255, 214, 160, 0.96)";
+      context.shadowColor = "rgba(255, 134, 56, 0.78)";
+      context.shadowBlur = 18;
+      context.fillText(text, canvas.width / 2, canvas.height / 2);
+      context.shadowBlur = 0;
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.needsUpdate = true;
+      return texture;
+    };
 
     const hologramSurfaceMaterial = new THREE.MeshBasicMaterial({
       color: new THREE.Color(0xffa65a),
@@ -9497,6 +9534,91 @@ export const initScene = (
     const hologramLight = new THREE.PointLight(0xff8f38, 1.95, bayWidth * 0.92, 2);
     hologramLight.position.set(0, roomFloorY + 1.55, 0);
     group.add(hologramLight);
+
+    const doorLabelAdjustableEntries = [];
+    const sourceMapWidth = Math.max(
+      1,
+      Number.parseInt(outsideMapForHologramSource?.width, 10) || 1
+    );
+    const sourceMapHeight = Math.max(
+      1,
+      Number.parseInt(outsideMapForHologramSource?.height, 10) || 1
+    );
+    const doorPlacementsForHologram = Array.isArray(
+      outsideMapForHologramSource?.objects
+    )
+      ? outsideMapForHologramSource.objects.filter(
+          (placement) => placement?.path === MAP_MAKER_DOOR_MARKER_PATH
+        )
+      : [];
+    const maxDoorLabels = 24;
+    doorPlacementsForHologram.slice(0, maxDoorLabels).forEach((placement, index) => {
+      const localX = Number.isFinite(placement?.position?.x)
+        ? placement.position.x
+        : 0;
+      const localZ = Number.isFinite(placement?.position?.z)
+        ? placement.position.z
+        : 0;
+      const normalizedU = THREE.MathUtils.clamp(
+        (localX + sourceMapWidth / 2) / sourceMapWidth,
+        0,
+        1
+      );
+      const normalizedV = THREE.MathUtils.clamp(
+        (localZ + sourceMapHeight / 2) / sourceMapHeight,
+        0,
+        1
+      );
+      const hologramLocalX =
+        normalizedU * hologramMapData.mapWidth - hologramMapData.mapWidth / 2;
+      const hologramLocalZ =
+        normalizedV * hologramMapData.mapHeight - hologramMapData.mapHeight / 2;
+      const worldX = hologramLocalX * hologramScaleX;
+      const worldZ = hologramLocalZ * hologramScaleZ;
+
+      const marker = new THREE.Mesh(
+        new THREE.RingGeometry(0.035, 0.07, 20),
+        new THREE.MeshBasicMaterial({
+          color: new THREE.Color(0xffae66),
+          transparent: true,
+          opacity: 0.78,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      marker.rotation.x = -Math.PI / 2;
+      marker.position.set(worldX, roomFloorY + 0.815, worldZ);
+      group.add(marker);
+      doorLabelAdjustableEntries.push({ object: marker, offset: 0.815 });
+
+      const fallbackLabel = `Door ${index + 1}`;
+      const nameLabel =
+        typeof placement?.name === "string" && placement.name.trim().length > 0
+          ? placement.name.trim()
+          : fallbackLabel;
+      const clippedLabel =
+        nameLabel.length > 18 ? `${nameLabel.slice(0, 18)}` : nameLabel;
+      const labelTexture = createHologramDoorLabelTexture(clippedLabel);
+      if (!labelTexture) {
+        return;
+      }
+      const labelSprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: labelTexture,
+          color: new THREE.Color(0xffd6a1),
+          transparent: true,
+          opacity: 0.92,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: true,
+        })
+      );
+      labelSprite.scale.set(0.85, 0.28, 1);
+      labelSprite.position.set(worldX, roomFloorY + 1.1, worldZ);
+      group.add(labelSprite);
+      doorLabelAdjustableEntries.push({ object: labelSprite, offset: 1.1 });
+    });
 
     const ambientWarmLight = new THREE.PointLight(0xff9348, 0.85, bayDepth * 1.8, 2);
     ambientWarmLight.position.set(0, roomFloorY + 2.08, bayDepth * 0.12);
@@ -9864,6 +9986,7 @@ export const initScene = (
       { object: hologramBaseRing, offset: 0.806 },
       { object: hologramCore, offset: 1.02 },
       { object: hologramLight, offset: 1.55 },
+      ...doorLabelAdjustableEntries,
       { object: ambientWarmLight, offset: 2.08 },
       {
         object: droneCustomizationScreen,
