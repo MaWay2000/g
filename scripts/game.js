@@ -3421,6 +3421,15 @@ const droneSkinPreviewState = {
   renderToken: 0,
   pendingSkinId: null,
 };
+const NEWS_COMMITS_API_URL =
+  "https://api.github.com/repos/MaWay2000/g/commits?sha=main&per_page=6";
+const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
+const newsModalState = {
+  renderToken: 0,
+  cacheExpiresAt: 0,
+  cachedItems: null,
+  pendingRequest: null,
+};
 
 const INVENTORY_SLOT_COUNT = 100;
 const DEFAULT_INVENTORY_CAPACITY_KG = 10;
@@ -5337,6 +5346,248 @@ const getModalLabelForOption = (option) => {
   }
 
   return "Terminal information panel";
+};
+
+const formatNewsCommitTimestamp = (timestamp) => {
+  if (!Number.isFinite(timestamp)) {
+    return "";
+  }
+
+  const commitDate = new Date(timestamp);
+  if (Number.isNaN(commitDate.getTime())) {
+    return "";
+  }
+
+  return commitDate.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const truncateNewsText = (text, maxLength) => {
+  const normalized = typeof text === "string" ? text.trim() : "";
+  if (!normalized || !Number.isFinite(maxLength) || maxLength <= 0) {
+    return normalized;
+  }
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(1, maxLength - 3)).trimEnd()}...`;
+};
+
+const normalizeNewsCommit = (commit) => {
+  if (!commit || typeof commit !== "object") {
+    return null;
+  }
+
+  const commitData = commit.commit && typeof commit.commit === "object" ? commit.commit : null;
+  const rawMessage =
+    typeof commitData?.message === "string" ? commitData.message.trim() : "";
+  if (!rawMessage) {
+    return null;
+  }
+
+  const messageLines = rawMessage
+    .split(/\r?\n/g)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const headline = truncateNewsText(messageLines[0] || "Repository update", 140);
+  const details = truncateNewsText(messageLines.slice(1).join(" "), 220);
+  const shortSha =
+    typeof commit.sha === "string" && commit.sha.trim()
+      ? commit.sha.trim().slice(0, 7)
+      : "";
+  const authorNameCandidates = [
+    commitData?.author?.name,
+    commit.author?.login,
+    commit.committer?.login,
+  ];
+  const authorName =
+    authorNameCandidates.find(
+      (name) => typeof name === "string" && name.trim().length > 0
+    )?.trim() || "";
+  const committedAt = Date.parse(commitData?.author?.date || commitData?.committer?.date);
+
+  return {
+    headline,
+    details,
+    shortSha,
+    authorName,
+    committedAt: Number.isFinite(committedAt) ? committedAt : null,
+  };
+};
+
+const fetchLatestNewsCommits = async () => {
+  const response = await fetch(NEWS_COMMITS_API_URL, {
+    headers: {
+      Accept: "application/vnd.github+json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub commits API request failed (${response.status})`);
+  }
+
+  const payload = await response.json();
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  return payload.map(normalizeNewsCommit).filter(Boolean).slice(0, 6);
+};
+
+const loadLatestNewsCommits = async ({ force = false } = {}) => {
+  const now = Date.now();
+  if (
+    !force &&
+    Array.isArray(newsModalState.cachedItems) &&
+    newsModalState.cacheExpiresAt > now
+  ) {
+    return newsModalState.cachedItems;
+  }
+
+  if (!force && newsModalState.pendingRequest instanceof Promise) {
+    return newsModalState.pendingRequest;
+  }
+
+  const request = fetchLatestNewsCommits()
+    .then((commits) => {
+      const normalizedCommits = Array.isArray(commits) ? commits : [];
+      newsModalState.cachedItems = normalizedCommits;
+      newsModalState.cacheExpiresAt = Date.now() + NEWS_CACHE_TTL_MS;
+      return normalizedCommits;
+    })
+    .finally(() => {
+      newsModalState.pendingRequest = null;
+    });
+
+  newsModalState.pendingRequest = request;
+  return request;
+};
+
+const createNewsCommitListItem = (commit) => {
+  const listItem = document.createElement("li");
+  listItem.className = "quick-access-modal__list-item";
+
+  const metaSegments = [];
+  if (commit.shortSha) {
+    metaSegments.push(`#${commit.shortSha}`);
+  }
+
+  const committedAtLabel = formatNewsCommitTimestamp(commit.committedAt);
+  if (committedAtLabel) {
+    metaSegments.push(committedAtLabel);
+  }
+
+  listItem.textContent = metaSegments.length
+    ? `${commit.headline} (${metaSegments.join(" | ")})`
+    : commit.headline;
+  return listItem;
+};
+
+const createNewsCommitCard = (commit, index) => {
+  const card = document.createElement("article");
+  card.className = "quick-access-modal__card";
+
+  const status = document.createElement("p");
+  status.className = "quick-access-modal__status-tag";
+  status.textContent = index === 0 ? "Latest" : "Update";
+  card.appendChild(status);
+
+  const title = document.createElement("h3");
+  title.textContent = commit.headline;
+  card.appendChild(title);
+
+  const summarySegments = [];
+  if (commit.authorName) {
+    summarySegments.push(commit.authorName);
+  }
+
+  if (commit.shortSha) {
+    summarySegments.push(`#${commit.shortSha}`);
+  }
+
+  const committedAtLabel = formatNewsCommitTimestamp(commit.committedAt);
+  if (committedAtLabel) {
+    summarySegments.push(committedAtLabel);
+  }
+
+  const body = document.createElement("p");
+  const details = commit.details ? ` ${commit.details}` : "";
+  body.textContent = `${summarySegments.join(" | ")}${details}`.trim();
+  card.appendChild(body);
+
+  return card;
+};
+
+const renderNewsModal = async () => {
+  if (!quickAccessModalContent) {
+    return;
+  }
+
+  const commitList = quickAccessModalContent.querySelector("[data-news-commit-list]");
+  if (!(commitList instanceof HTMLElement)) {
+    return;
+  }
+
+  const subtitle = quickAccessModalContent.querySelector("[data-news-subtitle]");
+  const commitCardGrid = quickAccessModalContent.querySelector(
+    "[data-news-commit-card-grid]"
+  );
+  const renderToken = ++newsModalState.renderToken;
+
+  if (subtitle instanceof HTMLElement) {
+    subtitle.textContent = "Syncing latest game updates from GitHub main...";
+  }
+
+  try {
+    const commits = await loadLatestNewsCommits();
+    if (renderToken !== newsModalState.renderToken) {
+      return;
+    }
+
+    if (!Array.isArray(commits) || commits.length === 0) {
+      if (subtitle instanceof HTMLElement) {
+        subtitle.textContent = "No recent updates found on GitHub main.";
+      }
+      return;
+    }
+
+    commitList.innerHTML = "";
+    commits.forEach((commit) => {
+      commitList.appendChild(createNewsCommitListItem(commit));
+    });
+
+    if (subtitle instanceof HTMLElement) {
+      const latestLabel = formatNewsCommitTimestamp(commits[0]?.committedAt);
+      subtitle.textContent = latestLabel
+        ? `Latest game updates from GitHub main. Last sync: ${latestLabel}.`
+        : "Latest game updates from GitHub main.";
+    }
+
+    if (commitCardGrid instanceof HTMLElement) {
+      commitCardGrid.innerHTML = "";
+      commits.slice(0, 2).forEach((commit, index) => {
+        commitCardGrid.appendChild(createNewsCommitCard(commit, index));
+      });
+    }
+  } catch (error) {
+    if (renderToken !== newsModalState.renderToken) {
+      return;
+    }
+
+    console.warn("Unable to load GitHub news commits", error);
+
+    if (subtitle instanceof HTMLElement) {
+      subtitle.textContent =
+        "Latest intelligence packets pulled from the Dusty Nova relay network.";
+    }
+  }
 };
 
 const getLiftModalElements = () => {
@@ -7413,6 +7664,7 @@ const teardownQuickAccessModalContent = () => {
   droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
   droneSkinPreviewState.renderToken += 1;
   droneSkinPreviewState.pendingSkinId = null;
+  newsModalState.renderToken += 1;
   teardownMarketModal();
 };
 
@@ -7439,6 +7691,10 @@ const initializeQuickAccessModalContent = (option) => {
 
   if (droneCustomizationModalActive) {
     renderDroneCustomizationModal();
+  }
+
+  if (option?.id === "news") {
+    renderNewsModal();
   }
 };
 
