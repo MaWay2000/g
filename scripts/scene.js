@@ -4288,6 +4288,9 @@ export const initScene = (
       // Prevent tone mapping from dimming the UI colours rendered on the
       // monitor and ensure the texture isn't affected by surrounding lights.
       toneMapped: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
 
     const monitorScreen = new THREE.Mesh(
@@ -4297,7 +4300,7 @@ export const initScene = (
     monitorScreen.position.set(
       0,
       monitorCenterY,
-      monitorHousing.position.z + housingDepth / 2 + 0.005
+      monitorHousing.position.z + housingDepth / 2 + 0.012
     );
     monitorScreen.scale.y = screenFillScale;
     monitorScreen.renderOrder = 1;
@@ -4364,12 +4367,17 @@ export const initScene = (
 
     const monitorPowerButton = new THREE.Mesh(
       new THREE.CircleGeometry(0.04, 24),
-      new THREE.MeshBasicMaterial({ color: 0x22d3ee })
+      new THREE.MeshBasicMaterial({
+        color: 0x22d3ee,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      })
     );
     monitorPowerButton.position.set(
       housingWidth / 2 - powerButtonEdgeOffset,
       monitorCenterY - housingHeight / 2 + 0.2,
-      monitorHousing.position.z + housingDepth / 2 - 0.02
+      monitorHousing.position.z + housingDepth / 2 + 0.006
     );
     monitorGroup.add(monitorPowerButton);
 
@@ -4455,12 +4463,15 @@ export const initScene = (
         metalness: 0.1,
         roughness: 0.7,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       })
     );
     frontPanel.position.set(
       towerX + 0.02,
       tower.position.y + 0.06,
-      towerZ + towerDepth / 2 + 0.006
+      towerZ + towerDepth / 2 + 0.014
     );
     group.add(frontPanel);
 
@@ -4479,12 +4490,17 @@ export const initScene = (
 
     const powerLight = new THREE.Mesh(
       new THREE.CircleGeometry(0.035, 24),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      })
     );
     powerLight.position.set(
       towerX + 0.16,
       tower.position.y + 0.22,
-      towerZ + towerDepth / 2 + 0.006
+      towerZ + towerDepth / 2 + 0.02
     );
     group.add(powerLight);
 
@@ -4504,13 +4520,16 @@ export const initScene = (
       color: 0x1e293b,
       roughness: 0.6,
       metalness: 0.15,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
 
     const speakerGrill = new THREE.Mesh(
       new THREE.CircleGeometry(0.12, 24),
       speakerGrillMaterial
     );
-    speakerGrill.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.092);
+    speakerGrill.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.084);
     group.add(speakerGrill);
 
     const speakerGrillRight = speakerGrill.clone();
