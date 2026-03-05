@@ -226,6 +226,13 @@ const currencyIndicatorValue = currencyIndicator?.querySelector(
   "[data-currency-balance]"
 );
 const quickSlotBar = document.querySelector("[data-quick-slot-bar]");
+const playerOxygenPanel = document.querySelector("[data-player-oxygen-panel]");
+const playerOxygenValueLabel = playerOxygenPanel?.querySelector(
+  "[data-player-oxygen-value]"
+);
+const playerOxygenBarFill = playerOxygenPanel?.querySelector(
+  "[data-player-oxygen-bar]"
+);
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
 const resourceToolDescription = document.querySelector(
   "[data-resource-tool-description]"
@@ -277,6 +284,49 @@ const PLAYER_OXYGEN_MAX_PERCENT = 100;
 const PLAYER_OXYGEN_REFILL_COOLDOWN_MS = 800;
 let playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
 let lastPlayerOxygenRefillAt = 0;
+
+const clampPlayerOxygenPercent = (value) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return PLAYER_OXYGEN_MAX_PERCENT;
+  }
+
+  return Math.max(0, Math.min(PLAYER_OXYGEN_MAX_PERCENT, Math.round(numericValue)));
+};
+
+const resolvePlayerOxygenState = (value) => {
+  if (value <= 20) {
+    return "critical";
+  }
+  if (value <= 45) {
+    return "low";
+  }
+  return "safe";
+};
+
+const updatePlayerOxygenUi = () => {
+  playerOxygenPercent = clampPlayerOxygenPercent(playerOxygenPercent);
+  const oxygenText = `${playerOxygenPercent}%`;
+
+  if (playerOxygenValueLabel instanceof HTMLElement) {
+    playerOxygenValueLabel.textContent = oxygenText;
+  }
+
+  if (playerOxygenBarFill instanceof HTMLElement) {
+    playerOxygenBarFill.style.width = `${playerOxygenPercent}%`;
+  }
+
+  if (playerOxygenPanel instanceof HTMLElement) {
+    const oxygenState = resolvePlayerOxygenState(playerOxygenPercent);
+    playerOxygenPanel.dataset.state = oxygenState;
+    playerOxygenPanel.setAttribute(
+      "aria-label",
+      `Player oxygen reserves ${oxygenText}`
+    );
+  }
+};
+
+updatePlayerOxygenUi();
 
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
@@ -10993,6 +11043,7 @@ const handlePlayerOxygenRefillInteract = () => {
 
   lastPlayerOxygenRefillAt = now;
   playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+  updatePlayerOxygenUi();
   playTerminalInteractionSound();
   showTerminalToast({
     title: "Suit oxygen refilled",
