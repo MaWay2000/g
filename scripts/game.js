@@ -11483,12 +11483,9 @@ const handleDroneSessionCancelled = (reason) => {
 const handleDroneReturnComplete = () => {
   droneState.awaitingReturn = false;
   droneState.returnSessionStartMs = 0;
+  const outOfFuelOnReturn = droneState.fuelRemaining <= 0;
 
-  if (!droneState.pendingShutdown && droneState.fuelRemaining <= 0) {
-    tryAutomaticDroneRefill();
-  }
-
-  if (droneState.pendingShutdown || droneState.fuelRemaining <= 0) {
+  if (droneState.pendingShutdown || outOfFuelOnReturn) {
     finalizeDroneAutomationShutdown();
     return;
   }
