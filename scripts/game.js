@@ -10042,6 +10042,16 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     return;
   }
 
+  const stationBuilderIndex = quickSlotState.slots.findIndex(
+    (slot) => slot?.id === STATION_BUILDER_QUICK_SLOT_ID
+  );
+  if (
+    stationBuilderIndex >= 0 &&
+    quickSlotState.selectedIndex !== stationBuilderIndex
+  ) {
+    selectQuickSlot(stationBuilderIndex);
+  }
+
   modelPalettePlacementInProgress = true;
   setModelPaletteButtonsDisabled(true);
 
