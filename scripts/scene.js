@@ -3845,24 +3845,11 @@ export const initScene = (
       [deskWidth / 2 - 0.22, deskHeight / 2, deskDepth / 2 - 0.22],
     ];
 
-    if (legPositions.length > 0) {
-      const deskLegs = new THREE.InstancedMesh(
-        legGeometry,
-        deskMaterial,
-        legPositions.length
-      );
-      const instanceMatrix = new THREE.Matrix4();
-      legPositions.forEach(([x, y, z], index) => {
-        instanceMatrix.compose(
-          new THREE.Vector3(x, y, z),
-          new THREE.Quaternion(),
-          new THREE.Vector3(1, 1, 1)
-        );
-        deskLegs.setMatrixAt(index, instanceMatrix);
-      });
-      deskLegs.instanceMatrix.needsUpdate = true;
-      group.add(deskLegs);
-    }
+    legPositions.forEach(([x, y, z]) => {
+      const leg = new THREE.Mesh(legGeometry, deskMaterial);
+      leg.position.set(x, y, z);
+      group.add(leg);
+    });
 
     const monitorGroup = new THREE.Group();
     monitorGroup.position.set(0.08, deskHeight + deskTopThickness + 0.02, -0.12);
@@ -4495,24 +4482,10 @@ export const initScene = (
       metalness: 0.2,
     });
 
-    const ventCount = 5;
-    if (ventCount > 0) {
-      const towerVents = new THREE.InstancedMesh(
-        ventGeometry,
-        ventMaterial,
-        ventCount
-      );
-      const instanceMatrix = new THREE.Matrix4();
-      for (let i = 0; i < ventCount; i += 1) {
-        instanceMatrix.compose(
-          new THREE.Vector3(towerX + 0.02, 0.16 + i * 0.075, towerZ + 0.34),
-          new THREE.Quaternion(),
-          new THREE.Vector3(1, 1, 1)
-        );
-        towerVents.setMatrixAt(i, instanceMatrix);
-      }
-      towerVents.instanceMatrix.needsUpdate = true;
-      group.add(towerVents);
+    for (let i = 0; i < 5; i += 1) {
+      const vent = new THREE.Mesh(ventGeometry, ventMaterial);
+      vent.position.set(towerX + 0.02, 0.16 + i * 0.075, towerZ + 0.34);
+      group.add(vent);
     }
 
     const powerLight = new THREE.Mesh(
