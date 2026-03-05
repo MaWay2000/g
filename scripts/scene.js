@@ -2450,9 +2450,13 @@ export const initScene = (
   const runtimeGeoVisorMaterials = new Map();
   const runtimeDepletedTerrainMaterials = new Map();
   const runtimeDepletedGeoVisorMaterials = new Map();
+  let runtimeMinedVoidTerrainMaterial = null;
   const DEPLETED_TERRAIN_BASE_COLOR = 0x5b6470;
   const DEPLETED_TERRAIN_EMISSIVE_COLOR = 0x111827;
   const DEPLETED_TERRAIN_EMISSIVE_INTENSITY = 0.08;
+  const MINED_VOID_TERRAIN_BASE_COLOR = 0xffffff;
+  const MINED_VOID_TERRAIN_EMISSIVE_COLOR = 0x1f2937;
+  const MINED_VOID_TERRAIN_EMISSIVE_INTENSITY = 0.06;
 
   const getRuntimeTerrainTexture = (tileId, variantIndex) => {
     const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
@@ -2596,6 +2600,25 @@ export const initScene = (
     });
     runtimeDepletedGeoVisorMaterials.set(materialKey, material);
     return material;
+  };
+
+  const getRuntimeMinedVoidTerrainMaterial = () => {
+    if (runtimeMinedVoidTerrainMaterial?.isMaterial) {
+      return runtimeMinedVoidTerrainMaterial;
+    }
+
+    runtimeMinedVoidTerrainMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(MINED_VOID_TERRAIN_BASE_COLOR),
+      roughness: 0.92,
+      metalness: 0.04,
+      emissive: new THREE.Color(MINED_VOID_TERRAIN_EMISSIVE_COLOR),
+      emissiveIntensity: MINED_VOID_TERRAIN_EMISSIVE_INTENSITY,
+      transparent: false,
+      opacity: 1,
+      vertexColors: false,
+    });
+
+    return runtimeMinedVoidTerrainMaterial;
   };
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
@@ -14969,16 +14992,11 @@ export const initScene = (
 
     const voidTerrain = getOutsideTerrainById("void");
     const tileId = getOutsideTerrainDefaultTileId(voidTerrain.id);
-    const variantIndex = Number.isFinite(tile.userData.tileVariantIndex)
-      ? tile.userData.tileVariantIndex
-      : 0;
     const baseMaterial =
-      getRuntimeTerrainMaterial(voidTerrain.id, tileId, variantIndex) ??
+      getRuntimeMinedVoidTerrainMaterial() ??
       tile.userData.geoVisorRevealedMaterial ??
       tile.material;
-    const visorMaterial =
-      getRuntimeGeoVisorMaterial(voidTerrain.id, tileId, variantIndex) ??
-      tile.userData.geoVisorVisorMaterial;
+    const visorMaterial = baseMaterial;
 
     tile.userData.isTerrainDepleted = true;
     tile.userData.terrainId = voidTerrain.id;
@@ -14987,6 +15005,7 @@ export const initScene = (
     tile.userData.tileId = tileId;
     tile.userData.geoVisorRevealedMaterial = baseMaterial;
     tile.userData.geoVisorVisorMaterial = visorMaterial;
+    tile.userData.geoVisorConcealedMaterial = baseMaterial;
     tile.userData.isResourceTarget = false;
 
     const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
@@ -14996,11 +15015,9 @@ export const initScene = (
       markTerrainTileDepleted(tileIndex);
     }
 
-    if (geoVisorEnabled) {
-      applyGeoVisorMaterialToTile(tile, Boolean(tile.userData.geoVisorRevealed));
-    } else {
-      tile.material = baseMaterial;
-    }
+    clearGeoVisorRevealFadeState(tile);
+    syncViewDistanceBaseMaterial(tile, baseMaterial);
+    applyGeoVisorMaterialToTile(tile, true);
 
     return true;
   };
