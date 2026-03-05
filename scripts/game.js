@@ -1560,6 +1560,7 @@ const droneState = {
 };
 
 let droneRelaunchPendingAfterRestore = false;
+let guaranteedDroneFirstSamplePending = false;
 
   const dronePickupState = {
     required: false,
@@ -1702,6 +1703,7 @@ let droneRelaunchPendingAfterRestore = false;
 
 const applyStoredDroneState = () => {
   const stored = loadStoredDroneState();
+  guaranteedDroneFirstSamplePending = !stored;
 
   if (!stored || typeof stored !== "object") {
     return;
@@ -1781,6 +1783,62 @@ const applyStoredDroneState = () => {
 };
 
 applyStoredDroneState();
+
+const resolveGuaranteedDroneCollectionDetail = (detail) => {
+  if (detail?.source !== DRONE_QUICK_SLOT_ID) {
+    return detail;
+  }
+
+  if (detail?.found && detail?.element) {
+    guaranteedDroneFirstSamplePending = false;
+    return detail;
+  }
+
+  if (!guaranteedDroneFirstSamplePending) {
+    return detail;
+  }
+
+  const terrainId =
+    typeof detail?.terrain?.id === "string" ? detail.terrain.id.trim() : "";
+  if (!terrainId) {
+    return detail;
+  }
+
+  const terrain = getOutsideTerrainById(terrainId);
+  const terrainElements = Array.isArray(terrain?.elements)
+    ? terrain.elements.filter((entry) => entry && typeof entry === "object")
+    : [];
+  if (terrainElements.length === 0) {
+    return detail;
+  }
+
+  const selectedElement =
+    terrainElements[Math.floor(Math.random() * terrainElements.length)] ?? null;
+  if (!selectedElement) {
+    return detail;
+  }
+
+  const normalizedElement = sanitizeInventoryElement(selectedElement);
+  if (!normalizedElement?.symbol && !normalizedElement?.name) {
+    return detail;
+  }
+
+  const resolvedWeight = getInventoryElementWeight(normalizedElement);
+  guaranteedDroneFirstSamplePending = false;
+
+  return {
+    ...(detail && typeof detail === "object" ? detail : {}),
+    source: DRONE_QUICK_SLOT_ID,
+    found: true,
+    element: {
+      ...normalizedElement,
+      weight:
+        Number.isFinite(resolvedWeight) && resolvedWeight > 0
+          ? resolvedWeight
+          : 1,
+    },
+  };
+};
 
 const getPlayerPosition = () => {
   const position = sceneController?.getPlayerPosition?.();
@@ -11741,19 +11799,20 @@ const bootstrapScene = () => {
       onManifestEditModeChange: handleManifestEditModeChange,
       onManifestPlacementRemoved: handleManifestPlacementRemoved,
       onResourceCollected(detail) {
-        applyTerrainLifeDrain(detail);
-        if (detail?.source === "drone-miner") {
-          handleDroneResourceCollected(detail);
+        const resolvedDetail = resolveGuaranteedDroneCollectionDetail(detail);
+        applyTerrainLifeDrain(resolvedDetail);
+        if (resolvedDetail?.source === "drone-miner") {
+          handleDroneResourceCollected(resolvedDetail);
           return;
         }
 
-        if (!detail || detail.found === false || !detail.element) {
+        if (!resolvedDetail || resolvedDetail.found === false || !resolvedDetail.element) {
           showResourceToast({ title: "Nothing found" });
           return;
         }
 
-        const element = detail?.element ?? {};
-        const terrainLabel = detail?.terrain?.label ?? null;
+        const element = resolvedDetail?.element ?? {};
+        const terrainLabel = resolvedDetail?.terrain?.label ?? null;
         const { symbol, name } = element;
         const atomicNumber = Number.isFinite(element.number)
           ? element.number
