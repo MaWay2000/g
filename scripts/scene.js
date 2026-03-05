@@ -4409,7 +4409,11 @@ export const initScene = (
         metalness: 0.25,
       })
     );
-    keyboardFrame.position.set(-0.08, deskHeight + deskTopThickness + 0.05, 0.28);
+    keyboardFrame.position.set(
+      -0.08,
+      deskHeight + deskTopThickness + 0.014,
+      0.28
+    );
     group.add(keyboardFrame);
 
     const mouse = new THREE.Mesh(
@@ -4424,7 +4428,7 @@ export const initScene = (
       new THREE.BoxGeometry(0.32, 0.01, 0.38),
       new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.75 })
     );
-    mousePad.position.set(0.9, deskHeight + deskTopThickness + 0.035, 0.28);
+    mousePad.position.set(0.9, deskHeight + deskTopThickness + 0.005, 0.28);
     group.add(mousePad);
 
     const towerWidth = 0.5;
@@ -4456,7 +4460,7 @@ export const initScene = (
     frontPanel.position.set(
       towerX + 0.02,
       tower.position.y + 0.06,
-      towerZ + towerDepth / 2 + 0.001
+      towerZ + towerDepth / 2 + 0.006
     );
     group.add(frontPanel);
 
@@ -4506,7 +4510,7 @@ export const initScene = (
       new THREE.CircleGeometry(0.12, 24),
       speakerGrillMaterial
     );
-    speakerGrill.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.1);
+    speakerGrill.position.set(-0.9, deskHeight + deskTopThickness + 0.18, -0.092);
     group.add(speakerGrill);
 
     const speakerGrillRight = speakerGrill.clone();
