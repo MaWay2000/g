@@ -11148,11 +11148,15 @@ const attemptDroneLaunch = ({ playLaunchSound = false } = {}) => {
     droneState.status = "idle";
     droneState.lastResult = { reason: "fuel" };
     updateDroneStatusUi();
-    showDroneResourceToast({
-      title: "Fuel required",
-      description: "Load Hydrogen or Helium from inventory to launch.",
-    });
-    promptInventoryForDroneFuel();
+    const returnRequested = requestDroneReturnForShutdown({ reason: "fuel" });
+
+    if (!returnRequested) {
+      showDroneResourceToast({
+        title: "Fuel required",
+        description: "Load Hydrogen or Helium from inventory to launch.",
+      });
+      promptInventoryForDroneFuel();
+    }
     return;
   }
 
