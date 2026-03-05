@@ -11542,6 +11542,20 @@ const handleStationBuilderQuickSlotActivation = (event) => {
   toggleModelPaletteVisibility();
 };
 
+const syncManifestEditModeWithQuickSlot = () => {
+  if (!sceneController?.setManifestEditModeEnabled) {
+    return;
+  }
+
+  const selectedSlot = getSelectedQuickSlot();
+  const stationBuilderSelected =
+    selectedSlot?.id === STATION_BUILDER_QUICK_SLOT_ID;
+
+  if (!stationBuilderSelected) {
+    sceneController.setManifestEditModeEnabled(false);
+  }
+};
+
 const handleInventoryQuickSlotActivation = (event) => {
   if (!(event instanceof CustomEvent)) {
     return;
@@ -11567,6 +11581,7 @@ if (canvas instanceof HTMLElement) {
     "quick-slot:change",
     handleInventoryQuickSlotActivation
   );
+  canvas.addEventListener("quick-slot:change", syncManifestEditModeWithQuickSlot);
 }
 
 droneRefuelButtons.forEach((button) => {
