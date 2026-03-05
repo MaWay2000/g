@@ -2756,6 +2756,12 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       manifestEditModeState.keydownHandlerAttached = true;
       updateManifestEditModeHover();
     } else {
+      if (activePlacement) {
+        cancelActivePlacement(
+          new PlacementCancelledError("Edit mode disabled"),
+          { restoreOnCancel: true }
+        );
+      }
       setHoveredManifestPlacement(null);
       setSelectedManifestPlacement(null);
     }
