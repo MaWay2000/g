@@ -11414,24 +11414,6 @@ export const initScene = (
       group.add(reflector);
     }
 
-    const accentMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x1f2a37),
-      metalness: 0.35,
-      roughness: 0.55,
-    });
-
-    const accentDepth = 0.08;
-    const topAccent = new THREE.Mesh(
-      new THREE.BoxGeometry(mirrorWidth + frameInset, 0.08, accentDepth),
-      accentMaterial
-    );
-    topAccent.position.set(0, mirrorHeight / 2 + 0.02, -accentDepth / 2);
-    group.add(topAccent);
-
-    const bottomAccent = topAccent.clone();
-    bottomAccent.position.y = -mirrorHeight / 2 - 0.02;
-    group.add(bottomAccent);
-
     group.userData.dimensions = { width: mirrorWidth, height: mirrorHeight };
     group.userData.baseDimensions = { width: mirrorWidth, height: mirrorHeight };
     group.userData.reflector = reflector;
