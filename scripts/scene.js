@@ -2696,8 +2696,8 @@ export const initScene = (
     emblemEmissiveColor: 0x052926,
   };
   const liftIndicatorLights = [];
-  const BASE_MIRROR_WIDTH = 12 * ROOM_SCALE_FACTOR;
-  const BASE_MIRROR_HEIGHT = 12 * ROOM_SCALE_FACTOR;
+  const BASE_MIRROR_WIDTH = 10 * ROOM_SCALE_FACTOR;
+  const BASE_MIRROR_HEIGHT = 10 * ROOM_SCALE_FACTOR;
   const MIRROR_VERTICAL_OFFSET = 0.7;
   const MIRROR_WALL_INSET = 0.45 * ROOM_SCALE_FACTOR;
 
@@ -11361,14 +11361,20 @@ export const initScene = (
     let reflector = mirrorGroup.userData?.reflector ?? null;
 
     if (!reflector) {
-      const mirrorDimensions = mirrorGroup.userData?.dimensions ?? {
+      const baseMirrorDimensions = mirrorGroup.userData?.baseDimensions ?? {
         width: BASE_MIRROR_WIDTH,
         height: BASE_MIRROR_HEIGHT,
       };
+      const renderSurfaceDimensions = mirrorGroup.userData?.dimensions ?? baseMirrorDimensions;
       reflector = createMirrorReflector(
-        mirrorDimensions.width,
-        mirrorDimensions.height
+        baseMirrorDimensions.width,
+        baseMirrorDimensions.height
       );
+      reflector.userData = reflector.userData || {};
+      reflector.userData.renderSurfaceDimensions = {
+        width: renderSurfaceDimensions.width,
+        height: renderSurfaceDimensions.height,
+      };
       mirrorGroup.add(reflector);
       mirrorGroup.userData.reflector = reflector;
     }
