@@ -265,6 +265,7 @@ const crosshairStates = {
   terminal: false,
   edit: false,
   lift: false,
+  oxygen: false,
 };
 let sceneController = null;
 let previousCrosshairInteractableState =
@@ -272,6 +273,10 @@ let previousCrosshairInteractableState =
 let pointerLockImmersiveModeEnabled = false;
 let liftModalActive = false;
 let areaLoadingOverlayHideTimeoutId = 0;
+const PLAYER_OXYGEN_MAX_PERCENT = 100;
+const PLAYER_OXYGEN_REFILL_COOLDOWN_MS = 800;
+let playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+let lastPlayerOxygenRefillAt = 0;
 
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
@@ -10972,6 +10977,30 @@ const promptInventoryForDroneFuel = () => {
   openInventoryPanel();
 };
 
+const handlePlayerOxygenRefillInteract = () => {
+  const now =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+
+  if (now - lastPlayerOxygenRefillAt < PLAYER_OXYGEN_REFILL_COOLDOWN_MS) {
+    showTerminalToast({
+      title: "Oxygen station",
+      description: "Station cycling. Please wait a moment.",
+    });
+    return true;
+  }
+
+  lastPlayerOxygenRefillAt = now;
+  playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+  playTerminalInteractionSound();
+  showTerminalToast({
+    title: "Suit oxygen refilled",
+    description: `O2 reserves restored to ${PLAYER_OXYGEN_MAX_PERCENT}%.`,
+  });
+  return true;
+};
+
 const canUseDroneInCurrentArea = () => {
   const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
   return DRONE_ALLOWED_LIFT_FLOOR_IDS.has(activeFloorId);
@@ -11765,6 +11794,12 @@ const bootstrapScene = () => {
       },
       onTerminalInteractableChange(value) {
         setCrosshairSourceState("terminal", value);
+      },
+      onOxygenRefillInteractableChange(value) {
+        setCrosshairSourceState("oxygen", value);
+      },
+      onOxygenRefillInteract() {
+        return handlePlayerOxygenRefillInteract();
       },
       onLiftControlInteract({ control } = {}) {
         if (editModeActive) {

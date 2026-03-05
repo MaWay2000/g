@@ -116,6 +116,8 @@ export const initScene = (
     onControlsUnlocked,
     onTerminalOptionSelected,
     onTerminalInteractableChange,
+    onOxygenRefillInteract,
+    onOxygenRefillInteractableChange,
     onLiftControlInteract,
     onLiftInteractableChange,
     onLiftTravel,
@@ -5743,6 +5745,115 @@ export const initScene = (
     portalControl.userData.liftFloorId = "operations-exterior";
     group.add(portalControl);
 
+    const oxygenStandGroup = new THREE.Group();
+    oxygenStandGroup.position.set(
+      catwalkWidth / 2 - 0.92,
+      roomFloorY,
+      -deckDepth * 0.2
+    );
+    group.add(oxygenStandGroup);
+
+    const oxygenStandBodyMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0e1d2a),
+      roughness: 0.44,
+      metalness: 0.56,
+      emissive: new THREE.Color(0x0a1823),
+      emissiveIntensity: 0.36,
+    });
+    const oxygenStandAccentMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x6ee7f9),
+      roughness: 0.18,
+      metalness: 0.28,
+      emissive: new THREE.Color(0x1d9bf0),
+      emissiveIntensity: 0.95,
+    });
+    const oxygenBottleMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x4cc9f0),
+      roughness: 0.24,
+      metalness: 0.18,
+      transparent: true,
+      opacity: 0.76,
+      emissive: new THREE.Color(0x38bdf8),
+      emissiveIntensity: 0.74,
+    });
+
+    const oxygenStandBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.34, 0.12, 24),
+      oxygenStandBodyMaterial
+    );
+    oxygenStandBase.position.y = 0.06;
+    oxygenStandGroup.add(oxygenStandBase);
+
+    const oxygenStandColumn = new THREE.Mesh(
+      new THREE.BoxGeometry(0.26, 1.25, 0.22),
+      oxygenStandBodyMaterial
+    );
+    oxygenStandColumn.position.y = 0.68;
+    oxygenStandGroup.add(oxygenStandColumn);
+
+    const oxygenBottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.1, 0.88, 20),
+      oxygenBottleMaterial
+    );
+    oxygenBottle.position.set(0, 0.78, 0.16);
+    oxygenStandGroup.add(oxygenBottle);
+
+    const oxygenCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.06, 0.1, 14),
+      oxygenStandAccentMaterial
+    );
+    oxygenCap.position.set(0, 1.24, 0.16);
+    oxygenStandGroup.add(oxygenCap);
+
+    const oxygenStatusScreen = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.16, 0.03),
+      oxygenStandAccentMaterial
+    );
+    oxygenStatusScreen.position.set(0, 0.96, -0.12);
+    oxygenStandGroup.add(oxygenStatusScreen);
+
+    const oxygenHose = new THREE.Mesh(
+      new THREE.TorusGeometry(0.2, 0.02, 16, 48, Math.PI * 1.12),
+      oxygenStandBodyMaterial
+    );
+    oxygenHose.rotation.set(Math.PI / 2.2, 0, Math.PI / 2);
+    oxygenHose.position.set(-0.04, 0.48, 0.08);
+    oxygenStandGroup.add(oxygenHose);
+
+    const oxygenStandLight = new THREE.PointLight(0x38bdf8, 1.25, 4, 2);
+    oxygenStandLight.position.set(0, 1.05, 0.04);
+    oxygenStandGroup.add(oxygenStandLight);
+
+    const oxygenStandHalo = new THREE.Mesh(
+      new THREE.RingGeometry(0.2, 0.34, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.28,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    oxygenStandHalo.rotation.x = -Math.PI / 2;
+    oxygenStandHalo.position.set(0, 0.015, 0);
+    oxygenStandGroup.add(oxygenStandHalo);
+
+    const oxygenRefillControl = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.78, 1.1),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    oxygenRefillControl.position.set(0, 0.74, -0.2);
+    oxygenRefillControl.userData.isOxygenRefillControl = true;
+    oxygenRefillControl.userData.oxygenRefillId = "operations-concourse-main";
+    oxygenStandGroup.add(oxygenRefillControl);
+
     const liftDoorOpeningWidth =
       (liftDoor.userData?.width ?? BASE_DOOR_WIDTH) + 0.8;
     const exteriorDoorOpeningWidth =
@@ -5820,6 +5931,7 @@ export const initScene = (
       { object: portalGlow, offset: exteriorDoorHeight * 0.6 },
       { object: portalArch, offset: exteriorDoorHeight * 0.92 },
       { object: portalControl, offset: exteriorDoorHeight * 0.56 },
+      { object: oxygenStandGroup, offset: 0 },
     ];
 
     const mapOverlay = createStoredAreaOverlay({
@@ -5870,6 +5982,8 @@ export const initScene = (
     };
 
     const teleportOffset = new THREE.Vector3(0, 0, deckDepth / 2 - 1.8);
+
+    group.userData.oxygenRefillControls = [oxygenRefillControl];
 
     return {
       group,
@@ -11744,6 +11858,7 @@ export const initScene = (
   const MAX_TERMINAL_INTERACTION_DISTANCE = 1.5;
 
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
+  const MAX_OXYGEN_REFILL_INTERACTION_DISTANCE = 2.5;
 
   let liftInteractable = false;
   let liftInteractionsEnabled = true;
@@ -11789,6 +11904,21 @@ export const initScene = (
 
     if (typeof onTerminalInteractableChange === "function") {
       onTerminalInteractableChange(canInteract);
+    }
+  };
+
+  let oxygenRefillInteractable = false;
+
+  const updateOxygenRefillInteractableState = (canInteract) => {
+    const nextState = Boolean(canInteract);
+    if (oxygenRefillInteractable === nextState) {
+      return;
+    }
+
+    oxygenRefillInteractable = nextState;
+
+    if (typeof onOxygenRefillInteractableChange === "function") {
+      onOxygenRefillInteractableChange(nextState);
     }
   };
 
@@ -15022,6 +15152,25 @@ export const initScene = (
     return true;
   };
 
+  const collectEnvironmentOxygenRefillControls = () => {
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (!activeFloorId) {
+      return [];
+    }
+
+    const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
+    const activeGroup = activeEnvironment?.getGroup?.();
+    const controls = activeGroup?.userData?.oxygenRefillControls;
+    if (!Array.isArray(controls) || controls.length === 0) {
+      return [];
+    }
+
+    return controls.filter(
+      (control) =>
+        control?.isObject3D && control.visible !== false && control.parent
+    );
+  };
+
   const setTerrainDepletedAtPosition = (position) => {
     const tile = findTerrainTileAtPosition(position);
     if (!tile) {
@@ -15958,6 +16107,7 @@ export const initScene = (
 
     updateTerminalInteractableState(false);
     updateLiftInteractableState(false);
+    updateOxygenRefillInteractableState(false);
     setQuickAccessHoverState(null, null);
     setManifestEditModeEnabled(false);
     cancelActivePlacement(new PlacementCancelledError("Pointer lock released"));
@@ -16002,6 +16152,33 @@ export const initScene = (
     if (
       !intersection ||
       intersection.distance > MAX_LIFT_INTERACTION_DISTANCE
+    ) {
+      return null;
+    }
+
+    return intersection.object;
+  };
+
+  const getTargetedOxygenRefillControl = () => {
+    const oxygenRefillControls = collectEnvironmentOxygenRefillControls();
+    if (oxygenRefillControls.length === 0) {
+      return null;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(oxygenRefillControls, false);
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const intersection = intersections.find(
+      (candidate) => candidate.object?.userData?.isOxygenRefillControl
+    );
+
+    if (
+      !intersection ||
+      intersection.distance > MAX_OXYGEN_REFILL_INTERACTION_DISTANCE
     ) {
       return null;
     }
@@ -16193,6 +16370,17 @@ export const initScene = (
         if (shouldUnlock !== false && controls.isLocked) {
           controls.unlock();
         }
+      }
+      return;
+    }
+
+    const targetedOxygenRefillControl = getTargetedOxygenRefillControl();
+    if (targetedOxygenRefillControl) {
+      if (typeof onOxygenRefillInteract === "function") {
+        onOxygenRefillInteract({
+          control: targetedOxygenRefillControl,
+          via: "click",
+        });
       }
       return;
     }
@@ -16499,18 +16687,28 @@ export const initScene = (
       ["KeyF", "Enter"].includes(event.code)
     ) {
       const targetedLiftControl = getTargetedLiftControl();
-      if (!targetedLiftControl) {
-        return;
+      if (targetedLiftControl) {
+        if (
+          activateLiftControl(targetedLiftControl, { viaKeyboard: true })
+        ) {
+          event.preventDefault();
+          return;
+        }
+
+        if (travelToNextLiftFloor()) {
+          event.preventDefault();
+          return;
+        }
       }
 
-      if (
-        activateLiftControl(targetedLiftControl, { viaKeyboard: true })
-      ) {
-        event.preventDefault();
-        return;
-      }
-
-      if (travelToNextLiftFloor()) {
+      const targetedOxygenRefillControl = getTargetedOxygenRefillControl();
+      if (targetedOxygenRefillControl) {
+        if (typeof onOxygenRefillInteract === "function") {
+          onOxygenRefillInteract({
+            control: targetedOxygenRefillControl,
+            via: "keyboard",
+          });
+        }
         event.preventDefault();
         return;
       }
@@ -16923,6 +17121,7 @@ export const initScene = (
 
     let matchedZone = null;
     let matchedLiftControl = null;
+    let matchedOxygenRefillControl = null;
 
     if (controls.isLocked) {
       if (liftInteractionsEnabled) {
@@ -16933,11 +17132,15 @@ export const initScene = (
         updateLiftInteractableState(false);
       }
 
+      matchedOxygenRefillControl = getTargetedOxygenRefillControl();
+      updateOxygenRefillInteractableState(Boolean(matchedOxygenRefillControl));
+
       matchedZone = getTargetedTerminalZone();
       updateTerminalInteractableState(Boolean(matchedZone));
     } else {
       updateTerminalInteractableState(false);
       updateLiftInteractableState(false);
+      updateOxygenRefillInteractableState(false);
     }
 
     setQuickAccessHoverState(
