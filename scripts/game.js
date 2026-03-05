@@ -281,9 +281,19 @@ let pointerLockImmersiveModeEnabled = false;
 let liftModalActive = false;
 let areaLoadingOverlayHideTimeoutId = 0;
 const PLAYER_OXYGEN_MAX_PERCENT = 100;
+const PLAYER_OXYGEN_FULL_DURATION_SECONDS = 600;
+const PLAYER_OXYGEN_DRAIN_PER_SECOND =
+  PLAYER_OXYGEN_MAX_PERCENT / PLAYER_OXYGEN_FULL_DURATION_SECONDS;
+const PLAYER_OXYGEN_TICK_INTERVAL_MS = 250;
+const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
+  "operations-exterior",
+  "exterior-outpost",
+]);
 const PLAYER_OXYGEN_REFILL_COOLDOWN_MS = 800;
 let playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
 let lastPlayerOxygenRefillAt = 0;
+let playerOxygenTickLastTimestamp = 0;
+let playerOxygenDepletionNotified = false;
 
 const clampPlayerOxygenPercent = (value) => {
   const numericValue = Number(value);
@@ -291,7 +301,7 @@ const clampPlayerOxygenPercent = (value) => {
     return PLAYER_OXYGEN_MAX_PERCENT;
   }
 
-  return Math.max(0, Math.min(PLAYER_OXYGEN_MAX_PERCENT, Math.round(numericValue)));
+  return Math.max(0, Math.min(PLAYER_OXYGEN_MAX_PERCENT, numericValue));
 };
 
 const resolvePlayerOxygenState = (value) => {
@@ -306,7 +316,8 @@ const resolvePlayerOxygenState = (value) => {
 
 const updatePlayerOxygenUi = () => {
   playerOxygenPercent = clampPlayerOxygenPercent(playerOxygenPercent);
-  const oxygenText = `${playerOxygenPercent}%`;
+  const oxygenDisplayValue = Math.max(0, Math.round(playerOxygenPercent));
+  const oxygenText = `${oxygenDisplayValue}%`;
 
   if (playerOxygenValueLabel instanceof HTMLElement) {
     playerOxygenValueLabel.textContent = oxygenText;
@@ -327,6 +338,67 @@ const updatePlayerOxygenUi = () => {
 };
 
 updatePlayerOxygenUi();
+
+const isPlayerOnSurfaceForOxygenDrain = () => {
+  const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
+  if (typeof activeFloorId !== "string" || activeFloorId.trim() === "") {
+    return false;
+  }
+
+  return PLAYER_OXYGEN_SURFACE_FLOOR_IDS.has(activeFloorId);
+};
+
+const tickPlayerOxygen = () => {
+  const now =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+
+  if (!Number.isFinite(playerOxygenTickLastTimestamp) || playerOxygenTickLastTimestamp <= 0) {
+    playerOxygenTickLastTimestamp = now;
+    return;
+  }
+
+  const elapsedSeconds = Math.max(
+    0,
+    (now - playerOxygenTickLastTimestamp) / 1000
+  );
+  playerOxygenTickLastTimestamp = now;
+
+  if (elapsedSeconds <= 0 || document.visibilityState === "hidden") {
+    return;
+  }
+
+  if (!isPlayerOnSurfaceForOxygenDrain()) {
+    return;
+  }
+
+  if (playerOxygenPercent <= 0) {
+    if (!playerOxygenDepletionNotified) {
+      playerOxygenDepletionNotified = true;
+      showTerminalToast({
+        title: "Oxygen depleted",
+        description: "Return to an oxygen station.",
+      });
+    }
+    return;
+  }
+
+  const drainAmount = elapsedSeconds * PLAYER_OXYGEN_DRAIN_PER_SECOND;
+  const nextPercent = Math.max(0, playerOxygenPercent - drainAmount);
+  if (Math.abs(nextPercent - playerOxygenPercent) > 1e-6) {
+    playerOxygenPercent = nextPercent;
+    updatePlayerOxygenUi();
+  }
+
+  if (playerOxygenPercent <= 0 && !playerOxygenDepletionNotified) {
+    playerOxygenDepletionNotified = true;
+    showTerminalToast({
+      title: "Oxygen depleted",
+      description: "Return to an oxygen station.",
+    });
+  }
+};
 
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
@@ -11042,6 +11114,8 @@ const handlePlayerOxygenRefillInteract = () => {
   }
 
   lastPlayerOxygenRefillAt = now;
+  playerOxygenTickLastTimestamp = now;
+  playerOxygenDepletionNotified = false;
   playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
   updatePlayerOxygenUi();
   playTerminalInteractionSound();
@@ -11722,6 +11796,7 @@ const tickDroneStatusUi = () => {
 };
 
 window.setInterval(tickDroneStatusUi, DRONE_STATUS_UI_UPDATE_INTERVAL_MS);
+window.setInterval(tickPlayerOxygen, PLAYER_OXYGEN_TICK_INTERVAL_MS);
 window.setInterval(cancelStalledDroneMiningSession, DRONE_STALL_CHECK_INTERVAL_MS);
 window.setInterval(
   updateDroneMiningSoundPlayback,
@@ -11733,6 +11808,12 @@ window.setInterval(
   GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS
 );
 document.addEventListener("visibilitychange", () => {
+  const now =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+  playerOxygenTickLastTimestamp = now;
+
   if (geoVisorBatteryPersistenceEnabled && document.visibilityState === "hidden") {
     schedulePersistGeoVisorBatteryState({ force: true });
   }
