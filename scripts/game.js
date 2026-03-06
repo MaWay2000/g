@@ -11588,9 +11588,12 @@ const handlePlayerOxygenRefillInteract = () => {
   return true;
 };
 
+const canUseDroneInFloor = (floorId) =>
+  typeof floorId === "string" && DRONE_ALLOWED_LIFT_FLOOR_IDS.has(floorId);
+
 const canUseDroneInCurrentArea = () => {
   const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
-  return DRONE_ALLOWED_LIFT_FLOOR_IDS.has(activeFloorId);
+  return canUseDroneInFloor(activeFloorId);
 };
 
 const scheduleDroneAutomationRetry = () => {
@@ -11680,6 +11683,18 @@ const tryAutomaticDroneRefill = () => {
 };
 
 const finalizeDroneAutomationShutdown = () => {
+  const hasOutstandingDroneState =
+    droneState.active ||
+    droneState.pendingShutdown ||
+    droneState.inFlight ||
+    droneState.awaitingReturn ||
+    (Array.isArray(droneState.cargo) && droneState.cargo.length > 0) ||
+    (Number.isFinite(droneState.payloadGrams) && droneState.payloadGrams > 0);
+
+  if (!hasOutstandingDroneState) {
+    return;
+  }
+
   dronePickupState.required = false;
   dronePickupState.location = null;
 
@@ -11727,6 +11742,36 @@ const finalizeDroneAutomationShutdown = () => {
       ? "All stored materials moved to inventory."
       : "Automation complete with no samples recovered.",
   });
+};
+
+const handleDroneSurfaceExitTransition = ({ from, to } = {}) => {
+  const fromFloorId = typeof from?.id === "string" ? from.id : null;
+  const toFloorId = typeof to?.id === "string" ? to.id : null;
+
+  if (!canUseDroneInFloor(fromFloorId) || canUseDroneInFloor(toFloorId)) {
+    return false;
+  }
+
+  const hasDroneStateToRecall =
+    droneState.active ||
+    droneState.pendingShutdown ||
+    droneState.inFlight ||
+    droneState.awaitingReturn ||
+    (Array.isArray(droneState.cargo) && droneState.cargo.length > 0);
+  if (!hasDroneStateToRecall) {
+    return false;
+  }
+
+  cancelDroneAutomationRetry();
+  sceneController?.cancelDroneMinerSession?.({ reason: "area-change" });
+
+  droneState.active = false;
+  droneState.pendingShutdown = true;
+  droneState.inFlight = false;
+  droneState.awaitingReturn = false;
+  droneState.returnSessionStartMs = 0;
+  finalizeDroneAutomationShutdown();
+  return true;
 };
 
 const attemptDroneLaunch = ({ playLaunchSound = false } = {}) => {
@@ -12459,6 +12504,7 @@ const bootstrapScene = () => {
         setCrosshairSourceState("lift", value);
       },
       onLiftTravel(event) {
+        handleDroneSurfaceExitTransition(event);
         playTerminalInteractionSound();
         const destination = event?.to ?? null;
         const floorTitle = destination?.title || destination?.id || "New deck";
