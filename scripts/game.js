@@ -233,6 +233,12 @@ const playerOxygenValueLabel = playerOxygenPanel?.querySelector(
 const playerOxygenBarFill = playerOxygenPanel?.querySelector(
   "[data-player-oxygen-bar]"
 );
+const playerOxygenDrainValueLabel = playerOxygenPanel?.querySelector(
+  "[data-player-oxygen-drain-value]"
+);
+const playerOxygenDrainBarFill = playerOxygenPanel?.querySelector(
+  "[data-player-oxygen-drain-bar]"
+);
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
 const resourceToolDescription = document.querySelector(
   "[data-resource-tool-description]"
@@ -301,6 +307,7 @@ let playerOxygenDepletionNotified = false;
 let playerOxygenMovementLastPosition = null;
 let playerOxygenMovementLastTimestamp = 0;
 let playerOxygenLastDiggingActivityAt = 0;
+let playerOxygenCurrentDrainMultiplier = 0;
 
 const clampPlayerOxygenPercent = (value) => {
   const numericValue = Number(value);
@@ -325,6 +332,11 @@ const updatePlayerOxygenUi = () => {
   playerOxygenPercent = clampPlayerOxygenPercent(playerOxygenPercent);
   const oxygenDisplayValue = Math.max(0, Math.round(playerOxygenPercent));
   const oxygenText = `${oxygenDisplayValue}%`;
+  const drainPercent = Math.max(
+    0,
+    Math.min(100, Math.round(playerOxygenCurrentDrainMultiplier * 100))
+  );
+  const drainText = `${drainPercent}%`;
 
   if (playerOxygenValueLabel instanceof HTMLElement) {
     playerOxygenValueLabel.textContent = oxygenText;
@@ -334,12 +346,27 @@ const updatePlayerOxygenUi = () => {
     playerOxygenBarFill.style.width = `${playerOxygenPercent}%`;
   }
 
+  if (playerOxygenDrainValueLabel instanceof HTMLElement) {
+    playerOxygenDrainValueLabel.textContent = drainText;
+  }
+
+  if (playerOxygenDrainBarFill instanceof HTMLElement) {
+    playerOxygenDrainBarFill.style.width = `${drainPercent}%`;
+  }
+
   if (playerOxygenPanel instanceof HTMLElement) {
     const oxygenState = resolvePlayerOxygenState(playerOxygenPercent);
     playerOxygenPanel.dataset.state = oxygenState;
+    const drainState =
+      drainPercent <= 0
+        ? "idle"
+        : drainPercent < 100
+        ? "slow"
+        : "normal";
+    playerOxygenPanel.dataset.drainState = drainState;
     playerOxygenPanel.setAttribute(
       "aria-label",
-      `Player oxygen reserves ${oxygenText}`
+      `Player oxygen reserves ${oxygenText}, consumption ${drainText}`
     );
   }
 };
@@ -442,10 +469,18 @@ const tickPlayerOxygen = () => {
 
   if (!isPlayerOnSurfaceForOxygenDrain()) {
     samplePlayerOxygenMovementSpeed(now);
+    if (playerOxygenCurrentDrainMultiplier !== 0) {
+      playerOxygenCurrentDrainMultiplier = 0;
+      updatePlayerOxygenUi();
+    }
     return;
   }
 
   if (playerOxygenPercent <= 0) {
+    if (playerOxygenCurrentDrainMultiplier !== 0) {
+      playerOxygenCurrentDrainMultiplier = 0;
+      updatePlayerOxygenUi();
+    }
     if (!playerOxygenDepletionNotified) {
       playerOxygenDepletionNotified = true;
       showTerminalToast({
@@ -457,6 +492,10 @@ const tickPlayerOxygen = () => {
   }
 
   const drainMultiplier = resolvePlayerOxygenDrainMultiplier(now);
+  if (Math.abs(playerOxygenCurrentDrainMultiplier - drainMultiplier) > 1e-6) {
+    playerOxygenCurrentDrainMultiplier = drainMultiplier;
+    updatePlayerOxygenUi();
+  }
   const drainAmount =
     elapsedSeconds * PLAYER_OXYGEN_DRAIN_PER_SECOND * drainMultiplier;
   const nextPercent = Math.max(0, playerOxygenPercent - drainAmount);
@@ -11208,6 +11247,9 @@ const handlePlayerOxygenRefillInteract = () => {
   playerOxygenMovementLastTimestamp = now;
   playerOxygenMovementLastPosition = sceneController?.getPlayerPosition?.() ?? null;
   playerOxygenDepletionNotified = false;
+  playerOxygenCurrentDrainMultiplier = isPlayerOnSurfaceForOxygenDrain()
+    ? 1
+    : 0;
   playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
   updatePlayerOxygenUi();
   playTerminalInteractionSound();
