@@ -5508,19 +5508,6 @@ export const initScene = (
     const catwalkWidth = deckWidth * 0.68;
     const catwalkDepth = deckDepth * 0.92;
 
-    const catwalkMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x1f3b5a),
-      roughness: 0.45,
-      metalness: 0.35,
-    });
-
-    const catwalk = new THREE.Mesh(
-      new THREE.BoxGeometry(catwalkWidth, 0.12, catwalkDepth),
-      catwalkMaterial
-    );
-    catwalk.position.y = roomFloorY + 0.18;
-    group.add(catwalk);
-
     const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
       includeBackWall: true,
     });
@@ -6024,7 +6011,6 @@ export const initScene = (
 
     const adjustableEntries = [
       { object: deck, offset: -deckThickness / 2 },
-      { object: catwalk, offset: 0.18 },
       { object: leftWall, offset: wallHeight / 2 },
       { object: rightWall, offset: wallHeight / 2 },
       ...frontWallSegments.map((segment) => ({
