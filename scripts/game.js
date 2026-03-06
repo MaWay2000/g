@@ -535,6 +535,11 @@ function handlePlayerOxygenDiggingActivity(event) {
   );
 }
 
+function clearPlayerOxygenDiggingActivity() {
+  playerOxygenLastDiggingActivityAt = 0;
+  playerOxygenDiggingActiveUntil = 0;
+}
+
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
     document.fullscreenElement ||
@@ -12197,6 +12202,8 @@ const bootstrapScene = () => {
           handleDroneSessionCancelled(reason);
           return;
         }
+
+        clearPlayerOxygenDiggingActivity();
 
         if (reason === "movement") {
           showResourceToast({ title: "Digging interrupted" });
