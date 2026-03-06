@@ -292,6 +292,8 @@ const PLAYER_OXYGEN_DRAIN_PER_SECOND =
   PLAYER_OXYGEN_MAX_PERCENT / PLAYER_OXYGEN_FULL_DURATION_SECONDS;
 const PLAYER_OXYGEN_TICK_INTERVAL_MS = 250;
 const PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER = 0.2;
+const PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER = 0.8;
+const PLAYER_OXYGEN_SHIFT_MOVING_DRAIN_MULTIPLIER = 1;
 const PLAYER_OXYGEN_DIGGING_DRAIN_MULTIPLIER = 0.5;
 const PLAYER_OXYGEN_STILL_SPEED_THRESHOLD = 0.12;
 const PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS = 1200;
@@ -310,6 +312,7 @@ let playerOxygenMovementLastTimestamp = 0;
 let playerOxygenLastDiggingActivityAt = 0;
 let playerOxygenDiggingActiveUntil = 0;
 let playerOxygenCurrentDrainMultiplier = 0;
+let playerOxygenShiftHeld = false;
 
 const clampPlayerOxygenPercent = (value) => {
   const numericValue = Number(value);
@@ -374,6 +377,24 @@ const updatePlayerOxygenUi = () => {
 };
 
 updatePlayerOxygenUi();
+
+const handlePlayerOxygenShiftKeyDown = (event) => {
+  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+    playerOxygenShiftHeld = true;
+  }
+};
+
+const handlePlayerOxygenShiftKeyUp = (event) => {
+  if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+    playerOxygenShiftHeld = false;
+  }
+};
+
+document.addEventListener("keydown", handlePlayerOxygenShiftKeyDown);
+document.addEventListener("keyup", handlePlayerOxygenShiftKeyUp);
+window.addEventListener("blur", () => {
+  playerOxygenShiftHeld = false;
+});
 
 const isPlayerOnSurfaceForOxygenDrain = () => {
   const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
@@ -440,7 +461,13 @@ const resolvePlayerOxygenDrainMultiplier = (now) => {
     Number.isFinite(movementSpeed) &&
     movementSpeed <= PLAYER_OXYGEN_STILL_SPEED_THRESHOLD;
 
-  return isStill ? PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER : 1;
+  if (isStill) {
+    return PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER;
+  }
+
+  return playerOxygenShiftHeld
+    ? PLAYER_OXYGEN_SHIFT_MOVING_DRAIN_MULTIPLIER
+    : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER;
 };
 
 const tickPlayerOxygen = () => {
@@ -11259,7 +11286,9 @@ const handlePlayerOxygenRefillInteract = () => {
   playerOxygenMovementLastPosition = sceneController?.getPlayerPosition?.() ?? null;
   playerOxygenDepletionNotified = false;
   playerOxygenCurrentDrainMultiplier = isPlayerOnSurfaceForOxygenDrain()
-    ? 1
+    ? playerOxygenShiftHeld
+      ? PLAYER_OXYGEN_SHIFT_MOVING_DRAIN_MULTIPLIER
+      : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER
     : 0;
   playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
   updatePlayerOxygenUi();
@@ -11960,6 +11989,9 @@ document.addEventListener("visibilitychange", () => {
   playerOxygenTickLastTimestamp = now;
   playerOxygenMovementLastTimestamp = now;
   playerOxygenMovementLastPosition = sceneController?.getPlayerPosition?.() ?? null;
+  if (document.visibilityState === "hidden") {
+    playerOxygenShiftHeld = false;
+  }
 
   if (geoVisorBatteryPersistenceEnabled && document.visibilityState === "hidden") {
     schedulePersistGeoVisorBatteryState({ force: true });
