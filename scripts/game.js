@@ -295,6 +295,7 @@ const PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER = 0.2;
 const PLAYER_OXYGEN_DIGGING_DRAIN_MULTIPLIER = 0.5;
 const PLAYER_OXYGEN_STILL_SPEED_THRESHOLD = 0.12;
 const PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS = 1200;
+const PLAYER_OXYGEN_DIGGING_ACTIVITY_BUFFER_MS = 200;
 const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
   "operations-exterior",
   "exterior-outpost",
@@ -307,6 +308,7 @@ let playerOxygenDepletionNotified = false;
 let playerOxygenMovementLastPosition = null;
 let playerOxygenMovementLastTimestamp = 0;
 let playerOxygenLastDiggingActivityAt = 0;
+let playerOxygenDiggingActiveUntil = 0;
 let playerOxygenCurrentDrainMultiplier = 0;
 
 const clampPlayerOxygenPercent = (value) => {
@@ -429,10 +431,9 @@ const samplePlayerOxygenMovementSpeed = (now) => {
 
 const resolvePlayerOxygenDrainMultiplier = (now) => {
   const diggingRecently =
-    Number.isFinite(playerOxygenLastDiggingActivityAt) &&
-    playerOxygenLastDiggingActivityAt > 0 &&
-    now - playerOxygenLastDiggingActivityAt <=
-      PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS;
+    Number.isFinite(playerOxygenDiggingActiveUntil) &&
+    playerOxygenDiggingActiveUntil > 0 &&
+    now <= playerOxygenDiggingActiveUntil;
 
   if (diggingRecently) {
     return PLAYER_OXYGEN_DIGGING_DRAIN_MULTIPLIER;
@@ -527,6 +528,15 @@ function handlePlayerOxygenDiggingActivity(event) {
       ? performance.now()
       : Date.now();
   playerOxygenLastDiggingActivityAt = now;
+  const actionDurationSeconds = Number(event.detail?.actionDuration);
+  const holdDurationMs =
+    Number.isFinite(actionDurationSeconds) && actionDurationSeconds > 0
+      ? actionDurationSeconds * 1000 + PLAYER_OXYGEN_DIGGING_ACTIVITY_BUFFER_MS
+      : PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS;
+  playerOxygenDiggingActiveUntil = Math.max(
+    playerOxygenDiggingActiveUntil,
+    now + holdDurationMs
+  );
 }
 
 const getIsFullscreen = () => {
