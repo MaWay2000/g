@@ -47,6 +47,22 @@ const clampPositiveNumber = (value, fallback = 1) => {
 
 const getFloorSpan = (size, padding) =>
   Math.max(0, clampPositiveNumber(size, 0) - clampPositiveNumber(padding, 0) * 2);
+const OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH = 7;
+const OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT = 13;
+const OPERATIONS_CONCOURSE_DEFAULT_FLOOR_WIDTH = getFloorSpan(
+  BASE_ROOM_WIDTH * 1.35,
+  0.75
+);
+const OPERATIONS_CONCOURSE_DEFAULT_FLOOR_DEPTH = getFloorSpan(
+  BASE_ROOM_DEPTH * 0.85,
+  0.75
+);
+const OPERATIONS_CONCOURSE_CELL_SIZE_X =
+  OPERATIONS_CONCOURSE_DEFAULT_FLOOR_WIDTH /
+  OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH;
+const OPERATIONS_CONCOURSE_CELL_SIZE_Z =
+  OPERATIONS_CONCOURSE_DEFAULT_FLOOR_DEPTH /
+  OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT;
 
 const resolveAreaCellSizes = (areaId, mapWidth, mapHeight) => {
   const safeWidth = clampPositiveNumber(mapWidth, 1);
@@ -66,8 +82,8 @@ const resolveAreaCellSizes = (areaId, mapWidth, mapHeight) => {
     floorWidth = getFloorSpan(BASE_ROOM_WIDTH, 1);
     floorDepth = getFloorSpan(BASE_ROOM_DEPTH, 1);
   } else if (areaId === "operations-concourse") {
-    floorWidth = getFloorSpan(BASE_ROOM_WIDTH * 1.35, 0.75);
-    floorDepth = getFloorSpan(BASE_ROOM_DEPTH * 0.85, 0.75);
+    floorWidth = OPERATIONS_CONCOURSE_CELL_SIZE_X * safeWidth;
+    floorDepth = OPERATIONS_CONCOURSE_CELL_SIZE_Z * safeHeight;
   } else if (areaId === "engineering-bay") {
     floorWidth = getFloorSpan(
       BASE_ROOM_WIDTH * ENGINEERING_BAY_WIDTH_FACTOR,

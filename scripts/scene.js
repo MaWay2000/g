@@ -5378,11 +5378,29 @@ export const initScene = (
     };
   };
 
+  const OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH = 7;
+  const OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT = 13;
+
   const createOperationsConcourseEnvironment = () => {
     const group = new THREE.Group();
 
-    const deckWidth = roomWidth * 1.35;
-    const deckDepth = roomDepth * 0.85;
+    const baseDeckWidth = roomWidth * 1.35;
+    const baseDeckDepth = roomDepth * 0.85;
+    const storedConcourseMap = loadStoredMapForArea("operations-concourse");
+    const mapWidth = Math.max(
+      1,
+      Number.parseInt(storedConcourseMap?.width, 10) ||
+        OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH
+    );
+    const mapHeight = Math.max(
+      1,
+      Number.parseInt(storedConcourseMap?.height, 10) ||
+        OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT
+    );
+    const deckWidth =
+      (baseDeckWidth * mapWidth) / OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH;
+    const deckDepth =
+      (baseDeckDepth * mapHeight) / OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT;
     const deckThickness = 0.45;
 
     const minimumWallHeight = BASE_DOOR_HEIGHT + 0.6;
