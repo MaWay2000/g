@@ -859,27 +859,6 @@ export const initMapMaker3d = ({
         panelMaterial
       );
     } else if (areaId === "operations-concourse") {
-      const catwalk = createAreaReferenceMesh(
-        new THREE.BoxGeometry(
-          Math.max(2, referenceWidth * 0.68),
-          0.08,
-          Math.max(1.8, referenceDepth * 0.3)
-        ),
-        platformMaterial
-      );
-      catwalk.position.set(0, 0.04, 0);
-      areaReferenceGroup.add(catwalk);
-
-      const railLength = Math.max(3, referenceDepth * 0.72);
-      [-1, 1].forEach((side) => {
-        const rail = createAreaReferenceMesh(
-          new THREE.BoxGeometry(0.1, 0.8, railLength),
-          trimMaterial
-        );
-        rail.position.set(side * (referenceWidth * 0.24), 0.4, 0);
-        areaReferenceGroup.add(rail);
-      });
-
       addDoorFrame(
         {
           centerX: 0,
