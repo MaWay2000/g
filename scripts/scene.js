@@ -5867,7 +5867,8 @@ export const initScene = (
     const oxygenChamberCenterX = wallSpanWidth / 2 - 1.42;
     const oxygenChamberCenterZ = -deckDepth * 0.2;
     const oxygenChamberRadius = 0.88;
-    const oxygenChamberHeight = 2.15;
+    // Extend the chamber to the roof underside so it feels integrated into the room.
+    const oxygenChamberHeight = Math.max(2.15, wallHeight - 0.02);
 
     const oxygenChamberAnchor = new THREE.Object3D();
     oxygenChamberAnchor.position.set(
