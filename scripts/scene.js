@@ -5565,71 +5565,6 @@ export const initScene = (
     rearRail.position.z *= -1;
     group.add(rearRail);
 
-    const holoBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.55, 0.65, 0.4, 32),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x111f32),
-        roughness: 0.35,
-        metalness: 0.6,
-      })
-    );
-    holoBase.position.set(0, roomFloorY + 0.32, -deckDepth * 0.15);
-    group.add(holoBase);
-
-    const holoEmitter = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.05, 1.05, 0.08, 32),
-      new THREE.MeshBasicMaterial({
-        color: 0x60a5fa,
-        transparent: true,
-        opacity: 0.45,
-        side: THREE.DoubleSide,
-      })
-    );
-    holoEmitter.position.set(0, roomFloorY + 0.58, -deckDepth * 0.15);
-    group.add(holoEmitter);
-
-    const holoColumn = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.15, 0.35, 1.4, 16, 1, true),
-      new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
-        transparent: true,
-        opacity: 0.28,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    holoColumn.position.set(0, roomFloorY + 1.25, -deckDepth * 0.15);
-    group.add(holoColumn);
-
-    const briefingLight = new THREE.PointLight(0x60a5fa, 1.1, deckDepth * 1.2, 2);
-    briefingLight.position.set(0, roomFloorY + 2.2, -deckDepth * 0.18);
-    group.add(briefingLight);
-
-    const statusDisplay = new THREE.Mesh(
-      new THREE.PlaneGeometry(catwalkWidth * 0.9, 1.8),
-      new THREE.MeshBasicMaterial({
-        color: 0x1d4ed8,
-        transparent: true,
-        opacity: 0.75,
-      })
-    );
-    statusDisplay.position.set(0, roomFloorY + 1.6, -deckDepth / 2 + 0.05);
-    group.add(statusDisplay);
-
-    const statusGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(catwalkWidth * 0.95, 1.9),
-      new THREE.MeshBasicMaterial({
-        color: 0x38bdf8,
-        transparent: true,
-        opacity: 0.2,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    statusGlow.position.set(0, roomFloorY + 1.6, -deckDepth / 2 + 0.07);
-    group.add(statusGlow);
-
     const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
       includeBackWall: true,
     });
@@ -6149,11 +6084,6 @@ export const initScene = (
         offset: wallHeight / 2,
       })),
       { object: roof, offset: wallHeight + wallThickness / 2 },
-      { object: holoBase, offset: 0.32 },
-      { object: holoEmitter, offset: 0.58 },
-      { object: holoColumn, offset: 1.25 },
-      { object: statusDisplay, offset: 1.6 },
-      { object: statusGlow, offset: 1.6 },
       { object: portalLanding, offset: 0.04 },
       { object: portalRamp, offset: 0.02 },
       { object: portalGlow, offset: exteriorDoorHeight * 0.6 },
@@ -6197,7 +6127,6 @@ export const initScene = (
           object.position.y = roomFloorY + offset;
         }
       });
-      briefingLight.position.y = roomFloorY + 2.2;
       if (portalTeleportTrigger) {
         const doorWidth = Number.isFinite(exteriorExitDoor.userData?.width)
           ? exteriorExitDoor.userData.width
