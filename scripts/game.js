@@ -12238,6 +12238,10 @@ const bootstrapScene = () => {
         clearPlayerOxygenDiggingActivity();
 
         if (reason === "movement") {
+          playerOxygenCurrentDrainMultiplier = playerOxygenShiftHeld
+            ? PLAYER_OXYGEN_SHIFT_MOVING_DRAIN_MULTIPLIER
+            : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER;
+          updatePlayerOxygenUi();
           showResourceToast({ title: "Digging interrupted" });
         }
       },
