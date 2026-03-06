@@ -5862,6 +5862,69 @@ export const initScene = (
     oxygenRefillControl.userData.oxygenRefillId = "operations-concourse-main";
     oxygenStandGroup.add(oxygenRefillControl);
 
+    const oxygenChamberCenterX = wallSpanWidth / 2 - 1.42;
+    const oxygenChamberCenterZ = -deckDepth * 0.2;
+    const oxygenChamberRadius = 0.88;
+    const oxygenChamberHeight = 2.15;
+
+    const oxygenChamberAnchor = new THREE.Object3D();
+    oxygenChamberAnchor.position.set(
+      oxygenChamberCenterX,
+      roomFloorY,
+      oxygenChamberCenterZ
+    );
+    group.add(oxygenChamberAnchor);
+
+    const oxygenChamberShell = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        oxygenChamberRadius,
+        oxygenChamberRadius,
+        oxygenChamberHeight,
+        40,
+        1,
+        true
+      ),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x7dd3fc),
+        roughness: 0.18,
+        metalness: 0.16,
+        transparent: true,
+        opacity: 0.22,
+        emissive: new THREE.Color(0x0ea5e9),
+        emissiveIntensity: 0.35,
+        side: THREE.DoubleSide,
+      })
+    );
+    oxygenChamberShell.position.set(
+      oxygenChamberCenterX,
+      roomFloorY + oxygenChamberHeight / 2,
+      oxygenChamberCenterZ
+    );
+    group.add(oxygenChamberShell);
+
+    const oxygenChamberRingMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x38bdf8),
+      roughness: 0.32,
+      metalness: 0.48,
+      emissive: new THREE.Color(0x0c4a6e),
+      emissiveIntensity: 0.44,
+    });
+    const oxygenChamberTopRing = new THREE.Mesh(
+      new THREE.TorusGeometry(oxygenChamberRadius, 0.04, 18, 54),
+      oxygenChamberRingMaterial
+    );
+    oxygenChamberTopRing.rotation.x = Math.PI / 2;
+    oxygenChamberTopRing.position.set(
+      oxygenChamberCenterX,
+      roomFloorY + oxygenChamberHeight - 0.02,
+      oxygenChamberCenterZ
+    );
+    group.add(oxygenChamberTopRing);
+
+    const oxygenChamberBaseRing = oxygenChamberTopRing.clone();
+    oxygenChamberBaseRing.position.y = roomFloorY + 0.04;
+    group.add(oxygenChamberBaseRing);
+
     const liftDoorOpeningWidth =
       (liftDoor.userData?.width ?? BASE_DOOR_WIDTH) + 0.8;
     const exteriorDoorOpeningWidth =
@@ -5940,6 +6003,10 @@ export const initScene = (
       { object: portalArch, offset: exteriorDoorHeight * 0.92 },
       { object: portalControl, offset: exteriorDoorHeight * 0.56 },
       { object: oxygenStandGroup, offset: oxygenStandWallMountOffsetY },
+      { object: oxygenChamberAnchor, offset: 0 },
+      { object: oxygenChamberShell, offset: oxygenChamberHeight / 2 },
+      { object: oxygenChamberTopRing, offset: oxygenChamberHeight - 0.02 },
+      { object: oxygenChamberBaseRing, offset: 0.04 },
     ];
 
     const mapOverlay = createStoredAreaOverlay({
@@ -5992,6 +6059,11 @@ export const initScene = (
     const teleportOffset = new THREE.Vector3(0, 0, deckDepth / 2 - 1.8);
 
     group.userData.oxygenRefillControls = [oxygenRefillControl];
+    group.userData.oxygenChamber = {
+      anchor: oxygenChamberAnchor,
+      radius: oxygenChamberRadius * 0.82,
+      floorId: "operations-concourse",
+    };
 
     return {
       group,
@@ -16504,6 +16576,15 @@ export const initScene = (
 
   let movementEnabled = true;
   let movementSprintEnabled = true;
+  const playerConfinementState = {
+    active: false,
+    floorId: null,
+    center: new THREE.Vector3(),
+    radius: 0,
+    endsAtEpochMs: 0,
+  };
+  const oxygenChamberTeleportTarget = new THREE.Vector3();
+  const oxygenChamberClampOffset = new THREE.Vector3();
 
   const terrainGroundRaycaster = new THREE.Raycaster();
   const terrainGroundRayDirection = new THREE.Vector3(0, -1, 0);
@@ -16746,6 +16827,170 @@ export const initScene = (
     }
 
     return movementSprintEnabled;
+  };
+
+  const clearPlayerConfinement = () => {
+    playerConfinementState.active = false;
+    playerConfinementState.floorId = null;
+    playerConfinementState.radius = 0;
+    playerConfinementState.endsAtEpochMs = 0;
+  };
+
+  const getPlayerConfinementRemainingMs = () => {
+    if (!playerConfinementState.active) {
+      return 0;
+    }
+
+    const remainingMs = playerConfinementState.endsAtEpochMs - Date.now();
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+      clearPlayerConfinement();
+      return 0;
+    }
+
+    return Math.ceil(remainingMs);
+  };
+
+  const resolveOperationsConcourseOxygenChamber = () => {
+    const environment = deckEnvironmentMap.get("operations-concourse");
+    const group = environment?.getGroup?.();
+    const chamber = group?.userData?.oxygenChamber;
+    const anchor = chamber?.anchor;
+    const radius = Number(chamber?.radius);
+
+    if (!anchor?.isObject3D || !Number.isFinite(radius) || radius <= 0) {
+      return null;
+    }
+
+    return {
+      anchor,
+      radius: Math.max(0.4, radius),
+      floorId:
+        typeof chamber?.floorId === "string" && chamber.floorId
+          ? chamber.floorId
+          : "operations-concourse",
+    };
+  };
+
+  const enterOperationsConcourseOxygenChamber = ({ durationMs = 0 } = {}) => {
+    const chamber = resolveOperationsConcourseOxygenChamber();
+    if (!chamber) {
+      return { entered: false, remainingMs: 0 };
+    }
+
+    const targetFloorId = chamber.floorId;
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (activeFloorId !== targetFloorId) {
+      const targetFloorIndex = liftState.floors.findIndex(
+        (floor) => floor?.id === targetFloorId
+      );
+      if (
+        targetFloorIndex >= 0 &&
+        typeof travelToLiftFloor === "function"
+      ) {
+        travelToLiftFloor(targetFloorIndex, {
+          reason: "oxygen-chamber",
+        });
+      }
+    }
+
+    chamber.anchor.updateMatrixWorld(true);
+    chamber.anchor.getWorldPosition(oxygenChamberTeleportTarget);
+
+    playerObject.position.set(
+      oxygenChamberTeleportTarget.x,
+      playerObject.position.y,
+      oxygenChamberTeleportTarget.z
+    );
+
+    const groundY = getPlayerGroundHeight(playerObject.position);
+    playerObject.position.y = Number.isFinite(groundY)
+      ? Math.max(roomFloorY, groundY)
+      : Math.max(roomFloorY, oxygenChamberTeleportTarget.y);
+
+    clampWithinActiveFloor(0, null, { skipVerticalClamp: false });
+    playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
+    previousPlayerPosition.copy(playerObject.position);
+    velocity.set(0, 0, 0);
+    verticalVelocity = 0;
+    jumpRequested = false;
+
+    const normalizedDurationMs =
+      Number.isFinite(durationMs) && durationMs > 0
+        ? Math.max(1000, Math.floor(durationMs))
+        : 0;
+
+    if (normalizedDurationMs <= 0) {
+      clearPlayerConfinement();
+      savePlayerState(true);
+      return { entered: true, remainingMs: 0 };
+    }
+
+    playerConfinementState.active = true;
+    playerConfinementState.floorId = targetFloorId;
+    playerConfinementState.center.set(
+      playerObject.position.x,
+      playerObject.position.y,
+      playerObject.position.z
+    );
+    playerConfinementState.radius = chamber.radius;
+    playerConfinementState.endsAtEpochMs = Date.now() + normalizedDurationMs;
+
+    savePlayerState(true);
+
+    return {
+      entered: true,
+      remainingMs: getPlayerConfinementRemainingMs(),
+      endsAtEpochMs: playerConfinementState.endsAtEpochMs,
+      floorId: targetFloorId,
+    };
+  };
+
+  const applyPlayerConfinement = () => {
+    const remainingMs = getPlayerConfinementRemainingMs();
+    if (remainingMs <= 0 || !playerConfinementState.active) {
+      return false;
+    }
+
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (
+      playerConfinementState.floorId &&
+      activeFloorId !== playerConfinementState.floorId
+    ) {
+      clearPlayerConfinement();
+      return false;
+    }
+
+    const radius = playerConfinementState.radius;
+    if (!Number.isFinite(radius) || radius <= 0) {
+      clearPlayerConfinement();
+      return false;
+    }
+
+    oxygenChamberClampOffset.set(
+      playerObject.position.x - playerConfinementState.center.x,
+      0,
+      playerObject.position.z - playerConfinementState.center.z
+    );
+    const distance = oxygenChamberClampOffset.length();
+
+    if (!Number.isFinite(distance) || distance <= radius) {
+      return false;
+    }
+
+    if (distance > 0) {
+      oxygenChamberClampOffset.multiplyScalar(radius / distance);
+    } else {
+      oxygenChamberClampOffset.set(radius, 0, 0);
+    }
+
+    playerObject.position.x =
+      playerConfinementState.center.x + oxygenChamberClampOffset.x;
+    playerObject.position.z =
+      playerConfinementState.center.z + oxygenChamberClampOffset.z;
+
+    clampWithinActiveFloor(0, null, { skipVerticalClamp: false });
+    previousPlayerPosition.copy(playerObject.position);
+    return true;
   };
 
   const onKeyDown = (event) => {
@@ -17216,6 +17461,8 @@ export const initScene = (
       resolvePlayerCollisions(previousPlayerPosition);
     }
 
+    applyPlayerConfinement();
+
 
     let matchedZone = null;
     let matchedLiftControl = null;
@@ -17331,6 +17578,9 @@ export const initScene = (
     setResourceToolActionDurationMultiplier: (multiplier = 1) =>
       setResourceToolActionDurationMultiplier(multiplier),
     getNearestOxygenRefillDistance: () => getNearestOxygenRefillDistance(),
+    enterOxygenChamberPenalty: ({ durationMs = 0 } = {}) =>
+      enterOperationsConcourseOxygenChamber({ durationMs }),
+    getOxygenChamberPenaltyRemainingMs: () => getPlayerConfinementRemainingMs(),
     getPlayerPosition: () => playerObject?.position?.clone?.() ?? null,
     getPlayerHeight: () => playerHeight,
     setPlayerHeight: (nextHeight, options = {}) =>

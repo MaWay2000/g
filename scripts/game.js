@@ -310,12 +310,12 @@ const PLAYER_OXYGEN_DIGGING_ACTIVITY_BUFFER_MS = 200;
 const PLAYER_OXYGEN_PERSIST_INTERVAL_MS = 1000;
 const PLAYER_OXYGEN_CRITICAL_PERCENT = 10;
 const PLAYER_OXYGEN_EMERGENCY_PERCENT = 5;
-const PLAYER_OXYGEN_EMERGENCY_RESPAWN_PERCENT = 25;
 const PLAYER_OXYGEN_WARNING_SOUND_INTERVAL_MS = 2000;
 const PLAYER_OXYGEN_WARNING_TOAST_INTERVAL_MS = 6000;
 const PLAYER_OXYGEN_EMERGENCY_DIG_DURATION_MULTIPLIER = 1.3;
 const PLAYER_OXYGEN_SAFE_DIG_DURATION_MULTIPLIER = 1;
 const PLAYER_OXYGEN_SAFE_FLOOR_ID = "operations-concourse";
+const PLAYER_OXYGEN_CHAMBER_PENALTY_MS = 60 * 1000;
 const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
   "operations-exterior",
   "exterior-outpost",
@@ -342,6 +342,8 @@ let playerOxygenGuidanceText = "";
 let persistPlayerOxygenTimeoutId = 0;
 let playerOxygenPersistenceEnabled = true;
 let playerOxygenEmergencyRespawnPending = false;
+let playerOxygenChamberPenaltyActive = false;
+let playerOxygenChamberPenaltyRemainingMs = 0;
 let lastPlayerOxygenWarningSoundAt = 0;
 let lastPlayerOxygenWarningToastAt = 0;
 
@@ -402,6 +404,14 @@ const isPlayerOxygenSprintLocked = () =>
   playerOxygenPressureLevel === "depleted";
 
 const resolvePlayerOxygenGuidanceText = (pressureLevel) => {
+  if (playerOxygenChamberPenaltyActive) {
+    const remainingSeconds = Math.max(
+      1,
+      Math.ceil(playerOxygenChamberPenaltyRemainingMs / 1000)
+    );
+    return `Oxygen chamber recovery ${remainingSeconds}s`;
+  }
+
   if (pressureLevel !== "critical" && pressureLevel !== "emergency") {
     return "";
   }
@@ -521,6 +531,44 @@ const schedulePersistPlayerOxygen = ({ force = false } = {}) => {
   }, PLAYER_OXYGEN_PERSIST_INTERVAL_MS);
 };
 
+const syncPlayerOxygenChamberPenaltyState = ({ now = Date.now(), silent = false } = {}) => {
+  if (!playerOxygenChamberPenaltyActive) {
+    playerOxygenChamberPenaltyRemainingMs = 0;
+    return false;
+  }
+
+  const remainingMs = Number(
+    sceneController?.getOxygenChamberPenaltyRemainingMs?.()
+  );
+  if (Number.isFinite(remainingMs) && remainingMs > 0) {
+    playerOxygenChamberPenaltyRemainingMs = Math.ceil(remainingMs);
+    return true;
+  }
+
+  playerOxygenChamberPenaltyActive = false;
+  playerOxygenChamberPenaltyRemainingMs = 0;
+  playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+  playerOxygenCurrentDrainMultiplier = 0;
+  playerOxygenDepletionNotified = false;
+  lastPlayerOxygenWarningSoundAt = 0;
+  lastPlayerOxygenWarningToastAt = 0;
+  applyPlayerOxygenPressureEffects({
+    now,
+    silent: true,
+    forceUi: true,
+  });
+  schedulePersistPlayerOxygen({ force: true });
+
+  if (!silent) {
+    showTerminalToast({
+      title: "Oxygen chamber cycle complete",
+      description: "Suit systems stabilized. You can leave now.",
+    });
+  }
+
+  return false;
+};
+
 const showPlayerOxygenGuidanceToast = (pressureLevel) => {
   const guidanceText =
     typeof playerOxygenGuidanceText === "string" && playerOxygenGuidanceText
@@ -604,16 +652,30 @@ const applyPlayerOxygenPressureEffects = ({
 };
 
 const triggerPlayerOxygenEmergencyRespawn = (now) => {
-  if (playerOxygenEmergencyRespawnPending) {
+  if (playerOxygenEmergencyRespawnPending || playerOxygenChamberPenaltyActive) {
     return true;
   }
 
   playerOxygenEmergencyRespawnPending = true;
 
-  const relocatedToSafeFloor =
-    sceneController?.setActiveLiftFloorById?.(PLAYER_OXYGEN_SAFE_FLOOR_ID) === true;
+  const chamberResult = sceneController?.enterOxygenChamberPenalty?.({
+    durationMs: PLAYER_OXYGEN_CHAMBER_PENALTY_MS,
+  });
+  const chamberEntered = chamberResult?.entered === true;
+  const chamberRemainingMs = Number(chamberResult?.remainingMs);
+  playerOxygenChamberPenaltyActive = chamberEntered;
+  playerOxygenChamberPenaltyRemainingMs =
+    chamberEntered && Number.isFinite(chamberRemainingMs) && chamberRemainingMs > 0
+      ? Math.ceil(chamberRemainingMs)
+      : chamberEntered
+      ? PLAYER_OXYGEN_CHAMBER_PENALTY_MS
+      : 0;
 
-  playerOxygenPercent = PLAYER_OXYGEN_EMERGENCY_RESPAWN_PERCENT;
+  if (!chamberEntered) {
+    sceneController?.setActiveLiftFloorById?.(PLAYER_OXYGEN_SAFE_FLOOR_ID);
+  }
+
+  playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
   playerOxygenDepletionNotified = false;
   playerOxygenCurrentDrainMultiplier = 0;
   clearPlayerOxygenDiggingActivity();
@@ -630,10 +692,10 @@ const triggerPlayerOxygenEmergencyRespawn = (now) => {
   schedulePersistPlayerOxygen({ force: true });
 
   showTerminalToast({
-    title: "Emergency oxygen protocol",
-    description: relocatedToSafeFloor
-      ? "Returned to outside exit with 25% O2."
-      : "Oxygen restored to 25%. Reach the nearest station.",
+    title: "Emergency oxygen protocol active",
+    description: chamberEntered
+      ? "Remain in oxygen chamber for 60s recovery."
+      : "Returned to outside exit for emergency recovery.",
   });
 
   playerOxygenEmergencyRespawnPending = false;
@@ -774,6 +836,15 @@ const tickPlayerOxygen = () => {
   playerOxygenTickLastTimestamp = now;
 
   if (elapsedSeconds <= 0 || shouldPausePlayerOxygenTick()) {
+    return;
+  }
+
+  const nowDate = Date.now();
+  const chamberPenaltyActive = syncPlayerOxygenChamberPenaltyState({
+    now: nowDate,
+  });
+  if (chamberPenaltyActive) {
+    applyPlayerOxygenPressureEffects({ now: nowDate, silent: true });
     return;
   }
 
@@ -12355,6 +12426,10 @@ document.addEventListener("visibilitychange", () => {
   }
 
   if (document.visibilityState !== "hidden") {
+    syncPlayerOxygenChamberPenaltyState({
+      now: Date.now(),
+      silent: true,
+    });
     applyPlayerOxygenPressureEffects({
       now: Date.now(),
       silent: true,
