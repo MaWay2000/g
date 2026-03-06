@@ -285,6 +285,10 @@ const PLAYER_OXYGEN_FULL_DURATION_SECONDS = 600;
 const PLAYER_OXYGEN_DRAIN_PER_SECOND =
   PLAYER_OXYGEN_MAX_PERCENT / PLAYER_OXYGEN_FULL_DURATION_SECONDS;
 const PLAYER_OXYGEN_TICK_INTERVAL_MS = 250;
+const PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER = 0.2;
+const PLAYER_OXYGEN_DIGGING_DRAIN_MULTIPLIER = 0.5;
+const PLAYER_OXYGEN_STILL_SPEED_THRESHOLD = 0.12;
+const PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS = 1200;
 const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
   "operations-exterior",
   "exterior-outpost",
@@ -294,6 +298,9 @@ let playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
 let lastPlayerOxygenRefillAt = 0;
 let playerOxygenTickLastTimestamp = 0;
 let playerOxygenDepletionNotified = false;
+let playerOxygenMovementLastPosition = null;
+let playerOxygenMovementLastTimestamp = 0;
+let playerOxygenLastDiggingActivityAt = 0;
 
 const clampPlayerOxygenPercent = (value) => {
   const numericValue = Number(value);
@@ -339,6 +346,10 @@ const updatePlayerOxygenUi = () => {
 
 updatePlayerOxygenUi();
 
+if (canvas instanceof HTMLCanvasElement) {
+  canvas.addEventListener("resource-tool:action", handlePlayerOxygenDiggingActivity);
+}
+
 const isPlayerOnSurfaceForOxygenDrain = () => {
   const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
   if (typeof activeFloorId !== "string" || activeFloorId.trim() === "") {
@@ -346,6 +357,66 @@ const isPlayerOnSurfaceForOxygenDrain = () => {
   }
 
   return PLAYER_OXYGEN_SURFACE_FLOOR_IDS.has(activeFloorId);
+};
+
+const samplePlayerOxygenMovementSpeed = (now) => {
+  const playerPosition = sceneController?.getPlayerPosition?.() ?? null;
+  if (!playerPosition) {
+    playerOxygenMovementLastPosition = null;
+    playerOxygenMovementLastTimestamp = 0;
+    return null;
+  }
+
+  if (
+    !playerOxygenMovementLastPosition ||
+    !Number.isFinite(playerOxygenMovementLastTimestamp) ||
+    playerOxygenMovementLastTimestamp <= 0
+  ) {
+    playerOxygenMovementLastPosition = playerPosition;
+    playerOxygenMovementLastTimestamp = now;
+    return null;
+  }
+
+  const elapsedSeconds = Math.max(
+    0,
+    (now - playerOxygenMovementLastTimestamp) / 1000
+  );
+  playerOxygenMovementLastTimestamp = now;
+
+  if (elapsedSeconds <= 0) {
+    playerOxygenMovementLastPosition = playerPosition;
+    return null;
+  }
+
+  const deltaX = playerPosition.x - playerOxygenMovementLastPosition.x;
+  const deltaZ = playerPosition.z - playerOxygenMovementLastPosition.z;
+  const horizontalDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+  playerOxygenMovementLastPosition = playerPosition;
+
+  if (!Number.isFinite(horizontalDistance)) {
+    return null;
+  }
+
+  return horizontalDistance / elapsedSeconds;
+};
+
+const resolvePlayerOxygenDrainMultiplier = (now) => {
+  const diggingRecently =
+    Number.isFinite(playerOxygenLastDiggingActivityAt) &&
+    playerOxygenLastDiggingActivityAt > 0 &&
+    now - playerOxygenLastDiggingActivityAt <=
+      PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS;
+
+  if (diggingRecently) {
+    return PLAYER_OXYGEN_DIGGING_DRAIN_MULTIPLIER;
+  }
+
+  const movementSpeed = samplePlayerOxygenMovementSpeed(now);
+  const isStill =
+    Number.isFinite(movementSpeed) &&
+    movementSpeed <= PLAYER_OXYGEN_STILL_SPEED_THRESHOLD;
+
+  return isStill ? PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER : 1;
 };
 
 const tickPlayerOxygen = () => {
@@ -370,6 +441,7 @@ const tickPlayerOxygen = () => {
   }
 
   if (!isPlayerOnSurfaceForOxygenDrain()) {
+    samplePlayerOxygenMovementSpeed(now);
     return;
   }
 
@@ -384,7 +456,9 @@ const tickPlayerOxygen = () => {
     return;
   }
 
-  const drainAmount = elapsedSeconds * PLAYER_OXYGEN_DRAIN_PER_SECOND;
+  const drainMultiplier = resolvePlayerOxygenDrainMultiplier(now);
+  const drainAmount =
+    elapsedSeconds * PLAYER_OXYGEN_DRAIN_PER_SECOND * drainMultiplier;
   const nextPercent = Math.max(0, playerOxygenPercent - drainAmount);
   if (Math.abs(nextPercent - playerOxygenPercent) > 1e-6) {
     playerOxygenPercent = nextPercent;
@@ -399,6 +473,22 @@ const tickPlayerOxygen = () => {
     });
   }
 };
+
+function handlePlayerOxygenDiggingActivity(event) {
+  if (!(event instanceof CustomEvent)) {
+    return;
+  }
+
+  if (event.detail?.success !== true) {
+    return;
+  }
+
+  const now =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+  playerOxygenLastDiggingActivityAt = now;
+}
 
 const getIsFullscreen = () => {
   const hasFullscreenElement = Boolean(
@@ -11115,6 +11205,8 @@ const handlePlayerOxygenRefillInteract = () => {
 
   lastPlayerOxygenRefillAt = now;
   playerOxygenTickLastTimestamp = now;
+  playerOxygenMovementLastTimestamp = now;
+  playerOxygenMovementLastPosition = sceneController?.getPlayerPosition?.() ?? null;
   playerOxygenDepletionNotified = false;
   playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
   updatePlayerOxygenUi();
@@ -11813,6 +11905,8 @@ document.addEventListener("visibilitychange", () => {
       ? performance.now()
       : Date.now();
   playerOxygenTickLastTimestamp = now;
+  playerOxygenMovementLastTimestamp = now;
+  playerOxygenMovementLastPosition = sceneController?.getPlayerPosition?.() ?? null;
 
   if (geoVisorBatteryPersistenceEnabled && document.visibilityState === "hidden") {
     schedulePersistGeoVisorBatteryState({ force: true });
