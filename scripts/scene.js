@@ -5875,6 +5875,16 @@ export const initScene = (
     );
     group.add(oxygenChamberAnchor);
 
+    const oxygenChamberShellMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x7dd3fc),
+      roughness: 0.18,
+      metalness: 0.16,
+      transparent: true,
+      opacity: 0.22,
+      emissive: new THREE.Color(0x0ea5e9),
+      emissiveIntensity: 0.35,
+      side: THREE.DoubleSide,
+    });
     const oxygenChamberShell = new THREE.Mesh(
       new THREE.CylinderGeometry(
         oxygenChamberRadius,
@@ -5884,16 +5894,7 @@ export const initScene = (
         1,
         true
       ),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x7dd3fc),
-        roughness: 0.18,
-        metalness: 0.16,
-        transparent: true,
-        opacity: 0.22,
-        emissive: new THREE.Color(0x0ea5e9),
-        emissiveIntensity: 0.35,
-        side: THREE.DoubleSide,
-      })
+      oxygenChamberShellMaterial
     );
     oxygenChamberShell.position.set(
       oxygenChamberCenterX,
@@ -5924,6 +5925,162 @@ export const initScene = (
     const oxygenChamberBaseRing = oxygenChamberTopRing.clone();
     oxygenChamberBaseRing.position.y = roomFloorY + 0.04;
     group.add(oxygenChamberBaseRing);
+
+    const oxygenChamberEffectsGroup = new THREE.Group();
+    oxygenChamberEffectsGroup.position.set(
+      oxygenChamberCenterX,
+      roomFloorY,
+      oxygenChamberCenterZ
+    );
+    group.add(oxygenChamberEffectsGroup);
+
+    const oxygenChamberGlowLight = new THREE.PointLight(0x22d3ee, 0.32, 3.6, 2);
+    oxygenChamberGlowLight.position.set(0, oxygenChamberHeight * 0.45, 0);
+    oxygenChamberEffectsGroup.add(oxygenChamberGlowLight);
+
+    const oxygenChamberScanRingStates = [];
+    const createOxygenChamberScanRing = (phase, speed) => {
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(oxygenChamberRadius * 0.68, 0.026, 16, 56),
+        material
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.14;
+      oxygenChamberEffectsGroup.add(ring);
+
+      oxygenChamberScanRingStates.push({ ring, material, phase, speed });
+    };
+    createOxygenChamberScanRing(0, 0.26);
+    createOxygenChamberScanRing(0.48, 0.33);
+
+    const oxygenChamberElectricBoltStates = [];
+    const boltCount = 9;
+    for (let index = 0; index < boltCount; index += 1) {
+      const theta = (index / boltCount) * Math.PI * 2;
+      const radialDistance = oxygenChamberRadius * 0.82;
+      const baseY = 0.38 + (index % 4) * 0.34;
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x7dd3fc,
+        transparent: true,
+        opacity: 0.04,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const bolt = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.86), material);
+      bolt.position.set(
+        Math.cos(theta) * radialDistance,
+        baseY,
+        Math.sin(theta) * radialDistance
+      );
+      bolt.rotation.y = theta + Math.PI / 2;
+      oxygenChamberEffectsGroup.add(bolt);
+
+      oxygenChamberElectricBoltStates.push({
+        bolt,
+        material,
+        baseY,
+        phase: Math.random() * Math.PI * 2,
+        speed: 6 + Math.random() * 5,
+      });
+    }
+
+    let oxygenChamberEffectLevel = 0.18;
+    const updateOxygenChamberEffects = ({
+      delta = 0,
+      elapsedTime = 0,
+      oxygenChamberRecoveryActive = false,
+      oxygenChamberPenaltyRemainingMs = 0,
+    } = {}) => {
+      const dt = Number.isFinite(delta) ? Math.max(0, delta) : 0;
+      const elapsed = Number.isFinite(elapsedTime)
+        ? elapsedTime
+        : performance.now() * 0.001;
+      const isRecoveryActive =
+        oxygenChamberRecoveryActive === true ||
+        (Number.isFinite(oxygenChamberPenaltyRemainingMs) &&
+          oxygenChamberPenaltyRemainingMs > 0);
+
+      const targetLevel = isRecoveryActive ? 1 : 0.18;
+      oxygenChamberEffectLevel = THREE.MathUtils.lerp(
+        oxygenChamberEffectLevel,
+        targetLevel,
+        Math.min(1, dt * 3.2)
+      );
+
+      const pulse = 0.5 + Math.sin(elapsed * 6.4) * 0.5;
+      oxygenChamberShellMaterial.opacity = THREE.MathUtils.clamp(
+        0.12 + oxygenChamberEffectLevel * 0.24 + pulse * 0.05 * oxygenChamberEffectLevel,
+        0.1,
+        0.42
+      );
+      oxygenChamberShellMaterial.emissiveIntensity = THREE.MathUtils.clamp(
+        0.12 + oxygenChamberEffectLevel * (0.5 + pulse * 0.55),
+        0.1,
+        1.45
+      );
+      oxygenChamberRingMaterial.emissiveIntensity = THREE.MathUtils.clamp(
+        0.24 + oxygenChamberEffectLevel * (0.44 + pulse * 0.72),
+        0.2,
+        1.65
+      );
+      oxygenChamberGlowLight.intensity = THREE.MathUtils.clamp(
+        0.16 + oxygenChamberEffectLevel * (1.9 + pulse * 1.45),
+        0.1,
+        3.8
+      );
+
+      const topRingScale = 1 + oxygenChamberEffectLevel * 0.035 + pulse * 0.014;
+      const baseRingScale = 1 + oxygenChamberEffectLevel * 0.03 + (1 - pulse) * 0.012;
+      oxygenChamberTopRing.scale.setScalar(topRingScale);
+      oxygenChamberBaseRing.scale.setScalar(baseRingScale);
+
+      const scanMinY = 0.14;
+      const scanMaxY = oxygenChamberHeight - 0.16;
+      const scanRange = Math.max(0.2, scanMaxY - scanMinY);
+      oxygenChamberScanRingStates.forEach((state, index) => {
+        const cycle = ((elapsed * state.speed + state.phase) % 1 + 1) % 1;
+        const normalized = index % 2 === 0 ? cycle : 1 - cycle;
+        const wave = Math.sin(normalized * Math.PI);
+        state.ring.position.y = scanMinY + normalized * scanRange;
+        state.ring.scale.setScalar(0.92 + normalized * 0.14);
+        state.material.opacity = THREE.MathUtils.clamp(
+          oxygenChamberEffectLevel * (0.06 + wave * 0.38),
+          0,
+          0.54
+        );
+      });
+
+      oxygenChamberElectricBoltStates.forEach((state, index) => {
+        const flicker = 0.5 + Math.sin(elapsed * state.speed + state.phase) * 0.5;
+        const crackle = Math.max(0, Math.sin(elapsed * (state.speed * 0.65) + index));
+        const intensity = THREE.MathUtils.clamp(
+          oxygenChamberEffectLevel * (0.22 + flicker * 0.86 + crackle * 0.32),
+          0,
+          1.3
+        );
+        state.material.opacity = THREE.MathUtils.clamp(
+          0.02 + intensity * 0.68,
+          0.02,
+          0.92
+        );
+        state.bolt.scale.y = 0.86 + intensity * 0.58;
+        state.bolt.position.y =
+          state.baseY +
+          Math.sin(elapsed * (2.3 + index * 0.11) + state.phase) *
+            0.05 *
+            oxygenChamberEffectLevel;
+      });
+    };
+    updateOxygenChamberEffects({ delta: 0, elapsedTime: 0 });
 
     const liftDoorOpeningWidth =
       (liftDoor.userData?.width ?? BASE_DOOR_WIDTH) + 0.8;
@@ -6007,6 +6164,7 @@ export const initScene = (
       { object: oxygenChamberShell, offset: oxygenChamberHeight / 2 },
       { object: oxygenChamberTopRing, offset: oxygenChamberHeight - 0.02 },
       { object: oxygenChamberBaseRing, offset: 0.04 },
+      { object: oxygenChamberEffectsGroup, offset: 0 },
     ];
 
     const mapOverlay = createStoredAreaOverlay({
@@ -6070,6 +6228,9 @@ export const initScene = (
       liftDoor,
       liftDoors: [liftDoor, exteriorExitDoor, ...mapLiftDoors],
       updateForRoomHeight,
+      update: (payload = {}) => {
+        updateOxygenChamberEffects(payload);
+      },
       teleportOffset,
       bounds: floorBounds,
       colliderDescriptors: mapColliderDescriptors,
@@ -17499,7 +17660,15 @@ export const initScene = (
     updateManifestEditModeHover();
     updateActivePlacementPreview();
     updateOperationsConcourseTeleport(delta);
-    updateActiveDeckEnvironment({ delta, elapsedTime });
+    const oxygenChamberPenaltyRemainingMs = playerConfinementState.active
+      ? Math.max(0, playerConfinementState.endsAtEpochMs - Date.now())
+      : 0;
+    updateActiveDeckEnvironment({
+      delta,
+      elapsedTime,
+      oxygenChamberRecoveryActive: oxygenChamberPenaltyRemainingMs > 0,
+      oxygenChamberPenaltyRemainingMs,
+    });
     snapPlayerToExteriorSurface();
     updateResourceTool(delta, elapsedTime);
     updateDroneMiner(delta, elapsedTime);
