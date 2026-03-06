@@ -12449,6 +12449,8 @@ export const initScene = (
   const GEO_VISOR_MAX_DISTANCE = 2;
   const RESOURCE_TOOL_MIN_ACTION_DURATION = 3;
   const RESOURCE_TOOL_MAX_ACTION_DURATION = 10;
+  const RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER_MIN = 0.5;
+  const RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER_MAX = 3;
   const RESOURCE_TOOL_PLAYER_SUCCESS_PROBABILITY = 0.5;
   const RESOURCE_TOOL_DRONE_SUCCESS_PROBABILITY = 0.1;
   const RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE = 0.2;
@@ -12483,6 +12485,21 @@ export const initScene = (
     }
 
     return resourceSessionRegistry.get(resolvedSource);
+  };
+
+  let resourceToolActionDurationMultiplier = 1;
+  const setResourceToolActionDurationMultiplier = (multiplier = 1) => {
+    const numericValue = Number(multiplier);
+    const normalized = Number.isFinite(numericValue)
+      ? THREE.MathUtils.clamp(
+          numericValue,
+          RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER_MIN,
+          RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER_MAX
+        )
+      : 1;
+
+    resourceToolActionDurationMultiplier = normalized;
+    return resourceToolActionDurationMultiplier;
   };
 
   const findResourceTarget = (object) => {
@@ -12745,10 +12762,11 @@ export const initScene = (
       return;
     }
 
-    const actionDuration = THREE.MathUtils.randFloat(
-      RESOURCE_TOOL_MIN_ACTION_DURATION,
-      RESOURCE_TOOL_MAX_ACTION_DURATION
-    );
+    const actionDuration =
+      THREE.MathUtils.randFloat(
+        RESOURCE_TOOL_MIN_ACTION_DURATION,
+        RESOURCE_TOOL_MAX_ACTION_DURATION
+      ) * resourceToolActionDurationMultiplier;
 
     resourceToolState.actionDuration = actionDuration;
     resourceToolState.cooldown = actionDuration;
@@ -15179,6 +15197,63 @@ export const initScene = (
     );
   };
 
+  const collectAllEnvironmentOxygenRefillControls = () => {
+    const controls = [];
+
+    deckEnvironmentMap.forEach((environment) => {
+      const group = environment?.getGroup?.();
+      const environmentControls = group?.userData?.oxygenRefillControls;
+      if (!Array.isArray(environmentControls) || environmentControls.length === 0) {
+        return;
+      }
+
+      environmentControls.forEach((control) => {
+        if (!control?.isObject3D || !control.parent) {
+          return;
+        }
+
+        controls.push(control);
+      });
+    });
+
+    return controls;
+  };
+
+  const oxygenRefillDistanceSamplePosition = new THREE.Vector3();
+  const getNearestOxygenRefillDistance = () => {
+    const playerPosition = playerObject?.position;
+    if (!(playerPosition instanceof THREE.Vector3)) {
+      return null;
+    }
+
+    const activeControls = collectEnvironmentOxygenRefillControls();
+    const controls =
+      activeControls.length > 0
+        ? activeControls
+        : collectAllEnvironmentOxygenRefillControls();
+    if (!Array.isArray(controls) || controls.length === 0) {
+      return null;
+    }
+
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    controls.forEach((control) => {
+      if (!control?.isObject3D) {
+        return;
+      }
+
+      control.updateMatrixWorld(true);
+      control.getWorldPosition(oxygenRefillDistanceSamplePosition);
+      const distance = playerPosition.distanceTo(oxygenRefillDistanceSamplePosition);
+      if (!Number.isFinite(distance)) {
+        return;
+      }
+
+      nearestDistance = Math.min(nearestDistance, distance);
+    });
+
+    return Number.isFinite(nearestDistance) ? nearestDistance : null;
+  };
+
   const setTerrainDepletedAtPosition = (position) => {
     const tile = findTerrainTileAtPosition(position);
     if (!tile) {
@@ -16428,6 +16503,7 @@ export const initScene = (
   const GOD_MODE_VERTICAL_SPEED = 6;
 
   let movementEnabled = true;
+  let movementSprintEnabled = true;
 
   const terrainGroundRaycaster = new THREE.Raycaster();
   const terrainGroundRayDirection = new THREE.Vector3(0, -1, 0);
@@ -16624,7 +16700,7 @@ export const initScene = (
     switch (code) {
       case "ShiftLeft":
       case "ShiftRight":
-        movementState.running = value;
+        movementState.running = Boolean(value) && movementSprintEnabled;
         break;
       case "ArrowUp":
       case "KeyW":
@@ -16656,6 +16732,20 @@ export const initScene = (
       default:
         break;
     }
+  };
+
+  const setPlayerSprintEnabled = (enabled = true) => {
+    const nextEnabled = Boolean(enabled);
+    if (movementSprintEnabled === nextEnabled) {
+      return movementSprintEnabled;
+    }
+
+    movementSprintEnabled = nextEnabled;
+    if (!movementSprintEnabled) {
+      movementState.running = false;
+    }
+
+    return movementSprintEnabled;
   };
 
   const onKeyDown = (event) => {
@@ -17237,6 +17327,10 @@ export const initScene = (
     renderer,
     controls,
     setMovementEnabled,
+    setPlayerSprintEnabled: (enabled = true) => setPlayerSprintEnabled(enabled),
+    setResourceToolActionDurationMultiplier: (multiplier = 1) =>
+      setResourceToolActionDurationMultiplier(multiplier),
+    getNearestOxygenRefillDistance: () => getNearestOxygenRefillDistance(),
     getPlayerPosition: () => playerObject?.position?.clone?.() ?? null,
     getPlayerHeight: () => playerHeight,
     setPlayerHeight: (nextHeight, options = {}) =>

@@ -244,6 +244,10 @@ const playerOxygenDrainValueLabel = playerOxygenPanel?.querySelector(
 const playerOxygenDrainBarFill = playerOxygenPanel?.querySelector(
   "[data-player-oxygen-drain-bar]"
 );
+const playerOxygenHintLabel = playerOxygenPanel?.querySelector(
+  "[data-player-oxygen-hint]"
+);
+const playerOxygenVignette = document.querySelector("[data-player-oxygen-vignette]");
 const resourceToolLabel = document.querySelector("[data-resource-tool-label]");
 const resourceToolDescription = document.querySelector(
   "[data-resource-tool-description]"
@@ -304,6 +308,14 @@ const PLAYER_OXYGEN_STILL_SPEED_THRESHOLD = 0.12;
 const PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS = 1200;
 const PLAYER_OXYGEN_DIGGING_ACTIVITY_BUFFER_MS = 200;
 const PLAYER_OXYGEN_PERSIST_INTERVAL_MS = 1000;
+const PLAYER_OXYGEN_CRITICAL_PERCENT = 10;
+const PLAYER_OXYGEN_EMERGENCY_PERCENT = 5;
+const PLAYER_OXYGEN_EMERGENCY_RESPAWN_PERCENT = 25;
+const PLAYER_OXYGEN_WARNING_SOUND_INTERVAL_MS = 2000;
+const PLAYER_OXYGEN_WARNING_TOAST_INTERVAL_MS = 6000;
+const PLAYER_OXYGEN_EMERGENCY_DIG_DURATION_MULTIPLIER = 1.3;
+const PLAYER_OXYGEN_SAFE_DIG_DURATION_MULTIPLIER = 1;
+const PLAYER_OXYGEN_SAFE_FLOOR_ID = "operations-concourse";
 const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
   "operations-exterior",
   "exterior-outpost",
@@ -325,8 +337,13 @@ let playerOxygenLastDiggingActivityAt = 0;
 let playerOxygenDiggingActiveUntil = 0;
 let playerOxygenCurrentDrainMultiplier = 0;
 let playerOxygenShiftHeld = false;
+let playerOxygenPressureLevel = "safe";
+let playerOxygenGuidanceText = "";
 let persistPlayerOxygenTimeoutId = 0;
 let playerOxygenPersistenceEnabled = true;
+let playerOxygenEmergencyRespawnPending = false;
+let lastPlayerOxygenWarningSoundAt = 0;
+let lastPlayerOxygenWarningToastAt = 0;
 
 const clampPlayerOxygenPercent = (value) => {
   const numericValue = Number(value);
@@ -345,6 +362,59 @@ const resolvePlayerOxygenState = (value) => {
     return "low";
   }
   return "safe";
+};
+
+const formatPlayerOxygenGuidanceDistance = (distance) => {
+  if (!Number.isFinite(distance) || distance < 0) {
+    return null;
+  }
+
+  if (distance < 10) {
+    return `${distance.toFixed(1)}m`;
+  }
+
+  return `${Math.round(distance)}m`;
+};
+
+const resolvePlayerOxygenPressureLevel = () => {
+  if (!isPlayerOnSurfaceForOxygenDrain()) {
+    return "safe";
+  }
+
+  if (playerOxygenPercent <= 0) {
+    return "depleted";
+  }
+
+  if (playerOxygenPercent <= PLAYER_OXYGEN_EMERGENCY_PERCENT) {
+    return "emergency";
+  }
+
+  if (playerOxygenPercent <= PLAYER_OXYGEN_CRITICAL_PERCENT) {
+    return "critical";
+  }
+
+  return "safe";
+};
+
+const isPlayerOxygenSprintLocked = () =>
+  playerOxygenPressureLevel === "critical" ||
+  playerOxygenPressureLevel === "emergency" ||
+  playerOxygenPressureLevel === "depleted";
+
+const resolvePlayerOxygenGuidanceText = (pressureLevel) => {
+  if (pressureLevel !== "critical" && pressureLevel !== "emergency") {
+    return "";
+  }
+
+  const nearestDistance = Number(
+    sceneController?.getNearestOxygenRefillDistance?.()
+  );
+  const formattedDistance = formatPlayerOxygenGuidanceDistance(nearestDistance);
+  if (!formattedDistance) {
+    return "Nearest O2 station unavailable";
+  }
+
+  return `Nearest O2 station ${formattedDistance}`;
 };
 
 const updatePlayerOxygenUi = () => {
@@ -376,6 +446,7 @@ const updatePlayerOxygenUi = () => {
   if (playerOxygenPanel instanceof HTMLElement) {
     const oxygenState = resolvePlayerOxygenState(playerOxygenPercent);
     playerOxygenPanel.dataset.state = oxygenState;
+    playerOxygenPanel.dataset.pressure = playerOxygenPressureLevel;
     const drainState =
       drainPercent <= 0
         ? "idle"
@@ -383,10 +454,32 @@ const updatePlayerOxygenUi = () => {
         ? "slow"
         : "normal";
     playerOxygenPanel.dataset.drainState = drainState;
+    const guidanceAria =
+      typeof playerOxygenGuidanceText === "string" && playerOxygenGuidanceText
+        ? `, ${playerOxygenGuidanceText}`
+        : "";
     playerOxygenPanel.setAttribute(
       "aria-label",
-      `Player oxygen reserves ${oxygenText}, consumption ${drainText}`
+      `Player oxygen reserves ${oxygenText}, consumption ${drainText}${guidanceAria}`
     );
+  }
+
+  if (playerOxygenHintLabel instanceof HTMLElement) {
+    if (typeof playerOxygenGuidanceText === "string" && playerOxygenGuidanceText) {
+      playerOxygenHintLabel.textContent = playerOxygenGuidanceText;
+      playerOxygenHintLabel.hidden = false;
+    } else {
+      playerOxygenHintLabel.textContent = "";
+      playerOxygenHintLabel.hidden = true;
+    }
+  }
+
+  if (playerOxygenVignette instanceof HTMLElement) {
+    const vignetteLevel =
+      playerOxygenPressureLevel === "critical" || playerOxygenPressureLevel === "emergency"
+        ? playerOxygenPressureLevel
+        : "safe";
+    playerOxygenVignette.dataset.level = vignetteLevel;
   }
 };
 
@@ -426,6 +519,125 @@ const schedulePersistPlayerOxygen = ({ force = false } = {}) => {
     persistPlayerOxygenTimeoutId = 0;
     persistPlayerOxygenSnapshot();
   }, PLAYER_OXYGEN_PERSIST_INTERVAL_MS);
+};
+
+const showPlayerOxygenGuidanceToast = (pressureLevel) => {
+  const guidanceText =
+    typeof playerOxygenGuidanceText === "string" && playerOxygenGuidanceText
+      ? playerOxygenGuidanceText
+      : "Nearest O2 station unavailable";
+  const title =
+    pressureLevel === "emergency" ? "Oxygen emergency" : "Oxygen critical";
+  showTerminalToast({
+    title,
+    description: `${guidanceText}.`,
+  });
+};
+
+const applyPlayerOxygenPressureEffects = ({
+  now = Date.now(),
+  silent = false,
+  forceUi = false,
+} = {}) => {
+  const previousLevel = playerOxygenPressureLevel;
+  const nextLevel = resolvePlayerOxygenPressureLevel();
+  const nextGuidanceText = resolvePlayerOxygenGuidanceText(nextLevel);
+  const levelChanged = previousLevel !== nextLevel;
+  const guidanceChanged = playerOxygenGuidanceText !== nextGuidanceText;
+
+  playerOxygenPressureLevel = nextLevel;
+  playerOxygenGuidanceText = nextGuidanceText;
+
+  const sprintEnabled =
+    nextLevel !== "critical" &&
+    nextLevel !== "emergency" &&
+    nextLevel !== "depleted";
+  sceneController?.setPlayerSprintEnabled?.(sprintEnabled);
+  sceneController?.setResourceToolActionDurationMultiplier?.(
+    nextLevel === "emergency"
+      ? PLAYER_OXYGEN_EMERGENCY_DIG_DURATION_MULTIPLIER
+      : PLAYER_OXYGEN_SAFE_DIG_DURATION_MULTIPLIER
+  );
+
+  if (levelChanged || guidanceChanged || forceUi) {
+    updatePlayerOxygenUi();
+  }
+
+  if (silent) {
+    return;
+  }
+
+  if (nextLevel === "critical" || nextLevel === "emergency") {
+    if (
+      !Number.isFinite(lastPlayerOxygenWarningSoundAt) ||
+      now - lastPlayerOxygenWarningSoundAt >= PLAYER_OXYGEN_WARNING_SOUND_INTERVAL_MS
+    ) {
+      playGeoVisorOutOfBatterySound();
+      lastPlayerOxygenWarningSoundAt = now;
+    }
+
+    if (levelChanged) {
+      showPlayerOxygenGuidanceToast(nextLevel);
+      lastPlayerOxygenWarningToastAt = now;
+      return;
+    }
+
+    if (
+      !Number.isFinite(lastPlayerOxygenWarningToastAt) ||
+      now - lastPlayerOxygenWarningToastAt >= PLAYER_OXYGEN_WARNING_TOAST_INTERVAL_MS
+    ) {
+      showPlayerOxygenGuidanceToast(nextLevel);
+      lastPlayerOxygenWarningToastAt = now;
+    }
+    return;
+  }
+
+  if (
+    levelChanged &&
+    (previousLevel === "critical" || previousLevel === "emergency")
+  ) {
+    showTerminalToast({
+      title: "Oxygen stabilized",
+      description: "Suit reserves above critical threshold.",
+    });
+  }
+};
+
+const triggerPlayerOxygenEmergencyRespawn = (now) => {
+  if (playerOxygenEmergencyRespawnPending) {
+    return true;
+  }
+
+  playerOxygenEmergencyRespawnPending = true;
+
+  const relocatedToSafeFloor =
+    sceneController?.setActiveLiftFloorById?.(PLAYER_OXYGEN_SAFE_FLOOR_ID) === true;
+
+  playerOxygenPercent = PLAYER_OXYGEN_EMERGENCY_RESPAWN_PERCENT;
+  playerOxygenDepletionNotified = false;
+  playerOxygenCurrentDrainMultiplier = 0;
+  clearPlayerOxygenDiggingActivity();
+  playerOxygenShiftHeld = false;
+  playerOxygenTickLastTimestamp = now;
+  playerOxygenMovementLastTimestamp = now;
+  playerOxygenMovementLastPosition = sceneController?.getPlayerPosition?.() ?? null;
+
+  applyPlayerOxygenPressureEffects({
+    now,
+    silent: true,
+    forceUi: true,
+  });
+  schedulePersistPlayerOxygen({ force: true });
+
+  showTerminalToast({
+    title: "Emergency oxygen protocol",
+    description: relocatedToSafeFloor
+      ? "Returned to outside exit with 25% O2."
+      : "Oxygen restored to 25%. Reach the nearest station.",
+  });
+
+  playerOxygenEmergencyRespawnPending = false;
+  return true;
 };
 
 updatePlayerOxygenUi();
@@ -517,7 +729,7 @@ const resolvePlayerOxygenDrainMultiplier = (now) => {
     return PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER;
   }
 
-  return playerOxygenShiftHeld
+  return playerOxygenShiftHeld && !isPlayerOxygenSprintLocked()
     ? PLAYER_OXYGEN_SHIFT_MOVING_DRAIN_MULTIPLIER
     : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER;
 };
@@ -549,21 +761,18 @@ const tickPlayerOxygen = () => {
       playerOxygenCurrentDrainMultiplier = 0;
       updatePlayerOxygenUi();
     }
+    applyPlayerOxygenPressureEffects({ now, silent: true });
     return;
   }
+
+  applyPlayerOxygenPressureEffects({ now });
 
   if (playerOxygenPercent <= 0) {
     if (playerOxygenCurrentDrainMultiplier !== 0) {
       playerOxygenCurrentDrainMultiplier = 0;
       updatePlayerOxygenUi();
     }
-    if (!playerOxygenDepletionNotified) {
-      playerOxygenDepletionNotified = true;
-      showTerminalToast({
-        title: "Oxygen depleted",
-        description: "Return to an oxygen station.",
-      });
-    }
+    triggerPlayerOxygenEmergencyRespawn(now);
     return;
   }
 
@@ -579,14 +788,11 @@ const tickPlayerOxygen = () => {
     playerOxygenPercent = nextPercent;
     updatePlayerOxygenUi();
     schedulePersistPlayerOxygen();
+    applyPlayerOxygenPressureEffects({ now });
   }
 
-  if (playerOxygenPercent <= 0 && !playerOxygenDepletionNotified) {
-    playerOxygenDepletionNotified = true;
-    showTerminalToast({
-      title: "Oxygen depleted",
-      description: "Return to an oxygen station.",
-    });
+  if (playerOxygenPercent <= 0) {
+    triggerPlayerOxygenEmergencyRespawn(now);
   }
 };
 
@@ -11344,7 +11550,13 @@ const handlePlayerOxygenRefillInteract = () => {
       : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER
     : 0;
   playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
-  updatePlayerOxygenUi();
+  lastPlayerOxygenWarningSoundAt = 0;
+  lastPlayerOxygenWarningToastAt = 0;
+  applyPlayerOxygenPressureEffects({
+    now,
+    silent: true,
+    forceUi: true,
+  });
   schedulePersistPlayerOxygen({ force: true });
   playTerminalInteractionSound();
   showTerminalToast({
@@ -12054,6 +12266,14 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     schedulePersistPlayerOxygen({ force: true });
   }
+
+  if (document.visibilityState !== "hidden") {
+    applyPlayerOxygenPressureEffects({
+      now: Date.now(),
+      silent: true,
+      forceUi: true,
+    });
+  }
 });
 window.addEventListener("beforeunload", () => {
   if (geoVisorBatteryPersistenceEnabled) {
@@ -12297,10 +12517,15 @@ const bootstrapScene = () => {
         clearPlayerOxygenDiggingActivity();
 
         if (reason === "movement") {
-          playerOxygenCurrentDrainMultiplier = playerOxygenShiftHeld
+          playerOxygenCurrentDrainMultiplier =
+            playerOxygenShiftHeld && !isPlayerOxygenSprintLocked()
             ? PLAYER_OXYGEN_SHIFT_MOVING_DRAIN_MULTIPLIER
             : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER;
-          updatePlayerOxygenUi();
+          applyPlayerOxygenPressureEffects({
+            now: Date.now(),
+            silent: true,
+            forceUi: true,
+          });
           showResourceToast({ title: "Digging interrupted" });
         }
       },
@@ -12318,6 +12543,11 @@ const bootstrapScene = () => {
 
   sceneController?.setResourceToolEnabled?.(isDiggerToolEnabled());
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
+  applyPlayerOxygenPressureEffects({
+    now: Date.now(),
+    silent: true,
+    forceUi: true,
+  });
 
   } catch (error) {
     console.error("Failed to initialize 3D scene", error);

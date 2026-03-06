@@ -1403,6 +1403,18 @@
         z-index: 4;
       }
 
+      .oxygen-hud[data-pressure="critical"],
+      .oxygen-hud[data-pressure="emergency"] {
+        border-color: rgba(248, 113, 113, 0.72);
+        box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35),
+          0 12px 28px rgba(127, 29, 29, 0.45);
+        animation: oxygen-warning-pulse 1.15s ease-in-out infinite;
+      }
+
+      .oxygen-hud[data-pressure="emergency"] {
+        animation-duration: 0.8s;
+      }
+
       .oxygen-hud__header {
         display: flex;
         justify-content: space-between;
@@ -1489,6 +1501,54 @@
 
       .oxygen-hud[data-drain-state="idle"] .oxygen-hud__drain-bar-fill {
         background: linear-gradient(90deg, #64748b, #475569);
+      }
+
+      .oxygen-hud__hint {
+        margin: 0.5rem 0 0;
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+        color: rgba(254, 226, 226, 0.92);
+      }
+
+      .oxygen-hud__hint[hidden] {
+        display: none;
+      }
+
+      .oxygen-vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        background: radial-gradient(
+          circle at center,
+          rgba(0, 0, 0, 0) 45%,
+          rgba(127, 29, 29, 0.45) 100%
+        );
+        transition: opacity 180ms ease-out;
+        z-index: 2;
+      }
+
+      .oxygen-vignette[data-level="critical"] {
+        opacity: 0.35;
+      }
+
+      .oxygen-vignette[data-level="emergency"] {
+        opacity: 0.58;
+      }
+
+      @keyframes oxygen-warning-pulse {
+        0% {
+          transform: translateZ(0);
+          filter: brightness(1);
+        }
+        50% {
+          transform: translateZ(0) scale(1.01);
+          filter: brightness(1.08);
+        }
+        100% {
+          transform: translateZ(0);
+          filter: brightness(1);
+        }
       }
 
       .fps-meter {
@@ -4977,10 +5037,13 @@
         aria-label="Quick slots"
       ></div>
 
+      <div class="oxygen-vignette" data-player-oxygen-vignette data-level="safe"></div>
+
       <section
         class="oxygen-hud"
         data-player-oxygen-panel
         data-state="safe"
+        data-pressure="safe"
         role="status"
         aria-live="polite"
         aria-label="Player oxygen reserves"
@@ -5002,6 +5065,7 @@
             data-player-oxygen-drain-bar
           ></div>
         </div>
+        <p class="oxygen-hud__hint" data-player-oxygen-hint hidden></p>
       </section>
 
       <div class="fps-meter" data-fps-meter aria-live="polite" hidden>-- FPS</div>
