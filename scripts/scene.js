@@ -5746,11 +5746,13 @@ export const initScene = (
     group.add(portalControl);
 
     const oxygenStandGroup = new THREE.Group();
+    const oxygenStandWallMountOffsetY = 0.34;
     oxygenStandGroup.position.set(
-      catwalkWidth / 2 - 0.92,
-      roomFloorY,
+      wallSpanWidth / 2 - wallThickness - 0.28,
+      roomFloorY + oxygenStandWallMountOffsetY,
       -deckDepth * 0.2
     );
+    oxygenStandGroup.rotation.y = Math.PI / 2;
     group.add(oxygenStandGroup);
 
     const oxygenStandBodyMaterial = new THREE.MeshStandardMaterial({
@@ -5776,6 +5778,13 @@ export const initScene = (
       emissive: new THREE.Color(0x38bdf8),
       emissiveIntensity: 0.74,
     });
+
+    const oxygenStandWallPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 1.38, 0.82),
+      oxygenStandBodyMaterial
+    );
+    oxygenStandWallPlate.position.set(0, 0.69, 0.2);
+    oxygenStandGroup.add(oxygenStandWallPlate);
 
     const oxygenStandBase = new THREE.Mesh(
       new THREE.CylinderGeometry(0.3, 0.34, 0.12, 24),
@@ -5835,8 +5844,7 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    oxygenStandHalo.rotation.x = -Math.PI / 2;
-    oxygenStandHalo.position.set(0, 0.015, 0);
+    oxygenStandHalo.position.set(0, 0.86, -0.04);
     oxygenStandGroup.add(oxygenStandHalo);
 
     const oxygenRefillControl = new THREE.Mesh(
@@ -5931,7 +5939,7 @@ export const initScene = (
       { object: portalGlow, offset: exteriorDoorHeight * 0.6 },
       { object: portalArch, offset: exteriorDoorHeight * 0.92 },
       { object: portalControl, offset: exteriorDoorHeight * 0.56 },
-      { object: oxygenStandGroup, offset: 0 },
+      { object: oxygenStandGroup, offset: oxygenStandWallMountOffsetY },
     ];
 
     const mapOverlay = createStoredAreaOverlay({
