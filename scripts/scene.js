@@ -16584,7 +16584,6 @@ export const initScene = (
     endsAtEpochMs: 0,
   };
   const oxygenChamberTeleportTarget = new THREE.Vector3();
-  const oxygenChamberClampOffset = new THREE.Vector3();
 
   const terrainGroundRaycaster = new THREE.Raycaster();
   const terrainGroundRayDirection = new THREE.Vector3(0, -1, 0);
@@ -16872,12 +16871,7 @@ export const initScene = (
   };
 
   const enterOperationsConcourseOxygenChamber = ({ durationMs = 0 } = {}) => {
-    const chamber = resolveOperationsConcourseOxygenChamber();
-    if (!chamber) {
-      return { entered: false, remainingMs: 0 };
-    }
-
-    const targetFloorId = chamber.floorId;
+    const targetFloorId = "operations-concourse";
     const activeFloorId = getActiveLiftFloor()?.id ?? null;
     if (activeFloorId !== targetFloorId) {
       const targetFloorIndex = liftState.floors.findIndex(
@@ -16891,6 +16885,11 @@ export const initScene = (
           reason: "oxygen-chamber",
         });
       }
+    }
+
+    const chamber = resolveOperationsConcourseOxygenChamber();
+    if (!chamber) {
+      return { entered: false, remainingMs: 0 };
     }
 
     chamber.anchor.updateMatrixWorld(true);
@@ -16960,37 +16959,26 @@ export const initScene = (
       return false;
     }
 
-    const radius = playerConfinementState.radius;
-    if (!Number.isFinite(radius) || radius <= 0) {
-      clearPlayerConfinement();
-      return false;
+    const moved =
+      Math.abs(playerObject.position.x - playerConfinementState.center.x) > 1e-6 ||
+      Math.abs(playerObject.position.z - playerConfinementState.center.z) > 1e-6;
+
+    playerObject.position.x = playerConfinementState.center.x;
+    playerObject.position.z = playerConfinementState.center.z;
+    velocity.x = 0;
+    velocity.z = 0;
+    jumpRequested = false;
+    verticalVelocity = 0;
+    const groundY = getPlayerGroundHeight(playerObject.position);
+    if (Number.isFinite(groundY)) {
+      playerObject.position.y = groundY;
+      playerGroundedHeight = groundY;
+      isGrounded = true;
     }
-
-    oxygenChamberClampOffset.set(
-      playerObject.position.x - playerConfinementState.center.x,
-      0,
-      playerObject.position.z - playerConfinementState.center.z
-    );
-    const distance = oxygenChamberClampOffset.length();
-
-    if (!Number.isFinite(distance) || distance <= radius) {
-      return false;
-    }
-
-    if (distance > 0) {
-      oxygenChamberClampOffset.multiplyScalar(radius / distance);
-    } else {
-      oxygenChamberClampOffset.set(radius, 0, 0);
-    }
-
-    playerObject.position.x =
-      playerConfinementState.center.x + oxygenChamberClampOffset.x;
-    playerObject.position.z =
-      playerConfinementState.center.z + oxygenChamberClampOffset.z;
 
     clampWithinActiveFloor(0, null, { skipVerticalClamp: false });
     previousPlayerPosition.copy(playerObject.position);
-    return true;
+    return moved;
   };
 
   const onKeyDown = (event) => {

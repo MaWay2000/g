@@ -316,6 +316,7 @@ const PLAYER_OXYGEN_EMERGENCY_DIG_DURATION_MULTIPLIER = 1.3;
 const PLAYER_OXYGEN_SAFE_DIG_DURATION_MULTIPLIER = 1;
 const PLAYER_OXYGEN_SAFE_FLOOR_ID = "operations-concourse";
 const PLAYER_OXYGEN_CHAMBER_PENALTY_MS = 60 * 1000;
+const PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT = 10;
 const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
   "operations-exterior",
   "exterior-outpost",
@@ -542,12 +543,28 @@ const syncPlayerOxygenChamberPenaltyState = ({ now = Date.now(), silent = false 
   );
   if (Number.isFinite(remainingMs) && remainingMs > 0) {
     playerOxygenChamberPenaltyRemainingMs = Math.ceil(remainingMs);
+    const recoveryProgress = Math.max(
+      0,
+      Math.min(1, 1 - remainingMs / PLAYER_OXYGEN_CHAMBER_PENALTY_MS)
+    );
+    const targetPercent = Math.max(
+      0,
+      Math.min(
+        PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT,
+        PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT * recoveryProgress
+      )
+    );
+    if (Math.abs(playerOxygenPercent - targetPercent) > 1e-6) {
+      playerOxygenPercent = targetPercent;
+      updatePlayerOxygenUi();
+      schedulePersistPlayerOxygen();
+    }
     return true;
   }
 
   playerOxygenChamberPenaltyActive = false;
   playerOxygenChamberPenaltyRemainingMs = 0;
-  playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+  playerOxygenPercent = PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT;
   playerOxygenCurrentDrainMultiplier = 0;
   playerOxygenDepletionNotified = false;
   lastPlayerOxygenWarningSoundAt = 0;
@@ -562,7 +579,7 @@ const syncPlayerOxygenChamberPenaltyState = ({ now = Date.now(), silent = false 
   if (!silent) {
     showTerminalToast({
       title: "Oxygen chamber cycle complete",
-      description: "Suit systems stabilized. You can leave now.",
+      description: "Oxygen restored to 10%. You can move now.",
     });
   }
 
@@ -675,7 +692,7 @@ const triggerPlayerOxygenEmergencyRespawn = (now) => {
     sceneController?.setActiveLiftFloorById?.(PLAYER_OXYGEN_SAFE_FLOOR_ID);
   }
 
-  playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+  playerOxygenPercent = 0;
   playerOxygenDepletionNotified = false;
   playerOxygenCurrentDrainMultiplier = 0;
   clearPlayerOxygenDiggingActivity();
@@ -694,7 +711,7 @@ const triggerPlayerOxygenEmergencyRespawn = (now) => {
   showTerminalToast({
     title: "Emergency oxygen protocol active",
     description: chamberEntered
-      ? "Remain in oxygen chamber for 60s recovery."
+      ? "Remain still in oxygen chamber for 60s. Oxygen recovering to 10%."
       : "Returned to outside exit for emergency recovery.",
   });
 
