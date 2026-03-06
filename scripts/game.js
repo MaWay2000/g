@@ -51,6 +51,11 @@ import {
   persistTerrainLifeState,
 } from "./terrain-life-storage.js";
 import { clearStoredManifestPlacements } from "./manifest-placement-storage.js";
+import {
+  clearStoredPlayerOxygenState,
+  loadStoredPlayerOxygenState,
+  persistPlayerOxygenState,
+} from "./oxygen-state-storage.js";
 
 const canvas = document.getElementById("gameCanvas");
 const instructions = document.querySelector("[data-instructions]");
@@ -298,12 +303,19 @@ const PLAYER_OXYGEN_DIGGING_DRAIN_MULTIPLIER = 0.5;
 const PLAYER_OXYGEN_STILL_SPEED_THRESHOLD = 0.12;
 const PLAYER_OXYGEN_DIGGING_ACTIVITY_WINDOW_MS = 1200;
 const PLAYER_OXYGEN_DIGGING_ACTIVITY_BUFFER_MS = 200;
+const PLAYER_OXYGEN_PERSIST_INTERVAL_MS = 1000;
 const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
   "operations-exterior",
   "exterior-outpost",
 ]);
 const PLAYER_OXYGEN_REFILL_COOLDOWN_MS = 800;
-let playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+const storedPlayerOxygenState = loadStoredPlayerOxygenState();
+let playerOxygenPercent = Number.isFinite(storedPlayerOxygenState?.percent)
+  ? Math.max(
+      0,
+      Math.min(PLAYER_OXYGEN_MAX_PERCENT, storedPlayerOxygenState.percent)
+    )
+  : PLAYER_OXYGEN_MAX_PERCENT;
 let lastPlayerOxygenRefillAt = 0;
 let playerOxygenTickLastTimestamp = 0;
 let playerOxygenDepletionNotified = false;
@@ -313,6 +325,8 @@ let playerOxygenLastDiggingActivityAt = 0;
 let playerOxygenDiggingActiveUntil = 0;
 let playerOxygenCurrentDrainMultiplier = 0;
 let playerOxygenShiftHeld = false;
+let persistPlayerOxygenTimeoutId = 0;
+let playerOxygenPersistenceEnabled = true;
 
 const clampPlayerOxygenPercent = (value) => {
   const numericValue = Number(value);
@@ -374,6 +388,44 @@ const updatePlayerOxygenUi = () => {
       `Player oxygen reserves ${oxygenText}, consumption ${drainText}`
     );
   }
+};
+
+const persistPlayerOxygenSnapshot = ({ force = false } = {}) => {
+  if (!playerOxygenPersistenceEnabled) {
+    return false;
+  }
+
+  return persistPlayerOxygenState(
+    {
+      percent: playerOxygenPercent,
+      updatedAt: Date.now(),
+    },
+    { force }
+  );
+};
+
+const schedulePersistPlayerOxygen = ({ force = false } = {}) => {
+  if (!playerOxygenPersistenceEnabled) {
+    return;
+  }
+
+  if (force) {
+    if (persistPlayerOxygenTimeoutId) {
+      window.clearTimeout(persistPlayerOxygenTimeoutId);
+      persistPlayerOxygenTimeoutId = 0;
+    }
+    persistPlayerOxygenSnapshot({ force: true });
+    return;
+  }
+
+  if (persistPlayerOxygenTimeoutId) {
+    return;
+  }
+
+  persistPlayerOxygenTimeoutId = window.setTimeout(() => {
+    persistPlayerOxygenTimeoutId = 0;
+    persistPlayerOxygenSnapshot();
+  }, PLAYER_OXYGEN_PERSIST_INTERVAL_MS);
 };
 
 updatePlayerOxygenUi();
@@ -526,6 +578,7 @@ const tickPlayerOxygen = () => {
   if (Math.abs(nextPercent - playerOxygenPercent) > 1e-6) {
     playerOxygenPercent = nextPercent;
     updatePlayerOxygenUi();
+    schedulePersistPlayerOxygen();
   }
 
   if (playerOxygenPercent <= 0 && !playerOxygenDepletionNotified) {
@@ -11292,6 +11345,7 @@ const handlePlayerOxygenRefillInteract = () => {
     : 0;
   playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
   updatePlayerOxygenUi();
+  schedulePersistPlayerOxygen({ force: true });
   playTerminalInteractionSound();
   showTerminalToast({
     title: "Suit oxygen refilled",
@@ -11996,11 +12050,16 @@ document.addEventListener("visibilitychange", () => {
   if (geoVisorBatteryPersistenceEnabled && document.visibilityState === "hidden") {
     schedulePersistGeoVisorBatteryState({ force: true });
   }
+
+  if (document.visibilityState === "hidden") {
+    schedulePersistPlayerOxygen({ force: true });
+  }
 });
 window.addEventListener("beforeunload", () => {
   if (geoVisorBatteryPersistenceEnabled) {
     schedulePersistGeoVisorBatteryState({ force: true });
   }
+  schedulePersistPlayerOxygen({ force: true });
 });
 
 const describeManifestEntry = (entry) => {
@@ -12519,6 +12578,7 @@ function handleReset(event) {
   setButtonBusyState(resetButton, true);
   progressResetInProgress = true;
   geoVisorBatteryPersistenceEnabled = false;
+  playerOxygenPersistenceEnabled = false;
   if (persistGeoVisorBatteryTimeoutId) {
     window.clearTimeout(persistGeoVisorBatteryTimeoutId);
     persistGeoVisorBatteryTimeoutId = 0;
@@ -12530,6 +12590,10 @@ function handleReset(event) {
   if (persistInventoryStateTimeoutId) {
     window.clearTimeout(persistInventoryStateTimeoutId);
     persistInventoryStateTimeoutId = 0;
+  }
+  if (persistPlayerOxygenTimeoutId) {
+    window.clearTimeout(persistPlayerOxygenTimeoutId);
+    persistPlayerOxygenTimeoutId = 0;
   }
 
   let shouldReload = false;
@@ -12547,6 +12611,7 @@ function handleReset(event) {
     const clearedTerrainLife = clearStoredTerrainLife();
     const clearedManifestPlacements = clearStoredManifestPlacements();
     const clearedInventory = clearStoredInventoryState();
+    const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
 
     resetMissions();
@@ -12560,6 +12625,7 @@ function handleReset(event) {
       !clearedTerrainLife ||
       !clearedManifestPlacements ||
       !clearedInventory ||
+      !clearedPlayerOxygen ||
       !resetMarketState
     ) {
       throw new Error("Unable to access saved data");
@@ -12584,6 +12650,7 @@ function handleReset(event) {
     if (!shouldReload) {
       progressResetInProgress = false;
       geoVisorBatteryPersistenceEnabled = true;
+      playerOxygenPersistenceEnabled = true;
       setButtonBusyState(resetButton, false);
     }
   }
