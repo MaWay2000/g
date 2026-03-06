@@ -5521,50 +5521,6 @@ export const initScene = (
     catwalk.position.y = roomFloorY + 0.18;
     group.add(catwalk);
 
-    const railingMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x38bdf8),
-      emissive: new THREE.Color(0x1d4ed8),
-      emissiveIntensity: 0.6,
-      roughness: 0.35,
-      metalness: 0.25,
-    });
-
-    const railHeight = 1.1;
-    const railThickness = 0.08;
-
-    const createSideRail = (direction) => {
-      const rail = new THREE.Mesh(
-        new THREE.BoxGeometry(railThickness, railHeight, catwalkDepth),
-        railingMaterial
-      );
-      rail.position.set(
-        (catwalkWidth / 2 - railThickness / 2) * direction,
-        roomFloorY + 0.55,
-        0
-      );
-      return rail;
-    };
-
-    const leftRail = createSideRail(1);
-    group.add(leftRail);
-    const rightRail = createSideRail(-1);
-    group.add(rightRail);
-
-    const frontRail = new THREE.Mesh(
-      new THREE.BoxGeometry(catwalkWidth, railHeight, railThickness),
-      railingMaterial
-    );
-    frontRail.position.set(
-      0,
-      roomFloorY + 0.55,
-      catwalkDepth / 2 - railThickness / 2
-    );
-    group.add(frontRail);
-
-    const rearRail = frontRail.clone();
-    rearRail.position.z *= -1;
-    group.add(rearRail);
-
     const liftDoor = createHangarDoor(COMMAND_CENTER_DOOR_THEME, {
       includeBackWall: true,
     });
@@ -6069,10 +6025,6 @@ export const initScene = (
     const adjustableEntries = [
       { object: deck, offset: -deckThickness / 2 },
       { object: catwalk, offset: 0.18 },
-      { object: leftRail, offset: 0.55 },
-      { object: rightRail, offset: 0.55 },
-      { object: frontRail, offset: 0.55 },
-      { object: rearRail, offset: 0.55 },
       { object: leftWall, offset: wallHeight / 2 },
       { object: rightWall, offset: wallHeight / 2 },
       ...frontWallSegments.map((segment) => ({
