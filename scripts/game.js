@@ -375,10 +375,6 @@ const updatePlayerOxygenUi = () => {
 
 updatePlayerOxygenUi();
 
-if (canvas instanceof HTMLCanvasElement) {
-  canvas.addEventListener("resource-tool:action", handlePlayerOxygenDiggingActivity);
-}
-
 const isPlayerOnSurfaceForOxygenDrain = () => {
   const activeFloorId = sceneController?.getActiveLiftFloor?.()?.id ?? null;
   if (typeof activeFloorId !== "string" || activeFloorId.trim() === "") {
@@ -12208,6 +12204,15 @@ const bootstrapScene = () => {
       },
       onDroneReturnComplete: handleDroneReturnComplete,
     });
+
+  canvas.removeEventListener(
+    "resource-tool:action",
+    handlePlayerOxygenDiggingActivity
+  );
+  canvas.addEventListener(
+    "resource-tool:action",
+    handlePlayerOxygenDiggingActivity
+  );
 
   sceneController?.setResourceToolEnabled?.(isDiggerToolEnabled());
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
