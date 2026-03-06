@@ -2790,8 +2790,65 @@ export const initScene = (
     ["default", DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE],
   ]);
 
+  const HANGAR_DECK_DEFAULT_MAP_WIDTH = 5;
+  const HANGAR_DECK_DEFAULT_MAP_HEIGHT = 15;
+  const resolveInitialAreaMapSize = (
+    areaId,
+    fallbackSize = { width: 1, height: 1 }
+  ) => {
+    const fallbackWidth = Math.max(
+      1,
+      Number.parseInt(fallbackSize?.width, 10) || 1
+    );
+    const fallbackHeight = Math.max(
+      1,
+      Number.parseInt(fallbackSize?.height, 10) || 1
+    );
+    const storage = tryGetOutsideMapStorage();
+    if (!storage) {
+      return { width: fallbackWidth, height: fallbackHeight };
+    }
+    const resolvedAreaId =
+      typeof areaId === "string" && areaId.trim().length > 0
+        ? areaId.trim()
+        : "operations-exterior";
+    const storageKey =
+      resolvedAreaId === "operations-exterior"
+        ? OUTSIDE_MAP_LOCAL_STORAGE_KEY
+        : `${OUTSIDE_MAP_LOCAL_STORAGE_KEY}.${resolvedAreaId}`;
+    let serialized = null;
+    try {
+      serialized = storage.getItem(storageKey);
+    } catch (error) {
+      return { width: fallbackWidth, height: fallbackHeight };
+    }
+    if (!serialized) {
+      return { width: fallbackWidth, height: fallbackHeight };
+    }
+    try {
+      const normalized = normalizeOutsideMap(JSON.parse(serialized));
+      return {
+        width: Math.max(1, Number.parseInt(normalized?.width, 10) || fallbackWidth),
+        height: Math.max(
+          1,
+          Number.parseInt(normalized?.height, 10) || fallbackHeight
+        ),
+      };
+    } catch (error) {
+      return { width: fallbackWidth, height: fallbackHeight };
+    }
+  };
+
   const roomWidth = BASE_ROOM_WIDTH;
   const roomDepth = BASE_ROOM_DEPTH;
+  const hangarDeckMapSize = resolveInitialAreaMapSize("hangar-deck", {
+    width: HANGAR_DECK_DEFAULT_MAP_WIDTH,
+    height: HANGAR_DECK_DEFAULT_MAP_HEIGHT,
+  });
+  const hangarDeckScaleX = hangarDeckMapSize.width / HANGAR_DECK_DEFAULT_MAP_WIDTH;
+  const hangarDeckScaleZ = hangarDeckMapSize.height / HANGAR_DECK_DEFAULT_MAP_HEIGHT;
+  const scaledRoomWidth = roomWidth * hangarDeckScaleX;
+  const scaledRoomDepth = roomDepth * hangarDeckScaleZ;
   const ENGINEERING_BAY_WIDTH_FACTOR = 2.1;
   const ENGINEERING_BAY_DEPTH_FACTOR = 1.2;
   let roomHeight = BASE_ROOM_HEIGHT * (playerHeight / DEFAULT_PLAYER_HEIGHT);
@@ -2817,6 +2874,7 @@ export const initScene = (
 
   const hangarDeckEnvironmentGroup = new THREE.Group();
   hangarDeckEnvironmentGroup.name = "HangarDeckEnvironment";
+  hangarDeckEnvironmentGroup.scale.set(hangarDeckScaleX, 1, hangarDeckScaleZ);
   scene.add(hangarDeckEnvironmentGroup);
 
   const roomGeometry = new THREE.BoxGeometry(
@@ -15055,9 +15113,9 @@ export const initScene = (
 
   let travelToLiftFloor = null;
 
-  const liftFrontApproachZ = roomDepth / 2 - 3 * ROOM_SCALE_FACTOR;
-  const liftRearApproachZ = -roomDepth / 2 + 3 * ROOM_SCALE_FACTOR;
-  const liftPortApproachX = -roomWidth / 4;
+  const liftFrontApproachZ = scaledRoomDepth / 2 - 3 * ROOM_SCALE_FACTOR;
+  const liftRearApproachZ = -scaledRoomDepth / 2 + 3 * ROOM_SCALE_FACTOR;
+  const liftPortApproachX = -scaledRoomWidth / 4;
 
   const hangarDeckFloorPosition = new THREE.Vector3(
     0,
@@ -15115,7 +15173,7 @@ export const initScene = (
     playerObject.rotation.y = 0;
   }
 
-  const hangarDeckFloorBounds = createFloorBounds(roomWidth, roomDepth, {
+  const hangarDeckFloorBounds = createFloorBounds(scaledRoomWidth, scaledRoomDepth, {
     paddingX: 1,
     paddingZ: 1,
   });
