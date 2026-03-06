@@ -5378,29 +5378,78 @@ export const initScene = (
     };
   };
 
-  const OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH = 7;
-  const OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT = 13;
+  const AREA_MAP_SIZE_DEFAULTS = Object.freeze({
+    "operations-concourse": { width: 7, height: 13 },
+    "engineering-bay": { width: 11, height: 18 },
+    "exterior-outpost": { width: 9, height: 17 },
+  });
+
+  const resolveStoredAreaMapSize = (
+    areaId,
+    fallbackSize = { width: 1, height: 1 }
+  ) => {
+    const fallbackWidth = Math.max(
+      1,
+      Number.parseInt(fallbackSize?.width, 10) || 1
+    );
+    const fallbackHeight = Math.max(
+      1,
+      Number.parseInt(fallbackSize?.height, 10) || 1
+    );
+    const storedMap = loadStoredMapForArea(areaId);
+    return {
+      width: Math.max(1, Number.parseInt(storedMap?.width, 10) || fallbackWidth),
+      height: Math.max(
+        1,
+        Number.parseInt(storedMap?.height, 10) || fallbackHeight
+      ),
+    };
+  };
+
+  const resolveScaledAreaDimensions = (
+    areaId,
+    baseWidth,
+    baseDepth,
+    fallbackSize = { width: 1, height: 1 }
+  ) => {
+    const defaultSize = AREA_MAP_SIZE_DEFAULTS[areaId] ?? fallbackSize;
+    const safeDefaultWidth = Math.max(
+      1,
+      Number.parseInt(defaultSize?.width, 10) || 1
+    );
+    const safeDefaultHeight = Math.max(
+      1,
+      Number.parseInt(defaultSize?.height, 10) || 1
+    );
+    const mapSize = resolveStoredAreaMapSize(areaId, defaultSize);
+    return {
+      width: (baseWidth * mapSize.width) / safeDefaultWidth,
+      depth: (baseDepth * mapSize.height) / safeDefaultHeight,
+    };
+  };
+
+  const resolveOperationsConcourseDeckDimensions = () =>
+    resolveScaledAreaDimensions(
+      "operations-concourse",
+      roomWidth * 1.35,
+      roomDepth * 0.85
+    );
+
+  const resolveEngineeringBayDimensions = () =>
+    resolveScaledAreaDimensions(
+      "engineering-bay",
+      roomWidth * ENGINEERING_BAY_WIDTH_FACTOR,
+      roomDepth * ENGINEERING_BAY_DEPTH_FACTOR
+    );
+
+  const resolveExteriorOutpostDimensions = () =>
+    resolveScaledAreaDimensions("exterior-outpost", roomWidth * 1.8, roomDepth * 1.15);
 
   const createOperationsConcourseEnvironment = () => {
     const group = new THREE.Group();
 
-    const baseDeckWidth = roomWidth * 1.35;
-    const baseDeckDepth = roomDepth * 0.85;
-    const storedConcourseMap = loadStoredMapForArea("operations-concourse");
-    const mapWidth = Math.max(
-      1,
-      Number.parseInt(storedConcourseMap?.width, 10) ||
-        OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH
-    );
-    const mapHeight = Math.max(
-      1,
-      Number.parseInt(storedConcourseMap?.height, 10) ||
-        OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT
-    );
-    const deckWidth =
-      (baseDeckWidth * mapWidth) / OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH;
-    const deckDepth =
-      (baseDeckDepth * mapHeight) / OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT;
+    const { width: deckWidth, depth: deckDepth } =
+      resolveOperationsConcourseDeckDimensions();
     const deckThickness = 0.45;
 
     const minimumWallHeight = BASE_DOOR_HEIGHT + 0.6;
@@ -8782,8 +8831,8 @@ export const initScene = (
   const createEngineeringBayEnvironment = () => {
     const group = new THREE.Group();
 
-    const bayWidth = roomWidth * ENGINEERING_BAY_WIDTH_FACTOR;
-    const bayDepth = roomDepth * ENGINEERING_BAY_DEPTH_FACTOR;
+    const { width: bayWidth, depth: bayDepth } =
+      resolveEngineeringBayDimensions();
     const floorThickness = 0.5;
     // Keep wall/floor seams overlapped so no sky leaks through precision gaps.
     const wallHeight = Math.max(2.45, BASE_DOOR_HEIGHT + 0.35);
@@ -10529,8 +10578,10 @@ export const initScene = (
   const createExteriorOutpostEnvironment = () => {
     const group = new THREE.Group();
 
-    const plazaWidth = roomWidth * 1.8;
-    const plazaDepth = roomDepth * 1.15;
+    const { width: plazaWidth, depth: plazaDepth } =
+      resolveExteriorOutpostDimensions();
+    const plazaCenterX = -plazaWidth / 10.8;
+    const plazaDoorX = -plazaWidth / 5.4;
     const terrainThickness = 0.4;
 
     const floorBounds = createFloorBounds(plazaWidth, plazaDepth, {
@@ -10561,7 +10612,7 @@ export const initScene = (
       new THREE.BoxGeometry(plazaWidth * 0.7, 0.12, plazaDepth * 0.38),
       walkwayMaterial
     );
-    walkway.position.set(-roomWidth / 6, roomFloorY + 0.06, -plazaDepth * 0.15);
+    walkway.position.set(plazaCenterX, roomFloorY + 0.06, -plazaDepth * 0.15);
     group.add(walkway);
 
     const overlookMaterial = new THREE.MeshStandardMaterial({
@@ -10576,7 +10627,7 @@ export const initScene = (
       new THREE.CylinderGeometry(plazaWidth * 0.28, plazaWidth * 0.32, 0.18, 48),
       overlookMaterial
     );
-    overlook.position.set(-roomWidth / 6, roomFloorY + 0.09, plazaDepth * 0.1);
+    overlook.position.set(plazaCenterX, roomFloorY + 0.09, plazaDepth * 0.1);
     group.add(overlook);
 
     const perimeterMaterial = new THREE.MeshStandardMaterial({
@@ -10608,7 +10659,7 @@ export const initScene = (
       new THREE.BoxGeometry(plazaWidth * 0.72, 0.12, 0.12),
       perimeterMaterial
     );
-    forwardRail.position.set(-roomWidth / 6, roomFloorY + 1.05, plazaDepth * 0.32);
+    forwardRail.position.set(plazaCenterX, roomFloorY + 1.05, plazaDepth * 0.32);
     group.add(forwardRail);
 
     const accentGlow = new THREE.Mesh(
@@ -10622,7 +10673,7 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    accentGlow.position.set(-roomWidth / 6, roomFloorY + 2.2, plazaDepth * 0.26);
+    accentGlow.position.set(plazaCenterX, roomFloorY + 2.2, plazaDepth * 0.26);
     group.add(accentGlow);
 
     const planterMaterial = new THREE.MeshStandardMaterial({
@@ -10660,9 +10711,9 @@ export const initScene = (
       adjustableEntries.push({ object: foliage, offset: 0.65 });
     };
 
-    createPlanter(-roomWidth / 6 - 1, -plazaDepth * 0.05, 0.38);
-    createPlanter(-roomWidth / 6 + 1, -plazaDepth * 0.05, 0.36);
-    createPlanter(-roomWidth / 6, plazaDepth * 0.22, 0.48);
+    createPlanter(plazaCenterX - 1, -plazaDepth * 0.05, 0.38);
+    createPlanter(plazaCenterX + 1, -plazaDepth * 0.05, 0.36);
+    createPlanter(plazaCenterX, plazaDepth * 0.22, 0.48);
 
     const postMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x1f2937),
@@ -10716,8 +10767,8 @@ export const initScene = (
 
     const lightSpacing = plazaDepth * 0.2;
     [-1, 0, 1].forEach((offset) => {
-      createLightPost(-roomWidth / 6 - 0.95, -plazaDepth * 0.05 + offset * lightSpacing);
-      createLightPost(-roomWidth / 6 + 0.95, -plazaDepth * 0.05 + offset * lightSpacing);
+      createLightPost(plazaCenterX - 0.95, -plazaDepth * 0.05 + offset * lightSpacing);
+      createLightPost(plazaCenterX + 0.95, -plazaDepth * 0.05 + offset * lightSpacing);
     });
 
     const ridgeMaterial = new THREE.MeshStandardMaterial({
@@ -10754,7 +10805,7 @@ export const initScene = (
         side: THREE.DoubleSide,
       })
     );
-    nebula.position.set(-roomWidth / 6, roomFloorY + 3.6, plazaDepth * 0.38);
+    nebula.position.set(plazaCenterX, roomFloorY + 3.6, plazaDepth * 0.38);
     nebula.rotation.x = -Math.PI / 3;
     group.add(nebula);
 
@@ -10803,7 +10854,7 @@ export const initScene = (
       includeBackWall: true,
     });
     liftDoor.position.set(
-      -roomWidth / 3,
+      plazaDoorX,
       roomFloorY + (liftDoor.userData.height ?? 0) / 2,
       -plazaDepth / 2 + 0.32 * ROOM_SCALE_FACTOR
     );
@@ -10861,7 +10912,7 @@ export const initScene = (
     };
 
     const teleportOffset = new THREE.Vector3(
-      -roomWidth / 3,
+      plazaDoorX,
       0,
       -plazaDepth / 2 + 1.9
     );
@@ -11402,9 +11453,10 @@ export const initScene = (
   };
 
   const operationsDeckGroupPosition = new THREE.Vector3(roomWidth * 3.2, 0, 0);
+  const operationsDeckDimensions = resolveOperationsConcourseDeckDimensions();
   const operationsDeckLocalBounds = createFloorBounds(
-    roomWidth * 1.35,
-    roomDepth * 0.85,
+    operationsDeckDimensions.width,
+    operationsDeckDimensions.depth,
     {
       paddingX: 0.75,
       paddingZ: 0.75,
@@ -11413,7 +11465,7 @@ export const initScene = (
   const operationsDeckTeleportOffset = new THREE.Vector3(
     0,
     0,
-    (roomDepth * 0.85) / 2 - 1.8
+    operationsDeckDimensions.depth / 2 - 1.8
   );
 
   const operationsExteriorGroupPosition = new THREE.Vector3(
@@ -11427,9 +11479,10 @@ export const initScene = (
     0,
     0
   );
+  const engineeringDeckDimensions = resolveEngineeringBayDimensions();
   const engineeringDeckLocalBounds = createFloorBounds(
-    roomWidth * ENGINEERING_BAY_WIDTH_FACTOR,
-    roomDepth * ENGINEERING_BAY_DEPTH_FACTOR,
+    engineeringDeckDimensions.width,
+    engineeringDeckDimensions.depth,
     {
       paddingX: 0.75,
       paddingZ: 0.75,
@@ -11438,7 +11491,7 @@ export const initScene = (
   const engineeringDeckTeleportOffset = new THREE.Vector3(
     0,
     0,
-    -(roomDepth * ENGINEERING_BAY_DEPTH_FACTOR) / 2 + 1.8
+    -engineeringDeckDimensions.depth / 2 + 1.8
   );
 
   const exteriorDeckGroupPosition = new THREE.Vector3(
@@ -11446,18 +11499,20 @@ export const initScene = (
     0,
     -roomDepth * 3.6
   );
+  const exteriorDeckDimensions = resolveExteriorOutpostDimensions();
+  const exteriorDeckDoorX = -exteriorDeckDimensions.width / 5.4;
   const exteriorDeckLocalBounds = createFloorBounds(
-    roomWidth * 1.8,
-    roomDepth * 1.15,
+    exteriorDeckDimensions.width,
+    exteriorDeckDimensions.depth,
     {
       paddingX: 1.1,
       paddingZ: 1.6,
     }
   );
   const exteriorDeckTeleportOffset = new THREE.Vector3(
-    -roomWidth / 3,
+    exteriorDeckDoorX,
     0,
-    -(roomDepth * 1.15) / 2 + 1.9
+    -exteriorDeckDimensions.depth / 2 + 1.9
   );
 
   const deckEnvironments = [
@@ -15027,11 +15082,10 @@ export const initScene = (
     liftRearApproachZ
   );
 
-  const exteriorDeckFloorPositionFallback = new THREE.Vector3(
-    -roomWidth / 3,
-    roomFloorY,
-    -roomDepth * 3.6 - (roomDepth * 1.15) / 2 + 1.9
-  );
+  const exteriorDeckFloorPositionFallback = new THREE.Vector3()
+    .copy(exteriorDeckGroupPosition)
+    .add(exteriorDeckTeleportOffset);
+  exteriorDeckFloorPositionFallback.y = roomFloorY;
 
   const resolvedOperationsFloorPosition =
     operationsDeckFloorPosition instanceof THREE.Vector3
@@ -15068,11 +15122,8 @@ export const initScene = (
   const resolvedOperationsFloorBounds =
     operationsDeckFloorBounds ??
     translateBoundsToWorld(
-      createFloorBounds(roomWidth * 1.35, roomDepth * 0.85, {
-        paddingX: 0.75,
-        paddingZ: 0.75,
-      }),
-      operationsDeckFloorPositionFallback
+      operationsDeckLocalBounds,
+      operationsDeckGroupPosition
     ) ??
     hangarDeckFloorBounds;
   const resolvedOperationsExteriorFloorBounds =
@@ -15085,26 +15136,16 @@ export const initScene = (
   const resolvedEngineeringFloorBounds =
     engineeringDeckFloorBounds ??
     translateBoundsToWorld(
-      createFloorBounds(
-        roomWidth * ENGINEERING_BAY_WIDTH_FACTOR,
-        roomDepth * ENGINEERING_BAY_DEPTH_FACTOR,
-        {
-          paddingX: 0.75,
-          paddingZ: 0.75,
-        }
-      ),
-      engineeringDeckFloorPositionFallback
+      engineeringDeckLocalBounds,
+      engineeringDeckGroupPosition
     ) ??
     hangarDeckFloorBounds;
 
   const resolvedExteriorFloorBounds =
     exteriorDeckFloorBounds ??
     translateBoundsToWorld(
-      createFloorBounds(roomWidth * 1.8, roomDepth * 1.15, {
-        paddingX: 1.1,
-        paddingZ: 1.6,
-      }),
-      exteriorDeckFloorPositionFallback
+      exteriorDeckLocalBounds,
+      exteriorDeckGroupPosition
     ) ??
     hangarDeckFloorBounds;
 

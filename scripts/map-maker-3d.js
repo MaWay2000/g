@@ -47,6 +47,14 @@ const clampPositiveNumber = (value, fallback = 1) => {
 
 const getFloorSpan = (size, padding) =>
   Math.max(0, clampPositiveNumber(size, 0) - clampPositiveNumber(padding, 0) * 2);
+const HANGAR_DECK_DEFAULT_MAP_WIDTH = 5;
+const HANGAR_DECK_DEFAULT_MAP_HEIGHT = 15;
+const HANGAR_DECK_DEFAULT_FLOOR_WIDTH = getFloorSpan(BASE_ROOM_WIDTH, 1);
+const HANGAR_DECK_DEFAULT_FLOOR_DEPTH = getFloorSpan(BASE_ROOM_DEPTH, 1);
+const HANGAR_DECK_CELL_SIZE_X =
+  HANGAR_DECK_DEFAULT_FLOOR_WIDTH / HANGAR_DECK_DEFAULT_MAP_WIDTH;
+const HANGAR_DECK_CELL_SIZE_Z =
+  HANGAR_DECK_DEFAULT_FLOOR_DEPTH / HANGAR_DECK_DEFAULT_MAP_HEIGHT;
 const OPERATIONS_CONCOURSE_DEFAULT_MAP_WIDTH = 7;
 const OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT = 13;
 const OPERATIONS_CONCOURSE_DEFAULT_FLOOR_WIDTH = getFloorSpan(
@@ -63,6 +71,34 @@ const OPERATIONS_CONCOURSE_CELL_SIZE_X =
 const OPERATIONS_CONCOURSE_CELL_SIZE_Z =
   OPERATIONS_CONCOURSE_DEFAULT_FLOOR_DEPTH /
   OPERATIONS_CONCOURSE_DEFAULT_MAP_HEIGHT;
+const ENGINEERING_BAY_DEFAULT_MAP_WIDTH = 11;
+const ENGINEERING_BAY_DEFAULT_MAP_HEIGHT = 18;
+const ENGINEERING_BAY_DEFAULT_FLOOR_WIDTH = getFloorSpan(
+  BASE_ROOM_WIDTH * ENGINEERING_BAY_WIDTH_FACTOR,
+  0.75
+);
+const ENGINEERING_BAY_DEFAULT_FLOOR_DEPTH = getFloorSpan(
+  BASE_ROOM_DEPTH * ENGINEERING_BAY_DEPTH_FACTOR,
+  0.75
+);
+const ENGINEERING_BAY_CELL_SIZE_X =
+  ENGINEERING_BAY_DEFAULT_FLOOR_WIDTH / ENGINEERING_BAY_DEFAULT_MAP_WIDTH;
+const ENGINEERING_BAY_CELL_SIZE_Z =
+  ENGINEERING_BAY_DEFAULT_FLOOR_DEPTH / ENGINEERING_BAY_DEFAULT_MAP_HEIGHT;
+const EXTERIOR_OUTPOST_DEFAULT_MAP_WIDTH = 9;
+const EXTERIOR_OUTPOST_DEFAULT_MAP_HEIGHT = 17;
+const EXTERIOR_OUTPOST_DEFAULT_FLOOR_WIDTH = getFloorSpan(
+  BASE_ROOM_WIDTH * 1.8,
+  1.1
+);
+const EXTERIOR_OUTPOST_DEFAULT_FLOOR_DEPTH = getFloorSpan(
+  BASE_ROOM_DEPTH * 1.15,
+  1.6
+);
+const EXTERIOR_OUTPOST_CELL_SIZE_X =
+  EXTERIOR_OUTPOST_DEFAULT_FLOOR_WIDTH / EXTERIOR_OUTPOST_DEFAULT_MAP_WIDTH;
+const EXTERIOR_OUTPOST_CELL_SIZE_Z =
+  EXTERIOR_OUTPOST_DEFAULT_FLOOR_DEPTH / EXTERIOR_OUTPOST_DEFAULT_MAP_HEIGHT;
 
 const resolveAreaCellSizes = (areaId, mapWidth, mapHeight) => {
   const safeWidth = clampPositiveNumber(mapWidth, 1);
@@ -79,23 +115,17 @@ const resolveAreaCellSizes = (areaId, mapWidth, mapHeight) => {
   let floorDepth = safeHeight;
 
   if (areaId === "hangar-deck") {
-    floorWidth = getFloorSpan(BASE_ROOM_WIDTH, 1);
-    floorDepth = getFloorSpan(BASE_ROOM_DEPTH, 1);
+    floorWidth = HANGAR_DECK_CELL_SIZE_X * safeWidth;
+    floorDepth = HANGAR_DECK_CELL_SIZE_Z * safeHeight;
   } else if (areaId === "operations-concourse") {
     floorWidth = OPERATIONS_CONCOURSE_CELL_SIZE_X * safeWidth;
     floorDepth = OPERATIONS_CONCOURSE_CELL_SIZE_Z * safeHeight;
   } else if (areaId === "engineering-bay") {
-    floorWidth = getFloorSpan(
-      BASE_ROOM_WIDTH * ENGINEERING_BAY_WIDTH_FACTOR,
-      0.75
-    );
-    floorDepth = getFloorSpan(
-      BASE_ROOM_DEPTH * ENGINEERING_BAY_DEPTH_FACTOR,
-      0.75
-    );
+    floorWidth = ENGINEERING_BAY_CELL_SIZE_X * safeWidth;
+    floorDepth = ENGINEERING_BAY_CELL_SIZE_Z * safeHeight;
   } else if (areaId === "exterior-outpost") {
-    floorWidth = getFloorSpan(BASE_ROOM_WIDTH * 1.8, 1.1);
-    floorDepth = getFloorSpan(BASE_ROOM_DEPTH * 1.15, 1.6);
+    floorWidth = EXTERIOR_OUTPOST_CELL_SIZE_X * safeWidth;
+    floorDepth = EXTERIOR_OUTPOST_CELL_SIZE_Z * safeHeight;
   }
 
   return {
