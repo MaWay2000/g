@@ -2874,13 +2874,12 @@ export const initScene = (
 
   const hangarDeckEnvironmentGroup = new THREE.Group();
   hangarDeckEnvironmentGroup.name = "HangarDeckEnvironment";
-  hangarDeckEnvironmentGroup.scale.set(hangarDeckScaleX, 1, hangarDeckScaleZ);
   scene.add(hangarDeckEnvironmentGroup);
 
   const roomGeometry = new THREE.BoxGeometry(
-    roomWidth,
+    scaledRoomWidth,
     BASE_ROOM_HEIGHT,
-    roomDepth
+    scaledRoomDepth
   );
 
   const ceilingGroupIndex = 2;
@@ -3859,7 +3858,7 @@ export const initScene = (
   hangarDoor.position.set(
     0,
     -roomHeight / 2 + (hangarDoor.userData.height ?? 0) / 2,
-    roomDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
+    scaledRoomDepth / 2 - 0.32 * ROOM_SCALE_FACTOR
   );
   hangarDoor.rotation.y = Math.PI;
   hangarDeckEnvironmentGroup.add(hangarDoor);
@@ -11102,7 +11101,7 @@ export const initScene = (
   computerSetup.position.set(
     3 * ROOM_SCALE_FACTOR,
     roomFloorY,
-    -roomDepth / 2 + terminalBackOffset
+    -scaledRoomDepth / 2 + terminalBackOffset
   );
 
   registerColliderDescriptors(computerSetup.userData?.colliderDescriptors);
@@ -11123,7 +11122,7 @@ export const initScene = (
 
   const lastUpdatedDisplay = createLastUpdatedDisplay();
   lastUpdatedDisplay.position.set(
-    -roomWidth / 2 + 0.12 * ROOM_SCALE_FACTOR,
+    -scaledRoomWidth / 2 + 0.12 * ROOM_SCALE_FACTOR,
     roomFloorY + roomHeight * 0.6,
     0
   );
@@ -11132,7 +11131,7 @@ export const initScene = (
 
   const hangarDeckStoredAreaOverlay = createStoredAreaOverlay({
     areaId: "hangar-deck",
-    floorBounds: createFloorBounds(roomWidth, roomDepth, {
+    floorBounds: createFloorBounds(scaledRoomWidth, scaledRoomDepth, {
       paddingX: 1,
       paddingZ: 1,
     }),
@@ -11861,24 +11860,31 @@ export const initScene = (
   const gridColor = 0x94a3b8;
   const gridOpacity = 0.35;
 
-  const floorGrid = createGridLines(roomWidth, roomDepth, 20, 20, gridColor, gridOpacity);
+  const floorGrid = createGridLines(
+    scaledRoomWidth,
+    scaledRoomDepth,
+    20,
+    20,
+    gridColor,
+    gridOpacity
+  );
   floorGrid.rotation.x = -Math.PI / 2;
   floorGrid.position.y = roomFloorY + 0.02;
   hangarDeckEnvironmentGroup.add(floorGrid);
 
   const backWallGrid = createGridLines(
-    roomWidth,
+    scaledRoomWidth,
     BASE_ROOM_HEIGHT,
     20,
     10,
     gridColor,
     gridOpacity
   );
-  backWallGrid.position.z = -roomDepth / 2 + 0.02;
+  backWallGrid.position.z = -scaledRoomDepth / 2 + 0.02;
   hangarDeckEnvironmentGroup.add(backWallGrid);
 
   const frontWallGrid = createGridLines(
-    roomWidth,
+    scaledRoomWidth,
     BASE_ROOM_HEIGHT,
     20,
     10,
@@ -11886,11 +11892,11 @@ export const initScene = (
     gridOpacity
   );
   frontWallGrid.rotation.y = Math.PI;
-  frontWallGrid.position.z = roomDepth / 2 - 0.02;
+  frontWallGrid.position.z = scaledRoomDepth / 2 - 0.02;
   hangarDeckEnvironmentGroup.add(frontWallGrid);
 
   const leftWallGrid = createGridLines(
-    roomDepth,
+    scaledRoomDepth,
     BASE_ROOM_HEIGHT,
     20,
     10,
@@ -11898,11 +11904,11 @@ export const initScene = (
     gridOpacity
   );
   leftWallGrid.rotation.y = Math.PI / 2;
-  leftWallGrid.position.x = -roomWidth / 2 + 0.02;
+  leftWallGrid.position.x = -scaledRoomWidth / 2 + 0.02;
   hangarDeckEnvironmentGroup.add(leftWallGrid);
 
   const rightWallGrid = createGridLines(
-    roomDepth,
+    scaledRoomDepth,
     BASE_ROOM_HEIGHT,
     20,
     10,
@@ -11910,14 +11916,14 @@ export const initScene = (
     gridOpacity
   );
   rightWallGrid.rotation.y = -Math.PI / 2;
-  rightWallGrid.position.x = roomWidth / 2 - 0.02;
+  rightWallGrid.position.x = scaledRoomWidth / 2 - 0.02;
   hangarDeckEnvironmentGroup.add(rightWallGrid);
 
   const wallMirror = createWallMirror();
   const mirrorDimensions = wallMirror.userData?.dimensions;
   const mirrorHeight = mirrorDimensions?.height ?? BASE_MIRROR_HEIGHT;
   wallMirror.position.set(
-    roomWidth / 2 - MIRROR_WALL_INSET,
+    scaledRoomWidth / 2 - MIRROR_WALL_INSET,
     roomFloorY + MIRROR_VERTICAL_OFFSET + mirrorHeight / 2,
     6 * ROOM_SCALE_FACTOR
   );
