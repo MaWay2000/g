@@ -734,6 +734,28 @@ const resolvePlayerOxygenDrainMultiplier = (now) => {
     : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER;
 };
 
+const shouldPausePlayerOxygenTick = () => {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  if (document.visibilityState !== "hidden") {
+    return false;
+  }
+
+  if (typeof document.hasFocus === "function") {
+    try {
+      if (document.hasFocus()) {
+        return false;
+      }
+    } catch (error) {
+      console.warn("Unable to read document focus state for oxygen tick", error);
+    }
+  }
+
+  return true;
+};
+
 const tickPlayerOxygen = () => {
   const now =
     typeof performance !== "undefined" && typeof performance.now === "function"
@@ -751,7 +773,7 @@ const tickPlayerOxygen = () => {
   );
   playerOxygenTickLastTimestamp = now;
 
-  if (elapsedSeconds <= 0 || document.visibilityState === "hidden") {
+  if (elapsedSeconds <= 0 || shouldPausePlayerOxygenTick()) {
     return;
   }
 
@@ -12247,7 +12269,7 @@ window.setInterval(
   updateGeoVisorBatteryState,
   GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS
 );
-document.addEventListener("visibilitychange", () => {
+const resyncPlayerOxygenTiming = () => {
   const now =
     typeof performance !== "undefined" && typeof performance.now === "function"
       ? performance.now()
@@ -12255,6 +12277,26 @@ document.addEventListener("visibilitychange", () => {
   playerOxygenTickLastTimestamp = now;
   playerOxygenMovementLastTimestamp = now;
   playerOxygenMovementLastPosition = sceneController?.getPlayerPosition?.() ?? null;
+};
+
+[
+  "fullscreenchange",
+  "webkitfullscreenchange",
+  "mozfullscreenchange",
+  "MSFullscreenChange",
+].forEach((eventName) => {
+  document.addEventListener(eventName, () => {
+    resyncPlayerOxygenTiming();
+    applyPlayerOxygenPressureEffects({
+      now: Date.now(),
+      silent: true,
+      forceUi: true,
+    });
+  });
+});
+
+document.addEventListener("visibilitychange", () => {
+  resyncPlayerOxygenTiming();
   if (document.visibilityState === "hidden") {
     playerOxygenShiftHeld = false;
   }
