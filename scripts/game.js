@@ -299,6 +299,9 @@ const PLAYER_OXYGEN_MAX_PERCENT = 100;
 const PLAYER_OXYGEN_FULL_DURATION_SECONDS = 600;
 const PLAYER_OXYGEN_DRAIN_PER_SECOND =
   PLAYER_OXYGEN_MAX_PERCENT / PLAYER_OXYGEN_FULL_DURATION_SECONDS;
+const PLAYER_OXYGEN_REGEN_FULL_DURATION_SECONDS = 300;
+const PLAYER_OXYGEN_REGEN_PER_SECOND =
+  PLAYER_OXYGEN_MAX_PERCENT / PLAYER_OXYGEN_REGEN_FULL_DURATION_SECONDS;
 const PLAYER_OXYGEN_TICK_INTERVAL_MS = 250;
 const PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER = 0.2;
 const PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER = 0.8;
@@ -848,6 +851,18 @@ const tickPlayerOxygen = () => {
     if (playerOxygenCurrentDrainMultiplier !== 0) {
       playerOxygenCurrentDrainMultiplier = 0;
       updatePlayerOxygenUi();
+    }
+    if (playerOxygenPercent < PLAYER_OXYGEN_MAX_PERCENT) {
+      const regenAmount = elapsedSeconds * PLAYER_OXYGEN_REGEN_PER_SECOND;
+      const nextPercent = Math.min(
+        PLAYER_OXYGEN_MAX_PERCENT,
+        playerOxygenPercent + regenAmount
+      );
+      if (Math.abs(nextPercent - playerOxygenPercent) > 1e-6) {
+        playerOxygenPercent = nextPercent;
+        updatePlayerOxygenUi();
+        schedulePersistPlayerOxygen();
+      }
     }
     applyPlayerOxygenPressureEffects({ now, silent: true });
     return;
