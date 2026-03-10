@@ -2321,6 +2321,21 @@
         display: none !important;
       }
 
+      .drone-customization-shell {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) minmax(340px, 1.4fr);
+        gap: 1rem;
+        align-items: start;
+      }
+
+      .drone-customization-shell__panels {
+        min-width: 0;
+      }
+
+      .drone-customization-shell__preview {
+        margin-top: 0;
+      }
+
       .drone-customization-panel {
         min-height: clamp(300px, 50vh, 540px);
       }
@@ -2350,23 +2365,16 @@
         color: rgba(148, 163, 184, 0.9);
       }
 
-      .drone-customization-layout {
-        display: grid;
-        grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.4fr);
-        gap: 1rem;
-        align-items: start;
-      }
-
-      .drone-customization-layout .quick-access-modal__section {
+      .drone-customization-panel .quick-access-modal__section {
         margin-top: 0;
       }
 
-      .drone-customization-layout .quick-access-modal__section + .quick-access-modal__section {
+      .drone-customization-panel .quick-access-modal__section + .quick-access-modal__section {
         margin-top: 0;
       }
 
       @media (max-width: 980px) {
-        .drone-customization-layout {
+        .drone-customization-shell {
           grid-template-columns: 1fr;
         }
       }
@@ -5871,98 +5879,77 @@
         </button>
       </nav>
 
-      <section
-        class="drone-customization-panel"
-        data-drone-setup-panel="parts"
-        id="drone-setup-panel-parts"
-        role="tabpanel"
-        aria-labelledby="drone-setup-tab-parts"
-        hidden
-      >
-        <div class="drone-customization-placeholder">
-          <p class="drone-customization-placeholder__title">Parts setup</p>
-          <p class="drone-customization-placeholder__text">
-            Parts tab is ready. Component controls can be wired here next.
-          </p>
-        </div>
-      </section>
-
-      <section
-        class="drone-customization-panel"
-        data-drone-setup-panel="skins"
-        id="drone-setup-panel-skins"
-        role="tabpanel"
-        aria-labelledby="drone-setup-tab-skins"
-      >
-        <div class="drone-customization-layout">
-          <section class="quick-access-modal__section quick-access-modal__section--lift">
-            <h3 class="quick-access-modal__section-title">Available skins</h3>
-            <ul class="lift-selector" data-drone-skin-list></ul>
-            <p class="lift-selector__empty" data-drone-skin-empty hidden>
-              No drone skins available.
-            </p>
-          </section>
-          <section class="quick-access-modal__section">
-            <h3 class="quick-access-modal__section-title">Preview</h3>
-            <div class="drone-skin-preview">
-              <canvas
-                class="drone-skin-preview__canvas"
-                width="960"
-                height="540"
-                data-drone-skin-preview-canvas
-                aria-label="Drone skin preview"
-              ></canvas>
-              <div class="drone-skin-preview__meta">
-                <p class="drone-skin-preview__title" data-drone-skin-preview-title>
-                  Drone skin preview
-                </p>
-                <p class="drone-skin-preview__desc" data-drone-skin-preview-description>
-                  Hover any skin to preview the drone look.
-                </p>
-              </div>
+      <div class="drone-customization-shell">
+        <div class="drone-customization-shell__panels">
+          <section
+            class="drone-customization-panel"
+            data-drone-setup-panel="parts"
+            id="drone-setup-panel-parts"
+            role="tabpanel"
+            aria-labelledby="drone-setup-tab-parts"
+            hidden
+          >
+            <div class="drone-customization-placeholder">
+              <p class="drone-customization-placeholder__title">Parts setup</p>
+              <p class="drone-customization-placeholder__text">
+                Parts tab is ready. Component controls can be wired here next.
+              </p>
             </div>
           </section>
-        </div>
-      </section>
 
-      <section
-        class="drone-customization-panel"
-        data-drone-setup-panel="model"
-        id="drone-setup-panel-model"
-        role="tabpanel"
-        aria-labelledby="drone-setup-tab-model"
-        hidden
-      >
-        <div class="drone-customization-layout">
-          <section class="quick-access-modal__section quick-access-modal__section--lift">
-            <h3 class="quick-access-modal__section-title">Available models</h3>
-            <ul class="lift-selector" data-drone-model-list></ul>
-            <p class="lift-selector__empty" data-drone-model-empty hidden>
-              No drone models available.
-            </p>
+          <section
+            class="drone-customization-panel"
+            data-drone-setup-panel="skins"
+            id="drone-setup-panel-skins"
+            role="tabpanel"
+            aria-labelledby="drone-setup-tab-skins"
+          >
+            <section class="quick-access-modal__section quick-access-modal__section--lift">
+              <h3 class="quick-access-modal__section-title">Available skins</h3>
+              <ul class="lift-selector" data-drone-skin-list></ul>
+              <p class="lift-selector__empty" data-drone-skin-empty hidden>
+                No drone skins available.
+              </p>
+            </section>
           </section>
-          <section class="quick-access-modal__section">
-            <h3 class="quick-access-modal__section-title">Preview</h3>
-            <div class="drone-skin-preview">
-              <canvas
-                class="drone-skin-preview__canvas"
-                width="960"
-                height="540"
-                data-drone-model-preview-canvas
-                aria-label="Drone model preview"
-              ></canvas>
-              <div class="drone-skin-preview__meta">
-                <p class="drone-skin-preview__title" data-drone-model-preview-title>
-                  Drone model preview
-                </p>
-                <p class="drone-skin-preview__desc" data-drone-model-preview-description>
-                  Hover any model to preview the drone frame.
-                </p>
-              </div>
-            </div>
+
+          <section
+            class="drone-customization-panel"
+            data-drone-setup-panel="model"
+            id="drone-setup-panel-model"
+            role="tabpanel"
+            aria-labelledby="drone-setup-tab-model"
+            hidden
+          >
+            <section class="quick-access-modal__section quick-access-modal__section--lift">
+              <h3 class="quick-access-modal__section-title">Available models</h3>
+              <ul class="lift-selector" data-drone-model-list></ul>
+              <p class="lift-selector__empty" data-drone-model-empty hidden>
+                No drone models available.
+              </p>
+            </section>
           </section>
         </div>
-      </section>
+
+        <section class="quick-access-modal__section drone-customization-shell__preview">
+          <h3 class="quick-access-modal__section-title">Preview</h3>
+          <div class="drone-skin-preview">
+            <canvas
+              class="drone-skin-preview__canvas"
+              width="960"
+              height="540"
+              data-drone-preview-canvas
+              aria-label="Drone setup preview"
+            ></canvas>
+            <div class="drone-skin-preview__meta">
+              <p class="drone-skin-preview__title" data-drone-preview-title>Drone preview</p>
+              <p class="drone-skin-preview__desc" data-drone-preview-description>
+                Hover any model or skin to preview the drone look.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
     </template>
 
     <script type="importmap">

@@ -6580,6 +6580,35 @@ const getDroneCustomizationModalElements = () => {
     };
   }
 
+  const sharedPreviewCanvas = quickAccessModalContent.querySelector(
+    "[data-drone-preview-canvas]"
+  );
+  const sharedPreviewTitle = quickAccessModalContent.querySelector(
+    "[data-drone-preview-title]"
+  );
+  const sharedPreviewDescription = quickAccessModalContent.querySelector(
+    "[data-drone-preview-description]"
+  );
+
+  const modelPreviewCanvas =
+    sharedPreviewCanvas ??
+    quickAccessModalContent.querySelector("[data-drone-model-preview-canvas]");
+  const modelPreviewTitle =
+    sharedPreviewTitle ??
+    quickAccessModalContent.querySelector("[data-drone-model-preview-title]");
+  const modelPreviewDescription =
+    sharedPreviewDescription ??
+    quickAccessModalContent.querySelector("[data-drone-model-preview-description]");
+  const skinPreviewCanvas =
+    sharedPreviewCanvas ??
+    quickAccessModalContent.querySelector("[data-drone-skin-preview-canvas]");
+  const skinPreviewTitle =
+    sharedPreviewTitle ??
+    quickAccessModalContent.querySelector("[data-drone-skin-preview-title]");
+  const skinPreviewDescription =
+    sharedPreviewDescription ??
+    quickAccessModalContent.querySelector("[data-drone-skin-preview-description]");
+
   return {
     tabButtons: Array.from(
       quickAccessModalContent.querySelectorAll("[data-drone-setup-tab]")
@@ -6591,24 +6620,12 @@ const getDroneCustomizationModalElements = () => {
     skinEmpty: quickAccessModalContent.querySelector("[data-drone-skin-empty]"),
     modelList: quickAccessModalContent.querySelector("[data-drone-model-list]"),
     modelEmpty: quickAccessModalContent.querySelector("[data-drone-model-empty]"),
-    modelPreviewCanvas: quickAccessModalContent.querySelector(
-      "[data-drone-model-preview-canvas]"
-    ),
-    modelPreviewTitle: quickAccessModalContent.querySelector(
-      "[data-drone-model-preview-title]"
-    ),
-    modelPreviewDescription: quickAccessModalContent.querySelector(
-      "[data-drone-model-preview-description]"
-    ),
-    previewCanvas: quickAccessModalContent.querySelector(
-      "[data-drone-skin-preview-canvas]"
-    ),
-    previewTitle: quickAccessModalContent.querySelector(
-      "[data-drone-skin-preview-title]"
-    ),
-    previewDescription: quickAccessModalContent.querySelector(
-      "[data-drone-skin-preview-description]"
-    ),
+    modelPreviewCanvas,
+    modelPreviewTitle,
+    modelPreviewDescription,
+    previewCanvas: skinPreviewCanvas,
+    previewTitle: skinPreviewTitle,
+    previewDescription: skinPreviewDescription,
   };
 };
 
