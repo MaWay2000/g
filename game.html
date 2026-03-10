@@ -2276,6 +2276,12 @@
         gap: 0.7rem;
       }
 
+      .storage-box-panel__column-load {
+        margin: -0.4rem 0 0.1rem;
+        font-size: 0.84rem;
+        color: rgba(148, 163, 184, 0.92);
+      }
+
       .storage-box-panel__list {
         list-style: none;
         margin: 0;
@@ -5962,9 +5968,6 @@
         </p>
       </header>
       <section class="quick-access-modal__section storage-box-panel">
-        <p class="storage-box-panel__summary" data-storage-box-summary>
-          Storage load syncing...
-        </p>
         <p
           class="storage-box-panel__summary storage-box-panel__summary--warning"
           data-storage-box-warning
@@ -5975,6 +5978,9 @@
         <div class="storage-box-panel__layout">
           <article class="storage-box-panel__column">
             <h3 class="quick-access-modal__section-title">Inventory elements</h3>
+            <p class="storage-box-panel__column-load" data-storage-box-inventory-load>
+              Load: syncing...
+            </p>
             <ul class="storage-box-panel__list" data-storage-box-inventory-list role="list"></ul>
             <p class="storage-box-panel__empty" data-storage-box-inventory-empty hidden>
               Inventory is empty.
@@ -5982,6 +5988,9 @@
           </article>
           <article class="storage-box-panel__column">
             <h3 class="quick-access-modal__section-title">Stored elements</h3>
+            <p class="storage-box-panel__column-load" data-storage-box-stored-load>
+              Load: syncing...
+            </p>
             <ul class="storage-box-panel__list" data-storage-box-stored-list role="list"></ul>
             <p class="storage-box-panel__empty" data-storage-box-stored-empty hidden>
               Storage box is empty.

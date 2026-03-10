@@ -6623,8 +6623,9 @@ const getStorageEntryDisplayName = (entry) => {
 const getStorageBoxModalElements = () => {
   if (!quickAccessModalContent) {
     return {
-      summary: null,
       warning: null,
+      inventoryLoad: null,
+      storedLoad: null,
       inventoryList: null,
       inventoryEmpty: null,
       storedList: null,
@@ -6633,8 +6634,11 @@ const getStorageBoxModalElements = () => {
   }
 
   return {
-    summary: quickAccessModalContent.querySelector("[data-storage-box-summary]"),
     warning: quickAccessModalContent.querySelector("[data-storage-box-warning]"),
+    inventoryLoad: quickAccessModalContent.querySelector(
+      "[data-storage-box-inventory-load]"
+    ),
+    storedLoad: quickAccessModalContent.querySelector("[data-storage-box-stored-load]"),
     inventoryList: quickAccessModalContent.querySelector(
       "[data-storage-box-inventory-list]"
     ),
@@ -6695,8 +6699,9 @@ const renderStorageBoxModal = () => {
   }
 
   const {
-    summary,
     warning,
+    inventoryLoad: inventoryLoadLabel,
+    storedLoad: storedLoadLabel,
     inventoryList,
     inventoryEmpty,
     storedList,
@@ -6707,14 +6712,20 @@ const renderStorageBoxModal = () => {
   const storageFill = `${formatGrams(storageLoad)} / ${formatKilograms(
     STORAGE_BOX_CAPACITY_KG
   )}`;
-  const inventoryLoad = Number.isFinite(inventoryState.currentLoadGrams)
+  const inventoryLoadGrams = Number.isFinite(inventoryState.currentLoadGrams)
     ? inventoryState.currentLoadGrams
     : recalculateInventoryLoad();
 
-  if (summary instanceof HTMLElement) {
-    summary.textContent = `Storage: ${storageFill} • Inventory: ${formatGrams(
-      inventoryLoad
-    )} / ${formatKilograms(getInventoryCapacityKg())}`;
+  if (inventoryLoadLabel instanceof HTMLElement) {
+    inventoryLoadLabel.textContent = `Load: ${formatGrams(
+      inventoryLoadGrams
+    )} / ${formatKilograms(
+      getInventoryCapacityKg()
+    )}`;
+  }
+
+  if (storedLoadLabel instanceof HTMLElement) {
+    storedLoadLabel.textContent = `Load: ${storageFill}`;
   }
 
   if (warning instanceof HTMLElement) {
