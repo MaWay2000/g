@@ -289,6 +289,7 @@ const crosshairStates = {
   edit: false,
   lift: false,
   oxygen: false,
+  storage: false,
 };
 let sceneController = null;
 let previousCrosshairInteractableState =
@@ -1780,6 +1781,7 @@ const quickAccessModalTemplates = {
   "drone-customization": document.getElementById(
     "quick-access-modal-drone-customization"
   ),
+  "storage-box": document.getElementById("quick-access-modal-storage-box"),
   news: document.getElementById("quick-access-modal-news"),
   weather: document.getElementById("quick-access-modal-weather"),
   missions: document.getElementById("quick-access-modal-missions"),
@@ -3782,6 +3784,12 @@ const LIFT_MODAL_OPTION = {
   description: "Select your destination deck.",
 };
 
+const STORAGE_BOX_MODAL_OPTION = {
+  id: "storage-box",
+  title: "Storage box",
+  description: "Store and retrieve outside resources.",
+};
+
 const modalFocusableSelectors =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -4113,6 +4121,8 @@ let lastFocusedElement = null;
 let missionModalActive = false;
 let marketModalActive = false;
 let droneCustomizationModalActive = false;
+let storageBoxModalActive = false;
+let teardownStorageBoxActionBinding = null;
 const QUICK_ACCESS_MODAL_MARGIN = 16;
 const QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID = "drone-customization";
 const quickAccessModalLayoutState = {
@@ -4163,6 +4173,9 @@ const newsModalState = {
 
 const INVENTORY_SLOT_COUNT = 100;
 const DEFAULT_INVENTORY_CAPACITY_KG = 10;
+const STORAGE_BOX_CAPACITY_KG = 100;
+const STORAGE_BOX_CAPACITY_GRAMS = STORAGE_BOX_CAPACITY_KG * GRAMS_PER_KILOGRAM;
+const STORAGE_BOX_STORAGE_KEY = "dustyNova.storage-box";
 
 const createEmptyInventorySlotOrder = () =>
   new Array(INVENTORY_SLOT_COUNT).fill(null);
@@ -4176,6 +4189,12 @@ const inventoryState = {
   capacityRejection: null,
 };
 let activeInventoryTab = "inventory";
+const storageBoxState = {
+  entries: [],
+  entryMap: new Map(),
+  currentLoadGrams: 0,
+  capacityRejection: null,
+};
 
 const NEW_GAME_STARTER_RESOURCES = [
   {
@@ -5465,6 +5484,8 @@ const getInventoryStorage = (() => {
 })();
 let persistInventoryStateTimeoutId = 0;
 let lastSerializedInventoryState = null;
+let persistStorageBoxStateTimeoutId = 0;
+let lastSerializedStorageBoxState = null;
 let inventoryWasPointerLocked = false;
 let lastInventoryFocusedElement = null;
 let inventoryCloseFallbackId = 0;
@@ -5488,6 +5509,24 @@ const clearStoredInventoryState = () => {
     return true;
   } catch (error) {
     console.warn("Unable to clear stored inventory state", error);
+  }
+
+  return false;
+};
+
+const clearStoredStorageBoxState = () => {
+  const storage = getInventoryStorage();
+
+  if (!storage) {
+    return false;
+  }
+
+  try {
+    storage.removeItem(STORAGE_BOX_STORAGE_KEY);
+    lastSerializedStorageBoxState = null;
+    return true;
+  } catch (error) {
+    console.warn("Unable to clear stored storage box state", error);
   }
 
   return false;
@@ -6071,6 +6110,10 @@ const getModalLabelForOption = (option) => {
     return "Lift navigation panel";
   }
 
+  if (option?.id === STORAGE_BOX_MODAL_OPTION.id) {
+    return "Storage transfer panel";
+  }
+
   if (option?.title) {
     return `${option.title} terminal briefing`;
   }
@@ -6560,6 +6603,243 @@ const renderLiftModalFloors = () => {
   });
 
   updateLiftModalActiveState();
+};
+
+const getStorageEntryDisplayName = (entry) => {
+  const symbol = entry?.element?.symbol ?? "";
+  const name = entry?.element?.name ?? "";
+
+  if (symbol && name) {
+    return `${symbol} (${name})`;
+  }
+
+  if (symbol || name) {
+    return symbol || name;
+  }
+
+  return "Unknown resource";
+};
+
+const getStorageBoxModalElements = () => {
+  if (!quickAccessModalContent) {
+    return {
+      summary: null,
+      warning: null,
+      inventoryList: null,
+      inventoryEmpty: null,
+      storedList: null,
+      storedEmpty: null,
+    };
+  }
+
+  return {
+    summary: quickAccessModalContent.querySelector("[data-storage-box-summary]"),
+    warning: quickAccessModalContent.querySelector("[data-storage-box-warning]"),
+    inventoryList: quickAccessModalContent.querySelector(
+      "[data-storage-box-inventory-list]"
+    ),
+    inventoryEmpty: quickAccessModalContent.querySelector(
+      "[data-storage-box-inventory-empty]"
+    ),
+    storedList: quickAccessModalContent.querySelector("[data-storage-box-stored-list]"),
+    storedEmpty: quickAccessModalContent.querySelector("[data-storage-box-stored-empty]"),
+  };
+};
+
+const getOrderedStorageBoxEntries = () =>
+  Array.from(storageBoxState.entries).sort(
+    (left, right) => (right?.lastTransferredAt ?? 0) - (left?.lastTransferredAt ?? 0)
+  );
+
+const createStorageBoxModalEntryItem = ({
+  entry,
+  actionLabel,
+  actionType,
+  disabled = false,
+}) => {
+  const item = document.createElement("li");
+  item.className = "storage-box-panel__item";
+
+  const main = document.createElement("div");
+  main.className = "storage-box-panel__item-main";
+
+  const title = document.createElement("p");
+  title.className = "storage-box-panel__item-title";
+  title.textContent = getStorageEntryDisplayName(entry);
+  main.appendChild(title);
+
+  const meta = document.createElement("p");
+  meta.className = "storage-box-panel__item-meta";
+  const count = Math.max(0, Math.floor(Number(entry?.count) || 0));
+  const unitWeight = getInventoryElementWeight(entry?.element);
+  const totalWeight = count * unitWeight;
+  meta.textContent = `${count} item${count === 1 ? "" : "s"} • ${formatGrams(totalWeight)}`;
+  main.appendChild(meta);
+  item.appendChild(main);
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  actionButton.className = "storage-box-panel__button";
+  actionButton.dataset.storageBoxAction = actionType;
+  actionButton.dataset.storageBoxEntryKey = entry?.key ?? "";
+  actionButton.textContent = actionLabel;
+  actionButton.disabled = disabled;
+  item.appendChild(actionButton);
+
+  return item;
+};
+
+const renderStorageBoxModal = () => {
+  if (!storageBoxModalActive) {
+    return;
+  }
+
+  const {
+    summary,
+    warning,
+    inventoryList,
+    inventoryEmpty,
+    storedList,
+    storedEmpty,
+  } = getStorageBoxModalElements();
+
+  const storageLoad = recalculateStorageBoxLoad();
+  const storageFill = `${formatGrams(storageLoad)} / ${formatKilograms(
+    STORAGE_BOX_CAPACITY_KG
+  )}`;
+  const inventoryLoad = Number.isFinite(inventoryState.currentLoadGrams)
+    ? inventoryState.currentLoadGrams
+    : recalculateInventoryLoad();
+
+  if (summary instanceof HTMLElement) {
+    summary.textContent = `Storage: ${storageFill} • Inventory: ${formatGrams(
+      inventoryLoad
+    )} / ${formatKilograms(getInventoryCapacityKg())}`;
+  }
+
+  if (warning instanceof HTMLElement) {
+    const rejection =
+      typeof storageBoxState.capacityRejection === "string"
+        ? storageBoxState.capacityRejection.trim()
+        : "";
+    warning.hidden = rejection === "";
+    warning.textContent = rejection || "";
+  }
+
+  const inventoryEntries = getOrderedInventoryEntries().filter(
+    (entry) => entry && Number.isFinite(entry.count) && entry.count > 0
+  );
+  const storedEntries = getOrderedStorageBoxEntries().filter(
+    (entry) => entry && Number.isFinite(entry.count) && entry.count > 0
+  );
+
+  if (inventoryList instanceof HTMLElement) {
+    inventoryList.innerHTML = "";
+    inventoryEntries.forEach((entry) => {
+      const unitWeight = getInventoryElementWeight(entry.element);
+      const canStore = canStorageBoxAcceptWeight(unitWeight);
+      inventoryList.appendChild(
+        createStorageBoxModalEntryItem({
+          entry,
+          actionLabel: "Store",
+          actionType: "store",
+          disabled: !canStore,
+        })
+      );
+    });
+  }
+
+  if (inventoryEmpty instanceof HTMLElement) {
+    inventoryEmpty.hidden = inventoryEntries.length > 0;
+  }
+
+  if (storedList instanceof HTMLElement) {
+    storedList.innerHTML = "";
+    storedEntries.forEach((entry) => {
+      const unitWeight = getInventoryElementWeight(entry.element);
+      const canTake = canAcceptInventoryWeight(unitWeight);
+      storedList.appendChild(
+        createStorageBoxModalEntryItem({
+          entry,
+          actionLabel: "Take",
+          actionType: "take",
+          disabled: !canTake,
+        })
+      );
+    });
+  }
+
+  if (storedEmpty instanceof HTMLElement) {
+    storedEmpty.hidden = storedEntries.length > 0;
+  }
+};
+
+const handleStorageBoxActionClick = (event) => {
+  if (!storageBoxModalActive) {
+    return;
+  }
+
+  const actionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-storage-box-action]")
+      : null;
+
+  if (!(actionTarget instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const entryKey = actionTarget.dataset.storageBoxEntryKey;
+  const actionType = actionTarget.dataset.storageBoxAction;
+  if (!entryKey || !actionType) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (actionType === "store") {
+    transferInventoryToStorageBox(entryKey, 1);
+    return;
+  }
+
+  if (actionType === "take") {
+    transferStorageBoxToInventory(entryKey, 1);
+  }
+};
+
+const teardownStorageBoxModal = () => {
+  storageBoxModalActive = false;
+
+  if (typeof teardownStorageBoxActionBinding === "function") {
+    teardownStorageBoxActionBinding();
+    teardownStorageBoxActionBinding = null;
+  }
+};
+
+const bindStorageBoxModalEvents = () => {
+  const { inventoryList, storedList } = getStorageBoxModalElements();
+
+  if (
+    !(inventoryList instanceof HTMLElement) ||
+    !(storedList instanceof HTMLElement) ||
+    typeof teardownStorageBoxActionBinding === "function"
+  ) {
+    return;
+  }
+
+  inventoryList.addEventListener("click", handleStorageBoxActionClick);
+  storedList.addEventListener("click", handleStorageBoxActionClick);
+  teardownStorageBoxActionBinding = () => {
+    inventoryList.removeEventListener("click", handleStorageBoxActionClick);
+    storedList.removeEventListener("click", handleStorageBoxActionClick);
+  };
+};
+
+const refreshStorageBoxModalIfOpen = () => {
+  if (!storageBoxModalActive) {
+    return;
+  }
+
+  renderStorageBoxModal();
 };
 
 const getDroneCustomizationModalElements = () => {
@@ -8957,6 +9237,7 @@ const teardownQuickAccessModalContent = () => {
   teardownDroneModelPreviewRuntime();
   newsModalState.renderToken += 1;
   teardownMarketModal();
+  teardownStorageBoxModal();
 };
 
 const initializeQuickAccessModalContent = (option) => {
@@ -8964,6 +9245,7 @@ const initializeQuickAccessModalContent = (option) => {
   missionModalActive = option?.id === "missions";
   marketModalActive = option?.id === "market";
   droneCustomizationModalActive = option?.id === "drone-customization";
+  storageBoxModalActive = option?.id === STORAGE_BOX_MODAL_OPTION.id;
 
   if (liftModalActive) {
     renderLiftModalFloors();
@@ -8982,6 +9264,13 @@ const initializeQuickAccessModalContent = (option) => {
 
   if (droneCustomizationModalActive) {
     renderDroneCustomizationModal();
+  }
+
+  if (storageBoxModalActive) {
+    renderStorageBoxModal();
+    bindStorageBoxModalEvents();
+  } else {
+    teardownStorageBoxModal();
   }
 
   if (option?.id === "news") {
@@ -9138,6 +9427,247 @@ const canAcceptInventoryWeight = (additionalWeight) => {
     : recalculateInventoryLoad();
 
   return currentLoad + normalizedAdditional <= getInventoryCapacityGrams();
+};
+
+const getStorageBoxCapacityGrams = () => STORAGE_BOX_CAPACITY_GRAMS;
+
+const recalculateStorageBoxLoad = () => {
+  const totalWeight = storageBoxState.entries.reduce(
+    (sum, entry) => sum + getInventoryEntryWeight(entry),
+    0
+  );
+
+  storageBoxState.currentLoadGrams = Math.max(0, totalWeight);
+  return storageBoxState.currentLoadGrams;
+};
+
+const canStorageBoxAcceptWeight = (additionalWeight) => {
+  const normalizedAdditional = Math.max(0, Number(additionalWeight) || 0);
+  const currentLoad = Number.isFinite(storageBoxState.currentLoadGrams)
+    ? storageBoxState.currentLoadGrams
+    : recalculateStorageBoxLoad();
+
+  return currentLoad + normalizedAdditional <= getStorageBoxCapacityGrams();
+};
+
+const getStorageBoxEntryByKey = (key) => {
+  if (typeof key !== "string" || key.trim() === "") {
+    return null;
+  }
+
+  return storageBoxState.entryMap.get(key) ?? null;
+};
+
+const getStorageBoxResourceEntry = (element) => {
+  const sanitized = sanitizeInventoryElement(element ?? {});
+  const key = getInventoryEntryKey(sanitized);
+  return storageBoxState.entryMap.get(key) ?? null;
+};
+
+const getStorageBoxResourceCount = (element) =>
+  getStorageBoxResourceEntry(element)?.count ?? 0;
+
+const setStorageBoxCapacityRejection = (message) => {
+  const normalized = typeof message === "string" ? message.trim() : "";
+  storageBoxState.capacityRejection = normalized || null;
+  refreshStorageBoxModalIfOpen();
+  schedulePersistStorageBoxState();
+};
+
+const clearStorageBoxCapacityRejection = () => {
+  if (!storageBoxState.capacityRejection) {
+    return;
+  }
+
+  storageBoxState.capacityRejection = null;
+  refreshStorageBoxModalIfOpen();
+  schedulePersistStorageBoxState();
+};
+
+const recordStorageBoxResource = (element, count = 1) => {
+  const normalizedCount = Number.isFinite(count)
+    ? Math.max(1, Math.floor(count))
+    : 1;
+  const normalizedElement = sanitizeInventoryElement(element ?? {});
+  if (
+    !normalizedElement.symbol &&
+    !normalizedElement.name &&
+    normalizedElement.number === null
+  ) {
+    normalizedElement.name = "Unknown resource";
+  }
+
+  const unitWeight = getInventoryElementWeight(normalizedElement);
+  const additionalWeight = unitWeight * normalizedCount;
+  if (!canStorageBoxAcceptWeight(additionalWeight)) {
+    const label =
+      normalizedElement.name || normalizedElement.symbol || "This resource";
+    const attemptedWeight = formatGrams(additionalWeight || 0);
+    setStorageBoxCapacityRejection(
+      `${label} cannot be stored. Storage full (${attemptedWeight} would exceed ${formatKilograms(
+        STORAGE_BOX_CAPACITY_KG
+      )}).`
+    );
+    return false;
+  }
+
+  const key = getInventoryEntryKey(normalizedElement);
+  let entry = storageBoxState.entryMap.get(key);
+
+  if (!entry) {
+    entry = {
+      key,
+      element: { ...normalizedElement },
+      count: 0,
+      lastTransferredAt: 0,
+    };
+    storageBoxState.entryMap.set(key, entry);
+    storageBoxState.entries.push(entry);
+  } else {
+    if (!entry.element.symbol && normalizedElement.symbol) {
+      entry.element.symbol = normalizedElement.symbol;
+    }
+    if (!entry.element.name && normalizedElement.name) {
+      entry.element.name = normalizedElement.name;
+    }
+    if (
+      (!Number.isFinite(entry.element.weight) || entry.element.weight <= 0) &&
+      Number.isFinite(normalizedElement.weight) &&
+      normalizedElement.weight > 0
+    ) {
+      entry.element.weight = normalizedElement.weight;
+    }
+    if (entry.element.number === null && normalizedElement.number !== null) {
+      entry.element.number = normalizedElement.number;
+    }
+  }
+
+  entry.count += normalizedCount;
+  entry.lastTransferredAt = Date.now();
+  recalculateStorageBoxLoad();
+  clearStorageBoxCapacityRejection();
+  refreshStorageBoxModalIfOpen();
+  schedulePersistStorageBoxState();
+  return true;
+};
+
+const spendStorageBoxResource = (element, count = 1) => {
+  const entry = getStorageBoxResourceEntry(element);
+  const normalizedCount = Number.isFinite(count)
+    ? Math.max(1, Math.floor(count))
+    : 1;
+
+  if (!entry || !Number.isFinite(entry.count) || entry.count < normalizedCount) {
+    return false;
+  }
+
+  entry.count -= normalizedCount;
+  entry.lastTransferredAt = Date.now();
+
+  if (entry.count <= 0) {
+    storageBoxState.entryMap.delete(entry.key);
+    const index = storageBoxState.entries.indexOf(entry);
+    if (index >= 0) {
+      storageBoxState.entries.splice(index, 1);
+    }
+  }
+
+  recalculateStorageBoxLoad();
+  if (storageBoxState.currentLoadGrams <= getStorageBoxCapacityGrams()) {
+    clearStorageBoxCapacityRejection();
+  }
+  refreshStorageBoxModalIfOpen();
+  schedulePersistStorageBoxState();
+  return true;
+};
+
+const transferInventoryToStorageBox = (entryKey, count = 1) => {
+  const inventoryEntry = getInventoryEntryByKey(entryKey);
+  const normalizedCount = Number.isFinite(count)
+    ? Math.max(1, Math.floor(count))
+    : 1;
+  if (
+    !inventoryEntry ||
+    !Number.isFinite(inventoryEntry.count) ||
+    inventoryEntry.count < normalizedCount
+  ) {
+    return false;
+  }
+
+  const unitWeight = getInventoryElementWeight(inventoryEntry.element);
+  const transferWeight = unitWeight * normalizedCount;
+  if (!canStorageBoxAcceptWeight(transferWeight)) {
+    const label = getStorageEntryDisplayName(inventoryEntry);
+    setStorageBoxCapacityRejection(
+      `${label} cannot be stored. ${formatGrams(transferWeight)} exceeds free storage capacity.`
+    );
+    return false;
+  }
+
+  const spent = spendInventoryResource(inventoryEntry.element, normalizedCount);
+  if (!spent) {
+    return false;
+  }
+
+  const stored = recordStorageBoxResource(inventoryEntry.element, normalizedCount);
+  if (stored) {
+    return true;
+  }
+
+  for (let index = 0; index < normalizedCount; index += 1) {
+    recordInventoryResource({ element: inventoryEntry.element });
+  }
+  return false;
+};
+
+const transferStorageBoxToInventory = (entryKey, count = 1) => {
+  const storageEntry = getStorageBoxEntryByKey(entryKey);
+  const normalizedCount = Number.isFinite(count)
+    ? Math.max(1, Math.floor(count))
+    : 1;
+  if (
+    !storageEntry ||
+    !Number.isFinite(storageEntry.count) ||
+    storageEntry.count < normalizedCount
+  ) {
+    return false;
+  }
+
+  const unitWeight = getInventoryElementWeight(storageEntry.element);
+  const transferWeight = unitWeight * normalizedCount;
+  if (!canAcceptInventoryWeight(transferWeight)) {
+    const label = getStorageEntryDisplayName(storageEntry);
+    setInventoryCapacityRejection(
+      `${label} cannot be added. Capacity reached (${formatGrams(
+        transferWeight
+      )} would exceed ${formatKilograms(getInventoryCapacityKg())}).`
+    );
+    return false;
+  }
+
+  const removed = spendStorageBoxResource(storageEntry.element, normalizedCount);
+  if (!removed) {
+    return false;
+  }
+
+  let addedCount = 0;
+  for (let index = 0; index < normalizedCount; index += 1) {
+    const added = recordInventoryResource({ element: storageEntry.element });
+    if (!added) {
+      break;
+    }
+    addedCount += 1;
+  }
+
+  if (addedCount === normalizedCount) {
+    return true;
+  }
+
+  const missingCount = normalizedCount - addedCount;
+  if (missingCount > 0) {
+    recordStorageBoxResource(storageEntry.element, missingCount);
+  }
+  return addedCount > 0;
 };
 
 const updateInventorySummary = () => {
@@ -9674,6 +10204,7 @@ const refreshInventoryUi = () => {
   updateInventorySummary();
   renderDroneInventoryUi();
   updateInventoryCapacityWarning();
+  refreshStorageBoxModalIfOpen();
 
   if (missionModalActive) {
     renderMissionModalMissions();
@@ -9739,6 +10270,32 @@ const normalizeStoredInventoryEntry = (rawEntry) => {
   };
 };
 
+const normalizeStoredStorageBoxEntry = (rawEntry) => {
+  if (!rawEntry || typeof rawEntry !== "object") {
+    return null;
+  }
+
+  const element = sanitizeInventoryElement(rawEntry.element);
+  const count = Number.isFinite(rawEntry.count)
+    ? Math.max(0, Math.floor(rawEntry.count))
+    : 0;
+  if (count <= 0) {
+    return null;
+  }
+
+  const key = getInventoryEntryKey(element);
+  const lastTransferredAt = Number.isFinite(rawEntry.lastTransferredAt)
+    ? rawEntry.lastTransferredAt
+    : 0;
+
+  return {
+    key,
+    element: { ...element },
+    count,
+    lastTransferredAt,
+  };
+};
+
 const serializeInventoryStateForPersistence = () => {
   normalizeInventoryCustomOrder();
 
@@ -9782,6 +10339,17 @@ const serializeInventoryStateForPersistence = () => {
   };
 };
 
+const serializeStorageBoxStateForPersistence = () => ({
+  entries: storageBoxState.entries.map((entry) => ({
+    key: entry.key,
+    element: { ...entry.element },
+    count: entry.count,
+    lastTransferredAt: entry.lastTransferredAt ?? 0,
+  })),
+  loadGrams: Math.max(0, Math.round(storageBoxState.currentLoadGrams || 0)),
+  capacityRejection: storageBoxState.capacityRejection,
+});
+
 const persistInventoryState = () => {
   const storage = getInventoryStorage();
 
@@ -9816,6 +10384,148 @@ const schedulePersistInventoryState = () => {
     persistInventoryStateTimeoutId = 0;
     persistInventoryState();
   }, 100);
+};
+
+const persistStorageBoxState = () => {
+  const storage = getInventoryStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  const serialized = JSON.stringify(serializeStorageBoxStateForPersistence());
+  if (serialized === lastSerializedStorageBoxState) {
+    return;
+  }
+
+  try {
+    storage.setItem(STORAGE_BOX_STORAGE_KEY, serialized);
+    lastSerializedStorageBoxState = serialized;
+  } catch (error) {
+    console.warn("Unable to persist storage box state", error);
+  }
+};
+
+const schedulePersistStorageBoxState = () => {
+  if (progressResetInProgress) {
+    return;
+  }
+
+  if (persistStorageBoxStateTimeoutId) {
+    window.clearTimeout(persistStorageBoxStateTimeoutId);
+  }
+
+  persistStorageBoxStateTimeoutId = window.setTimeout(() => {
+    persistStorageBoxStateTimeoutId = 0;
+    persistStorageBoxState();
+  }, 100);
+};
+
+const restoreStorageBoxStateFromStorage = () => {
+  const storage = getInventoryStorage();
+  if (!storage) {
+    recalculateStorageBoxLoad();
+    refreshStorageBoxModalIfOpen();
+    return false;
+  }
+
+  let serialized = null;
+  try {
+    serialized = storage.getItem(STORAGE_BOX_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Unable to read stored storage box state", error);
+    recalculateStorageBoxLoad();
+    refreshStorageBoxModalIfOpen();
+    return false;
+  }
+
+  if (typeof serialized !== "string" || serialized.trim() === "") {
+    recalculateStorageBoxLoad();
+    refreshStorageBoxModalIfOpen();
+    return false;
+  }
+
+  let restored = false;
+
+  try {
+    const data = JSON.parse(serialized);
+    if (data && Array.isArray(data.entries)) {
+      const aggregatedEntries = [];
+      const aggregatedMap = new Map();
+
+      data.entries.forEach((rawEntry) => {
+        const normalized = normalizeStoredStorageBoxEntry(rawEntry);
+        if (!normalized) {
+          return;
+        }
+
+        const existing = aggregatedMap.get(normalized.key);
+        if (!existing) {
+          aggregatedMap.set(normalized.key, normalized);
+          aggregatedEntries.push(normalized);
+          return;
+        }
+
+        existing.count += normalized.count;
+        if (normalized.lastTransferredAt > existing.lastTransferredAt) {
+          existing.lastTransferredAt = normalized.lastTransferredAt;
+        }
+
+        if (!existing.element.symbol && normalized.element.symbol) {
+          existing.element.symbol = normalized.element.symbol;
+        }
+        if (!existing.element.name && normalized.element.name) {
+          existing.element.name = normalized.element.name;
+        }
+        if (
+          (!Number.isFinite(existing.element.weight) || existing.element.weight <= 0) &&
+          Number.isFinite(normalized.element.weight) &&
+          normalized.element.weight > 0
+        ) {
+          existing.element.weight = normalized.element.weight;
+        }
+        if (
+          existing.element.number === null &&
+          normalized.element.number !== null
+        ) {
+          existing.element.number = normalized.element.number;
+        }
+      });
+
+      storageBoxState.entries.length = 0;
+      storageBoxState.entries.push(...aggregatedEntries);
+      storageBoxState.entryMap.clear();
+      aggregatedEntries.forEach((entry) => {
+        storageBoxState.entryMap.set(entry.key, entry);
+      });
+
+      recalculateStorageBoxLoad();
+      if (Number.isFinite(data.loadGrams) && data.loadGrams >= 0) {
+        storageBoxState.currentLoadGrams = Math.max(
+          storageBoxState.currentLoadGrams,
+          data.loadGrams
+        );
+      }
+
+      if (typeof data.capacityRejection === "string") {
+        const rejection = data.capacityRejection.trim();
+        storageBoxState.capacityRejection = rejection || null;
+      } else {
+        storageBoxState.capacityRejection = null;
+      }
+
+      restored = aggregatedEntries.length > 0;
+    }
+  } catch (error) {
+    console.warn("Unable to parse stored storage box state", error);
+  }
+
+  if (restored) {
+    lastSerializedStorageBoxState = serialized;
+  }
+
+  refreshStorageBoxModalIfOpen();
+  return restored;
 };
 
 const restoreInventoryStateFromStorage = () => {
@@ -10200,6 +10910,7 @@ const grantNewGameStarterResources = () => {
 };
 
 const restoredInventoryFromStorage = restoreInventoryStateFromStorage();
+restoreStorageBoxStateFromStorage();
 
 if (!restoredInventoryFromStorage) {
   grantNewGameStarterResources();
@@ -11443,6 +12154,7 @@ const finishClosingQuickAccessModal = () => {
   liftModalActive = false;
   missionModalActive = false;
   droneCustomizationModalActive = false;
+  storageBoxModalActive = false;
   teardownQuickAccessModalContent();
   resetQuickAccessModalLayoutState();
   quickAccessModal.hidden = true;
@@ -13139,6 +13851,14 @@ const bootstrapScene = () => {
       onOxygenRefillInteract() {
         return handlePlayerOxygenRefillInteract();
       },
+      onStorageBoxInteractableChange(value) {
+        setCrosshairSourceState("storage", value);
+      },
+      onStorageBoxInteract() {
+        playTerminalInteractionSound();
+        openQuickAccessModal(STORAGE_BOX_MODAL_OPTION);
+        return true;
+      },
       onLiftControlInteract({ control } = {}) {
         if (editModeActive) {
           showTerminalToast({
@@ -13570,6 +14290,10 @@ function handleReset(event) {
     window.clearTimeout(persistInventoryStateTimeoutId);
     persistInventoryStateTimeoutId = 0;
   }
+  if (persistStorageBoxStateTimeoutId) {
+    window.clearTimeout(persistStorageBoxStateTimeoutId);
+    persistStorageBoxStateTimeoutId = 0;
+  }
   if (persistPlayerOxygenTimeoutId) {
     window.clearTimeout(persistPlayerOxygenTimeoutId);
     persistPlayerOxygenTimeoutId = 0;
@@ -13590,6 +14314,7 @@ function handleReset(event) {
     const clearedTerrainLife = clearStoredTerrainLife();
     const clearedManifestPlacements = clearStoredManifestPlacements();
     const clearedInventory = clearStoredInventoryState();
+    const clearedStorageBox = clearStoredStorageBoxState();
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
 
@@ -13604,6 +14329,7 @@ function handleReset(event) {
       !clearedTerrainLife ||
       !clearedManifestPlacements ||
       !clearedInventory ||
+      !clearedStorageBox ||
       !clearedPlayerOxygen ||
       !resetMarketState
     ) {

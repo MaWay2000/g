@@ -118,6 +118,8 @@ export const initScene = (
     onTerminalInteractableChange,
     onOxygenRefillInteract,
     onOxygenRefillInteractableChange,
+    onStorageBoxInteract,
+    onStorageBoxInteractableChange,
     onLiftControlInteract,
     onLiftInteractableChange,
     onLiftTravel,
@@ -5864,6 +5866,77 @@ export const initScene = (
     oxygenRefillControl.userData.oxygenRefillId = "operations-concourse-main";
     oxygenStandGroup.add(oxygenRefillControl);
 
+    const storageBoxFloorOffset = 0;
+    const storageBoxGroup = new THREE.Group();
+    storageBoxGroup.position.set(
+      wallSpanWidth / 2 - wallThickness - 0.66,
+      roomFloorY + storageBoxFloorOffset,
+      -deckDepth * 0.16
+    );
+    storageBoxGroup.rotation.y = Math.PI / 2;
+    group.add(storageBoxGroup);
+
+    const storageBoxBodyMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x111827),
+      roughness: 0.58,
+      metalness: 0.38,
+      emissive: new THREE.Color(0x0f172a),
+      emissiveIntensity: 0.24,
+    });
+    const storageBoxAccentMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x22d3ee),
+      roughness: 0.25,
+      metalness: 0.42,
+      emissive: new THREE.Color(0x0ea5e9),
+      emissiveIntensity: 0.58,
+    });
+
+    const storageBoxBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.94, 0.56, 0.56),
+      storageBoxBodyMaterial
+    );
+    storageBoxBody.position.set(0, 0.28, 0);
+    storageBoxGroup.add(storageBoxBody);
+
+    const storageBoxLid = new THREE.Mesh(
+      new THREE.BoxGeometry(0.98, 0.08, 0.62),
+      storageBoxBodyMaterial
+    );
+    storageBoxLid.position.set(0, 0.6, 0);
+    storageBoxGroup.add(storageBoxLid);
+
+    const storageBoxTrim = new THREE.Mesh(
+      new THREE.BoxGeometry(0.86, 0.04, 0.06),
+      storageBoxAccentMaterial
+    );
+    storageBoxTrim.position.set(0, 0.6, -0.3);
+    storageBoxGroup.add(storageBoxTrim);
+
+    const storageBoxIndicator = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.14, 0.04),
+      storageBoxAccentMaterial
+    );
+    storageBoxIndicator.position.set(0, 0.34, -0.3);
+    storageBoxGroup.add(storageBoxIndicator);
+
+    const storageBoxGlow = new THREE.PointLight(0x22d3ee, 0.52, 2.8, 2);
+    storageBoxGlow.position.set(0, 0.55, -0.12);
+    storageBoxGroup.add(storageBoxGlow);
+
+    const storageBoxControl = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.95, 0.92),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      })
+    );
+    storageBoxControl.position.set(0, 0.45, 0.04);
+    storageBoxControl.userData.isStorageBoxControl = true;
+    storageBoxControl.userData.storageBoxId = "operations-concourse-exit";
+    storageBoxGroup.add(storageBoxControl);
+
     const oxygenChamberCenterX = wallSpanWidth / 2 - 1.42;
     const oxygenChamberCenterZ = -deckDepth * 0.2;
     const oxygenChamberRadius = 0.88;
@@ -6153,6 +6226,7 @@ export const initScene = (
       { object: portalArch, offset: exteriorDoorHeight * 0.92 },
       { object: portalControl, offset: exteriorDoorHeight * 0.56 },
       { object: oxygenStandGroup, offset: oxygenStandWallMountOffsetY },
+      { object: storageBoxGroup, offset: storageBoxFloorOffset },
       { object: oxygenChamberAnchor, offset: 0 },
       { object: oxygenChamberShell, offset: oxygenChamberHeight / 2 },
       { object: oxygenChamberTopRing, offset: oxygenChamberHeight - 0.02 },
@@ -6209,6 +6283,7 @@ export const initScene = (
     const teleportOffset = new THREE.Vector3(0, 0, deckDepth / 2 - 1.8);
 
     group.userData.oxygenRefillControls = [oxygenRefillControl];
+    group.userData.storageBoxControls = [storageBoxControl];
     group.userData.oxygenChamber = {
       anchor: oxygenChamberAnchor,
       radius: oxygenChamberRadius * 0.82,
@@ -12105,6 +12180,7 @@ export const initScene = (
 
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
   const MAX_OXYGEN_REFILL_INTERACTION_DISTANCE = 2.5;
+  const MAX_STORAGE_BOX_INTERACTION_DISTANCE = 2.5;
 
   let liftInteractable = false;
   let liftInteractionsEnabled = true;
@@ -12165,6 +12241,21 @@ export const initScene = (
 
     if (typeof onOxygenRefillInteractableChange === "function") {
       onOxygenRefillInteractableChange(nextState);
+    }
+  };
+
+  let storageBoxInteractable = false;
+
+  const updateStorageBoxInteractableState = (canInteract) => {
+    const nextState = Boolean(canInteract);
+    if (storageBoxInteractable === nextState) {
+      return;
+    }
+
+    storageBoxInteractable = nextState;
+
+    if (typeof onStorageBoxInteractableChange === "function") {
+      onStorageBoxInteractableChange(nextState);
     }
   };
 
@@ -15553,6 +15644,25 @@ export const initScene = (
     );
   };
 
+  const collectEnvironmentStorageBoxControls = () => {
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (!activeFloorId) {
+      return [];
+    }
+
+    const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
+    const activeGroup = activeEnvironment?.getGroup?.();
+    const controls = activeGroup?.userData?.storageBoxControls;
+    if (!Array.isArray(controls) || controls.length === 0) {
+      return [];
+    }
+
+    return controls.filter(
+      (control) =>
+        control?.isObject3D && control.visible !== false && control.parent
+    );
+  };
+
   const collectAllEnvironmentOxygenRefillControls = () => {
     const controls = [];
 
@@ -16547,6 +16657,7 @@ export const initScene = (
     updateTerminalInteractableState(false);
     updateLiftInteractableState(false);
     updateOxygenRefillInteractableState(false);
+    updateStorageBoxInteractableState(false);
     setQuickAccessHoverState(null, null);
     setManifestEditModeEnabled(false);
     cancelActivePlacement(new PlacementCancelledError("Pointer lock released"));
@@ -16618,6 +16729,33 @@ export const initScene = (
     if (
       !intersection ||
       intersection.distance > MAX_OXYGEN_REFILL_INTERACTION_DISTANCE
+    ) {
+      return null;
+    }
+
+    return intersection.object;
+  };
+
+  const getTargetedStorageBoxControl = () => {
+    const storageBoxControls = collectEnvironmentStorageBoxControls();
+    if (storageBoxControls.length === 0) {
+      return null;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(storageBoxControls, false);
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const intersection = intersections.find(
+      (candidate) => candidate.object?.userData?.isStorageBoxControl
+    );
+
+    if (
+      !intersection ||
+      intersection.distance > MAX_STORAGE_BOX_INTERACTION_DISTANCE
     ) {
       return null;
     }
@@ -16820,6 +16958,21 @@ export const initScene = (
           control: targetedOxygenRefillControl,
           via: "click",
         });
+      }
+      return;
+    }
+
+    const targetedStorageBoxControl = getTargetedStorageBoxControl();
+    if (targetedStorageBoxControl) {
+      if (typeof onStorageBoxInteract === "function") {
+        const shouldUnlock = onStorageBoxInteract({
+          control: targetedStorageBoxControl,
+          via: "click",
+        });
+
+        if (shouldUnlock !== false && controls.isLocked) {
+          controls.unlock();
+        }
       }
       return;
     }
@@ -17327,6 +17480,22 @@ export const initScene = (
         event.preventDefault();
         return;
       }
+
+      const targetedStorageBoxControl = getTargetedStorageBoxControl();
+      if (targetedStorageBoxControl) {
+        if (typeof onStorageBoxInteract === "function") {
+          const shouldUnlock = onStorageBoxInteract({
+            control: targetedStorageBoxControl,
+            via: "keyboard",
+          });
+
+          if (shouldUnlock !== false && controls.isLocked) {
+            controls.unlock();
+          }
+        }
+        event.preventDefault();
+        return;
+      }
     }
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
       event.preventDefault();
@@ -17739,6 +17908,7 @@ export const initScene = (
     let matchedZone = null;
     let matchedLiftControl = null;
     let matchedOxygenRefillControl = null;
+    let matchedStorageBoxControl = null;
 
     if (controls.isLocked) {
       if (liftInteractionsEnabled) {
@@ -17752,12 +17922,16 @@ export const initScene = (
       matchedOxygenRefillControl = getTargetedOxygenRefillControl();
       updateOxygenRefillInteractableState(Boolean(matchedOxygenRefillControl));
 
+      matchedStorageBoxControl = getTargetedStorageBoxControl();
+      updateStorageBoxInteractableState(Boolean(matchedStorageBoxControl));
+
       matchedZone = getTargetedTerminalZone();
       updateTerminalInteractableState(Boolean(matchedZone));
     } else {
       updateTerminalInteractableState(false);
       updateLiftInteractableState(false);
       updateOxygenRefillInteractableState(false);
+      updateStorageBoxInteractableState(false);
     }
 
     setQuickAccessHoverState(
@@ -18086,6 +18260,8 @@ export const initScene = (
       stopPlayerDiggingAudio({ resetTime: true });
       updateTerminalInteractableState(false);
       updateLiftInteractableState(false);
+      updateOxygenRefillInteractableState(false);
+      updateStorageBoxInteractableState(false);
       if (resourceToolGroup.parent) {
         resourceToolGroup.parent.remove(resourceToolGroup);
       }

@@ -2236,6 +2236,123 @@
         color: rgba(148, 163, 184, 0.7);
       }
 
+      .storage-box-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.95rem;
+      }
+
+      .storage-box-panel__summary {
+        margin: 0;
+        padding: 0.65rem 0.85rem;
+        border-radius: 0.85rem;
+        border: 1px solid rgba(56, 189, 248, 0.32);
+        background: rgba(8, 47, 73, 0.35);
+        color: rgba(224, 242, 254, 0.94);
+        font-size: 0.94rem;
+      }
+
+      .storage-box-panel__summary--warning {
+        border-color: rgba(251, 191, 36, 0.5);
+        background: rgba(113, 63, 18, 0.35);
+        color: rgba(253, 230, 138, 0.95);
+      }
+
+      .storage-box-panel__layout {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 0.95rem;
+      }
+
+      .storage-box-panel__column {
+        border-radius: 1rem;
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        background: rgba(15, 23, 42, 0.74);
+        box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08),
+          0 16px 32px rgba(15, 23, 42, 0.26);
+        padding: 0.9rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.7rem;
+      }
+
+      .storage-box-panel__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        max-height: 280px;
+        overflow-y: auto;
+      }
+
+      .storage-box-panel__item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.7rem;
+        align-items: center;
+        border-radius: 0.85rem;
+        border: 1px solid rgba(59, 130, 246, 0.24);
+        background: rgba(15, 23, 42, 0.78);
+        padding: 0.6rem 0.7rem;
+      }
+
+      .storage-box-panel__item-main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+
+      .storage-box-panel__item-title {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #e2e8f0;
+      }
+
+      .storage-box-panel__item-meta {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(148, 163, 184, 0.88);
+      }
+
+      .storage-box-panel__button {
+        border: 1px solid rgba(56, 189, 248, 0.48);
+        background: rgba(56, 189, 248, 0.16);
+        color: #e2e8f0;
+        border-radius: 0.7rem;
+        padding: 0.4rem 0.62rem;
+        font: inherit;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+      }
+
+      .storage-box-panel__button:hover,
+      .storage-box-panel__button:focus-visible {
+        outline: none;
+        transform: translateY(-1px);
+        border-color: rgba(96, 165, 250, 0.76);
+        background: rgba(56, 189, 248, 0.28);
+      }
+
+      .storage-box-panel__button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .storage-box-panel__empty {
+        margin: 0;
+        font-size: 0.86rem;
+        color: rgba(148, 163, 184, 0.86);
+      }
+
       .drone-skin-preview {
         border-radius: 1rem;
         border: 1px solid rgba(59, 130, 246, 0.3);
@@ -5825,6 +5942,52 @@
             Keep one pack free for emergency salvage; command wants intact tech hauled back.
           </li>
         </ul>
+      </section>
+    </template>
+
+    <template id="quick-access-modal-storage-box">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header">
+        <p class="quick-access-modal__eyebrow">Outside exit room</p>
+        <h2 class="quick-access-modal__title">Storage Box</h2>
+        <p class="quick-access-modal__subtitle">
+          Transfer collected elements between your inventory and this fixed 100kg stash.
+        </p>
+      </header>
+      <section class="quick-access-modal__section storage-box-panel">
+        <p class="storage-box-panel__summary" data-storage-box-summary>
+          Storage load syncing...
+        </p>
+        <p
+          class="storage-box-panel__summary storage-box-panel__summary--warning"
+          data-storage-box-warning
+          hidden
+        >
+          Capacity warning
+        </p>
+        <div class="storage-box-panel__layout">
+          <article class="storage-box-panel__column">
+            <h3 class="quick-access-modal__section-title">Inventory elements</h3>
+            <ul class="storage-box-panel__list" data-storage-box-inventory-list role="list"></ul>
+            <p class="storage-box-panel__empty" data-storage-box-inventory-empty hidden>
+              Inventory is empty.
+            </p>
+          </article>
+          <article class="storage-box-panel__column">
+            <h3 class="quick-access-modal__section-title">Stored elements</h3>
+            <ul class="storage-box-panel__list" data-storage-box-stored-list role="list"></ul>
+            <p class="storage-box-panel__empty" data-storage-box-stored-empty hidden>
+              Storage box is empty.
+            </p>
+          </article>
+        </div>
       </section>
     </template>
 
