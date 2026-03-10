@@ -2451,24 +2451,11 @@ const applyStoredDroneState = () => {
 
 applyStoredDroneState();
 
-const resolveGuaranteedDroneCollectionDetail = (detail) => {
-  if (detail?.source !== DRONE_QUICK_SLOT_ID) {
-    return detail;
-  }
-
-  if (detail?.found && detail?.element) {
-    guaranteedDroneFirstSamplePending = false;
-    return detail;
-  }
-
-  if (!guaranteedDroneFirstSamplePending) {
-    return detail;
-  }
-
+const resolveDroneTerrainSampleDetail = (detail) => {
   const terrainId =
     typeof detail?.terrain?.id === "string" ? detail.terrain.id.trim() : "";
   if (!terrainId) {
-    return detail;
+    return null;
   }
 
   const terrain = getOutsideTerrainById(terrainId);
@@ -2476,23 +2463,21 @@ const resolveGuaranteedDroneCollectionDetail = (detail) => {
     ? terrain.elements.filter((entry) => entry && typeof entry === "object")
     : [];
   if (terrainElements.length === 0) {
-    return detail;
+    return null;
   }
 
   const selectedElement =
     terrainElements[Math.floor(Math.random() * terrainElements.length)] ?? null;
   if (!selectedElement) {
-    return detail;
+    return null;
   }
 
   const normalizedElement = sanitizeInventoryElement(selectedElement);
   if (!normalizedElement?.symbol && !normalizedElement?.name) {
-    return detail;
+    return null;
   }
 
   const resolvedWeight = getInventoryElementWeight(normalizedElement);
-  guaranteedDroneFirstSamplePending = false;
-
   return {
     ...(detail && typeof detail === "object" ? detail : {}),
     source: DRONE_QUICK_SLOT_ID,
@@ -2505,6 +2490,39 @@ const resolveGuaranteedDroneCollectionDetail = (detail) => {
           : 1,
     },
   };
+};
+
+const resolveGuaranteedDroneCollectionDetail = (detail) => {
+  if (detail?.source !== DRONE_QUICK_SLOT_ID) {
+    return detail;
+  }
+
+  if (detail?.found && detail?.element) {
+    guaranteedDroneFirstSamplePending = false;
+    return detail;
+  }
+
+  if (guaranteedDroneFirstSamplePending) {
+    const guaranteedDetail = resolveDroneTerrainSampleDetail(detail);
+    if (guaranteedDetail) {
+      guaranteedDroneFirstSamplePending = false;
+      return guaranteedDetail;
+    }
+
+    return detail;
+  }
+
+  const successBonusChance = getDroneCraftingMiningSuccessChanceBonus();
+  if (
+    !Number.isFinite(successBonusChance) ||
+    successBonusChance <= 0 ||
+    Math.random() > successBonusChance
+  ) {
+    return detail;
+  }
+
+  const bonusSuccessDetail = resolveDroneTerrainSampleDetail(detail);
+  return bonusSuccessDetail ?? detail;
 };
 
 const getPlayerPosition = () => {
@@ -4222,6 +4240,28 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
       { element: { symbol: "Os", name: "Osmium" }, count: 1 },
       { element: { symbol: "F", name: "Fluorine" }, count: 1 },
       { element: { symbol: "Ho", name: "Holmium" }, count: 1 },
+    ],
+  },
+  {
+    id: "adaptive-sensor-lattice",
+    label: "Adaptive Sensor Lattice",
+    description: "Improves target acquisition reliability in difficult terrain.",
+    successChanceBonus: 0.14,
+    requirements: [
+      { element: { symbol: "He", name: "Helium" }, count: 1 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 1 },
+    ],
+  },
+  {
+    id: "split-core-extractor",
+    label: "Split-Core Extractor",
+    description: "Occasionally captures a second sample during a successful cut.",
+    doubleYieldChance: 0.18,
+    requirements: [
+      { element: { symbol: "Br", name: "Bromine" }, count: 2 },
+      { element: { symbol: "Ta", name: "Tantalum" }, count: 1 },
+      { element: { symbol: "Os", name: "Osmium" }, count: 1 },
     ],
   },
 ]);
@@ -6964,6 +7004,36 @@ const getDroneCraftingSpeedMultiplier = () =>
     return multiplier + bonus;
   }, 1);
 
+const getDroneCraftingMiningSuccessChanceBonus = () => {
+  const bonus = DRONE_CRAFTING_PARTS.reduce((chance, part) => {
+    if (!isDroneCraftingPartEquipped(part.id)) {
+      return chance;
+    }
+
+    const partBonus = Number.isFinite(part?.successChanceBonus)
+      ? Math.max(0, part.successChanceBonus)
+      : 0;
+    return chance + partBonus;
+  }, 0);
+
+  return Math.max(0, Math.min(0.9, bonus));
+};
+
+const getDroneCraftingDoubleYieldChance = () => {
+  const bonus = DRONE_CRAFTING_PARTS.reduce((chance, part) => {
+    if (!isDroneCraftingPartEquipped(part.id)) {
+      return chance;
+    }
+
+    const partBonus = Number.isFinite(part?.doubleYieldChance)
+      ? Math.max(0, part.doubleYieldChance)
+      : 0;
+    return chance + partBonus;
+  }, 0);
+
+  return Math.max(0, Math.min(0.9, bonus));
+};
+
 const getDroneCraftingDurationMultiplier = () => {
   const speedMultiplier = getDroneCraftingSpeedMultiplier();
   if (!Number.isFinite(speedMultiplier) || speedMultiplier <= 0) {
@@ -6977,6 +7047,37 @@ const syncDroneMiningSpeedBonusWithScene = () => {
   const durationMultiplier = getDroneCraftingDurationMultiplier();
   sceneController?.setDroneMinerActionDurationMultiplier?.(durationMultiplier);
   return durationMultiplier;
+};
+
+const formatDronePartEffectLabel = (part) => {
+  const segments = [];
+
+  if (Number.isFinite(part?.speedBonus) && part.speedBonus > 0) {
+    segments.push(`Mining speed +${Math.round(part.speedBonus * 100)}%`);
+  }
+
+  if (Number.isFinite(part?.successChanceBonus) && part.successChanceBonus > 0) {
+    segments.push(`Success chance +${Math.round(part.successChanceBonus * 100)}%`);
+  }
+
+  if (Number.isFinite(part?.doubleYieldChance) && part.doubleYieldChance > 0) {
+    segments.push(`Double mine chance +${Math.round(part.doubleYieldChance * 100)}%`);
+  }
+
+  return segments.join(" • ") || "No bonus effect.";
+};
+
+const getInstalledDroneBonusSummaryText = () => {
+  const speedMultiplier = getDroneCraftingSpeedMultiplier();
+  const speedBonusPercent = Math.round((speedMultiplier - 1) * 100);
+  const successBonusPercent = Math.round(
+    getDroneCraftingMiningSuccessChanceBonus() * 100
+  );
+  const doubleYieldPercent = Math.round(getDroneCraftingDoubleYieldChance() * 100);
+
+  return `Speed +${speedBonusPercent}% (${speedMultiplier.toFixed(
+    2
+  )}x) • Success +${successBonusPercent}% • Double +${doubleYieldPercent}%`;
 };
 
 const formatCraftingElementName = (element) => {
@@ -7025,7 +7126,7 @@ const createCraftingTablePartCard = (part) => {
 
   const effect = document.createElement("p");
   effect.className = "crafting-panel__effect";
-  effect.textContent = `Mining speed +${Math.round((part.speedBonus || 0) * 100)}%`;
+  effect.textContent = formatDronePartEffectLabel(part);
   item.appendChild(effect);
 
   const requirements = document.createElement("ul");
@@ -7081,14 +7182,10 @@ const renderCraftingTableModal = () => {
   }
 
   const { speedSummary, partList } = getCraftingTableModalElements();
-  const speedMultiplier = getDroneCraftingSpeedMultiplier();
-  const speedBonusPercent = Math.round((speedMultiplier - 1) * 100);
   const equippedCount = droneCraftingState.equippedPartIds.size;
 
   if (speedSummary instanceof HTMLElement) {
-    speedSummary.textContent = `Drone mining speed bonus: +${speedBonusPercent}% (${speedMultiplier.toFixed(
-      2
-    )}x) • Installed ${equippedCount}/${DRONE_CRAFTING_PARTS.length}`;
+    speedSummary.textContent = `Installed ${equippedCount}/${DRONE_CRAFTING_PARTS.length} • ${getInstalledDroneBonusSummaryText()}`;
   }
 
   if (!(partList instanceof HTMLElement)) {
@@ -8913,9 +9010,7 @@ const createDronePartsPanelItem = ({
 
   const meta = document.createElement("p");
   meta.className = "drone-parts-panel__item-meta";
-  meta.textContent = `${part.description} • Mining speed +${Math.round(
-    (part.speedBonus || 0) * 100
-  )}%`;
+  meta.textContent = `${part.description} • ${formatDronePartEffectLabel(part)}`;
   body.appendChild(meta);
   item.appendChild(body);
 
@@ -8944,14 +9039,10 @@ const installDronePart = (partId) => {
   persistDroneCraftingState();
   refreshInventoryUi();
   renderDroneCustomizationModal();
-  const durationMultiplier = syncDroneMiningSpeedBonusWithScene();
-  const speedMultiplier =
-    Number.isFinite(durationMultiplier) && durationMultiplier > 0
-      ? 1 / durationMultiplier
-      : getDroneCraftingSpeedMultiplier();
+  syncDroneMiningSpeedBonusWithScene();
   showTerminalToast({
     title: `${part.label} installed`,
-    description: `Drone mining speed is now ${speedMultiplier.toFixed(2)}x.`,
+    description: getInstalledDroneBonusSummaryText(),
   });
   return true;
 };
@@ -8966,14 +9057,10 @@ const removeDronePart = (partId) => {
   persistDroneCraftingState();
   refreshInventoryUi();
   renderDroneCustomizationModal();
-  const durationMultiplier = syncDroneMiningSpeedBonusWithScene();
-  const speedMultiplier =
-    Number.isFinite(durationMultiplier) && durationMultiplier > 0
-      ? 1 / durationMultiplier
-      : getDroneCraftingSpeedMultiplier();
+  syncDroneMiningSpeedBonusWithScene();
   showTerminalToast({
     title: `${part.label} removed`,
-    description: `Drone mining speed is now ${speedMultiplier.toFixed(2)}x.`,
+    description: getInstalledDroneBonusSummaryText(),
   });
   return true;
 };
@@ -9024,13 +9111,9 @@ const renderDronePartsPanel = () => {
 
   const availableParts = getDroneCraftingInventoryParts();
   const installedParts = getDroneCraftingInstalledParts();
-  const speedMultiplier = getDroneCraftingSpeedMultiplier();
-  const speedBonusPercent = Math.round((speedMultiplier - 1) * 100);
 
   if (partsSummary instanceof HTMLElement) {
-    partsSummary.textContent = `Installed mining speed bonus: +${speedBonusPercent}% (${speedMultiplier.toFixed(
-      2
-    )}x) • Installed ${installedParts.length}/${DRONE_CRAFTING_PARTS.length}`;
+    partsSummary.textContent = `Installed ${installedParts.length}/${DRONE_CRAFTING_PARTS.length} • ${getInstalledDroneBonusSummaryText()}`;
   }
 
   partsAvailableList.innerHTML = "";
@@ -10564,9 +10647,10 @@ const renderInventoryItemsEntries = () => {
 
     const meta = document.createElement("p");
     meta.className = "inventory-items-list__meta";
+    const effectLabel = formatDronePartEffectLabel(part);
     meta.textContent = isDroneCraftingPartEquipped(part.id)
-      ? "Installed on drone. Remove in Drone Setup > Parts to return it to inventory."
-      : "Available to install in Drone Setup > Parts.";
+      ? `Installed on drone. ${effectLabel}`
+      : `Available to install in Drone Setup > Parts. ${effectLabel}`;
     item.appendChild(meta);
 
     fragment.appendChild(item);
@@ -14199,12 +14283,39 @@ const handleDroneResourceCollected = (detail) => {
   concludeDroneMiningSession(detail);
 
   const storedSample = storeDroneSample(detail);
+  let storedDoubleSample = false;
+
+  if (storedSample && detail?.element) {
+    const doubleChance = getDroneCraftingDoubleYieldChance();
+    const sampleWeight = getInventoryElementWeight(detail.element);
+    const canStoreDuplicate =
+      Number.isFinite(sampleWeight) && sampleWeight > 0
+        ? droneState.payloadGrams + sampleWeight <= DRONE_MINER_MAX_PAYLOAD_GRAMS
+        : true;
+    if (
+      canStoreDuplicate &&
+      Number.isFinite(doubleChance) &&
+      doubleChance > 0 &&
+      Math.random() <= doubleChance
+    ) {
+      const duplicateDetail = {
+        ...(detail && typeof detail === "object" ? detail : {}),
+        source: DRONE_QUICK_SLOT_ID,
+        element: { ...(detail.element ?? {}) },
+      };
+      storedDoubleSample = storeDroneSample(duplicateDetail);
+    }
+  }
 
   if (storedSample && detail?.element) {
     const { symbol, name } = detail.element;
     const label = symbol && name ? `${symbol} (${name})` : symbol || name || "Sample";
-    const title = `Drone stored ${label}`;
-    const description = `Payload ${getDronePayloadText()} secured aboard.`;
+    const title = storedDoubleSample
+      ? `Drone stored ${label} x2`
+      : `Drone stored ${label}`;
+    const description = storedDoubleSample
+      ? `Double extraction triggered. Payload ${getDronePayloadText()} secured aboard.`
+      : `Payload ${getDronePayloadText()} secured aboard.`;
 
     showDroneResourceToast({ title, description });
     showDroneTerminalToast({ title: "Drone miner", description });
