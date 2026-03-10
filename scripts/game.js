@@ -8283,8 +8283,6 @@ const renderDroneCustomizationModal = () => {
     }
   } else {
     const activeSkinId = sceneController?.getActiveDroneSkinId?.() ?? null;
-    const activeOption =
-      skinOptions.find((option) => option?.id === activeSkinId) ?? skinOptions[0];
 
     skinOptions.forEach((option) => {
       if (!option || typeof option.id !== "string" || option.id.trim() === "") {
@@ -8330,22 +8328,6 @@ const renderDroneCustomizationModal = () => {
       button.appendChild(status);
 
       button.addEventListener("click", handleDroneSkinOptionClick);
-      button.addEventListener("mouseenter", () => {
-        void renderDroneSkinPreview(option);
-      });
-      button.addEventListener("focus", () => {
-        void renderDroneSkinPreview(option);
-      });
-      button.addEventListener("mouseleave", () => {
-        if (droneCustomizationModalActive && activeOption) {
-          void renderDroneSkinPreview(activeOption);
-        }
-      });
-      button.addEventListener("blur", () => {
-        if (droneCustomizationModalActive && activeOption) {
-          void renderDroneSkinPreview(activeOption);
-        }
-      });
       item.appendChild(button);
       skinList.appendChild(item);
     });
@@ -8353,8 +8335,6 @@ const renderDroneCustomizationModal = () => {
 
   if (modelList instanceof HTMLElement && hasModelOptions) {
     const activeModelId = sceneController?.getActiveDroneModelId?.() ?? null;
-    const activeModelOption =
-      modelOptions.find((option) => option?.id === activeModelId) ?? modelOptions[0];
 
     modelOptions.forEach((option) => {
       if (!option || typeof option.id !== "string" || option.id.trim() === "") {
@@ -8400,22 +8380,6 @@ const renderDroneCustomizationModal = () => {
       button.appendChild(status);
 
       button.addEventListener("click", handleDroneModelOptionClick);
-      button.addEventListener("mouseenter", () => {
-        renderDroneModelPreview(option);
-      });
-      button.addEventListener("focus", () => {
-        renderDroneModelPreview(option);
-      });
-      button.addEventListener("mouseleave", () => {
-        if (droneCustomizationModalActive && activeModelOption) {
-          renderDroneModelPreview(activeModelOption);
-        }
-      });
-      button.addEventListener("blur", () => {
-        if (droneCustomizationModalActive && activeModelOption) {
-          renderDroneModelPreview(activeModelOption);
-        }
-      });
       item.appendChild(button);
       modelList.appendChild(item);
     });
