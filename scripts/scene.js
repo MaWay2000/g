@@ -5867,11 +5867,13 @@ export const initScene = (
     oxygenStandGroup.add(oxygenRefillControl);
 
     const storageBoxFloorOffset = 0;
+    const storageBoxWallInset = 0.22;
+    const storageBoxForwardOffset = 0.42;
     const storageBoxGroup = new THREE.Group();
     storageBoxGroup.position.set(
-      wallSpanWidth / 2 - wallThickness - 0.66,
+      wallSpanWidth / 2 - wallThickness - storageBoxWallInset,
       roomFloorY + storageBoxFloorOffset,
-      -deckDepth * 0.16
+      -deckDepth * 0.2 + storageBoxForwardOffset
     );
     storageBoxGroup.rotation.y = Math.PI / 2;
     group.add(storageBoxGroup);
