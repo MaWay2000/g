@@ -2605,6 +2605,133 @@
         color: rgba(148, 163, 184, 0.9);
       }
 
+      .drone-parts-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .drone-parts-panel__summary {
+        margin: 0;
+        padding: 0.68rem 0.85rem;
+        border-radius: 0.8rem;
+        border: 1px solid rgba(34, 197, 94, 0.45);
+        background: rgba(22, 101, 52, 0.26);
+        color: rgba(220, 252, 231, 0.95);
+        font-size: 0.86rem;
+      }
+
+      .drone-parts-panel__layout {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .drone-parts-panel__column {
+        border-radius: 0.95rem;
+        border: 1px solid rgba(59, 130, 246, 0.24);
+        background: rgba(15, 23, 42, 0.74);
+        box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.08),
+          0 14px 28px rgba(15, 23, 42, 0.24);
+        padding: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+        min-height: 220px;
+      }
+
+      .drone-parts-panel__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+      }
+
+      .drone-parts-panel__item {
+        border-radius: 0.78rem;
+        border: 1px solid rgba(59, 130, 246, 0.26);
+        background: rgba(15, 23, 42, 0.82);
+        padding: 0.58rem 0.68rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.62rem;
+        align-items: center;
+      }
+
+      .drone-parts-panel__item-title {
+        margin: 0;
+        font-size: 0.88rem;
+        color: #e2e8f0;
+        font-weight: 700;
+      }
+
+      .drone-parts-panel__item-meta {
+        margin: 0.1rem 0 0;
+        font-size: 0.75rem;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .drone-parts-panel__action {
+        border: 1px solid rgba(59, 130, 246, 0.5);
+        background: rgba(59, 130, 246, 0.2);
+        color: #e2e8f0;
+        border-radius: 0.66rem;
+        padding: 0.35rem 0.6rem;
+        font: inherit;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      .drone-parts-panel__action:hover,
+      .drone-parts-panel__action:focus-visible {
+        outline: none;
+        border-color: rgba(96, 165, 250, 0.82);
+        background: rgba(59, 130, 246, 0.34);
+      }
+
+      .drone-parts-panel__empty {
+        margin: 0;
+        font-size: 0.8rem;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .inventory-items-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+      }
+
+      .inventory-items-list__entry {
+        border-radius: 0.8rem;
+        border: 1px solid rgba(56, 189, 248, 0.26);
+        background: rgba(15, 23, 42, 0.8);
+        padding: 0.6rem 0.72rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.16rem;
+      }
+
+      .inventory-items-list__title {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #e2e8f0;
+        font-weight: 700;
+      }
+
+      .inventory-items-list__meta {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(148, 163, 184, 0.92);
+      }
+
       .drone-customization-panel .quick-access-modal__section {
         margin-top: 0;
       }
@@ -5485,9 +5612,14 @@
             role="tabpanel"
             aria-label="Inventory placeable items"
           >
-            <p class="inventory-panel__empty">
-              No items in storage yet.
+            <p class="inventory-panel__empty" data-inventory-items-empty>
+              No crafted drone parts yet. Build parts at the Crafting Table.
             </p>
+            <ul
+              class="inventory-items-list"
+              data-inventory-items-list
+              role="list"
+            ></ul>
           </div>
           <div
             class="inventory-panel__section"
@@ -6205,12 +6337,27 @@
             aria-labelledby="drone-setup-tab-parts"
             hidden
           >
-            <div class="drone-customization-placeholder">
-              <p class="drone-customization-placeholder__title">Parts setup</p>
-              <p class="drone-customization-placeholder__text">
-                Parts tab is ready. Component controls can be wired here next.
+            <section class="quick-access-modal__section drone-parts-panel">
+              <p class="drone-parts-panel__summary" data-drone-parts-summary>
+                Installed mining speed bonus: +0% (1.00x)
               </p>
-            </div>
+              <div class="drone-parts-panel__layout">
+                <article class="drone-parts-panel__column">
+                  <h3 class="quick-access-modal__section-title">Inventory parts</h3>
+                  <ul class="drone-parts-panel__list" data-drone-parts-available-list></ul>
+                  <p class="drone-parts-panel__empty" data-drone-parts-available-empty hidden>
+                    No crafted parts in inventory. Build parts at the Crafting Table.
+                  </p>
+                </article>
+                <article class="drone-parts-panel__column">
+                  <h3 class="quick-access-modal__section-title">Installed parts</h3>
+                  <ul class="drone-parts-panel__list" data-drone-parts-installed-list></ul>
+                  <p class="drone-parts-panel__empty" data-drone-parts-installed-empty hidden>
+                    No parts installed yet.
+                  </p>
+                </article>
+              </div>
+            </section>
           </section>
 
           <section

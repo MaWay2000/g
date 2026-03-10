@@ -1669,6 +1669,12 @@ const inventoryDragHandle = inventoryPanel?.querySelector(
 const inventoryBody = inventoryPanel?.querySelector(".inventory-panel__body");
 const inventoryList = inventoryPanel?.querySelector("[data-inventory-list]");
 const inventoryEmptyState = inventoryPanel?.querySelector("[data-inventory-empty]");
+const inventoryItemsList = inventoryPanel?.querySelector(
+  "[data-inventory-items-list]"
+);
+const inventoryItemsEmptyState = inventoryPanel?.querySelector(
+  "[data-inventory-items-empty]"
+);
 const inventorySummary = inventoryPanel?.querySelector("[data-inventory-summary]");
 const inventorySummaryFill = inventoryPanel?.querySelector(
   "[data-inventory-summary-fill]"
@@ -4240,6 +4246,7 @@ const storageBoxState = {
 };
 const droneCraftingState = {
   craftedPartIds: new Set(),
+  equippedPartIds: new Set(),
 };
 
 const NEW_GAME_STARTER_RESOURCES = [
@@ -6941,9 +6948,15 @@ const getCraftingTableModalElements = () => {
 const isDroneCraftingPartCrafted = (partId) =>
   typeof partId === "string" && droneCraftingState.craftedPartIds.has(partId);
 
+const isDroneCraftingPartEquipped = (partId) =>
+  typeof partId === "string" && droneCraftingState.equippedPartIds.has(partId);
+
+const getDroneCraftingPartById = (partId) =>
+  DRONE_CRAFTING_PARTS.find((part) => part.id === partId) ?? null;
+
 const getDroneCraftingSpeedMultiplier = () =>
   DRONE_CRAFTING_PARTS.reduce((multiplier, part) => {
-    if (!isDroneCraftingPartCrafted(part.id)) {
+    if (!isDroneCraftingPartEquipped(part.id)) {
       return multiplier;
     }
 
@@ -6982,13 +6995,23 @@ const formatCraftingElementName = (element) => {
   return "Unknown resource";
 };
 
+const getDroneCraftingInventoryParts = () =>
+  DRONE_CRAFTING_PARTS.filter(
+    (part) => isDroneCraftingPartCrafted(part.id) && !isDroneCraftingPartEquipped(part.id)
+  );
+
+const getDroneCraftingInstalledParts = () =>
+  DRONE_CRAFTING_PARTS.filter((part) => isDroneCraftingPartEquipped(part.id));
+
 const createCraftingTablePartCard = (part) => {
   const item = document.createElement("li");
   item.className = "crafting-panel__card";
   item.dataset.craftingPartId = part.id;
 
   const crafted = isDroneCraftingPartCrafted(part.id);
+  const equipped = isDroneCraftingPartEquipped(part.id);
   item.dataset.crafted = crafted ? "true" : "false";
+  item.dataset.equipped = equipped ? "true" : "false";
 
   const title = document.createElement("h3");
   title.className = "crafting-panel__title";
@@ -7040,7 +7063,11 @@ const createCraftingTablePartCard = (part) => {
   craftButton.className = "crafting-panel__button";
   craftButton.dataset.craftingPartAction = "craft";
   craftButton.dataset.craftingPartId = part.id;
-  craftButton.textContent = crafted ? "Crafted" : "Craft";
+  craftButton.textContent = crafted
+    ? equipped
+      ? "Installed"
+      : "Built"
+    : "Craft";
   const canCraft = requirementStates.every((state) => state.ready);
   craftButton.disabled = crafted || !canCraft;
   item.appendChild(craftButton);
@@ -7056,11 +7083,12 @@ const renderCraftingTableModal = () => {
   const { speedSummary, partList } = getCraftingTableModalElements();
   const speedMultiplier = getDroneCraftingSpeedMultiplier();
   const speedBonusPercent = Math.round((speedMultiplier - 1) * 100);
+  const equippedCount = droneCraftingState.equippedPartIds.size;
 
   if (speedSummary instanceof HTMLElement) {
     speedSummary.textContent = `Drone mining speed bonus: +${speedBonusPercent}% (${speedMultiplier.toFixed(
       2
-    )}x)`;
+    )}x) • Installed ${equippedCount}/${DRONE_CRAFTING_PARTS.length}`;
   }
 
   if (!(partList instanceof HTMLElement)) {
@@ -7074,7 +7102,7 @@ const renderCraftingTableModal = () => {
 };
 
 const craftDroneUpgradePart = (partId) => {
-  const part = DRONE_CRAFTING_PARTS.find((candidate) => candidate.id === partId);
+  const part = getDroneCraftingPartById(partId);
   if (!part) {
     return false;
   }
@@ -7082,7 +7110,7 @@ const craftDroneUpgradePart = (partId) => {
   if (isDroneCraftingPartCrafted(part.id)) {
     showTerminalToast({
       title: "Already crafted",
-      description: `${part.label} is already installed on the drone.`,
+      description: `${part.label} is already built. Install it in Drone Setup > Parts.`,
     });
     return false;
   }
@@ -7128,16 +7156,15 @@ const craftDroneUpgradePart = (partId) => {
 
   droneCraftingState.craftedPartIds.add(part.id);
   persistDroneCraftingState();
-  const durationMultiplier = syncDroneMiningSpeedBonusWithScene();
+  refreshInventoryUi();
   renderCraftingTableModal();
+  if (droneCustomizationModalActive) {
+    renderDroneCustomizationModal();
+  }
 
-  const speedMultiplier =
-    Number.isFinite(durationMultiplier) && durationMultiplier > 0
-      ? 1 / durationMultiplier
-      : getDroneCraftingSpeedMultiplier();
   showTerminalToast({
     title: `${part.label} crafted`,
-    description: `Drone mining speed now ${speedMultiplier.toFixed(2)}x.`,
+    description: "Part added to Inventory > Items. Install it in Drone Setup > Parts.",
   });
   return true;
 };
@@ -7208,6 +7235,11 @@ const getDroneCustomizationModalElements = () => {
     return {
       tabButtons: [],
       tabPanels: [],
+      partsSummary: null,
+      partsAvailableList: null,
+      partsAvailableEmpty: null,
+      partsInstalledList: null,
+      partsInstalledEmpty: null,
       skinList: null,
       skinEmpty: null,
       modelList: null,
@@ -7257,6 +7289,19 @@ const getDroneCustomizationModalElements = () => {
     tabPanels: Array.from(
       quickAccessModalContent.querySelectorAll("[data-drone-setup-panel]")
     ).filter((panel) => panel instanceof HTMLElement),
+    partsSummary: quickAccessModalContent.querySelector("[data-drone-parts-summary]"),
+    partsAvailableList: quickAccessModalContent.querySelector(
+      "[data-drone-parts-available-list]"
+    ),
+    partsAvailableEmpty: quickAccessModalContent.querySelector(
+      "[data-drone-parts-available-empty]"
+    ),
+    partsInstalledList: quickAccessModalContent.querySelector(
+      "[data-drone-parts-installed-list]"
+    ),
+    partsInstalledEmpty: quickAccessModalContent.querySelector(
+      "[data-drone-parts-installed-empty]"
+    ),
     skinList: quickAccessModalContent.querySelector("[data-drone-skin-list]"),
     skinEmpty: quickAccessModalContent.querySelector("[data-drone-skin-empty]"),
     modelList: quickAccessModalContent.querySelector("[data-drone-model-list]"),
@@ -8852,12 +8897,192 @@ const handleDroneModelOptionClick = (event) => {
   });
 };
 
+const createDronePartsPanelItem = ({
+  part,
+  action,
+  actionLabel,
+}) => {
+  const item = document.createElement("li");
+  item.className = "drone-parts-panel__item";
+
+  const body = document.createElement("div");
+  const title = document.createElement("p");
+  title.className = "drone-parts-panel__item-title";
+  title.textContent = part.label;
+  body.appendChild(title);
+
+  const meta = document.createElement("p");
+  meta.className = "drone-parts-panel__item-meta";
+  meta.textContent = `${part.description} • Mining speed +${Math.round(
+    (part.speedBonus || 0) * 100
+  )}%`;
+  body.appendChild(meta);
+  item.appendChild(body);
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  actionButton.className = "drone-parts-panel__action";
+  actionButton.dataset.dronePartAction = action;
+  actionButton.dataset.dronePartId = part.id;
+  actionButton.textContent = actionLabel;
+  item.appendChild(actionButton);
+
+  return item;
+};
+
+const installDronePart = (partId) => {
+  const part = getDroneCraftingPartById(partId);
+  if (!part) {
+    return false;
+  }
+
+  if (!isDroneCraftingPartCrafted(partId) || isDroneCraftingPartEquipped(partId)) {
+    return false;
+  }
+
+  droneCraftingState.equippedPartIds.add(partId);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  renderDroneCustomizationModal();
+  const durationMultiplier = syncDroneMiningSpeedBonusWithScene();
+  const speedMultiplier =
+    Number.isFinite(durationMultiplier) && durationMultiplier > 0
+      ? 1 / durationMultiplier
+      : getDroneCraftingSpeedMultiplier();
+  showTerminalToast({
+    title: `${part.label} installed`,
+    description: `Drone mining speed is now ${speedMultiplier.toFixed(2)}x.`,
+  });
+  return true;
+};
+
+const removeDronePart = (partId) => {
+  const part = getDroneCraftingPartById(partId);
+  if (!part || !isDroneCraftingPartEquipped(partId)) {
+    return false;
+  }
+
+  droneCraftingState.equippedPartIds.delete(partId);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  renderDroneCustomizationModal();
+  const durationMultiplier = syncDroneMiningSpeedBonusWithScene();
+  const speedMultiplier =
+    Number.isFinite(durationMultiplier) && durationMultiplier > 0
+      ? 1 / durationMultiplier
+      : getDroneCraftingSpeedMultiplier();
+  showTerminalToast({
+    title: `${part.label} removed`,
+    description: `Drone mining speed is now ${speedMultiplier.toFixed(2)}x.`,
+  });
+  return true;
+};
+
+const handleDronePartActionClick = (event) => {
+  const button =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-drone-part-action]")
+      : null;
+
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const partId = button.dataset.dronePartId;
+  const action = button.dataset.dronePartAction;
+  if (!partId || !action) {
+    return;
+  }
+
+  if (action === "install") {
+    installDronePart(partId);
+    return;
+  }
+
+  if (action === "remove") {
+    removeDronePart(partId);
+  }
+};
+
+const renderDronePartsPanel = () => {
+  const {
+    partsSummary,
+    partsAvailableList,
+    partsAvailableEmpty,
+    partsInstalledList,
+    partsInstalledEmpty,
+  } = getDroneCustomizationModalElements();
+
+  if (
+    !(partsAvailableList instanceof HTMLElement) ||
+    !(partsInstalledList instanceof HTMLElement)
+  ) {
+    return;
+  }
+
+  const availableParts = getDroneCraftingInventoryParts();
+  const installedParts = getDroneCraftingInstalledParts();
+  const speedMultiplier = getDroneCraftingSpeedMultiplier();
+  const speedBonusPercent = Math.round((speedMultiplier - 1) * 100);
+
+  if (partsSummary instanceof HTMLElement) {
+    partsSummary.textContent = `Installed mining speed bonus: +${speedBonusPercent}% (${speedMultiplier.toFixed(
+      2
+    )}x) • Installed ${installedParts.length}/${DRONE_CRAFTING_PARTS.length}`;
+  }
+
+  partsAvailableList.innerHTML = "";
+  availableParts.forEach((part) => {
+    partsAvailableList.appendChild(
+      createDronePartsPanelItem({
+        part,
+        action: "install",
+        actionLabel: "Install",
+      })
+    );
+  });
+
+  partsInstalledList.innerHTML = "";
+  installedParts.forEach((part) => {
+    partsInstalledList.appendChild(
+      createDronePartsPanelItem({
+        part,
+        action: "remove",
+        actionLabel: "Remove",
+      })
+    );
+  });
+
+  if (partsAvailableEmpty instanceof HTMLElement) {
+    partsAvailableEmpty.hidden = availableParts.length > 0;
+  }
+  if (partsInstalledEmpty instanceof HTMLElement) {
+    partsInstalledEmpty.hidden = installedParts.length > 0;
+  }
+
+  if (!partsAvailableList.dataset.boundPartsActions) {
+    partsAvailableList.dataset.boundPartsActions = "true";
+    partsAvailableList.addEventListener("click", handleDronePartActionClick);
+  }
+  if (!partsInstalledList.dataset.boundPartsActions) {
+    partsInstalledList.dataset.boundPartsActions = "true";
+    partsInstalledList.addEventListener("click", handleDronePartActionClick);
+  }
+};
+
 const renderDroneCustomizationModal = () => {
   if (!droneCustomizationModalActive) {
     return;
   }
 
   const {
+    partsSummary,
+    partsAvailableList,
+    partsAvailableEmpty,
+    partsInstalledList,
+    partsInstalledEmpty,
     skinList,
     skinEmpty,
     modelList,
@@ -8872,6 +9097,15 @@ const renderDroneCustomizationModal = () => {
     getDroneCustomizationModalElements();
   bindDroneCustomizationTabEvents();
   syncDroneCustomizationTabState(droneCustomizationActiveTab);
+  if (
+    partsSummary instanceof HTMLElement ||
+    partsAvailableList instanceof HTMLElement ||
+    partsAvailableEmpty instanceof HTMLElement ||
+    partsInstalledList instanceof HTMLElement ||
+    partsInstalledEmpty instanceof HTMLElement
+  ) {
+    renderDronePartsPanel();
+  }
   if (!(skinList instanceof HTMLElement)) {
     return;
   }
@@ -10300,6 +10534,47 @@ const renderInventoryEntries = () => {
   inventoryList.appendChild(fragment);
 };
 
+const renderInventoryItemsEntries = () => {
+  if (!(inventoryItemsList instanceof HTMLElement)) {
+    return;
+  }
+
+  inventoryItemsList.innerHTML = "";
+  const craftedParts = DRONE_CRAFTING_PARTS.filter((part) =>
+    isDroneCraftingPartCrafted(part.id)
+  );
+
+  if (inventoryItemsEmptyState instanceof HTMLElement) {
+    inventoryItemsEmptyState.hidden = craftedParts.length > 0;
+  }
+
+  if (craftedParts.length === 0) {
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  craftedParts.forEach((part) => {
+    const item = document.createElement("li");
+    item.className = "inventory-items-list__entry";
+
+    const title = document.createElement("p");
+    title.className = "inventory-items-list__title";
+    title.textContent = part.label;
+    item.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "inventory-items-list__meta";
+    meta.textContent = isDroneCraftingPartEquipped(part.id)
+      ? "Installed on drone. Remove in Drone Setup > Parts to return it to inventory."
+      : "Available to install in Drone Setup > Parts.";
+    item.appendChild(meta);
+
+    fragment.appendChild(item);
+  });
+
+  inventoryItemsList.appendChild(fragment);
+};
+
 const getInventoryPanelDimensions = () => {
   let { width, height } = inventoryLayoutState.dimensions;
 
@@ -10571,6 +10846,7 @@ const handleInventoryWindowResize = () => {
 const refreshInventoryUi = () => {
   recalculateInventoryLoad();
   renderInventoryEntries();
+  renderInventoryItemsEntries();
   updateInventorySummary();
   renderDroneInventoryUi();
   updateInventoryCapacityWarning();
@@ -10725,6 +11001,12 @@ const serializeDroneCraftingStateForPersistence = () => ({
   craftedPartIds: Array.from(droneCraftingState.craftedPartIds).filter(
     (partId) =>
       typeof partId === "string" &&
+      DRONE_CRAFTING_PARTS.some((part) => part.id === partId)
+  ),
+  equippedPartIds: Array.from(droneCraftingState.equippedPartIds).filter(
+    (partId) =>
+      typeof partId === "string" &&
+      droneCraftingState.craftedPartIds.has(partId) &&
       DRONE_CRAFTING_PARTS.some((part) => part.id === partId)
   ),
 });
@@ -10931,6 +11213,7 @@ const restoreDroneCraftingStateFromStorage = () => {
   const storage = getInventoryStorage();
   if (!storage) {
     syncDroneMiningSpeedBonusWithScene();
+    refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
     return false;
   }
@@ -10941,14 +11224,17 @@ const restoreDroneCraftingStateFromStorage = () => {
   } catch (error) {
     console.warn("Unable to read stored drone crafting state", error);
     syncDroneMiningSpeedBonusWithScene();
+    refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
     return false;
   }
 
   droneCraftingState.craftedPartIds.clear();
+  droneCraftingState.equippedPartIds.clear();
 
   if (typeof serialized !== "string" || serialized.trim() === "") {
     syncDroneMiningSpeedBonusWithScene();
+    refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
     return false;
   }
@@ -10957,17 +11243,35 @@ const restoreDroneCraftingStateFromStorage = () => {
 
   try {
     const data = JSON.parse(serialized);
-    const storedPartIds = Array.isArray(data?.craftedPartIds) ? data.craftedPartIds : [];
-    storedPartIds.forEach((partId) => {
+    const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
+    const storedCraftedPartIds = Array.isArray(data?.craftedPartIds)
+      ? data.craftedPartIds
+      : [];
+    storedCraftedPartIds.forEach((partId) => {
       if (
         typeof partId === "string" &&
-        DRONE_CRAFTING_PARTS.some((part) => part.id === partId)
+        knownPartIds.has(partId)
       ) {
         droneCraftingState.craftedPartIds.add(partId);
       }
     });
 
-    restored = droneCraftingState.craftedPartIds.size > 0;
+    const storedEquippedPartIds = Array.isArray(data?.equippedPartIds)
+      ? data.equippedPartIds
+      : [];
+    storedEquippedPartIds.forEach((partId) => {
+      if (
+        typeof partId === "string" &&
+        knownPartIds.has(partId) &&
+        droneCraftingState.craftedPartIds.has(partId)
+      ) {
+        droneCraftingState.equippedPartIds.add(partId);
+      }
+    });
+
+    restored =
+      droneCraftingState.craftedPartIds.size > 0 ||
+      droneCraftingState.equippedPartIds.size > 0;
   } catch (error) {
     console.warn("Unable to parse stored drone crafting state", error);
   }
@@ -10979,6 +11283,7 @@ const restoreDroneCraftingStateFromStorage = () => {
   }
 
   syncDroneMiningSpeedBonusWithScene();
+  refreshInventoryUi();
   refreshCraftingTableModalIfOpen();
   return restored;
 };
@@ -14785,6 +15090,7 @@ function handleReset(event) {
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
     droneCraftingState.craftedPartIds.clear();
+    droneCraftingState.equippedPartIds.clear();
     lastSerializedDroneCraftingState = null;
     syncDroneMiningSpeedBonusWithScene();
 
