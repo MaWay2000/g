@@ -6668,6 +6668,7 @@ const handleDroneCustomizationTabClick = (event) => {
     event.currentTarget.dataset.droneSetupTab
   );
   syncDroneCustomizationTabState(nextTabId);
+  renderActiveDroneCustomizationPreview();
 };
 
 const bindDroneCustomizationTabEvents = () => {
@@ -6684,6 +6685,40 @@ const bindDroneCustomizationTabEvents = () => {
     button.dataset.droneSetupTabBound = "true";
     button.addEventListener("click", handleDroneCustomizationTabClick);
   });
+};
+
+const renderActiveDroneCustomizationPreview = () => {
+  if (!droneCustomizationModalActive) {
+    return;
+  }
+
+  if (droneCustomizationActiveTab === "model") {
+    const activeModelOption = resolveActiveDroneModelPreviewOption();
+    if (activeModelOption) {
+      renderDroneModelPreview(activeModelOption);
+    } else {
+      stopDroneModelPreviewRuntimeLoop();
+    }
+    return;
+  }
+
+  if (droneCustomizationActiveTab === "skins") {
+    const skinOptions = sceneController?.getDroneSkinOptions?.();
+    if (!Array.isArray(skinOptions) || skinOptions.length === 0) {
+      stopDroneModelPreviewRuntimeLoop();
+      return;
+    }
+
+    const activeSkinId = sceneController?.getActiveDroneSkinId?.() ?? null;
+    const activeSkinOption =
+      skinOptions.find((option) => option?.id === activeSkinId) ?? skinOptions[0];
+    if (activeSkinOption) {
+      void renderDroneSkinPreview(activeSkinOption);
+    }
+    return;
+  }
+
+  stopDroneModelPreviewRuntimeLoop();
 };
 
 const toHexColorString = (value, fallback = "#38bdf8") => {
@@ -8082,7 +8117,10 @@ const renderDroneSkinPreview = async (skinOption) => {
   });
 
   await applyDroneSkinPreviewToRuntime(runtime, skinOption, { renderToken });
-  if (droneSkinPreviewState.renderToken !== renderToken) {
+  if (
+    droneSkinPreviewState.renderToken !== renderToken ||
+    droneModelPreviewState.runtime !== runtime
+  ) {
     return;
   }
 
@@ -8230,9 +8268,6 @@ const renderDroneCustomizationModal = () => {
     const activeSkinId = sceneController?.getActiveDroneSkinId?.() ?? null;
     const activeOption =
       skinOptions.find((option) => option?.id === activeSkinId) ?? skinOptions[0];
-    if (activeOption) {
-      void renderDroneSkinPreview(activeOption);
-    }
 
     skinOptions.forEach((option) => {
       if (!option || typeof option.id !== "string" || option.id.trim() === "") {
@@ -8299,80 +8334,77 @@ const renderDroneCustomizationModal = () => {
     });
   }
 
-  if (!(modelList instanceof HTMLElement) || !hasModelOptions) {
-    return;
+  if (modelList instanceof HTMLElement && hasModelOptions) {
+    const activeModelId = sceneController?.getActiveDroneModelId?.() ?? null;
+    const activeModelOption =
+      modelOptions.find((option) => option?.id === activeModelId) ?? modelOptions[0];
+
+    modelOptions.forEach((option) => {
+      if (!option || typeof option.id !== "string" || option.id.trim() === "") {
+        return;
+      }
+
+      const optionId = option.id.trim();
+      const optionLabel =
+        typeof option.label === "string" && option.label.trim() !== ""
+          ? option.label.trim()
+          : optionId;
+      const optionDescription =
+        typeof option.description === "string" && option.description.trim() !== ""
+          ? option.description.trim()
+          : "Available drone model profile.";
+      const isActive = optionId === activeModelId;
+
+      const item = document.createElement("li");
+      item.className = "lift-selector__item";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "lift-selector__button";
+      button.dataset.droneModelId = optionId;
+      button.dataset.droneModelLabel = optionLabel;
+      button.setAttribute("aria-current", isActive ? "true" : "false");
+      button.disabled = isActive;
+
+      const title = document.createElement("span");
+      title.className = "lift-selector__title";
+      title.textContent = optionLabel;
+      button.appendChild(title);
+
+      const description = document.createElement("span");
+      description.className = "lift-selector__description";
+      description.textContent = optionDescription;
+      button.appendChild(description);
+
+      const status = document.createElement("span");
+      status.className = "lift-selector__status";
+      status.textContent = "Active model";
+      status.hidden = !isActive;
+      button.appendChild(status);
+
+      button.addEventListener("click", handleDroneModelOptionClick);
+      button.addEventListener("mouseenter", () => {
+        renderDroneModelPreview(option);
+      });
+      button.addEventListener("focus", () => {
+        renderDroneModelPreview(option);
+      });
+      button.addEventListener("mouseleave", () => {
+        if (droneCustomizationModalActive && activeModelOption) {
+          renderDroneModelPreview(activeModelOption);
+        }
+      });
+      button.addEventListener("blur", () => {
+        if (droneCustomizationModalActive && activeModelOption) {
+          renderDroneModelPreview(activeModelOption);
+        }
+      });
+      item.appendChild(button);
+      modelList.appendChild(item);
+    });
   }
 
-  const activeModelId = sceneController?.getActiveDroneModelId?.() ?? null;
-  const activeModelOption =
-    modelOptions.find((option) => option?.id === activeModelId) ?? modelOptions[0];
-  if (activeModelOption) {
-    renderDroneModelPreview(activeModelOption);
-  }
-
-  modelOptions.forEach((option) => {
-    if (!option || typeof option.id !== "string" || option.id.trim() === "") {
-      return;
-    }
-
-    const optionId = option.id.trim();
-    const optionLabel =
-      typeof option.label === "string" && option.label.trim() !== ""
-        ? option.label.trim()
-        : optionId;
-    const optionDescription =
-      typeof option.description === "string" && option.description.trim() !== ""
-        ? option.description.trim()
-        : "Available drone model profile.";
-    const isActive = optionId === activeModelId;
-
-    const item = document.createElement("li");
-    item.className = "lift-selector__item";
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "lift-selector__button";
-    button.dataset.droneModelId = optionId;
-    button.dataset.droneModelLabel = optionLabel;
-    button.setAttribute("aria-current", isActive ? "true" : "false");
-    button.disabled = isActive;
-
-    const title = document.createElement("span");
-    title.className = "lift-selector__title";
-    title.textContent = optionLabel;
-    button.appendChild(title);
-
-    const description = document.createElement("span");
-    description.className = "lift-selector__description";
-    description.textContent = optionDescription;
-    button.appendChild(description);
-
-    const status = document.createElement("span");
-    status.className = "lift-selector__status";
-    status.textContent = "Active model";
-    status.hidden = !isActive;
-    button.appendChild(status);
-
-    button.addEventListener("click", handleDroneModelOptionClick);
-    button.addEventListener("mouseenter", () => {
-      renderDroneModelPreview(option);
-    });
-    button.addEventListener("focus", () => {
-      renderDroneModelPreview(option);
-    });
-    button.addEventListener("mouseleave", () => {
-      if (droneCustomizationModalActive && activeModelOption) {
-        renderDroneModelPreview(activeModelOption);
-      }
-    });
-    button.addEventListener("blur", () => {
-      if (droneCustomizationModalActive && activeModelOption) {
-        renderDroneModelPreview(activeModelOption);
-      }
-    });
-    item.appendChild(button);
-    modelList.appendChild(item);
-  });
+  renderActiveDroneCustomizationPreview();
 };
 
 const resolveMissionRequirement = (mission) => {
