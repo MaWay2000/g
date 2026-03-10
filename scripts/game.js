@@ -4145,6 +4145,8 @@ const DRONE_MODEL_PREVIEW_ACCENT_COLORS = Object.freeze({
 const DRONE_MODEL_PREVIEW_GROUND_Y = -0.26;
 const DRONE_MODEL_PREVIEW_SPIN_SPEED_RAD_PER_SEC = 0.16;
 const DRONE_MODEL_PREVIEW_SPIN_MAX_FPS = 16;
+const DRONE_CUSTOMIZATION_3D_PREVIEW_TABS = new Set(["skins", "model"]);
+const droneSkinPreviewThreeTextureCache = new Map();
 const droneModelPreviewState = {
   runtime: null,
   webglUnavailable: false,
@@ -6618,6 +6620,9 @@ const normalizeDroneCustomizationTabId = (tabId) => {
   return DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
 };
 
+const isDroneCustomization3dPreviewTabActive = () =>
+  DRONE_CUSTOMIZATION_3D_PREVIEW_TABS.has(droneCustomizationActiveTab);
+
 const syncDroneCustomizationTabState = (
   requestedTabId = droneCustomizationActiveTab
 ) => {
@@ -6646,7 +6651,7 @@ const syncDroneCustomizationTabState = (
     panel.setAttribute("aria-hidden", isActive ? "false" : "true");
   });
 
-  if (nextTabId !== "model") {
+  if (!isDroneCustomization3dPreviewTabActive()) {
     stopDroneModelPreviewRuntimeLoop();
   } else if (droneCustomizationModalActive && droneModelPreviewState.runtime) {
     startDroneModelPreviewRuntimeLoop();
@@ -6713,6 +6718,43 @@ const loadDroneSkinPreviewTexture = (path) => {
   });
 
   droneSkinPreviewTextureCache.set(normalizedPath, promise);
+  return promise;
+};
+
+const loadDroneSkinPreviewThreeTexture = (path) => {
+  const normalizedPath = typeof path === "string" ? path.trim() : "";
+  if (!normalizedPath) {
+    return Promise.resolve(null);
+  }
+
+  if (droneSkinPreviewThreeTextureCache.has(normalizedPath)) {
+    return droneSkinPreviewThreeTextureCache.get(normalizedPath);
+  }
+
+  const promise = new Promise((resolve) => {
+    let resolvedPath = null;
+    try {
+      resolvedPath = new URL(normalizedPath, window.location.href).href;
+    } catch (error) {
+      resolve(null);
+      return;
+    }
+
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      resolvedPath,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        resolve(texture);
+      },
+      undefined,
+      () => resolve(null)
+    );
+  });
+
+  droneSkinPreviewThreeTextureCache.set(normalizedPath, promise);
   return promise;
 };
 
@@ -6783,7 +6825,7 @@ const drawDroneSkinPreviewPlaceholder = (context, width, height) => {
   context.fillText("Loading preview...", width / 2, height / 2);
 };
 
-const renderDroneSkinPreview = async (skinOption) => {
+const renderDroneSkinPreviewFallback2d = async (skinOption) => {
   const { previewCanvas, previewTitle, previewDescription } =
     getDroneCustomizationModalElements();
   if (!(previewCanvas instanceof HTMLCanvasElement)) {
@@ -7124,6 +7166,106 @@ const resolveActiveDroneSkinPreviewColors = () => {
       ? preview.cutterLightColor
       : null,
   };
+};
+
+const resolveActiveDroneModelPreviewOption = () => {
+  const modelOptions = sceneController?.getDroneModelOptions?.();
+  if (!Array.isArray(modelOptions) || modelOptions.length === 0) {
+    return null;
+  }
+
+  const activeModelId = sceneController?.getActiveDroneModelId?.() ?? null;
+  return modelOptions.find((option) => option?.id === activeModelId) ?? modelOptions[0];
+};
+
+const resolveDroneSkinPreviewColors = (skinOption) => {
+  const preview = skinOption?.preview ?? {};
+  return {
+    headLightColor: Number.isFinite(preview?.headLightColor)
+      ? preview.headLightColor
+      : null,
+    cutterLightColor: Number.isFinite(preview?.cutterLightColor)
+      ? preview.cutterLightColor
+      : null,
+  };
+};
+
+const setDronePreviewMaterialMap = (material, texture, fallbackColor) => {
+  if (!(material instanceof THREE.Material)) {
+    return;
+  }
+
+  if ("map" in material) {
+    material.map = texture || null;
+  }
+  if ("color" in material && material.color instanceof THREE.Color) {
+    if (texture) {
+      material.color.set(0xffffff);
+    } else if (Number.isFinite(fallbackColor)) {
+      material.color.setHex(fallbackColor);
+    }
+  }
+  material.needsUpdate = true;
+};
+
+const resolveDroneSkinPreviewFallbackPalette = (skinOption) => {
+  const id = typeof skinOption?.id === "string" ? skinOption.id.trim().toLowerCase() : "";
+  if (id.includes("hazard")) {
+    return {
+      hull: 0xeab308,
+      frame: 0x1f2937,
+      visor: 0xfef3c7,
+      cutter: 0xfb923c,
+    };
+  }
+
+  if (id.includes("carbon")) {
+    return {
+      hull: 0x334155,
+      frame: 0x0f172a,
+      visor: 0xfca5a5,
+      cutter: 0xea580c,
+    };
+  }
+
+  return {
+    hull: 0x64748b,
+    frame: 0x334155,
+    visor: 0xe2e8f0,
+    cutter: 0xf97316,
+  };
+};
+
+const applyDroneSkinPreviewToRuntime = async (
+  runtime,
+  skinOption,
+  { renderToken = 0 } = {}
+) => {
+  if (!runtime || droneModelPreviewState.runtime !== runtime) {
+    return;
+  }
+
+  const preview = skinOption?.preview ?? {};
+  const [hullTexture, frameTexture, visorTexture, cutterTexture] = await Promise.all([
+    loadDroneSkinPreviewThreeTexture(preview?.hullTexturePath),
+    loadDroneSkinPreviewThreeTexture(preview?.frameTexturePath),
+    loadDroneSkinPreviewThreeTexture(preview?.visorTexturePath),
+    loadDroneSkinPreviewThreeTexture(preview?.cutterTexturePath),
+  ]);
+
+  if (
+    droneSkinPreviewState.renderToken !== renderToken ||
+    !droneCustomizationModalActive ||
+    droneModelPreviewState.runtime !== runtime
+  ) {
+    return;
+  }
+
+  const fallbackPalette = resolveDroneSkinPreviewFallbackPalette(skinOption);
+  setDronePreviewMaterialMap(runtime.hullMaterial, hullTexture, fallbackPalette.hull);
+  setDronePreviewMaterialMap(runtime.frameMaterial, frameTexture, fallbackPalette.frame);
+  setDronePreviewMaterialMap(runtime.visorMaterial, visorTexture, fallbackPalette.visor);
+  setDronePreviewMaterialMap(runtime.cutterMaterial, cutterTexture, fallbackPalette.cutter);
 };
 
 const disposeDroneModelPreviewResourceSet = (resources, methodName) => {
@@ -7591,9 +7733,12 @@ const ensureDroneModelPreviewRuntime = (canvas) => {
       renderWidth: 0,
       renderHeight: 0,
       activeModelId: "rover",
+      hullMaterial: null,
+      frameMaterial: null,
       cutterMaterial: null,
       cutterGlowMaterial: null,
       visorMaterial: null,
+      skinTextureToken: 0,
     };
 
     trackDroneModelPreviewGeometry(runtime, floorGeometry);
@@ -7637,6 +7782,8 @@ const ensureDroneModelPreviewRuntime = (canvas) => {
     Object.values(materials).forEach((material) => {
       trackDroneModelPreviewMaterial(runtime, material);
     });
+    runtime.hullMaterial = materials.hull;
+    runtime.frameMaterial = materials.frame;
     runtime.cutterMaterial = materials.cutter;
     runtime.cutterGlowMaterial = materials.cutterGlow;
     runtime.visorMaterial = materials.visor;
@@ -7789,7 +7936,7 @@ const renderDroneModelPreviewRuntimeFrame = (timestamp) => {
 
   if (
     !droneCustomizationModalActive ||
-    droneCustomizationActiveTab !== "model" ||
+    !isDroneCustomization3dPreviewTabActive() ||
     !runtime.canvas.isConnected
   ) {
     stopDroneModelPreviewRuntimeLoop();
@@ -7820,7 +7967,7 @@ const startDroneModelPreviewRuntimeLoop = () => {
     !runtime ||
     runtime.running ||
     !droneCustomizationModalActive ||
-    droneCustomizationActiveTab !== "model"
+    !isDroneCustomization3dPreviewTabActive()
   ) {
     return;
   }
@@ -7879,7 +8026,68 @@ const renderDroneModelPreview = (modelOption) => {
     cutterLightColor,
   });
   renderDroneModelPreviewRuntimeNow(runtime);
-  if (droneCustomizationActiveTab === "model") {
+  if (isDroneCustomization3dPreviewTabActive()) {
+    startDroneModelPreviewRuntimeLoop();
+  } else {
+    stopDroneModelPreviewRuntimeLoop();
+  }
+};
+
+const renderDroneSkinPreview = async (skinOption) => {
+  const { previewCanvas, previewTitle, previewDescription } =
+    getDroneCustomizationModalElements();
+  if (!(previewCanvas instanceof HTMLCanvasElement)) {
+    return;
+  }
+
+  const label =
+    typeof skinOption?.label === "string" && skinOption.label.trim() !== ""
+      ? skinOption.label.trim()
+      : "Drone skin preview";
+  const description =
+    typeof skinOption?.description === "string" && skinOption.description.trim() !== ""
+      ? skinOption.description.trim()
+      : "Drone appearance profile.";
+
+  if (previewTitle instanceof HTMLElement) {
+    previewTitle.textContent = label;
+  }
+  if (previewDescription instanceof HTMLElement) {
+    previewDescription.textContent = description;
+  }
+
+  const renderToken = ++droneSkinPreviewState.renderToken;
+  droneSkinPreviewState.pendingSkinId =
+    typeof skinOption?.id === "string" ? skinOption.id : null;
+
+  const runtime = ensureDroneModelPreviewRuntime(previewCanvas);
+  if (!runtime) {
+    await renderDroneSkinPreviewFallback2d(skinOption);
+    return;
+  }
+
+  const activeModelOption = resolveActiveDroneModelPreviewOption();
+  const modelId = resolveDroneModelPreviewIdFromOption(activeModelOption);
+  const optionScale =
+    Number.isFinite(activeModelOption?.preview?.scale) &&
+    activeModelOption.preview.scale > 0
+      ? activeModelOption.preview.scale
+      : 1;
+  const { headLightColor, cutterLightColor } = resolveDroneSkinPreviewColors(skinOption);
+  applyDroneModelPreviewSelection(runtime, {
+    modelId,
+    optionScale,
+    headLightColor,
+    cutterLightColor,
+  });
+
+  await applyDroneSkinPreviewToRuntime(runtime, skinOption, { renderToken });
+  if (droneSkinPreviewState.renderToken !== renderToken) {
+    return;
+  }
+
+  renderDroneModelPreviewRuntimeNow(runtime);
+  if (isDroneCustomization3dPreviewTabActive()) {
     startDroneModelPreviewRuntimeLoop();
   } else {
     stopDroneModelPreviewRuntimeLoop();
@@ -8006,6 +8214,7 @@ const renderDroneCustomizationModal = () => {
     if (previewDescription instanceof HTMLElement) {
       previewDescription.textContent = "No skin data available.";
     }
+    teardownDroneModelPreviewRuntime();
     if (previewCanvas instanceof HTMLCanvasElement) {
       const context = previewCanvas.getContext("2d");
       if (context) {
