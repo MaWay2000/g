@@ -5869,7 +5869,7 @@ export const initScene = (
     const storageBoxFloorOffset = 0;
     // Keep the box clear of the oxygen chamber by moving it farther along the room depth.
     const storageBoxWallInset = 0.26;
-    const storageBoxForwardOffset = 1.45;
+    const storageBoxForwardOffset = 3.45;
     const storageBoxGroup = new THREE.Group();
     storageBoxGroup.position.set(
       wallSpanWidth / 2 - wallThickness - storageBoxWallInset,
