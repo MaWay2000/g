@@ -120,6 +120,8 @@ export const initScene = (
     onOxygenRefillInteractableChange,
     onStorageBoxInteract,
     onStorageBoxInteractableChange,
+    onCraftingTableInteract,
+    onCraftingTableInteractableChange,
     onLiftControlInteract,
     onLiftInteractableChange,
     onLiftTravel,
@@ -5940,6 +5942,107 @@ export const initScene = (
     storageBoxControl.userData.storageBoxId = "operations-concourse-exit";
     storageBoxGroup.add(storageBoxControl);
 
+    const craftingTableFloorOffset = 0;
+    const craftingTableDepthOffset = 1.2;
+    const craftingTableGroup = new THREE.Group();
+    craftingTableGroup.position.set(
+      wallSpanWidth / 2 - wallThickness - storageBoxWallInset,
+      roomFloorY + craftingTableFloorOffset,
+      -deckDepth * 0.2 + storageBoxForwardOffset - craftingTableDepthOffset
+    );
+    craftingTableGroup.rotation.y = Math.PI / 2;
+    group.add(craftingTableGroup);
+
+    const craftingTableTopMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0f172a),
+      roughness: 0.52,
+      metalness: 0.34,
+      emissive: new THREE.Color(0x0b1022),
+      emissiveIntensity: 0.16,
+    });
+    const craftingTableLegMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x1e293b),
+      roughness: 0.62,
+      metalness: 0.38,
+      emissive: new THREE.Color(0x0f172a),
+      emissiveIntensity: 0.14,
+    });
+    const craftingTableAccentMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x34d399),
+      roughness: 0.24,
+      metalness: 0.44,
+      emissive: new THREE.Color(0x059669),
+      emissiveIntensity: 0.48,
+    });
+
+    const craftingTableTop = new THREE.Mesh(
+      new THREE.BoxGeometry(1.24, 0.1, 0.84),
+      craftingTableTopMaterial
+    );
+    craftingTableTop.position.set(0, 0.74, 0);
+    craftingTableGroup.add(craftingTableTop);
+
+    const craftingTableLegOffsets = [
+      [-0.52, 0.34, -0.3],
+      [0.52, 0.34, -0.3],
+      [-0.52, 0.34, 0.3],
+      [0.52, 0.34, 0.3],
+    ];
+    craftingTableLegOffsets.forEach(([x, y, z]) => {
+      const leg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.11, 0.68, 0.11),
+        craftingTableLegMaterial
+      );
+      leg.position.set(x, y, z);
+      craftingTableGroup.add(leg);
+    });
+
+    const craftingTableConsole = new THREE.Mesh(
+      new THREE.BoxGeometry(0.44, 0.2, 0.32),
+      craftingTableLegMaterial
+    );
+    craftingTableConsole.position.set(0.2, 0.88, -0.18);
+    craftingTableGroup.add(craftingTableConsole);
+
+    const craftingTableScreen = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.13, 0.02),
+      craftingTableAccentMaterial
+    );
+    craftingTableScreen.position.set(0.28, 0.91, -0.35);
+    craftingTableGroup.add(craftingTableScreen);
+
+    const craftingTableToolCrate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.36, 0.2, 0.26),
+      craftingTableLegMaterial
+    );
+    craftingTableToolCrate.position.set(-0.24, 0.86, 0.18);
+    craftingTableGroup.add(craftingTableToolCrate);
+
+    const craftingTableIndicator = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.12, 0.03),
+      craftingTableAccentMaterial
+    );
+    craftingTableIndicator.position.set(-0.04, 0.89, -0.33);
+    craftingTableGroup.add(craftingTableIndicator);
+
+    const craftingTableGlow = new THREE.PointLight(0x34d399, 0.42, 2.8, 2);
+    craftingTableGlow.position.set(0.16, 0.94, -0.2);
+    craftingTableGroup.add(craftingTableGlow);
+
+    const craftingTableControl = new THREE.Mesh(
+      new THREE.BoxGeometry(1.38, 1.16, 1.05),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      })
+    );
+    craftingTableControl.position.set(0, 0.58, 0);
+    craftingTableControl.userData.isCraftingTableControl = true;
+    craftingTableControl.userData.craftingTableId = "operations-concourse-exit";
+    craftingTableGroup.add(craftingTableControl);
+
     const oxygenChamberCenterX = wallSpanWidth / 2 - 1.42;
     const oxygenChamberCenterZ = -deckDepth * 0.2;
     const oxygenChamberRadius = 0.88;
@@ -6230,6 +6333,7 @@ export const initScene = (
       { object: portalControl, offset: exteriorDoorHeight * 0.56 },
       { object: oxygenStandGroup, offset: oxygenStandWallMountOffsetY },
       { object: storageBoxGroup, offset: storageBoxFloorOffset },
+      { object: craftingTableGroup, offset: craftingTableFloorOffset },
       { object: oxygenChamberAnchor, offset: 0 },
       { object: oxygenChamberShell, offset: oxygenChamberHeight / 2 },
       { object: oxygenChamberTopRing, offset: oxygenChamberHeight - 0.02 },
@@ -6287,6 +6391,7 @@ export const initScene = (
 
     group.userData.oxygenRefillControls = [oxygenRefillControl];
     group.userData.storageBoxControls = [storageBoxControl];
+    group.userData.craftingTableControls = [craftingTableControl];
     group.userData.oxygenChamber = {
       anchor: oxygenChamberAnchor,
       radius: oxygenChamberRadius * 0.82,
@@ -12184,6 +12289,7 @@ export const initScene = (
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
   const MAX_OXYGEN_REFILL_INTERACTION_DISTANCE = 2.5;
   const MAX_STORAGE_BOX_INTERACTION_DISTANCE = 2.5;
+  const MAX_CRAFTING_TABLE_INTERACTION_DISTANCE = 2.5;
 
   let liftInteractable = false;
   let liftInteractionsEnabled = true;
@@ -12259,6 +12365,21 @@ export const initScene = (
 
     if (typeof onStorageBoxInteractableChange === "function") {
       onStorageBoxInteractableChange(nextState);
+    }
+  };
+
+  let craftingTableInteractable = false;
+
+  const updateCraftingTableInteractableState = (canInteract) => {
+    const nextState = Boolean(canInteract);
+    if (craftingTableInteractable === nextState) {
+      return;
+    }
+
+    craftingTableInteractable = nextState;
+
+    if (typeof onCraftingTableInteractableChange === "function") {
+      onCraftingTableInteractableChange(nextState);
     }
   };
 
@@ -12832,6 +12953,23 @@ export const initScene = (
 
     resourceToolActionDurationMultiplier = normalized;
     return resourceToolActionDurationMultiplier;
+  };
+
+  const DRONE_MINER_ACTION_DURATION_MULTIPLIER_MIN = 0.3;
+  const DRONE_MINER_ACTION_DURATION_MULTIPLIER_MAX = 1.2;
+  let droneMinerActionDurationMultiplier = 1;
+  const setDroneMinerActionDurationMultiplier = (multiplier = 1) => {
+    const numericValue = Number(multiplier);
+    const normalized = Number.isFinite(numericValue)
+      ? THREE.MathUtils.clamp(
+          numericValue,
+          DRONE_MINER_ACTION_DURATION_MULTIPLIER_MIN,
+          DRONE_MINER_ACTION_DURATION_MULTIPLIER_MAX
+        )
+      : 1;
+
+    droneMinerActionDurationMultiplier = normalized;
+    return droneMinerActionDurationMultiplier;
   };
 
   const findResourceTarget = (object) => {
@@ -15208,7 +15346,7 @@ export const initScene = (
     const actionDuration = THREE.MathUtils.randFloat(
       RESOURCE_TOOL_MIN_ACTION_DURATION,
       RESOURCE_TOOL_MAX_ACTION_DURATION
-    );
+    ) * droneMinerActionDurationMultiplier;
 
     startResourceCollectionSession({
       ...preparedSession,
@@ -15656,6 +15794,25 @@ export const initScene = (
     const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
     const activeGroup = activeEnvironment?.getGroup?.();
     const controls = activeGroup?.userData?.storageBoxControls;
+    if (!Array.isArray(controls) || controls.length === 0) {
+      return [];
+    }
+
+    return controls.filter(
+      (control) =>
+        control?.isObject3D && control.visible !== false && control.parent
+    );
+  };
+
+  const collectEnvironmentCraftingTableControls = () => {
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (!activeFloorId) {
+      return [];
+    }
+
+    const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
+    const activeGroup = activeEnvironment?.getGroup?.();
+    const controls = activeGroup?.userData?.craftingTableControls;
     if (!Array.isArray(controls) || controls.length === 0) {
       return [];
     }
@@ -16661,6 +16818,7 @@ export const initScene = (
     updateLiftInteractableState(false);
     updateOxygenRefillInteractableState(false);
     updateStorageBoxInteractableState(false);
+    updateCraftingTableInteractableState(false);
     setQuickAccessHoverState(null, null);
     setManifestEditModeEnabled(false);
     cancelActivePlacement(new PlacementCancelledError("Pointer lock released"));
@@ -16759,6 +16917,33 @@ export const initScene = (
     if (
       !intersection ||
       intersection.distance > MAX_STORAGE_BOX_INTERACTION_DISTANCE
+    ) {
+      return null;
+    }
+
+    return intersection.object;
+  };
+
+  const getTargetedCraftingTableControl = () => {
+    const craftingTableControls = collectEnvironmentCraftingTableControls();
+    if (craftingTableControls.length === 0) {
+      return null;
+    }
+
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersections = raycaster.intersectObjects(craftingTableControls, false);
+
+    if (intersections.length === 0) {
+      return null;
+    }
+
+    const intersection = intersections.find(
+      (candidate) => candidate.object?.userData?.isCraftingTableControl
+    );
+
+    if (
+      !intersection ||
+      intersection.distance > MAX_CRAFTING_TABLE_INTERACTION_DISTANCE
     ) {
       return null;
     }
@@ -16970,6 +17155,21 @@ export const initScene = (
       if (typeof onStorageBoxInteract === "function") {
         const shouldUnlock = onStorageBoxInteract({
           control: targetedStorageBoxControl,
+          via: "click",
+        });
+
+        if (shouldUnlock !== false && controls.isLocked) {
+          controls.unlock();
+        }
+      }
+      return;
+    }
+
+    const targetedCraftingTableControl = getTargetedCraftingTableControl();
+    if (targetedCraftingTableControl) {
+      if (typeof onCraftingTableInteract === "function") {
+        const shouldUnlock = onCraftingTableInteract({
+          control: targetedCraftingTableControl,
           via: "click",
         });
 
@@ -17499,6 +17699,22 @@ export const initScene = (
         event.preventDefault();
         return;
       }
+
+      const targetedCraftingTableControl = getTargetedCraftingTableControl();
+      if (targetedCraftingTableControl) {
+        if (typeof onCraftingTableInteract === "function") {
+          const shouldUnlock = onCraftingTableInteract({
+            control: targetedCraftingTableControl,
+            via: "keyboard",
+          });
+
+          if (shouldUnlock !== false && controls.isLocked) {
+            controls.unlock();
+          }
+        }
+        event.preventDefault();
+        return;
+      }
     }
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
       event.preventDefault();
@@ -17912,6 +18128,7 @@ export const initScene = (
     let matchedLiftControl = null;
     let matchedOxygenRefillControl = null;
     let matchedStorageBoxControl = null;
+    let matchedCraftingTableControl = null;
 
     if (controls.isLocked) {
       if (liftInteractionsEnabled) {
@@ -17928,6 +18145,9 @@ export const initScene = (
       matchedStorageBoxControl = getTargetedStorageBoxControl();
       updateStorageBoxInteractableState(Boolean(matchedStorageBoxControl));
 
+      matchedCraftingTableControl = getTargetedCraftingTableControl();
+      updateCraftingTableInteractableState(Boolean(matchedCraftingTableControl));
+
       matchedZone = getTargetedTerminalZone();
       updateTerminalInteractableState(Boolean(matchedZone));
     } else {
@@ -17935,6 +18155,7 @@ export const initScene = (
       updateLiftInteractableState(false);
       updateOxygenRefillInteractableState(false);
       updateStorageBoxInteractableState(false);
+      updateCraftingTableInteractableState(false);
     }
 
     setQuickAccessHoverState(
@@ -18034,6 +18255,8 @@ export const initScene = (
     setPlayerSprintEnabled: (enabled = true) => setPlayerSprintEnabled(enabled),
     setResourceToolActionDurationMultiplier: (multiplier = 1) =>
       setResourceToolActionDurationMultiplier(multiplier),
+    setDroneMinerActionDurationMultiplier: (multiplier = 1) =>
+      setDroneMinerActionDurationMultiplier(multiplier),
     getNearestOxygenRefillDistance: () => getNearestOxygenRefillDistance(),
     enterOxygenChamberPenalty: ({ durationMs = 0 } = {}) =>
       enterOperationsConcourseOxygenChamber({ durationMs }),
@@ -18265,6 +18488,7 @@ export const initScene = (
       updateLiftInteractableState(false);
       updateOxygenRefillInteractableState(false);
       updateStorageBoxInteractableState(false);
+      updateCraftingTableInteractableState(false);
       if (resourceToolGroup.parent) {
         resourceToolGroup.parent.remove(resourceToolGroup);
       }

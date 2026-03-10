@@ -290,6 +290,7 @@ const crosshairStates = {
   lift: false,
   oxygen: false,
   storage: false,
+  crafting: false,
 };
 let sceneController = null;
 let previousCrosshairInteractableState =
@@ -1782,6 +1783,7 @@ const quickAccessModalTemplates = {
     "quick-access-modal-drone-customization"
   ),
   "storage-box": document.getElementById("quick-access-modal-storage-box"),
+  "crafting-table": document.getElementById("quick-access-modal-crafting-table"),
   news: document.getElementById("quick-access-modal-news"),
   weather: document.getElementById("quick-access-modal-weather"),
   missions: document.getElementById("quick-access-modal-missions"),
@@ -3789,6 +3791,11 @@ const STORAGE_BOX_MODAL_OPTION = {
   title: "Storage box",
   description: "Store and retrieve outside resources.",
 };
+const CRAFTING_TABLE_MODAL_OPTION = {
+  id: "crafting-table",
+  title: "Crafting table",
+  description: "Assemble drone parts to improve mining performance.",
+};
 
 const modalFocusableSelectors =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -4122,7 +4129,9 @@ let missionModalActive = false;
 let marketModalActive = false;
 let droneCustomizationModalActive = false;
 let storageBoxModalActive = false;
+let craftingTableModalActive = false;
 let teardownStorageBoxActionBinding = null;
+let teardownCraftingTableActionBinding = null;
 const QUICK_ACCESS_MODAL_MARGIN = 16;
 const QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID = "drone-customization";
 const quickAccessModalLayoutState = {
@@ -4176,6 +4185,40 @@ const DEFAULT_INVENTORY_CAPACITY_KG = 10;
 const STORAGE_BOX_CAPACITY_KG = 100;
 const STORAGE_BOX_CAPACITY_GRAMS = STORAGE_BOX_CAPACITY_KG * GRAMS_PER_KILOGRAM;
 const STORAGE_BOX_STORAGE_KEY = "dustyNova.storage-box";
+const DRONE_CRAFTING_STORAGE_KEY = "dustyNova.drone-crafting";
+const DRONE_CRAFTING_PARTS = Object.freeze([
+  {
+    id: "ion-cutter-head",
+    label: "Ion Cutter Head",
+    description: "Improves cutter penetration and reduces per-sample dig time.",
+    speedBonus: 0.15,
+    requirements: [
+      { element: { symbol: "H", name: "Hydrogen" }, count: 2 },
+      { element: { symbol: "Ta", name: "Tantalum" }, count: 1 },
+    ],
+  },
+  {
+    id: "servo-gyro-array",
+    label: "Servo Gyro Array",
+    description: "Stabilizes approach vectors for quicker scan-and-cut cycles.",
+    speedBonus: 0.2,
+    requirements: [
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+      { element: { symbol: "Br", name: "Bromine" }, count: 1 },
+    ],
+  },
+  {
+    id: "quantum-routing-core",
+    label: "Quantum Routing Core",
+    description: "Optimizes flight paths between mining targets and base.",
+    speedBonus: 0.25,
+    requirements: [
+      { element: { symbol: "Os", name: "Osmium" }, count: 1 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 1 },
+      { element: { symbol: "Ho", name: "Holmium" }, count: 1 },
+    ],
+  },
+]);
 
 const createEmptyInventorySlotOrder = () =>
   new Array(INVENTORY_SLOT_COUNT).fill(null);
@@ -4194,6 +4237,9 @@ const storageBoxState = {
   entryMap: new Map(),
   currentLoadGrams: 0,
   capacityRejection: null,
+};
+const droneCraftingState = {
+  craftedPartIds: new Set(),
 };
 
 const NEW_GAME_STARTER_RESOURCES = [
@@ -5486,6 +5532,7 @@ let persistInventoryStateTimeoutId = 0;
 let lastSerializedInventoryState = null;
 let persistStorageBoxStateTimeoutId = 0;
 let lastSerializedStorageBoxState = null;
+let lastSerializedDroneCraftingState = null;
 let inventoryWasPointerLocked = false;
 let lastInventoryFocusedElement = null;
 let inventoryCloseFallbackId = 0;
@@ -5527,6 +5574,24 @@ const clearStoredStorageBoxState = () => {
     return true;
   } catch (error) {
     console.warn("Unable to clear stored storage box state", error);
+  }
+
+  return false;
+};
+
+const clearStoredDroneCraftingState = () => {
+  const storage = getInventoryStorage();
+
+  if (!storage) {
+    return false;
+  }
+
+  try {
+    storage.removeItem(DRONE_CRAFTING_STORAGE_KEY);
+    lastSerializedDroneCraftingState = null;
+    return true;
+  } catch (error) {
+    console.warn("Unable to clear stored drone crafting state", error);
   }
 
   return false;
@@ -6112,6 +6177,10 @@ const getModalLabelForOption = (option) => {
 
   if (option?.id === STORAGE_BOX_MODAL_OPTION.id) {
     return "Storage transfer panel";
+  }
+
+  if (option?.id === CRAFTING_TABLE_MODAL_OPTION.id) {
+    return "Drone crafting panel";
   }
 
   if (option?.title) {
@@ -6851,6 +6920,287 @@ const refreshStorageBoxModalIfOpen = () => {
   }
 
   renderStorageBoxModal();
+};
+
+const getCraftingTableModalElements = () => {
+  if (!quickAccessModalContent) {
+    return {
+      speedSummary: null,
+      partList: null,
+    };
+  }
+
+  return {
+    speedSummary: quickAccessModalContent.querySelector(
+      "[data-crafting-speed-summary]"
+    ),
+    partList: quickAccessModalContent.querySelector("[data-crafting-part-list]"),
+  };
+};
+
+const isDroneCraftingPartCrafted = (partId) =>
+  typeof partId === "string" && droneCraftingState.craftedPartIds.has(partId);
+
+const getDroneCraftingSpeedMultiplier = () =>
+  DRONE_CRAFTING_PARTS.reduce((multiplier, part) => {
+    if (!isDroneCraftingPartCrafted(part.id)) {
+      return multiplier;
+    }
+
+    const bonus = Number.isFinite(part?.speedBonus) ? Math.max(0, part.speedBonus) : 0;
+    return multiplier + bonus;
+  }, 1);
+
+const getDroneCraftingDurationMultiplier = () => {
+  const speedMultiplier = getDroneCraftingSpeedMultiplier();
+  if (!Number.isFinite(speedMultiplier) || speedMultiplier <= 0) {
+    return 1;
+  }
+
+  return 1 / speedMultiplier;
+};
+
+const syncDroneMiningSpeedBonusWithScene = () => {
+  const durationMultiplier = getDroneCraftingDurationMultiplier();
+  sceneController?.setDroneMinerActionDurationMultiplier?.(durationMultiplier);
+  return durationMultiplier;
+};
+
+const formatCraftingElementName = (element) => {
+  const symbol =
+    typeof element?.symbol === "string" ? element.symbol.trim() : "";
+  const name = typeof element?.name === "string" ? element.name.trim() : "";
+
+  if (symbol && name) {
+    return `${symbol} (${name})`;
+  }
+
+  if (symbol || name) {
+    return symbol || name;
+  }
+
+  return "Unknown resource";
+};
+
+const createCraftingTablePartCard = (part) => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card";
+  item.dataset.craftingPartId = part.id;
+
+  const crafted = isDroneCraftingPartCrafted(part.id);
+  item.dataset.crafted = crafted ? "true" : "false";
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = part.label;
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent = part.description;
+  item.appendChild(description);
+
+  const effect = document.createElement("p");
+  effect.className = "crafting-panel__effect";
+  effect.textContent = `Mining speed +${Math.round((part.speedBonus || 0) * 100)}%`;
+  item.appendChild(effect);
+
+  const requirements = document.createElement("ul");
+  requirements.className = "crafting-panel__requirements";
+
+  const requirementStates = (Array.isArray(part.requirements) ? part.requirements : []).map(
+    (requirement) => {
+      const needed = Number.isFinite(requirement?.count)
+        ? Math.max(1, Math.floor(requirement.count))
+        : 1;
+      const available = getInventoryResourceCount(requirement?.element);
+      const ready = available >= needed;
+      return {
+        requirement,
+        needed,
+        available,
+        ready,
+      };
+    }
+  );
+
+  requirementStates.forEach(({ requirement, needed, available, ready }) => {
+    const requirementItem = document.createElement("li");
+    requirementItem.className = "crafting-panel__requirement";
+    requirementItem.dataset.ready = ready ? "true" : "false";
+    requirementItem.textContent = `${formatCraftingElementName(
+      requirement?.element
+    )}: ${available}/${needed}`;
+    requirements.appendChild(requirementItem);
+  });
+  item.appendChild(requirements);
+
+  const craftButton = document.createElement("button");
+  craftButton.type = "button";
+  craftButton.className = "crafting-panel__button";
+  craftButton.dataset.craftingPartAction = "craft";
+  craftButton.dataset.craftingPartId = part.id;
+  craftButton.textContent = crafted ? "Crafted" : "Craft";
+  const canCraft = requirementStates.every((state) => state.ready);
+  craftButton.disabled = crafted || !canCraft;
+  item.appendChild(craftButton);
+
+  return item;
+};
+
+const renderCraftingTableModal = () => {
+  if (!craftingTableModalActive) {
+    return;
+  }
+
+  const { speedSummary, partList } = getCraftingTableModalElements();
+  const speedMultiplier = getDroneCraftingSpeedMultiplier();
+  const speedBonusPercent = Math.round((speedMultiplier - 1) * 100);
+
+  if (speedSummary instanceof HTMLElement) {
+    speedSummary.textContent = `Drone mining speed bonus: +${speedBonusPercent}% (${speedMultiplier.toFixed(
+      2
+    )}x)`;
+  }
+
+  if (!(partList instanceof HTMLElement)) {
+    return;
+  }
+
+  partList.innerHTML = "";
+  DRONE_CRAFTING_PARTS.forEach((part) => {
+    partList.appendChild(createCraftingTablePartCard(part));
+  });
+};
+
+const craftDroneUpgradePart = (partId) => {
+  const part = DRONE_CRAFTING_PARTS.find((candidate) => candidate.id === partId);
+  if (!part) {
+    return false;
+  }
+
+  if (isDroneCraftingPartCrafted(part.id)) {
+    showTerminalToast({
+      title: "Already crafted",
+      description: `${part.label} is already installed on the drone.`,
+    });
+    return false;
+  }
+
+  const requirements = Array.isArray(part.requirements) ? part.requirements : [];
+  const missingRequirement = requirements.find((requirement) => {
+    const needed = Number.isFinite(requirement?.count)
+      ? Math.max(1, Math.floor(requirement.count))
+      : 1;
+    const available = getInventoryResourceCount(requirement?.element);
+    return available < needed;
+  });
+
+  if (missingRequirement) {
+    const needed = Number.isFinite(missingRequirement?.count)
+      ? Math.max(1, Math.floor(missingRequirement.count))
+      : 1;
+    const available = getInventoryResourceCount(missingRequirement?.element);
+    showTerminalToast({
+      title: "Missing materials",
+      description: `${formatCraftingElementName(
+        missingRequirement.element
+      )}: ${available}/${needed}.`,
+    });
+    renderCraftingTableModal();
+    return false;
+  }
+
+  for (const requirement of requirements) {
+    const needed = Number.isFinite(requirement?.count)
+      ? Math.max(1, Math.floor(requirement.count))
+      : 1;
+    const spent = spendInventoryResource(requirement?.element, needed);
+    if (!spent) {
+      showTerminalToast({
+        title: "Crafting failed",
+        description: "Inventory changed while crafting. Try again.",
+      });
+      renderCraftingTableModal();
+      return false;
+    }
+  }
+
+  droneCraftingState.craftedPartIds.add(part.id);
+  persistDroneCraftingState();
+  const durationMultiplier = syncDroneMiningSpeedBonusWithScene();
+  renderCraftingTableModal();
+
+  const speedMultiplier =
+    Number.isFinite(durationMultiplier) && durationMultiplier > 0
+      ? 1 / durationMultiplier
+      : getDroneCraftingSpeedMultiplier();
+  showTerminalToast({
+    title: `${part.label} crafted`,
+    description: `Drone mining speed now ${speedMultiplier.toFixed(2)}x.`,
+  });
+  return true;
+};
+
+const handleCraftingTableActionClick = (event) => {
+  if (!craftingTableModalActive) {
+    return;
+  }
+
+  const actionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-crafting-part-action]")
+      : null;
+
+  if (!(actionTarget instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (actionTarget.dataset.craftingPartAction !== "craft") {
+    return;
+  }
+
+  const partId = actionTarget.dataset.craftingPartId;
+  if (!partId) {
+    return;
+  }
+
+  craftDroneUpgradePart(partId);
+};
+
+const teardownCraftingTableModal = () => {
+  craftingTableModalActive = false;
+
+  if (typeof teardownCraftingTableActionBinding === "function") {
+    teardownCraftingTableActionBinding();
+    teardownCraftingTableActionBinding = null;
+  }
+};
+
+const bindCraftingTableModalEvents = () => {
+  const { partList } = getCraftingTableModalElements();
+
+  if (
+    !(partList instanceof HTMLElement) ||
+    typeof teardownCraftingTableActionBinding === "function"
+  ) {
+    return;
+  }
+
+  partList.addEventListener("click", handleCraftingTableActionClick);
+  teardownCraftingTableActionBinding = () => {
+    partList.removeEventListener("click", handleCraftingTableActionClick);
+  };
+};
+
+const refreshCraftingTableModalIfOpen = () => {
+  if (!craftingTableModalActive) {
+    return;
+  }
+
+  renderCraftingTableModal();
 };
 
 const getDroneCustomizationModalElements = () => {
@@ -9249,6 +9599,7 @@ const teardownQuickAccessModalContent = () => {
   newsModalState.renderToken += 1;
   teardownMarketModal();
   teardownStorageBoxModal();
+  teardownCraftingTableModal();
 };
 
 const initializeQuickAccessModalContent = (option) => {
@@ -9257,6 +9608,7 @@ const initializeQuickAccessModalContent = (option) => {
   marketModalActive = option?.id === "market";
   droneCustomizationModalActive = option?.id === "drone-customization";
   storageBoxModalActive = option?.id === STORAGE_BOX_MODAL_OPTION.id;
+  craftingTableModalActive = option?.id === CRAFTING_TABLE_MODAL_OPTION.id;
 
   if (liftModalActive) {
     renderLiftModalFloors();
@@ -9282,6 +9634,13 @@ const initializeQuickAccessModalContent = (option) => {
     bindStorageBoxModalEvents();
   } else {
     teardownStorageBoxModal();
+  }
+
+  if (craftingTableModalActive) {
+    renderCraftingTableModal();
+    bindCraftingTableModalEvents();
+  } else {
+    teardownCraftingTableModal();
   }
 
   if (option?.id === "news") {
@@ -10216,6 +10575,7 @@ const refreshInventoryUi = () => {
   renderDroneInventoryUi();
   updateInventoryCapacityWarning();
   refreshStorageBoxModalIfOpen();
+  refreshCraftingTableModalIfOpen();
 
   if (missionModalActive) {
     renderMissionModalMissions();
@@ -10361,6 +10721,14 @@ const serializeStorageBoxStateForPersistence = () => ({
   capacityRejection: storageBoxState.capacityRejection,
 });
 
+const serializeDroneCraftingStateForPersistence = () => ({
+  craftedPartIds: Array.from(droneCraftingState.craftedPartIds).filter(
+    (partId) =>
+      typeof partId === "string" &&
+      DRONE_CRAFTING_PARTS.some((part) => part.id === partId)
+  ),
+});
+
 const persistInventoryState = () => {
   const storage = getInventoryStorage();
 
@@ -10414,6 +10782,26 @@ const persistStorageBoxState = () => {
     lastSerializedStorageBoxState = serialized;
   } catch (error) {
     console.warn("Unable to persist storage box state", error);
+  }
+};
+
+const persistDroneCraftingState = () => {
+  const storage = getInventoryStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  const serialized = JSON.stringify(serializeDroneCraftingStateForPersistence());
+  if (serialized === lastSerializedDroneCraftingState) {
+    return;
+  }
+
+  try {
+    storage.setItem(DRONE_CRAFTING_STORAGE_KEY, serialized);
+    lastSerializedDroneCraftingState = serialized;
+  } catch (error) {
+    console.warn("Unable to persist drone crafting state", error);
   }
 };
 
@@ -10536,6 +10924,62 @@ const restoreStorageBoxStateFromStorage = () => {
   }
 
   refreshStorageBoxModalIfOpen();
+  return restored;
+};
+
+const restoreDroneCraftingStateFromStorage = () => {
+  const storage = getInventoryStorage();
+  if (!storage) {
+    syncDroneMiningSpeedBonusWithScene();
+    refreshCraftingTableModalIfOpen();
+    return false;
+  }
+
+  let serialized = null;
+  try {
+    serialized = storage.getItem(DRONE_CRAFTING_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Unable to read stored drone crafting state", error);
+    syncDroneMiningSpeedBonusWithScene();
+    refreshCraftingTableModalIfOpen();
+    return false;
+  }
+
+  droneCraftingState.craftedPartIds.clear();
+
+  if (typeof serialized !== "string" || serialized.trim() === "") {
+    syncDroneMiningSpeedBonusWithScene();
+    refreshCraftingTableModalIfOpen();
+    return false;
+  }
+
+  let restored = false;
+
+  try {
+    const data = JSON.parse(serialized);
+    const storedPartIds = Array.isArray(data?.craftedPartIds) ? data.craftedPartIds : [];
+    storedPartIds.forEach((partId) => {
+      if (
+        typeof partId === "string" &&
+        DRONE_CRAFTING_PARTS.some((part) => part.id === partId)
+      ) {
+        droneCraftingState.craftedPartIds.add(partId);
+      }
+    });
+
+    restored = droneCraftingState.craftedPartIds.size > 0;
+  } catch (error) {
+    console.warn("Unable to parse stored drone crafting state", error);
+  }
+
+  if (restored) {
+    lastSerializedDroneCraftingState = serialized;
+  } else {
+    lastSerializedDroneCraftingState = null;
+  }
+
+  syncDroneMiningSpeedBonusWithScene();
+  refreshCraftingTableModalIfOpen();
   return restored;
 };
 
@@ -10922,6 +11366,7 @@ const grantNewGameStarterResources = () => {
 
 const restoredInventoryFromStorage = restoreInventoryStateFromStorage();
 restoreStorageBoxStateFromStorage();
+restoreDroneCraftingStateFromStorage();
 
 if (!restoredInventoryFromStorage) {
   grantNewGameStarterResources();
@@ -12166,6 +12611,7 @@ const finishClosingQuickAccessModal = () => {
   missionModalActive = false;
   droneCustomizationModalActive = false;
   storageBoxModalActive = false;
+  craftingTableModalActive = false;
   teardownQuickAccessModalContent();
   resetQuickAccessModalLayoutState();
   quickAccessModal.hidden = true;
@@ -13870,6 +14316,14 @@ const bootstrapScene = () => {
         openQuickAccessModal(STORAGE_BOX_MODAL_OPTION);
         return true;
       },
+      onCraftingTableInteractableChange(value) {
+        setCrosshairSourceState("crafting", value);
+      },
+      onCraftingTableInteract() {
+        playTerminalInteractionSound();
+        openQuickAccessModal(CRAFTING_TABLE_MODAL_OPTION);
+        return true;
+      },
       onLiftControlInteract({ control } = {}) {
         if (editModeActive) {
           showTerminalToast({
@@ -14023,6 +14477,7 @@ const bootstrapScene = () => {
 
   sceneController?.setResourceToolEnabled?.(isDiggerToolEnabled());
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
+  syncDroneMiningSpeedBonusWithScene();
   applyPlayerOxygenPressureEffects({
     now: Date.now(),
     silent: true,
@@ -14326,8 +14781,12 @@ function handleReset(event) {
     const clearedManifestPlacements = clearStoredManifestPlacements();
     const clearedInventory = clearStoredInventoryState();
     const clearedStorageBox = clearStoredStorageBoxState();
+    const clearedDroneCrafting = clearStoredDroneCraftingState();
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
+    droneCraftingState.craftedPartIds.clear();
+    lastSerializedDroneCraftingState = null;
+    syncDroneMiningSpeedBonusWithScene();
 
     resetMissions();
     resetCurrency();
@@ -14341,6 +14800,7 @@ function handleReset(event) {
       !clearedManifestPlacements ||
       !clearedInventory ||
       !clearedStorageBox ||
+      !clearedDroneCrafting ||
       !clearedPlayerOxygen ||
       !resetMarketState
     ) {
