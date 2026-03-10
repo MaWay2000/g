@@ -7479,7 +7479,7 @@ const syncDroneModelPreviewRendererSize = (runtime) => {
 
   runtime.renderWidth = width;
   runtime.renderHeight = height;
-  runtime.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  runtime.renderer.setPixelRatio(1);
   runtime.renderer.setSize(width, height, false);
   runtime.camera.aspect = width / height;
   runtime.camera.updateProjectionMatrix();
@@ -7501,7 +7501,7 @@ const ensureDroneModelPreviewRuntime = (canvas) => {
   try {
     const renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: false,
       alpha: false,
       powerPreference: "low-power",
     });
@@ -7515,10 +7515,10 @@ const ensureDroneModelPreviewRuntime = (canvas) => {
     camera.position.set(1.55, 0.95, 2.35);
     camera.lookAt(0, 0, 0);
 
-    const ambientLight = new THREE.HemisphereLight(0x9fd6ff, 0x0a1020, 0.95);
-    const keyLight = new THREE.DirectionalLight(0xe2f4ff, 1.12);
+    const ambientLight = new THREE.HemisphereLight(0xc7e2ff, 0x0a1020, 1.45);
+    const keyLight = new THREE.DirectionalLight(0xf8fdff, 1.65);
     keyLight.position.set(2.4, 2, 1.6);
-    const accentLight = new THREE.DirectionalLight(0x38bdf8, 0.36);
+    const accentLight = new THREE.DirectionalLight(0x38bdf8, 0.72);
     accentLight.position.set(-1.6, 0.8, -2.2);
     scene.add(ambientLight, keyLight, accentLight);
 
@@ -7596,31 +7596,27 @@ const ensureDroneModelPreviewRuntime = (canvas) => {
     trackDroneModelPreviewMaterial(runtime, ringMaterial);
 
     const materials = {
-      hull: new THREE.MeshStandardMaterial({
-        color: 0x3b82f6,
-        emissive: 0x111827,
-        emissiveIntensity: 0.28,
-        metalness: 0.62,
-        roughness: 0.52,
+      hull: new THREE.MeshPhongMaterial({
+        color: 0x7b8ba8,
+        shininess: 52,
+        specular: new THREE.Color(0x99a7c2),
       }),
-      visor: new THREE.MeshStandardMaterial({
-        color: 0xe2e8f0,
-        emissive: 0xef4444,
-        emissiveIntensity: 0.82,
-        metalness: 0.35,
-        roughness: 0.24,
+      visor: new THREE.MeshPhongMaterial({
+        color: 0xe5edf9,
+        emissive: 0x0f172a,
+        emissiveIntensity: 0.2,
+        shininess: 94,
       }),
-      frame: new THREE.MeshStandardMaterial({
-        color: 0x1f2937,
-        metalness: 0.7,
-        roughness: 0.48,
+      frame: new THREE.MeshPhongMaterial({
+        color: 0x334155,
+        shininess: 34,
+        specular: new THREE.Color(0x4d647d),
       }),
-      cutter: new THREE.MeshStandardMaterial({
+      cutter: new THREE.MeshPhongMaterial({
         color: 0xf97316,
-        emissive: 0xf97316,
-        emissiveIntensity: 0.5,
-        metalness: 0.45,
-        roughness: 0.32,
+        emissive: 0x7c2d12,
+        emissiveIntensity: 0.36,
+        shininess: 48,
       }),
       cutterGlow: new THREE.MeshBasicMaterial({
         color: 0xfcd34d,
@@ -7714,16 +7710,25 @@ const applyDroneModelPreviewSelection = (
     return;
   }
 
-  const fitScale = 0.62 / Math.max(activeEntry.metrics.radius, 0.001);
   const sizeScale = resolveDroneModelPreviewScaleFactor(optionScale);
-  const finalScale = fitScale * sizeScale;
+  const baseScaleByModel = {
+    scout: 2.1,
+    rover: 1.8,
+    atltas: 1.1,
+  };
+  const baseYByModel = {
+    scout: 0.26,
+    rover: 0.08,
+    atltas: -0.04,
+  };
+  const finalScale = (baseScaleByModel[nextModelId] ?? 1.8) * sizeScale;
   activeEntry.container.scale.setScalar(finalScale);
-  activeEntry.baseY =
-    DRONE_MODEL_PREVIEW_GROUND_Y - activeEntry.metrics.minY * finalScale;
+  activeEntry.baseY = baseYByModel[nextModelId] ?? 0.08;
   activeEntry.container.position.y = activeEntry.baseY;
 
   runtime.previewRoot.rotation.y =
     nextModelId === "scout" ? -0.2 : nextModelId === "atltas" ? -0.34 : -0.28;
+  runtime.previewRoot.rotation.x = -0.12;
 
   const lightOffsets = DRONE_MODEL_PREVIEW_LIGHT_OFFSETS[nextModelId];
   if (lightOffsets) {
@@ -7766,50 +7771,6 @@ const renderDroneModelPreviewRuntimeNow = (runtime) => {
   }
   syncDroneModelPreviewRendererSize(runtime);
   runtime.renderer.render(runtime.scene, runtime.camera);
-};
-
-const renderDroneModelPreviewRuntimeFrame = (timestamp) => {
-  const runtime = droneModelPreviewState.runtime;
-  if (!runtime || runtime.running !== true) {
-    return;
-  }
-
-  if (!droneCustomizationModalActive || !runtime.canvas.isConnected) {
-    stopDroneModelPreviewRuntimeLoop();
-    return;
-  }
-
-  const deltaSeconds =
-    Number.isFinite(runtime.lastFrameAt) && runtime.lastFrameAt > 0
-      ? Math.min(0.05, (timestamp - runtime.lastFrameAt) / 1000)
-      : 1 / 60;
-  runtime.lastFrameAt = timestamp;
-
-  runtime.previewRoot.rotation.y += deltaSeconds * 0.42;
-  const activeEntry = runtime.models.get(runtime.activeModelId);
-  if (activeEntry) {
-    const bobAmplitude = runtime.activeModelId === "atltas" ? 0.006 : 0.012;
-    activeEntry.container.position.y =
-      activeEntry.baseY + Math.sin(timestamp * 0.0018) * bobAmplitude;
-    if (activeEntry.rotor instanceof THREE.Object3D) {
-      activeEntry.rotor.rotation.y += deltaSeconds * 10;
-    }
-  }
-  runtime.ring.rotation.z += deltaSeconds * 0.18;
-
-  renderDroneModelPreviewRuntimeNow(runtime);
-  runtime.frameId = window.requestAnimationFrame(renderDroneModelPreviewRuntimeFrame);
-};
-
-const startDroneModelPreviewRuntimeLoop = () => {
-  const runtime = droneModelPreviewState.runtime;
-  if (!runtime || runtime.running) {
-    return;
-  }
-
-  runtime.running = true;
-  runtime.lastFrameAt = 0;
-  runtime.frameId = window.requestAnimationFrame(renderDroneModelPreviewRuntimeFrame);
 };
 
 const renderDroneModelPreview = (modelOption) => {
@@ -7861,7 +7822,6 @@ const renderDroneModelPreview = (modelOption) => {
     cutterLightColor,
   });
   renderDroneModelPreviewRuntimeNow(runtime);
-  startDroneModelPreviewRuntimeLoop();
 };
 
 const handleDroneSkinOptionClick = (event) => {
