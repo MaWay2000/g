@@ -4143,6 +4143,8 @@ const DRONE_MODEL_PREVIEW_ACCENT_COLORS = Object.freeze({
   atltas: "#f59e0b",
 });
 const DRONE_MODEL_PREVIEW_GROUND_Y = -0.26;
+const DRONE_MODEL_PREVIEW_SPIN_SPEED_RAD_PER_SEC = 0.16;
+const DRONE_MODEL_PREVIEW_SPIN_MAX_FPS = 16;
 const droneModelPreviewState = {
   runtime: null,
   webglUnavailable: false,
@@ -6643,6 +6645,12 @@ const syncDroneCustomizationTabState = (
     panel.hidden = !isActive;
     panel.setAttribute("aria-hidden", isActive ? "false" : "true");
   });
+
+  if (nextTabId !== "model") {
+    stopDroneModelPreviewRuntimeLoop();
+  } else if (droneCustomizationModalActive && droneModelPreviewState.runtime) {
+    startDroneModelPreviewRuntimeLoop();
+  }
 };
 
 const handleDroneCustomizationTabClick = (event) => {
@@ -7773,6 +7781,55 @@ const renderDroneModelPreviewRuntimeNow = (runtime) => {
   runtime.renderer.render(runtime.scene, runtime.camera);
 };
 
+const renderDroneModelPreviewRuntimeFrame = (timestamp) => {
+  const runtime = droneModelPreviewState.runtime;
+  if (!runtime || runtime.running !== true) {
+    return;
+  }
+
+  if (
+    !droneCustomizationModalActive ||
+    droneCustomizationActiveTab !== "model" ||
+    !runtime.canvas.isConnected
+  ) {
+    stopDroneModelPreviewRuntimeLoop();
+    return;
+  }
+
+  const minimumFrameDeltaMs = 1000 / DRONE_MODEL_PREVIEW_SPIN_MAX_FPS;
+  const elapsedMs =
+    Number.isFinite(runtime.lastFrameAt) && runtime.lastFrameAt > 0
+      ? timestamp - runtime.lastFrameAt
+      : minimumFrameDeltaMs;
+
+  if (elapsedMs < minimumFrameDeltaMs) {
+    runtime.frameId = window.requestAnimationFrame(renderDroneModelPreviewRuntimeFrame);
+    return;
+  }
+
+  runtime.lastFrameAt = timestamp;
+  runtime.previewRoot.rotation.y +=
+    (elapsedMs / 1000) * DRONE_MODEL_PREVIEW_SPIN_SPEED_RAD_PER_SEC;
+  renderDroneModelPreviewRuntimeNow(runtime);
+  runtime.frameId = window.requestAnimationFrame(renderDroneModelPreviewRuntimeFrame);
+};
+
+const startDroneModelPreviewRuntimeLoop = () => {
+  const runtime = droneModelPreviewState.runtime;
+  if (
+    !runtime ||
+    runtime.running ||
+    !droneCustomizationModalActive ||
+    droneCustomizationActiveTab !== "model"
+  ) {
+    return;
+  }
+
+  runtime.running = true;
+  runtime.lastFrameAt = 0;
+  runtime.frameId = window.requestAnimationFrame(renderDroneModelPreviewRuntimeFrame);
+};
+
 const renderDroneModelPreview = (modelOption) => {
   const { modelPreviewCanvas, modelPreviewTitle, modelPreviewDescription } =
     getDroneCustomizationModalElements();
@@ -7822,6 +7879,11 @@ const renderDroneModelPreview = (modelOption) => {
     cutterLightColor,
   });
   renderDroneModelPreviewRuntimeNow(runtime);
+  if (droneCustomizationActiveTab === "model") {
+    startDroneModelPreviewRuntimeLoop();
+  } else {
+    stopDroneModelPreviewRuntimeLoop();
+  }
 };
 
 const handleDroneSkinOptionClick = (event) => {
