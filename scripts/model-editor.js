@@ -4238,9 +4238,15 @@ function restoreSession() {
 }
 
 function clearSession() {
-  localStorage.removeItem(STORAGE_KEY);
-  setStatus("idle", "Saved session cleared");
-  hudInfo.textContent = "";
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    setStatus("idle", "Saved session cleared");
+    hudInfo.textContent = "";
+  } catch (error) {
+    console.error("Unable to clear session", error);
+    setStatus("error", "Failed to clear session");
+    hudInfo.textContent = error?.message ?? "Local storage is unavailable.";
+  }
 }
 
 function exportScene() {
