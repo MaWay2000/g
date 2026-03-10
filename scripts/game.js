@@ -1,4 +1,5 @@
 ﻿import { logout } from "./auth.js";
+import * as THREE from "three";
 import { initScene } from "./scene.js";
 import {
   DEFAULT_PLAYER_HEIGHT,
@@ -4135,6 +4136,17 @@ const droneSkinPreviewState = {
   renderToken: 0,
   pendingSkinId: null,
 };
+const DRONE_MODEL_PREVIEW_MODEL_IDS = Object.freeze(["scout", "rover", "atltas"]);
+const DRONE_MODEL_PREVIEW_ACCENT_COLORS = Object.freeze({
+  scout: "#4ade80",
+  rover: "#60a5fa",
+  atltas: "#f59e0b",
+});
+const DRONE_MODEL_PREVIEW_GROUND_Y = -0.26;
+const droneModelPreviewState = {
+  runtime: null,
+  webglUnavailable: false,
+};
 const NEWS_COMMITS_API_URL =
   "https://api.github.com/repos/MaWay2000/g/commits?sha=main&per_page=6";
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -7002,7 +7014,7 @@ const renderDroneSkinPreview = async (skinOption) => {
   context.fillText("Engineering preview", 26, 72);
 };
 
-const renderDroneModelPreview = (modelOption) => {
+const renderDroneModelPreviewFallback2d = (modelOption) => {
   const { modelPreviewCanvas, modelPreviewTitle, modelPreviewDescription } =
     getDroneCustomizationModalElements();
   if (!(modelPreviewCanvas instanceof HTMLCanvasElement)) {
@@ -7029,23 +7041,6 @@ const renderDroneModelPreview = (modelOption) => {
       : "";
   const description =
     sizeLabel !== "" ? `${baseDescription} Size: ${sizeLabel}.` : baseDescription;
-  const modelScale =
-    Number.isFinite(modelOption?.preview?.scale) && modelOption.preview.scale > 0
-      ? modelOption.preview.scale
-      : 1;
-  const previewModelKind =
-    typeof modelOption?.preview?.modelKind === "string" &&
-    modelOption.preview.modelKind.trim() !== ""
-      ? modelOption.preview.modelKind.trim().toLowerCase()
-      : "";
-  const modelKind =
-    previewModelKind === "scout" || previewModelKind === "rover" || previewModelKind === "atltas"
-      ? previewModelKind
-      : sizeLabel.toLowerCase() === "small"
-        ? "scout"
-        : sizeLabel.toLowerCase() === "big"
-          ? "atltas"
-          : "rover";
 
   if (modelPreviewTitle instanceof HTMLElement) {
     modelPreviewTitle.textContent = label;
@@ -7056,471 +7051,817 @@ const renderDroneModelPreview = (modelOption) => {
 
   const width = modelPreviewCanvas.width || 960;
   const height = modelPreviewCanvas.height || 540;
-  context.clearRect(0, 0, width, height);
+  drawDroneSkinPreviewPlaceholder(context, width, height);
 
-  const bgGradient = context.createLinearGradient(0, 0, width, height);
-  bgGradient.addColorStop(0, "#021224");
-  bgGradient.addColorStop(1, "#0b1f34");
-  context.fillStyle = bgGradient;
-  context.fillRect(0, 0, width, height);
+  context.fillStyle = "rgba(148, 163, 184, 0.92)";
+  context.font = "500 22px 'Segoe UI', 'Inter', sans-serif";
+  context.textAlign = "center";
+  context.fillText(
+    "WebGL preview unavailable. Showing fallback panel.",
+    width / 2,
+    height * 0.59
+  );
+};
 
-  context.strokeStyle = "rgba(56, 189, 248, 0.28)";
-  context.lineWidth = 1;
-  for (let x = 0; x < width; x += 40) {
-    context.beginPath();
-    context.moveTo(x + 0.5, 0);
-    context.lineTo(x + 0.5, height);
-    context.stroke();
+const normalizeDroneModelPreviewId = (value) => {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (normalized === "atlas") {
+    return "atltas";
   }
-  for (let y = 0; y < height; y += 40) {
-    context.beginPath();
-    context.moveTo(0, y + 0.5);
-    context.lineTo(width, y + 0.5);
-    context.stroke();
+  return DRONE_MODEL_PREVIEW_MODEL_IDS.includes(normalized) ? normalized : null;
+};
+
+const resolveDroneModelPreviewIdFromOption = (modelOption) => {
+  const directId = normalizeDroneModelPreviewId(modelOption?.id);
+  if (directId) {
+    return directId;
   }
 
-  const accentColorByModel = {
-    scout: "#4ade80",
-    rover: "#60a5fa",
-    atltas: "#f59e0b",
+  const previewKind = normalizeDroneModelPreviewId(modelOption?.preview?.modelKind);
+  if (previewKind) {
+    return previewKind;
+  }
+
+  const sizeLabel =
+    typeof modelOption?.preview?.sizeLabel === "string"
+      ? modelOption.preview.sizeLabel.trim().toLowerCase()
+      : "";
+
+  if (sizeLabel === "small") {
+    return "scout";
+  }
+  if (sizeLabel === "big" || sizeLabel === "large") {
+    return "atltas";
+  }
+
+  return "rover";
+};
+
+const resolveActiveDroneSkinPreviewColors = () => {
+  const fallback = { headLightColor: null, cutterLightColor: null };
+  const skinOptions = sceneController?.getDroneSkinOptions?.();
+  if (!Array.isArray(skinOptions) || skinOptions.length === 0) {
+    return fallback;
+  }
+
+  const activeSkinId = sceneController?.getActiveDroneSkinId?.() ?? null;
+  const activeSkinOption =
+    skinOptions.find((option) => option?.id === activeSkinId) ?? skinOptions[0];
+  const preview = activeSkinOption?.preview ?? null;
+  return {
+    headLightColor: Number.isFinite(preview?.headLightColor)
+      ? preview.headLightColor
+      : null,
+    cutterLightColor: Number.isFinite(preview?.cutterLightColor)
+      ? preview.cutterLightColor
+      : null,
   };
-  const accentColor = accentColorByModel[modelKind] ?? "#60a5fa";
-  const centerX = width * 0.5;
-  const centerY = height * 0.56;
-  const unit = Math.max(
-    height * 0.09,
-    Math.min(height * 0.2, height * 0.13 * modelScale)
+};
+
+const disposeDroneModelPreviewResourceSet = (resources, methodName) => {
+  if (!(resources instanceof Set)) {
+    return;
+  }
+
+  resources.forEach((resource) => {
+    if (resource && typeof resource[methodName] === "function") {
+      resource[methodName]();
+    }
+  });
+  resources.clear();
+};
+
+const stopDroneModelPreviewRuntimeLoop = () => {
+  const runtime = droneModelPreviewState.runtime;
+  if (!runtime) {
+    return;
+  }
+
+  runtime.running = false;
+  if (Number.isFinite(runtime.frameId) && runtime.frameId > 0) {
+    window.cancelAnimationFrame(runtime.frameId);
+  }
+  runtime.frameId = 0;
+  runtime.lastFrameAt = 0;
+};
+
+const teardownDroneModelPreviewRuntime = () => {
+  const runtime = droneModelPreviewState.runtime;
+  if (!runtime) {
+    return;
+  }
+
+  stopDroneModelPreviewRuntimeLoop();
+  disposeDroneModelPreviewResourceSet(runtime.geometries, "dispose");
+  disposeDroneModelPreviewResourceSet(runtime.materials, "dispose");
+  runtime.renderer?.renderLists?.dispose?.();
+  runtime.renderer?.dispose?.();
+  if (typeof runtime.renderer?.forceContextLoss === "function") {
+    runtime.renderer.forceContextLoss();
+  }
+  droneModelPreviewState.runtime = null;
+};
+
+const trackDroneModelPreviewGeometry = (runtime, geometry) => {
+  if (geometry instanceof THREE.BufferGeometry) {
+    runtime.geometries.add(geometry);
+  }
+};
+
+const trackDroneModelPreviewMaterial = (runtime, material) => {
+  if (material instanceof THREE.Material) {
+    runtime.materials.add(material);
+    return;
+  }
+
+  if (Array.isArray(material)) {
+    material.forEach((entry) => {
+      if (entry instanceof THREE.Material) {
+        runtime.materials.add(entry);
+      }
+    });
+  }
+};
+
+const createDroneModelPreviewMesh = (runtime, geometry, material, parent) => {
+  const mesh = new THREE.Mesh(geometry, material);
+  trackDroneModelPreviewGeometry(runtime, geometry);
+  trackDroneModelPreviewMaterial(runtime, material);
+  parent.add(mesh);
+  return mesh;
+};
+
+const createScoutDroneModelPreviewGroup = (runtime, materials) => {
+  const group = new THREE.Group();
+  createDroneModelPreviewMesh(
+    runtime,
+    new THREE.SphereGeometry(0.22, 24, 18),
+    materials.hull,
+    group
   );
 
-  const haloRadiusMultiplier =
-    modelKind === "scout" ? 2.1 : modelKind === "atltas" ? 2.5 : 2.35;
-  context.save();
-  const haloGradient = context.createRadialGradient(
-    centerX,
-    centerY,
-    unit * 0.25,
-    centerX,
-    centerY,
-    unit * haloRadiusMultiplier
+  const visor = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.CylinderGeometry(0.05, 0.05, 0.12, 18),
+    materials.visor,
+    group
   );
-  haloGradient.addColorStop(0, `${accentColor}66`);
-  haloGradient.addColorStop(1, `${accentColor}00`);
-  context.fillStyle = haloGradient;
-  context.beginPath();
-  context.arc(centerX, centerY, unit * haloRadiusMultiplier, 0, Math.PI * 2);
-  context.fill();
-  context.restore();
+  visor.rotation.x = Math.PI / 2;
+  visor.position.set(0, 0, 0.18);
 
-  if (modelKind === "scout") {
-    const bodyRadius = unit * 1.15;
-    const armLength = bodyRadius * 1.55;
-    const thrusterWidth = bodyRadius * 0.72;
-    const thrusterHeight = bodyRadius * 0.42;
+  [-0.18, 0.18].forEach((offset) => {
+    const thruster = createDroneModelPreviewMesh(
+      runtime,
+      new THREE.CylinderGeometry(0.04, 0.04, 0.18, 12),
+      materials.frame,
+      group
+    );
+    thruster.rotation.z = Math.PI / 2;
+    thruster.position.set(offset, 0.02, -0.04);
+  });
 
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - armLength - thrusterWidth,
-          centerY - thrusterHeight * 0.5,
-          thrusterWidth,
-          thrusterHeight,
-          14
-        );
-      },
-      null,
-      "#334155",
-      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
+  const rotor = new THREE.Group();
+  rotor.position.set(0, 0.18, 0);
+  group.add(rotor);
+  const rotorHub = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.CylinderGeometry(0.03, 0.03, 0.04, 16),
+    materials.frame,
+    rotor
+  );
+  rotorHub.rotation.x = Math.PI / 2;
+  [0, Math.PI / 2].forEach((angle) => {
+    const blade = createDroneModelPreviewMesh(
+      runtime,
+      new THREE.BoxGeometry(0.04, 0.01, 0.5),
+      materials.frame,
+      rotor
     );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX + armLength,
-          centerY - thrusterHeight * 0.5,
-          thrusterWidth,
-          thrusterHeight,
-          14
-        );
-      },
-      null,
-      "#334155",
-      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        context.beginPath();
-        context.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
-        context.closePath();
-      },
-      null,
-      "#64748b",
-      { stroke: "rgba(148, 163, 184, 0.55)", lineWidth: 2.5 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyRadius * 0.22,
-          centerY - bodyRadius * 0.22,
-          bodyRadius * 0.44,
-          bodyRadius * 0.9,
-          18
-        );
-      },
-      null,
-      "#e2e8f0",
-      { stroke: `${accentColor}cc`, lineWidth: 2.2 }
-    );
+    blade.rotation.y = angle;
+  });
 
-    context.save();
-    context.translate(centerX, centerY - bodyRadius - 42);
-    context.rotate(Math.PI / 10);
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(context, -armLength * 1.22, -8, armLength * 2.44, 16, 8);
-      },
-      null,
-      "#475569",
-      { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
-    );
-    context.restore();
-    context.save();
-    context.translate(centerX, centerY - bodyRadius - 42);
-    context.rotate(-Math.PI / 10);
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(context, -armLength * 1.22, -8, armLength * 2.44, 16, 8);
-      },
-      null,
-      "#475569",
-      { stroke: "rgba(148, 163, 184, 0.4)", lineWidth: 2 }
-    );
-    context.restore();
-    fillDronePreviewShape(
-      context,
-      () => {
-        context.beginPath();
-        context.moveTo(centerX, centerY + bodyRadius * 1.1);
-        context.lineTo(centerX - bodyRadius * 0.35, centerY + bodyRadius * 2.02);
-        context.lineTo(centerX + bodyRadius * 0.35, centerY + bodyRadius * 2.02);
-        context.closePath();
-      },
-      null,
-      "#fb923c",
-      { stroke: `${accentColor}cc`, lineWidth: 2.1 }
-    );
-  } else if (modelKind === "rover") {
-    const bodyWidth = unit * 3.1;
-    const bodyHeight = unit * 1.1;
-    const wheelRadius = unit * 0.36;
-    const wheelOffsetX = bodyWidth * 0.43;
-    const wheelOffsetY = bodyHeight * 0.8;
+  const cutter = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.ConeGeometry(0.05, 0.18, 16),
+    materials.cutter,
+    group
+  );
+  cutter.rotation.x = Math.PI / 2;
+  cutter.position.set(0, -0.2, 0.04);
 
-    context.fillStyle = "rgba(15, 23, 42, 0.5)";
-    context.beginPath();
-    context.ellipse(centerX, centerY + unit * 0.72, bodyWidth * 0.62, unit * 0.48, 0, 0, Math.PI * 2);
-    context.fill();
+  const cutterGlow = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.SphereGeometry(0.07, 12, 12),
+    materials.cutterGlow,
+    group
+  );
+  cutterGlow.position.set(0, -0.22, 0.05);
 
-    const drawRoverWheel = (x, y) => {
-      fillDronePreviewShape(
-        context,
-        () => {
-          context.beginPath();
-          context.arc(x, y, wheelRadius, 0, Math.PI * 2);
-          context.closePath();
-        },
-        null,
-        "#1e293b",
-        { stroke: "rgba(148, 163, 184, 0.5)", lineWidth: 2.2 }
-      );
-      fillDronePreviewShape(
-        context,
-        () => {
-          context.beginPath();
-          context.arc(x, y, wheelRadius * 0.48, 0, Math.PI * 2);
-          context.closePath();
-        },
-        null,
-        "#475569",
-        { stroke: `${accentColor}9a`, lineWidth: 1.6 }
-      );
+  return { group, rotor };
+};
+
+const createRoverDroneModelPreviewGroup = (runtime, materials) => {
+  const group = new THREE.Group();
+  createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.56, 0.18, 0.38),
+    materials.hull,
+    group
+  );
+
+  const roverCabin = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.3, 0.12, 0.24),
+    materials.hull,
+    group
+  );
+  roverCabin.position.set(0, 0.14, 0.01);
+
+  const roverVisor = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.24, 0.08, 0.03),
+    materials.visor,
+    group
+  );
+  roverVisor.position.set(0, 0.12, 0.2);
+
+  const roverRoofRack = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.44, 0.05, 0.3),
+    materials.frame,
+    group
+  );
+  roverRoofRack.position.set(0, 0.19, -0.02);
+
+  const roverBumper = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.3, 0.09, 0.13),
+    materials.cutter,
+    group
+  );
+  roverBumper.position.set(0, -0.04, 0.28);
+  roverBumper.rotation.x = -0.22;
+
+  const roverAxleFront = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.45, 0.03, 0.03),
+    materials.frame,
+    group
+  );
+  roverAxleFront.position.set(0, -0.11, 0.14);
+
+  const roverAxleRear = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.45, 0.03, 0.03),
+    materials.frame,
+    group
+  );
+  roverAxleRear.position.set(0, -0.11, -0.14);
+
+  const createWheel = (x, z, y = -0.12) => {
+    const wheel = createDroneModelPreviewMesh(
+      runtime,
+      new THREE.CylinderGeometry(0.082, 0.082, 0.065, 20),
+      materials.frame,
+      group
+    );
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x, y, z);
+  };
+  createWheel(-0.24, 0.15);
+  createWheel(0.24, 0.15);
+  createWheel(-0.24, -0.15);
+  createWheel(0.24, -0.15);
+
+  return { group, rotor: null };
+};
+
+const createAtltasDroneModelPreviewGroup = (runtime, materials) => {
+  const group = new THREE.Group();
+  createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.68, 0.24, 0.42),
+    materials.hull,
+    group
+  );
+
+  const cabin = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.3, 0.16, 0.26),
+    materials.hull,
+    group
+  );
+  cabin.position.set(-0.1, 0.2, 0);
+
+  const visor = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.17, 0.08, 0.03),
+    materials.visor,
+    group
+  );
+  visor.position.set(-0.1, 0.21, 0.19);
+
+  const trackLeft = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.16, 0.2, 0.6),
+    materials.frame,
+    group
+  );
+  trackLeft.position.set(-0.4, -0.06, 0);
+
+  const trackRight = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.16, 0.2, 0.6),
+    materials.frame,
+    group
+  );
+  trackRight.position.set(0.4, -0.06, 0);
+
+  [-0.22, 0, 0.22].forEach((trackZ) => {
+    const leftRoller = createDroneModelPreviewMesh(
+      runtime,
+      new THREE.CylinderGeometry(0.055, 0.055, 0.13, 14),
+      materials.frame,
+      group
+    );
+    leftRoller.rotation.z = Math.PI / 2;
+    leftRoller.position.set(-0.4, -0.15, trackZ);
+
+    const rightRoller = createDroneModelPreviewMesh(
+      runtime,
+      new THREE.CylinderGeometry(0.055, 0.055, 0.13, 14),
+      materials.frame,
+      group
+    );
+    rightRoller.rotation.z = Math.PI / 2;
+    rightRoller.position.set(0.4, -0.15, trackZ);
+  });
+
+  const armBase = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.CylinderGeometry(0.09, 0.09, 0.1, 18),
+    materials.hull,
+    group
+  );
+  armBase.rotation.x = Math.PI / 2;
+  armBase.position.set(0.13, 0.16, 0.14);
+
+  const boom = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.12, 0.1, 0.32),
+    materials.frame,
+    group
+  );
+  boom.position.set(0.13, 0.27, 0.32);
+  boom.rotation.x = -0.38;
+
+  const stick = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.1, 0.08, 0.26),
+    materials.frame,
+    group
+  );
+  stick.position.set(0.14, 0.34, 0.53);
+  stick.rotation.x = -0.86;
+
+  const bucket = createDroneModelPreviewMesh(
+    runtime,
+    new THREE.BoxGeometry(0.16, 0.1, 0.13),
+    materials.cutter,
+    group
+  );
+  bucket.position.set(0.15, 0.17, 0.66);
+  bucket.rotation.x = -1.22;
+
+  return { group, rotor: null };
+};
+
+const computeDroneModelPreviewMetrics = (group) => {
+  if (!(group instanceof THREE.Object3D)) {
+    return { minY: -0.2, radius: 0.4 };
+  }
+
+  const bounds = new THREE.Box3().setFromObject(group);
+  if (bounds.isEmpty()) {
+    return { minY: -0.2, radius: 0.4 };
+  }
+
+  const radius = Math.max(
+    Number.isFinite(bounds.min.x) ? Math.abs(bounds.min.x) : 0,
+    Number.isFinite(bounds.max.x) ? Math.abs(bounds.max.x) : 0,
+    Number.isFinite(bounds.min.z) ? Math.abs(bounds.min.z) : 0,
+    Number.isFinite(bounds.max.z) ? Math.abs(bounds.max.z) : 0,
+    0.4
+  );
+  return {
+    minY: Number.isFinite(bounds.min.y) ? bounds.min.y : -0.2,
+    radius,
+  };
+};
+
+const syncDroneModelPreviewRendererSize = (runtime) => {
+  if (!runtime?.canvas || !runtime.renderer || !runtime.camera) {
+    return;
+  }
+
+  const width = Math.max(
+    1,
+    Math.round(runtime.canvas.width || runtime.canvas.clientWidth || 960)
+  );
+  const height = Math.max(
+    1,
+    Math.round(runtime.canvas.height || runtime.canvas.clientHeight || 540)
+  );
+
+  if (runtime.renderWidth === width && runtime.renderHeight === height) {
+    return;
+  }
+
+  runtime.renderWidth = width;
+  runtime.renderHeight = height;
+  runtime.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  runtime.renderer.setSize(width, height, false);
+  runtime.camera.aspect = width / height;
+  runtime.camera.updateProjectionMatrix();
+};
+
+const ensureDroneModelPreviewRuntime = (canvas) => {
+  if (!(canvas instanceof HTMLCanvasElement) || droneModelPreviewState.webglUnavailable) {
+    return null;
+  }
+
+  const existingRuntime = droneModelPreviewState.runtime;
+  if (existingRuntime && existingRuntime.canvas === canvas) {
+    syncDroneModelPreviewRendererSize(existingRuntime);
+    return existingRuntime;
+  }
+
+  teardownDroneModelPreviewRuntime();
+
+  try {
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: false,
+      powerPreference: "low-power",
+    });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.04;
+    renderer.setClearColor(0x04162f, 1);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.1, 20);
+    camera.position.set(1.55, 0.95, 2.35);
+    camera.lookAt(0, 0, 0);
+
+    const ambientLight = new THREE.HemisphereLight(0x9fd6ff, 0x0a1020, 0.95);
+    const keyLight = new THREE.DirectionalLight(0xe2f4ff, 1.12);
+    keyLight.position.set(2.4, 2, 1.6);
+    const accentLight = new THREE.DirectionalLight(0x38bdf8, 0.36);
+    accentLight.position.set(-1.6, 0.8, -2.2);
+    scene.add(ambientLight, keyLight, accentLight);
+
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0a1f38,
+      metalness: 0.08,
+      roughness: 0.92,
+      transparent: true,
+      opacity: 0.94,
+    });
+    const floorGeometry = new THREE.CircleGeometry(2.2, 72);
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = DRONE_MODEL_PREVIEW_GROUND_Y - 0.005;
+    scene.add(floor);
+
+    const grid = new THREE.GridHelper(4.3, 22, 0x2ab7f0, 0x123e5c);
+    grid.position.y = DRONE_MODEL_PREVIEW_GROUND_Y;
+    if (grid.material instanceof THREE.Material) {
+      grid.material.transparent = true;
+      grid.material.opacity = 0.36;
+    }
+    scene.add(grid);
+
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.26,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const ringGeometry = new THREE.RingGeometry(0.75, 0.86, 72);
+    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = DRONE_MODEL_PREVIEW_GROUND_Y + 0.002;
+    scene.add(ring);
+
+    const previewRoot = new THREE.Group();
+    scene.add(previewRoot);
+
+    const headLight = new THREE.PointLight(0x93c5fd, 0.62, 3.5, 2.2);
+    const cutterLight = new THREE.PointLight(0xf97316, 0.9, 2.8, 2.5);
+    previewRoot.add(headLight, cutterLight);
+
+    const runtime = {
+      canvas,
+      renderer,
+      scene,
+      camera,
+      previewRoot,
+      headLight,
+      cutterLight,
+      accentLight,
+      ring,
+      ringMaterial,
+      models: new Map(),
+      geometries: new Set(),
+      materials: new Set(),
+      frameId: 0,
+      running: false,
+      lastFrameAt: 0,
+      renderWidth: 0,
+      renderHeight: 0,
+      activeModelId: "rover",
+      cutterMaterial: null,
+      cutterGlowMaterial: null,
+      visorMaterial: null,
     };
 
-    drawRoverWheel(centerX - wheelOffsetX, centerY - wheelOffsetY);
-    drawRoverWheel(centerX + wheelOffsetX, centerY - wheelOffsetY);
-    drawRoverWheel(centerX - wheelOffsetX, centerY + wheelOffsetY);
-    drawRoverWheel(centerX + wheelOffsetX, centerY + wheelOffsetY);
+    trackDroneModelPreviewGeometry(runtime, floorGeometry);
+    trackDroneModelPreviewMaterial(runtime, floorMaterial);
+    trackDroneModelPreviewGeometry(runtime, grid.geometry);
+    trackDroneModelPreviewMaterial(runtime, grid.material);
+    trackDroneModelPreviewGeometry(runtime, ringGeometry);
+    trackDroneModelPreviewMaterial(runtime, ringMaterial);
 
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.44,
-          centerY - wheelOffsetY,
-          bodyWidth * 0.88,
-          bodyHeight * 2,
-          12
-        );
-      },
-      null,
-      "#334155",
-      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 1.8 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.5,
-          centerY - bodyHeight * 0.6,
-          bodyWidth,
-          bodyHeight * 1.2,
-          16
-        );
-      },
-      null,
-      "#64748b",
-      { stroke: "rgba(148, 163, 184, 0.55)", lineWidth: 2.4 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.27,
-          centerY - bodyHeight * 0.98,
-          bodyWidth * 0.54,
-          bodyHeight * 0.76,
-          14
-        );
-      },
-      null,
-      "#94a3b8",
-      { stroke: "rgba(226, 232, 240, 0.7)", lineWidth: 1.8 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.21,
-          centerY - bodyHeight * 0.88,
-          bodyWidth * 0.42,
-          bodyHeight * 0.22,
-          10
-        );
-      },
-      null,
-      "#dbeafe",
-      { stroke: `${accentColor}cc`, lineWidth: 1.6 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.36,
-          centerY - bodyHeight * 1.18,
-          bodyWidth * 0.72,
-          bodyHeight * 0.22,
-          8
-        );
-      },
-      null,
-      "#475569",
-      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 1.6 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.26,
-          centerY + bodyHeight * 0.6,
-          bodyWidth * 0.52,
-          bodyHeight * 0.34,
-          10
-        );
-      },
-      null,
-      "#fb923c",
-      { stroke: `${accentColor}cc`, lineWidth: 1.8 }
-    );
-  } else {
-    const bodyWidth = unit * 3.5;
-    const bodyHeight = unit * 1.2;
-    const trackWidth = unit * 0.62;
-    const trackLength = bodyHeight * 2.35;
-
-    context.fillStyle = "rgba(15, 23, 42, 0.55)";
-    context.beginPath();
-    context.ellipse(centerX, centerY + unit * 0.8, bodyWidth * 0.72, unit * 0.54, 0, 0, Math.PI * 2);
-    context.fill();
-
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.61,
-          centerY - trackLength * 0.5,
-          trackWidth,
-          trackLength,
-          12
-        );
-      },
-      null,
-      "#1f2937",
-      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX + bodyWidth * 0.61 - trackWidth,
-          centerY - trackLength * 0.5,
-          trackWidth,
-          trackLength,
-          12
-        );
-      },
-      null,
-      "#1f2937",
-      { stroke: "rgba(148, 163, 184, 0.45)", lineWidth: 2 }
-    );
-
-    [-0.31, 0, 0.31].forEach((factor) => {
-      const y = centerY + trackLength * factor;
-      [-1, 1].forEach((side) => {
-        fillDronePreviewShape(
-          context,
-          () => {
-            context.beginPath();
-            context.arc(centerX + side * bodyWidth * 0.43, y, unit * 0.2, 0, Math.PI * 2);
-            context.closePath();
-          },
-          null,
-          "#334155",
-          { stroke: "rgba(148, 163, 184, 0.35)", lineWidth: 1.4 }
-        );
-      });
+    const materials = {
+      hull: new THREE.MeshStandardMaterial({
+        color: 0x3b82f6,
+        emissive: 0x111827,
+        emissiveIntensity: 0.28,
+        metalness: 0.62,
+        roughness: 0.52,
+      }),
+      visor: new THREE.MeshStandardMaterial({
+        color: 0xe2e8f0,
+        emissive: 0xef4444,
+        emissiveIntensity: 0.82,
+        metalness: 0.35,
+        roughness: 0.24,
+      }),
+      frame: new THREE.MeshStandardMaterial({
+        color: 0x1f2937,
+        metalness: 0.7,
+        roughness: 0.48,
+      }),
+      cutter: new THREE.MeshStandardMaterial({
+        color: 0xf97316,
+        emissive: 0xf97316,
+        emissiveIntensity: 0.5,
+        metalness: 0.45,
+        roughness: 0.32,
+      }),
+      cutterGlow: new THREE.MeshBasicMaterial({
+        color: 0xfcd34d,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    };
+    Object.values(materials).forEach((material) => {
+      trackDroneModelPreviewMaterial(runtime, material);
     });
+    runtime.cutterMaterial = materials.cutter;
+    runtime.cutterGlowMaterial = materials.cutterGlow;
+    runtime.visorMaterial = materials.visor;
 
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.5,
-          centerY - bodyHeight * 0.68,
-          bodyWidth,
-          bodyHeight * 1.36,
-          18
-        );
-      },
-      null,
-      "#475569",
-      { stroke: "rgba(148, 163, 184, 0.56)", lineWidth: 2.4 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.3,
-          centerY - bodyHeight * 0.9,
-          bodyWidth * 0.38,
-          bodyHeight * 0.8,
-          12
-        );
-      },
-      null,
-      "#94a3b8",
-      { stroke: "rgba(226, 232, 240, 0.72)", lineWidth: 1.7 }
-    );
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(
-          context,
-          centerX - bodyWidth * 0.25,
-          centerY - bodyHeight * 0.82,
-          bodyWidth * 0.22,
-          bodyHeight * 0.24,
-          8
-        );
-      },
-      null,
-      "#dbeafe",
-      { stroke: `${accentColor}cc`, lineWidth: 1.5 }
-    );
+    const registerModel = (modelId, buildResult) => {
+      const container = new THREE.Group();
+      container.visible = false;
+      previewRoot.add(container);
+      container.add(buildResult.group);
+      const metrics = computeDroneModelPreviewMetrics(buildResult.group);
+      runtime.models.set(modelId, {
+        container,
+        group: buildResult.group,
+        rotor: buildResult.rotor ?? null,
+        metrics,
+        baseY: DRONE_MODEL_PREVIEW_GROUND_Y,
+      });
+    };
 
-    context.save();
-    context.translate(centerX + bodyWidth * 0.28, centerY - bodyHeight * 0.26);
-    context.rotate(-0.48);
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(context, 0, -unit * 0.15, unit * 1.35, unit * 0.3, 8);
-      },
-      null,
-      "#475569",
-      { stroke: "rgba(148, 163, 184, 0.48)", lineWidth: 1.7 }
+    registerModel("scout", createScoutDroneModelPreviewGroup(runtime, materials));
+    registerModel("rover", createRoverDroneModelPreviewGroup(runtime, materials));
+    registerModel("atltas", createAtltasDroneModelPreviewGroup(runtime, materials));
+
+    droneModelPreviewState.runtime = runtime;
+    syncDroneModelPreviewRendererSize(runtime);
+    return runtime;
+  } catch (error) {
+    console.warn("Unable to initialize drone model WebGL preview", error);
+    droneModelPreviewState.webglUnavailable = true;
+    teardownDroneModelPreviewRuntime();
+    return null;
+  }
+};
+
+const resolveDroneModelPreviewScaleFactor = (rawScale) => {
+  if (!Number.isFinite(rawScale) || rawScale <= 0) {
+    return 1;
+  }
+
+  const normalized = 0.9 + Math.log10(rawScale + 0.2) * 0.24;
+  return Math.max(0.78, Math.min(1.22, normalized));
+};
+
+const DRONE_MODEL_PREVIEW_LIGHT_OFFSETS = Object.freeze({
+  scout: {
+    head: { x: 0, y: 0, z: 0.18 },
+    cutter: { x: 0, y: -0.22, z: 0.04 },
+  },
+  rover: {
+    head: { x: 0, y: 0.04, z: 0.29 },
+    cutter: { x: 0, y: -0.1, z: 0.34 },
+  },
+  atltas: {
+    head: { x: 0, y: 0.22, z: 0.32 },
+    cutter: { x: 0.15, y: 0.16, z: 0.65 },
+  },
+});
+
+const applyDroneModelPreviewSelection = (
+  runtime,
+  { modelId, optionScale = 1, headLightColor = null, cutterLightColor = null }
+) => {
+  if (!runtime || !(runtime.models instanceof Map) || runtime.models.size === 0) {
+    return;
+  }
+
+  const nextModelId =
+    normalizeDroneModelPreviewId(modelId) ??
+    normalizeDroneModelPreviewId(runtime.activeModelId) ??
+    "rover";
+  runtime.activeModelId = nextModelId;
+
+  runtime.models.forEach((entry, id) => {
+    entry.container.visible = id === nextModelId;
+  });
+
+  const activeEntry = runtime.models.get(nextModelId);
+  if (!activeEntry) {
+    return;
+  }
+
+  const fitScale = 0.62 / Math.max(activeEntry.metrics.radius, 0.001);
+  const sizeScale = resolveDroneModelPreviewScaleFactor(optionScale);
+  const finalScale = fitScale * sizeScale;
+  activeEntry.container.scale.setScalar(finalScale);
+  activeEntry.baseY =
+    DRONE_MODEL_PREVIEW_GROUND_Y - activeEntry.metrics.minY * finalScale;
+  activeEntry.container.position.y = activeEntry.baseY;
+
+  runtime.previewRoot.rotation.y =
+    nextModelId === "scout" ? -0.2 : nextModelId === "atltas" ? -0.34 : -0.28;
+
+  const lightOffsets = DRONE_MODEL_PREVIEW_LIGHT_OFFSETS[nextModelId];
+  if (lightOffsets) {
+    runtime.headLight.position.set(
+      lightOffsets.head.x,
+      lightOffsets.head.y,
+      lightOffsets.head.z
     );
-    context.restore();
-    context.save();
-    context.translate(centerX + bodyWidth * 0.6, centerY - bodyHeight * 0.66);
-    context.rotate(-1.1);
-    fillDronePreviewShape(
-      context,
-      () => {
-        drawRoundedRectPath(context, 0, -unit * 0.12, unit * 1.02, unit * 0.24, 8);
-      },
-      null,
-      "#64748b",
-      { stroke: "rgba(148, 163, 184, 0.5)", lineWidth: 1.6 }
-    );
-    context.restore();
-    fillDronePreviewShape(
-      context,
-      () => {
-        context.beginPath();
-        context.moveTo(centerX + bodyWidth * 0.83, centerY - bodyHeight * 0.78);
-        context.lineTo(centerX + bodyWidth * 1.03, centerY - bodyHeight * 0.65);
-        context.lineTo(centerX + bodyWidth * 0.9, centerY - bodyHeight * 0.42);
-        context.lineTo(centerX + bodyWidth * 0.72, centerY - bodyHeight * 0.53);
-        context.closePath();
-      },
-      null,
-      "#fb923c",
-      { stroke: `${accentColor}cc`, lineWidth: 1.9 }
+    runtime.cutterLight.position.set(
+      lightOffsets.cutter.x,
+      lightOffsets.cutter.y,
+      lightOffsets.cutter.z
     );
   }
 
-  context.fillStyle = "rgba(226, 232, 240, 0.92)";
-  context.font = "600 28px 'Segoe UI', 'Inter', sans-serif";
-  context.textAlign = "left";
-  context.fillText(label, 26, 42);
+  const accentFallback =
+    DRONE_MODEL_PREVIEW_ACCENT_COLORS[nextModelId] ??
+    DRONE_MODEL_PREVIEW_ACCENT_COLORS.rover;
+  const headHex = toHexColorString(headLightColor, accentFallback);
+  const cutterHex = toHexColorString(cutterLightColor, "#f97316");
 
-  context.fillStyle = "rgba(148, 163, 184, 0.86)";
-  context.font = "500 20px 'Segoe UI', 'Inter', sans-serif";
-  context.fillText("Engineering preview", 26, 72);
-
-  if (sizeLabel !== "") {
-    context.textAlign = "right";
-    context.fillStyle = `${accentColor}`;
-    context.font = "700 18px 'Segoe UI', 'Inter', sans-serif";
-    context.fillText(sizeLabel.toUpperCase(), width - 26, 42);
+  runtime.headLight.color.set(headHex);
+  runtime.cutterLight.color.set(cutterHex);
+  runtime.accentLight.color.set(headHex);
+  runtime.ringMaterial.color.set(headHex);
+  if (runtime.visorMaterial) {
+    runtime.visorMaterial.emissive.set(headHex);
   }
+  if (runtime.cutterMaterial) {
+    runtime.cutterMaterial.emissive.set(cutterHex);
+  }
+  if (runtime.cutterGlowMaterial) {
+    runtime.cutterGlowMaterial.color.set(cutterHex);
+  }
+};
+
+const renderDroneModelPreviewRuntimeNow = (runtime) => {
+  if (!runtime?.renderer || !runtime.scene || !runtime.camera) {
+    return;
+  }
+  syncDroneModelPreviewRendererSize(runtime);
+  runtime.renderer.render(runtime.scene, runtime.camera);
+};
+
+const renderDroneModelPreviewRuntimeFrame = (timestamp) => {
+  const runtime = droneModelPreviewState.runtime;
+  if (!runtime || runtime.running !== true) {
+    return;
+  }
+
+  if (!droneCustomizationModalActive || !runtime.canvas.isConnected) {
+    stopDroneModelPreviewRuntimeLoop();
+    return;
+  }
+
+  const deltaSeconds =
+    Number.isFinite(runtime.lastFrameAt) && runtime.lastFrameAt > 0
+      ? Math.min(0.05, (timestamp - runtime.lastFrameAt) / 1000)
+      : 1 / 60;
+  runtime.lastFrameAt = timestamp;
+
+  runtime.previewRoot.rotation.y += deltaSeconds * 0.42;
+  const activeEntry = runtime.models.get(runtime.activeModelId);
+  if (activeEntry) {
+    const bobAmplitude = runtime.activeModelId === "atltas" ? 0.006 : 0.012;
+    activeEntry.container.position.y =
+      activeEntry.baseY + Math.sin(timestamp * 0.0018) * bobAmplitude;
+    if (activeEntry.rotor instanceof THREE.Object3D) {
+      activeEntry.rotor.rotation.y += deltaSeconds * 10;
+    }
+  }
+  runtime.ring.rotation.z += deltaSeconds * 0.18;
+
+  renderDroneModelPreviewRuntimeNow(runtime);
+  runtime.frameId = window.requestAnimationFrame(renderDroneModelPreviewRuntimeFrame);
+};
+
+const startDroneModelPreviewRuntimeLoop = () => {
+  const runtime = droneModelPreviewState.runtime;
+  if (!runtime || runtime.running) {
+    return;
+  }
+
+  runtime.running = true;
+  runtime.lastFrameAt = 0;
+  runtime.frameId = window.requestAnimationFrame(renderDroneModelPreviewRuntimeFrame);
+};
+
+const renderDroneModelPreview = (modelOption) => {
+  const { modelPreviewCanvas, modelPreviewTitle, modelPreviewDescription } =
+    getDroneCustomizationModalElements();
+  if (!(modelPreviewCanvas instanceof HTMLCanvasElement)) {
+    return;
+  }
+
+  const label =
+    typeof modelOption?.label === "string" && modelOption.label.trim() !== ""
+      ? modelOption.label.trim()
+      : "Drone model preview";
+  const baseDescription =
+    typeof modelOption?.description === "string" && modelOption.description.trim() !== ""
+      ? modelOption.description.trim()
+      : "Drone frame profile.";
+  const sizeLabel =
+    typeof modelOption?.preview?.sizeLabel === "string" &&
+    modelOption.preview.sizeLabel.trim() !== ""
+      ? modelOption.preview.sizeLabel.trim()
+      : "";
+  const description =
+    sizeLabel !== "" ? `${baseDescription} Size: ${sizeLabel}.` : baseDescription;
+
+  if (modelPreviewTitle instanceof HTMLElement) {
+    modelPreviewTitle.textContent = label;
+  }
+  if (modelPreviewDescription instanceof HTMLElement) {
+    modelPreviewDescription.textContent = description;
+  }
+
+  const runtime = ensureDroneModelPreviewRuntime(modelPreviewCanvas);
+  if (!runtime) {
+    renderDroneModelPreviewFallback2d(modelOption);
+    return;
+  }
+
+  const modelId = resolveDroneModelPreviewIdFromOption(modelOption);
+  const optionScale =
+    Number.isFinite(modelOption?.preview?.scale) && modelOption.preview.scale > 0
+      ? modelOption.preview.scale
+      : 1;
+  const { headLightColor, cutterLightColor } = resolveActiveDroneSkinPreviewColors();
+  applyDroneModelPreviewSelection(runtime, {
+    modelId,
+    optionScale,
+    headLightColor,
+    cutterLightColor,
+  });
+  renderDroneModelPreviewRuntimeNow(runtime);
+  startDroneModelPreviewRuntimeLoop();
 };
 
 const handleDroneSkinOptionClick = (event) => {
@@ -7633,16 +7974,7 @@ const renderDroneCustomizationModal = () => {
     if (modelPreviewDescription instanceof HTMLElement) {
       modelPreviewDescription.textContent = "No model data available.";
     }
-    if (modelPreviewCanvas instanceof HTMLCanvasElement) {
-      const context = modelPreviewCanvas.getContext("2d");
-      if (context) {
-        drawDroneSkinPreviewPlaceholder(
-          context,
-          modelPreviewCanvas.width || 960,
-          modelPreviewCanvas.height || 540
-        );
-      }
-    }
+    teardownDroneModelPreviewRuntime();
   }
 
   if (!hasOptions) {
@@ -8378,6 +8710,7 @@ const teardownQuickAccessModalContent = () => {
   droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
   droneSkinPreviewState.renderToken += 1;
   droneSkinPreviewState.pendingSkinId = null;
+  teardownDroneModelPreviewRuntime();
   newsModalState.renderToken += 1;
   teardownMarketModal();
 };
