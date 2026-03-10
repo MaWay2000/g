@@ -5867,8 +5867,9 @@ export const initScene = (
     oxygenStandGroup.add(oxygenRefillControl);
 
     const storageBoxFloorOffset = 0;
-    const storageBoxWallInset = 0.22;
-    const storageBoxForwardOffset = 0.42;
+    // Keep the box clear of the oxygen chamber by moving it farther along the room depth.
+    const storageBoxWallInset = 0.26;
+    const storageBoxForwardOffset = 1.45;
     const storageBoxGroup = new THREE.Group();
     storageBoxGroup.position.set(
       wallSpanWidth / 2 - wallThickness - storageBoxWallInset,
