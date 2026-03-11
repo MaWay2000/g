@@ -1694,6 +1694,9 @@ const applyGodModeUiState = () => {
   }
 
   setGodModeElementGrantAvailability(godModeEnabled);
+  if (godModeEnabled) {
+    completeDroneCraftingActiveJobInstantly({ notify: true });
+  }
   sceneController?.setGodMode?.(godModeEnabled);
 };
 
@@ -7443,7 +7446,13 @@ const DRONE_CRAFTING_PROGRESS_UPDATE_MS = 200;
 const isDroneCraftingPartReadyToClaim = (partId) =>
   typeof partId === "string" && droneCraftingState.readyPartIds.has(partId);
 
+const isInstantDroneCraftingEnabled = () => Boolean(currentSettings?.godMode);
+
 const getDroneCraftingPartCraftDurationSeconds = (part) => {
+  if (isInstantDroneCraftingEnabled()) {
+    return 0;
+  }
+
   const requirements = Array.isArray(part?.requirements) ? part.requirements : [];
   const totalWeightGrams = requirements.reduce((total, requirement) => {
     const needed = Number.isFinite(requirement?.count)
@@ -7575,6 +7584,31 @@ const finalizeDroneCraftingActiveJob = ({
   }
 
   return true;
+};
+
+const completeDroneCraftingActiveJobInstantly = ({ notify = true } = {}) => {
+  if (!isInstantDroneCraftingEnabled()) {
+    return false;
+  }
+
+  const activeJob = getDroneCraftingActiveJob();
+  if (!activeJob) {
+    return false;
+  }
+
+  droneCraftingState.activeJob = {
+    ...activeJob,
+    completedAtMs: Date.now() - 1,
+  };
+
+  const completed = finalizeDroneCraftingActiveJob({
+    notify,
+    refreshUi: true,
+  });
+  if (completed && craftingTableModalActive) {
+    renderCraftingTableModal();
+  }
+  return completed;
 };
 
 const syncDroneCraftingProgressInterval = () => {
@@ -8241,6 +8275,24 @@ const craftDroneUpgradePart = (partId) => {
   }
 
   const craftDurationSeconds = getDroneCraftingPartCraftDurationSeconds(part);
+  if (craftDurationSeconds <= 0) {
+    droneCraftingState.activeJob = null;
+    droneCraftingState.readyPartIds.add(part.id);
+    persistDroneCraftingState();
+    syncDroneCraftingProgressInterval();
+    refreshInventoryUi();
+    renderCraftingTableModal();
+    if (droneCustomizationModalActive) {
+      renderDroneCustomizationModal();
+    }
+
+    showTerminalToast({
+      title: `${part.label} complete`,
+      description: "God mode instant craft. Move it to Inventory > Items.",
+    });
+    return true;
+  }
+
   const startedAtMs = Date.now();
   const durationMs = Math.max(1000, craftDurationSeconds * 1000);
   droneCraftingState.activeJob = {
