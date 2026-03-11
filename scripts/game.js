@@ -4254,6 +4254,28 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     ],
   },
   {
+    id: "phase-lock-antenna",
+    label: "Phase Lock Antenna",
+    description: "Reduces scan jitter and increases lock-on consistency.",
+    successChanceBonus: 0.11,
+    requirements: [
+      { element: { symbol: "He", name: "Helium" }, count: 1 },
+      { element: { symbol: "H", name: "Hydrogen" }, count: 2 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 1 },
+    ],
+  },
+  {
+    id: "predictive-pathfinder-ai",
+    label: "Predictive Pathfinder AI",
+    description: "Pre-computes viable veins to avoid empty extraction cycles.",
+    successChanceBonus: 0.09,
+    requirements: [
+      { element: { symbol: "Ho", name: "Holmium" }, count: 1 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 2 },
+      { element: { symbol: "Br", name: "Bromine" }, count: 1 },
+    ],
+  },
+  {
     id: "split-core-extractor",
     label: "Split-Core Extractor",
     description: "Occasionally captures a second sample during a successful cut.",
@@ -4262,6 +4284,28 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
       { element: { symbol: "Br", name: "Bromine" }, count: 2 },
       { element: { symbol: "Ta", name: "Tantalum" }, count: 1 },
       { element: { symbol: "Os", name: "Osmium" }, count: 1 },
+    ],
+  },
+  {
+    id: "twin-hopper-magazine",
+    label: "Twin Hopper Magazine",
+    description: "Adds a secondary containment pass for duplicate samples.",
+    doubleYieldChance: 0.12,
+    requirements: [
+      { element: { symbol: "Ta", name: "Tantalum" }, count: 1 },
+      { element: { symbol: "Br", name: "Bromine" }, count: 2 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 1 },
+    ],
+  },
+  {
+    id: "resonance-fracture-lens",
+    label: "Resonance Fracture Lens",
+    description: "Resonant beam shaping can split one successful extraction into two.",
+    doubleYieldChance: 0.1,
+    requirements: [
+      { element: { symbol: "Os", name: "Osmium" }, count: 1 },
+      { element: { symbol: "He", name: "Helium" }, count: 1 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 1 },
     ],
   },
 ]);
