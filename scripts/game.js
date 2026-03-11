@@ -4331,6 +4331,8 @@ const storageBoxState = {
 const droneCraftingState = {
   craftedPartIds: new Set(),
   equippedPartIds: new Set(),
+  readyPartIds: new Set(),
+  activeJob: null,
 };
 
 const NEW_GAME_STARTER_RESOURCES = [
@@ -5624,6 +5626,7 @@ let lastSerializedInventoryState = null;
 let persistStorageBoxStateTimeoutId = 0;
 let lastSerializedStorageBoxState = null;
 let lastSerializedDroneCraftingState = null;
+let droneCraftingProgressIntervalId = 0;
 let inventoryWasPointerLocked = false;
 let lastInventoryFocusedElement = null;
 let inventoryCloseFallbackId = 0;
@@ -7038,6 +7041,171 @@ const isDroneCraftingPartEquipped = (partId) =>
 const getDroneCraftingPartById = (partId) =>
   DRONE_CRAFTING_PARTS.find((part) => part.id === partId) ?? null;
 
+const DRONE_CRAFTING_PROGRESS_UPDATE_MS = 200;
+
+const isDroneCraftingPartReadyToClaim = (partId) =>
+  typeof partId === "string" && droneCraftingState.readyPartIds.has(partId);
+
+const getDroneCraftingPartCraftDurationSeconds = (part) => {
+  const requirements = Array.isArray(part?.requirements) ? part.requirements : [];
+  const totalWeightGrams = requirements.reduce((total, requirement) => {
+    const needed = Number.isFinite(requirement?.count)
+      ? Math.max(1, Math.floor(requirement.count))
+      : 1;
+    const requirementElement = sanitizeInventoryElement(requirement?.element ?? {});
+    const unitWeight = getInventoryElementWeight(requirementElement);
+    const normalizedWeight =
+      Number.isFinite(unitWeight) && unitWeight > 0
+        ? unitWeight
+        : DEFAULT_ELEMENT_WEIGHT_GRAMS;
+    return total + normalizedWeight * needed;
+  }, 0);
+
+  return Math.max(1, Math.ceil(totalWeightGrams));
+};
+
+const normalizeDroneCraftingActiveJob = (rawJob) => {
+  if (!rawJob || typeof rawJob !== "object") {
+    return null;
+  }
+
+  const partId = typeof rawJob.partId === "string" ? rawJob.partId.trim() : "";
+  if (!partId || !getDroneCraftingPartById(partId)) {
+    return null;
+  }
+
+  let durationMs = Number(rawJob.durationMs);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  durationMs = Math.max(1000, Math.floor(durationMs));
+
+  let startedAtMs = Number(rawJob.startedAtMs);
+  if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) {
+    startedAtMs = Date.now();
+  }
+  startedAtMs = Math.floor(startedAtMs);
+
+  let completedAtMs = Number(rawJob.completedAtMs);
+  if (!Number.isFinite(completedAtMs) || completedAtMs <= startedAtMs) {
+    completedAtMs = startedAtMs + durationMs;
+  }
+  completedAtMs = Math.floor(completedAtMs);
+
+  return {
+    partId,
+    startedAtMs,
+    durationMs,
+    completedAtMs,
+  };
+};
+
+const getDroneCraftingActiveJob = () => {
+  const normalizedJob = normalizeDroneCraftingActiveJob(droneCraftingState.activeJob);
+  if (!normalizedJob) {
+    droneCraftingState.activeJob = null;
+    return null;
+  }
+
+  droneCraftingState.activeJob = normalizedJob;
+  return normalizedJob;
+};
+
+const getDroneCraftingJobProgressState = (job = getDroneCraftingActiveJob()) => {
+  if (!job) {
+    return null;
+  }
+
+  const now = Date.now();
+  const durationMs = Math.max(1, Number(job.durationMs) || 1);
+  const elapsedMs = Math.max(0, now - job.startedAtMs);
+  const remainingMs = Math.max(0, job.completedAtMs - now);
+  const progress = Math.max(0, Math.min(1, elapsedMs / durationMs));
+  const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const durationSeconds = Math.max(1, Math.round(durationMs / 1000));
+
+  return {
+    progress,
+    remainingSeconds,
+    durationSeconds,
+  };
+};
+
+const stopDroneCraftingProgressInterval = () => {
+  if (!droneCraftingProgressIntervalId) {
+    return;
+  }
+
+  window.clearInterval(droneCraftingProgressIntervalId);
+  droneCraftingProgressIntervalId = 0;
+};
+
+const finalizeDroneCraftingActiveJob = ({
+  notify = true,
+  refreshUi = true,
+} = {}) => {
+  const activeJob = getDroneCraftingActiveJob();
+  if (!activeJob || Date.now() < activeJob.completedAtMs) {
+    return false;
+  }
+
+  const part = getDroneCraftingPartById(activeJob.partId);
+  droneCraftingState.activeJob = null;
+
+  if (
+    part &&
+    !isDroneCraftingPartCrafted(part.id) &&
+    !isDroneCraftingPartReadyToClaim(part.id)
+  ) {
+    droneCraftingState.readyPartIds.add(part.id);
+  }
+
+  persistDroneCraftingState();
+  syncDroneCraftingProgressInterval();
+
+  if (refreshUi) {
+    refreshInventoryUi();
+    if (droneCustomizationModalActive) {
+      renderDroneCustomizationModal();
+    }
+  }
+
+  if (notify && part) {
+    showTerminalToast({
+      title: `${part.label} complete`,
+      description: "Crafting done. Move the part to Inventory > Items.",
+    });
+  }
+
+  return true;
+};
+
+const syncDroneCraftingProgressInterval = () => {
+  const activeJob = getDroneCraftingActiveJob();
+  if (!activeJob) {
+    stopDroneCraftingProgressInterval();
+    return;
+  }
+
+  if (droneCraftingProgressIntervalId) {
+    return;
+  }
+
+  droneCraftingProgressIntervalId = window.setInterval(() => {
+    const completed = finalizeDroneCraftingActiveJob({
+      notify: true,
+      refreshUi: true,
+    });
+    if (completed) {
+      return;
+    }
+
+    if (craftingTableModalActive) {
+      renderCraftingTableModal();
+    }
+  }, DRONE_CRAFTING_PROGRESS_UPDATE_MS);
+};
+
 const getDroneCraftingSpeedMultiplier = () =>
   DRONE_CRAFTING_PARTS.reduce((multiplier, part) => {
     if (!isDroneCraftingPartEquipped(part.id)) {
@@ -7155,8 +7323,14 @@ const createCraftingTablePartCard = (part) => {
 
   const crafted = isDroneCraftingPartCrafted(part.id);
   const equipped = isDroneCraftingPartEquipped(part.id);
+  const readyToClaim = isDroneCraftingPartReadyToClaim(part.id);
+  const activeJob = getDroneCraftingActiveJob();
+  const craftingThisPart = Boolean(activeJob && activeJob.partId === part.id);
+  const craftingOtherPart = Boolean(activeJob && activeJob.partId !== part.id);
   item.dataset.crafted = crafted ? "true" : "false";
   item.dataset.equipped = equipped ? "true" : "false";
+  item.dataset.ready = readyToClaim ? "true" : "false";
+  item.dataset.crafting = craftingThisPart ? "true" : "false";
 
   const title = document.createElement("h3");
   title.className = "crafting-panel__title";
@@ -7203,18 +7377,69 @@ const createCraftingTablePartCard = (part) => {
   });
   item.appendChild(requirements);
 
+  const craftDurationSeconds = getDroneCraftingPartCraftDurationSeconds(part);
+  const craftTime = document.createElement("p");
+  craftTime.className = "crafting-panel__meta";
+  craftTime.textContent = `Craft time: ${formatDurationSeconds(craftDurationSeconds)}`;
+  item.appendChild(craftTime);
+
+  if (craftingThisPart) {
+    const progressState = getDroneCraftingJobProgressState(activeJob);
+    if (progressState) {
+      const progressContainer = document.createElement("div");
+      progressContainer.className = "crafting-panel__progress";
+
+      const progressTrack = document.createElement("div");
+      progressTrack.className = "crafting-panel__progress-track";
+      progressTrack.setAttribute("role", "progressbar");
+      progressTrack.setAttribute("aria-valuemin", "0");
+      progressTrack.setAttribute("aria-valuemax", "100");
+      progressTrack.setAttribute(
+        "aria-valuenow",
+        String(Math.round(progressState.progress * 100))
+      );
+
+      const progressBar = document.createElement("span");
+      progressBar.className = "crafting-panel__progress-bar";
+      progressBar.style.width = `${Math.round(progressState.progress * 100)}%`;
+      progressTrack.appendChild(progressBar);
+      progressContainer.appendChild(progressTrack);
+
+      const progressMeta = document.createElement("p");
+      progressMeta.className = "crafting-panel__meta";
+      progressMeta.textContent = `Crafting... ${formatDurationSeconds(
+        progressState.remainingSeconds
+      )} remaining`;
+      progressContainer.appendChild(progressMeta);
+
+      item.appendChild(progressContainer);
+    }
+  }
+
   const craftButton = document.createElement("button");
   craftButton.type = "button";
   craftButton.className = "crafting-panel__button";
-  craftButton.dataset.craftingPartAction = "craft";
   craftButton.dataset.craftingPartId = part.id;
-  craftButton.textContent = crafted
-    ? equipped
-      ? "Installed"
-      : "Built"
-    : "Craft";
-  const canCraft = requirementStates.every((state) => state.ready);
-  craftButton.disabled = crafted || !canCraft;
+
+  if (equipped) {
+    craftButton.textContent = "Installed";
+    craftButton.disabled = true;
+  } else if (crafted) {
+    craftButton.textContent = "In inventory";
+    craftButton.disabled = true;
+  } else if (readyToClaim) {
+    craftButton.dataset.craftingPartAction = "claim";
+    craftButton.textContent = "Move to inventory";
+    craftButton.disabled = false;
+  } else if (craftingThisPart) {
+    craftButton.textContent = "Crafting...";
+    craftButton.disabled = true;
+  } else {
+    const canCraft = requirementStates.every((state) => state.ready);
+    craftButton.dataset.craftingPartAction = "craft";
+    craftButton.textContent = craftingOtherPart ? "Busy" : "Craft";
+    craftButton.disabled = craftingOtherPart || !canCraft;
+  }
   item.appendChild(craftButton);
 
   return item;
@@ -7225,11 +7450,27 @@ const renderCraftingTableModal = () => {
     return;
   }
 
+  finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
+
   const { speedSummary, partList } = getCraftingTableModalElements();
   const equippedCount = droneCraftingState.equippedPartIds.size;
+  const activeJob = getDroneCraftingActiveJob();
+  const progressState = getDroneCraftingJobProgressState(activeJob);
 
   if (speedSummary instanceof HTMLElement) {
-    speedSummary.textContent = `Installed ${equippedCount}/${DRONE_CRAFTING_PARTS.length} • ${getInstalledDroneBonusSummaryText()}`;
+    const summarySegments = [
+      `Installed ${equippedCount}/${DRONE_CRAFTING_PARTS.length}`,
+      getInstalledDroneBonusSummaryText(),
+    ];
+    if (activeJob && progressState) {
+      const activePart = getDroneCraftingPartById(activeJob.partId);
+      summarySegments.push(
+        `Crafting ${activePart?.label ?? "part"} (${formatDurationSeconds(
+          progressState.remainingSeconds
+        )} left)`
+      );
+    }
+    speedSummary.textContent = summarySegments.join(" • ");
   }
 
   if (!(partList instanceof HTMLElement)) {
@@ -7248,10 +7489,40 @@ const craftDroneUpgradePart = (partId) => {
     return false;
   }
 
+  if (isDroneCraftingPartReadyToClaim(part.id)) {
+    showTerminalToast({
+      title: "Ready to collect",
+      description: `${part.label} is complete. Move it to Inventory > Items.`,
+    });
+    return false;
+  }
+
   if (isDroneCraftingPartCrafted(part.id)) {
     showTerminalToast({
       title: "Already crafted",
       description: `${part.label} is already built. Install it in Drone Setup > Parts.`,
+    });
+    return false;
+  }
+
+  finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
+  const activeJob = getDroneCraftingActiveJob();
+  if (activeJob) {
+    const activePart = getDroneCraftingPartById(activeJob.partId);
+    if (activeJob.partId === part.id) {
+      const progressState = getDroneCraftingJobProgressState(activeJob);
+      showTerminalToast({
+        title: "Craft in progress",
+        description: `${part.label} will finish in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+      return false;
+    }
+
+    showTerminalToast({
+      title: "Crafting table busy",
+      description: `${activePart?.label ?? "Another part"} is currently crafting.`,
     });
     return false;
   }
@@ -7295,6 +7566,65 @@ const craftDroneUpgradePart = (partId) => {
     }
   }
 
+  const craftDurationSeconds = getDroneCraftingPartCraftDurationSeconds(part);
+  const startedAtMs = Date.now();
+  const durationMs = Math.max(1000, craftDurationSeconds * 1000);
+  droneCraftingState.activeJob = {
+    partId: part.id,
+    startedAtMs,
+    durationMs,
+    completedAtMs: startedAtMs + durationMs,
+  };
+  persistDroneCraftingState();
+  syncDroneCraftingProgressInterval();
+  refreshInventoryUi();
+  renderCraftingTableModal();
+  if (droneCustomizationModalActive) {
+    renderDroneCustomizationModal();
+  }
+
+  showTerminalToast({
+    title: `${part.label} started`,
+    description: `Crafting time: ${formatDurationSeconds(
+      craftDurationSeconds
+    )}. Move it to Inventory after completion.`,
+  });
+  return true;
+};
+
+const moveCraftedPartToInventory = (partId) => {
+  const part = getDroneCraftingPartById(partId);
+  if (!part) {
+    return false;
+  }
+
+  finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
+
+  if (isDroneCraftingPartCrafted(part.id)) {
+    showTerminalToast({
+      title: "Already in inventory",
+      description: `${part.label} can be installed in Drone Setup > Parts.`,
+    });
+    return false;
+  }
+
+  if (!isDroneCraftingPartReadyToClaim(part.id)) {
+    const activeJob = getDroneCraftingActiveJob();
+    if (activeJob && activeJob.partId === part.id) {
+      const progressState = getDroneCraftingJobProgressState(activeJob);
+      showTerminalToast({
+        title: "Still crafting",
+        description: `${part.label} will be ready in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+      return false;
+    }
+
+    return false;
+  }
+
+  droneCraftingState.readyPartIds.delete(part.id);
   droneCraftingState.craftedPartIds.add(part.id);
   persistDroneCraftingState();
   refreshInventoryUi();
@@ -7304,8 +7634,8 @@ const craftDroneUpgradePart = (partId) => {
   }
 
   showTerminalToast({
-    title: `${part.label} crafted`,
-    description: "Part added to Inventory > Items. Install it in Drone Setup > Parts.",
+    title: `${part.label} added`,
+    description: "Now available in Inventory > Items and Drone Setup > Parts.",
   });
   return true;
 };
@@ -7326,16 +7656,20 @@ const handleCraftingTableActionClick = (event) => {
 
   event.preventDefault();
 
-  if (actionTarget.dataset.craftingPartAction !== "craft") {
-    return;
-  }
-
   const partId = actionTarget.dataset.craftingPartId;
+  const actionType = actionTarget.dataset.craftingPartAction;
   if (!partId) {
     return;
   }
 
-  craftDroneUpgradePart(partId);
+  if (actionType === "craft") {
+    craftDroneUpgradePart(partId);
+    return;
+  }
+
+  if (actionType === "claim") {
+    moveCraftedPartToInventory(partId);
+  }
 };
 
 const teardownCraftingTableModal = () => {
@@ -11125,19 +11459,49 @@ const serializeStorageBoxStateForPersistence = () => ({
   capacityRejection: storageBoxState.capacityRejection,
 });
 
-const serializeDroneCraftingStateForPersistence = () => ({
-  craftedPartIds: Array.from(droneCraftingState.craftedPartIds).filter(
+const serializeDroneCraftingStateForPersistence = () => {
+  const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
+  const craftedPartIds = Array.from(droneCraftingState.craftedPartIds).filter(
+    (partId) => typeof partId === "string" && knownPartIds.has(partId)
+  );
+  const craftedPartSet = new Set(craftedPartIds);
+
+  const equippedPartIds = Array.from(droneCraftingState.equippedPartIds).filter(
     (partId) =>
       typeof partId === "string" &&
-      DRONE_CRAFTING_PARTS.some((part) => part.id === partId)
-  ),
-  equippedPartIds: Array.from(droneCraftingState.equippedPartIds).filter(
+      craftedPartSet.has(partId) &&
+      knownPartIds.has(partId)
+  );
+
+  const readyPartIds = Array.from(droneCraftingState.readyPartIds).filter(
     (partId) =>
       typeof partId === "string" &&
-      droneCraftingState.craftedPartIds.has(partId) &&
-      DRONE_CRAFTING_PARTS.some((part) => part.id === partId)
-  ),
-});
+      knownPartIds.has(partId) &&
+      !craftedPartSet.has(partId)
+  );
+  const readyPartSet = new Set(readyPartIds);
+
+  const activeJob = getDroneCraftingActiveJob();
+  const activeJobForPersistence =
+    activeJob &&
+    knownPartIds.has(activeJob.partId) &&
+    !craftedPartSet.has(activeJob.partId) &&
+    !readyPartSet.has(activeJob.partId)
+      ? {
+          partId: activeJob.partId,
+          startedAtMs: Math.floor(activeJob.startedAtMs),
+          durationMs: Math.floor(activeJob.durationMs),
+          completedAtMs: Math.floor(activeJob.completedAtMs),
+        }
+      : null;
+
+  return {
+    craftedPartIds,
+    equippedPartIds,
+    readyPartIds,
+    activeJob: activeJobForPersistence,
+  };
+};
 
 const persistInventoryState = () => {
   const storage = getInventoryStorage();
@@ -11340,6 +11704,9 @@ const restoreStorageBoxStateFromStorage = () => {
 const restoreDroneCraftingStateFromStorage = () => {
   const storage = getInventoryStorage();
   if (!storage) {
+    droneCraftingState.activeJob = null;
+    droneCraftingState.readyPartIds.clear();
+    syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
@@ -11351,6 +11718,9 @@ const restoreDroneCraftingStateFromStorage = () => {
     serialized = storage.getItem(DRONE_CRAFTING_STORAGE_KEY);
   } catch (error) {
     console.warn("Unable to read stored drone crafting state", error);
+    droneCraftingState.activeJob = null;
+    droneCraftingState.readyPartIds.clear();
+    syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
@@ -11359,8 +11729,11 @@ const restoreDroneCraftingStateFromStorage = () => {
 
   droneCraftingState.craftedPartIds.clear();
   droneCraftingState.equippedPartIds.clear();
+  droneCraftingState.readyPartIds.clear();
+  droneCraftingState.activeJob = null;
 
   if (typeof serialized !== "string" || serialized.trim() === "") {
+    syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
@@ -11397,9 +11770,31 @@ const restoreDroneCraftingStateFromStorage = () => {
       }
     });
 
+    const storedReadyPartIds = Array.isArray(data?.readyPartIds) ? data.readyPartIds : [];
+    storedReadyPartIds.forEach((partId) => {
+      if (
+        typeof partId === "string" &&
+        knownPartIds.has(partId) &&
+        !droneCraftingState.craftedPartIds.has(partId)
+      ) {
+        droneCraftingState.readyPartIds.add(partId);
+      }
+    });
+
+    const restoredActiveJob = normalizeDroneCraftingActiveJob(data?.activeJob);
+    if (
+      restoredActiveJob &&
+      !droneCraftingState.craftedPartIds.has(restoredActiveJob.partId) &&
+      !droneCraftingState.readyPartIds.has(restoredActiveJob.partId)
+    ) {
+      droneCraftingState.activeJob = restoredActiveJob;
+    }
+
     restored =
       droneCraftingState.craftedPartIds.size > 0 ||
-      droneCraftingState.equippedPartIds.size > 0;
+      droneCraftingState.equippedPartIds.size > 0 ||
+      droneCraftingState.readyPartIds.size > 0 ||
+      Boolean(droneCraftingState.activeJob);
   } catch (error) {
     console.warn("Unable to parse stored drone crafting state", error);
   }
@@ -11410,6 +11805,8 @@ const restoreDroneCraftingStateFromStorage = () => {
     lastSerializedDroneCraftingState = null;
   }
 
+  finalizeDroneCraftingActiveJob({ notify: false, refreshUi: false });
+  syncDroneCraftingProgressInterval();
   syncDroneMiningSpeedBonusWithScene();
   refreshInventoryUi();
   refreshCraftingTableModalIfOpen();
@@ -15246,6 +15643,9 @@ function handleReset(event) {
     const resetMarketState = persistMarketState(getDefaultMarketState());
     droneCraftingState.craftedPartIds.clear();
     droneCraftingState.equippedPartIds.clear();
+    droneCraftingState.readyPartIds.clear();
+    droneCraftingState.activeJob = null;
+    syncDroneCraftingProgressInterval();
     lastSerializedDroneCraftingState = null;
     syncDroneMiningSpeedBonusWithScene();
 
