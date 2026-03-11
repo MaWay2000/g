@@ -1338,6 +1338,12 @@
         align-items: center;
       }
 
+      .settings-menu__godmode-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+      }
+
       .settings-menu__godmode-select {
         min-width: 0;
         width: 100%;
@@ -1357,6 +1363,7 @@
       }
 
       .settings-menu__godmode-action {
+        width: 100%;
         padding: 0.5rem 1rem;
         border-radius: 999px;
         border: 1px solid rgba(94, 234, 212, 0.6);
@@ -1364,6 +1371,7 @@
         color: rgba(226, 232, 240, 0.96);
         font-size: 0.85rem;
         font-weight: 700;
+        white-space: nowrap;
         box-shadow: 0 10px 22px rgba(15, 23, 42, 0.32);
       }
 
@@ -5044,13 +5052,22 @@
                         data-god-mode-element-select
                         aria-label="Element type"
                       ></select>
-                      <button
-                        type="button"
-                        class="settings-menu__godmode-action"
-                        data-god-mode-add-element
-                      >
-                        Add 1
-                      </button>
+                      <div class="settings-menu__godmode-actions">
+                        <button
+                          type="button"
+                          class="settings-menu__godmode-action"
+                          data-god-mode-add-element
+                        >
+                          Add 1
+                        </button>
+                        <button
+                          type="button"
+                          class="settings-menu__godmode-action"
+                          data-god-mode-add-all
+                        >
+                          Give all
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

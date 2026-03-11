@@ -198,6 +198,7 @@ const starSettingsToggleLabel = starSettingsToggleButton?.querySelector(
 );
 const godModeElementSelect = document.querySelector("[data-god-mode-element-select]");
 const godModeAddElementButton = document.querySelector("[data-god-mode-add-element]");
+const godModeAddAllElementsButton = document.querySelector("[data-god-mode-add-all]");
 const liftAreaSettingsList = document.querySelector("[data-lift-area-settings-list]");
 const starSettingsInputs = [
   starFollowToggle,
@@ -1576,6 +1577,10 @@ const setGodModeElementGrantAvailability = (enabled) => {
   if (godModeAddElementButton instanceof HTMLButtonElement) {
     godModeAddElementButton.disabled = !shouldEnable;
   }
+
+  if (godModeAddAllElementsButton instanceof HTMLButtonElement) {
+    godModeAddAllElementsButton.disabled = !shouldEnable;
+  }
 };
 
 const grantGodModeElementToInventory = () => {
@@ -1613,6 +1618,69 @@ const grantGodModeElementToInventory = () => {
   showTerminalToast({
     title: "God mode grant",
     description: `${elementLabel} added to inventory.`,
+  });
+  return true;
+};
+
+const grantAllGodModeElementsToInventory = () => {
+  if (!Boolean(currentSettings?.godMode)) {
+    showTerminalToast({
+      title: "Enable God mode",
+      description: "Turn on God mode first to use this option.",
+    });
+    return false;
+  }
+
+  const uniqueElements = new Map();
+  PERIODIC_ELEMENTS.forEach((element) => {
+    const symbol = typeof element?.symbol === "string" ? element.symbol.trim() : "";
+    if (!symbol) {
+      return;
+    }
+    const key = symbol.toLowerCase();
+    if (uniqueElements.has(key)) {
+      return;
+    }
+    uniqueElements.set(key, element);
+  });
+
+  const elements = Array.from(uniqueElements.values());
+  if (elements.length <= 0) {
+    showTerminalToast({
+      title: "No element data",
+      description: "Unable to grant elements right now.",
+    });
+    return false;
+  }
+
+  let addedCount = 0;
+  let blockedCount = 0;
+  elements.forEach((element) => {
+    const added = recordInventoryResource({
+      source: "god-mode",
+      element,
+    });
+    if (added) {
+      addedCount += 1;
+    } else {
+      blockedCount += 1;
+    }
+  });
+
+  if (addedCount <= 0) {
+    showTerminalToast({
+      title: "Inventory full",
+      description: "No additional elements could be added.",
+    });
+    return false;
+  }
+
+  showTerminalToast({
+    title: "God mode grant",
+    description:
+      blockedCount > 0
+        ? `Added ${addedCount} element types. ${blockedCount} could not be added.`
+        : `Added all ${addedCount} element types to inventory.`,
   });
   return true;
 };
@@ -16282,6 +16350,13 @@ if (godModeAddElementButton instanceof HTMLButtonElement) {
   godModeAddElementButton.addEventListener("click", (event) => {
     event.preventDefault();
     grantGodModeElementToInventory();
+  });
+}
+
+if (godModeAddAllElementsButton instanceof HTMLButtonElement) {
+  godModeAddAllElementsButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    grantAllGodModeElementsToInventory();
   });
 }
 
