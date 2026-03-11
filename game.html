@@ -2447,6 +2447,25 @@
         color: rgba(148, 163, 184, 0.9);
       }
 
+      .crafting-panel__next-step {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.65rem;
+        padding: 0.62rem 0.72rem;
+        border-radius: 0.85rem;
+        border: 1px solid rgba(56, 189, 248, 0.32);
+        background: rgba(2, 132, 199, 0.14);
+      }
+
+      .crafting-panel__next-text {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(191, 219, 254, 0.96);
+        letter-spacing: 0.01em;
+      }
+
       .crafting-panel__grid {
         list-style: none;
         margin: 0;
@@ -2589,6 +2608,17 @@
 
       .crafting-panel__button[data-crafting-part-action="claim"]:hover,
       .crafting-panel__button[data-crafting-part-action="claim"]:focus-visible {
+        border-color: rgba(125, 211, 252, 0.9);
+        background: rgba(2, 132, 199, 0.4);
+      }
+
+      .crafting-panel__button--next {
+        border-color: rgba(56, 189, 248, 0.58);
+        background: rgba(2, 132, 199, 0.24);
+      }
+
+      .crafting-panel__button--next:hover,
+      .crafting-panel__button--next:focus-visible {
         border-color: rgba(125, 211, 252, 0.9);
         background: rgba(2, 132, 199, 0.4);
       }
@@ -6503,6 +6533,16 @@
         <p class="crafting-panel__hint">
           Craft time = total required material weight (1g = 1s). When complete, move the part to Inventory.
         </p>
+        <div class="crafting-panel__next-step" data-crafting-next-step hidden>
+          <p class="crafting-panel__next-text" data-crafting-next-text></p>
+          <button
+            type="button"
+            class="crafting-panel__button crafting-panel__button--next"
+            data-crafting-open-drone-setup
+          >
+            Open Drone Setup > Model
+          </button>
+        </div>
         <ul class="crafting-panel__grid" data-crafting-part-list role="list"></ul>
       </section>
     </template>

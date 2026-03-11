@@ -7388,6 +7388,9 @@ const getCraftingTableModalElements = () => {
   if (!quickAccessModalContent) {
     return {
       speedSummary: null,
+      nextStep: null,
+      nextText: null,
+      openDroneSetupButton: null,
       partList: null,
     };
   }
@@ -7395,6 +7398,11 @@ const getCraftingTableModalElements = () => {
   return {
     speedSummary: quickAccessModalContent.querySelector(
       "[data-crafting-speed-summary]"
+    ),
+    nextStep: quickAccessModalContent.querySelector("[data-crafting-next-step]"),
+    nextText: quickAccessModalContent.querySelector("[data-crafting-next-text]"),
+    openDroneSetupButton: quickAccessModalContent.querySelector(
+      "[data-crafting-open-drone-setup]"
     ),
     partList: quickAccessModalContent.querySelector("[data-crafting-part-list]"),
   };
@@ -8157,7 +8165,8 @@ const renderCraftingTableModal = () => {
 
   finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
 
-  const { speedSummary, partList } = getCraftingTableModalElements();
+  const { speedSummary, nextStep, nextText, openDroneSetupButton, partList } =
+    getCraftingTableModalElements();
   const equippedCount = droneCraftingState.equippedPartIds.size;
   const activeJob = getDroneCraftingActiveJob();
   const progressState = getDroneCraftingJobProgressState(activeJob);
@@ -8176,6 +8185,36 @@ const renderCraftingTableModal = () => {
       );
     }
     speedSummary.textContent = summarySegments.join(" • ");
+  }
+
+  if (nextStep instanceof HTMLElement && nextText instanceof HTMLElement) {
+    const mediumModelUnlocked = isDroneModelUnlocked(DRONE_MEDIUM_MODEL_ID);
+    const allUpgradesInstalled = hasInstalledAllDroneUpgradeParts();
+    if (mediumModelUnlocked) {
+      nextText.textContent =
+        "Rover unlocked. Open Drone Setup > Model to select the medium drone frame.";
+    } else if (!allUpgradesInstalled) {
+      nextText.textContent = `Install all ${DRONE_CRAFTING_PARTS.length} upgrades to unlock medium-model crafting in Drone Setup > Model.`;
+    } else {
+      const requirementStates = getMediumDroneCraftRequirementStates();
+      const requirementsWeight = formatGrams(
+        getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
+      );
+      const requirementProgress = formatMediumDroneCraftRequirementProgress(
+        requirementStates,
+        { maxEntries: 4 }
+      );
+      if (hasAllMediumDroneCraftRequirements(requirementStates)) {
+        nextText.textContent = `All upgrades installed. Open Drone Setup > Model and press "Craft medium drone" (${requirementsWeight} recipe ready).`;
+      } else {
+        nextText.textContent = `Next step is in Drone Setup > Model. Rover recipe (${requirementsWeight}): ${requirementProgress}.`;
+      }
+    }
+    nextStep.hidden = false;
+  }
+
+  if (openDroneSetupButton instanceof HTMLButtonElement) {
+    openDroneSetupButton.disabled = false;
   }
 
   if (!(partList instanceof HTMLElement)) {
@@ -8395,6 +8434,21 @@ const handleCraftingTableActionClick = (event) => {
   }
 };
 
+const handleCraftingTableOpenDroneSetupClick = (event) => {
+  if (!(event?.currentTarget instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  playTerminalInteractionSound();
+  droneCustomizationActiveTab = "model";
+  openQuickAccessModal({
+    id: QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID,
+    title: "Drone setup",
+    description: "Configure drone model, parts, and skin.",
+  });
+};
+
 const teardownCraftingTableModal = () => {
   craftingTableModalActive = false;
 
@@ -8405,7 +8459,7 @@ const teardownCraftingTableModal = () => {
 };
 
 const bindCraftingTableModalEvents = () => {
-  const { partList } = getCraftingTableModalElements();
+  const { partList, openDroneSetupButton } = getCraftingTableModalElements();
 
   if (
     !(partList instanceof HTMLElement) ||
@@ -8415,8 +8469,17 @@ const bindCraftingTableModalEvents = () => {
   }
 
   partList.addEventListener("click", handleCraftingTableActionClick);
+  if (openDroneSetupButton instanceof HTMLButtonElement) {
+    openDroneSetupButton.addEventListener("click", handleCraftingTableOpenDroneSetupClick);
+  }
   teardownCraftingTableActionBinding = () => {
     partList.removeEventListener("click", handleCraftingTableActionClick);
+    if (openDroneSetupButton instanceof HTMLButtonElement) {
+      openDroneSetupButton.removeEventListener(
+        "click",
+        handleCraftingTableOpenDroneSetupClick
+      );
+    }
   };
 };
 
