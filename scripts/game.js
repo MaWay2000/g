@@ -4474,6 +4474,29 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     ],
   },
 ]);
+const DRONE_LIGHT_MODEL_ID = "scout";
+const DRONE_MEDIUM_MODEL_ID = "rover";
+const DRONE_HEAVY_MODEL_ID = "atltas";
+const DRONE_UNLOCKABLE_MODEL_IDS = Object.freeze([
+  DRONE_LIGHT_MODEL_ID,
+  DRONE_MEDIUM_MODEL_ID,
+  DRONE_HEAVY_MODEL_ID,
+]);
+const DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_KG = 100;
+const DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_GRAMS =
+  DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_KG * GRAMS_PER_KILOGRAM;
+const DRONE_MEDIUM_MODEL_CRAFT_MATERIAL_TYPES = 6;
+
+const normalizeDroneUnlockModelId = (value) => {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === "atlas") {
+    return DRONE_HEAVY_MODEL_ID;
+  }
+  return DRONE_UNLOCKABLE_MODEL_IDS.includes(normalized) ? normalized : null;
+};
 
 const createEmptyInventorySlotOrder = () =>
   new Array(INVENTORY_SLOT_COUNT).fill(null);
@@ -4498,6 +4521,8 @@ const droneCraftingState = {
   equippedPartIds: new Set(),
   readyPartIds: new Set(),
   activeJob: null,
+  unlockedModelIds: new Set([DRONE_LIGHT_MODEL_ID]),
+  mediumModelRequirements: [],
 };
 
 const NEW_GAME_STARTER_RESOURCES = [
@@ -7316,6 +7341,35 @@ const isDroneCraftingPartEquipped = (partId) =>
 const getDroneCraftingPartById = (partId) =>
   DRONE_CRAFTING_PARTS.find((part) => part.id === partId) ?? null;
 
+const ensureDroneUnlockedModelState = () => {
+  if (!(droneCraftingState.unlockedModelIds instanceof Set)) {
+    droneCraftingState.unlockedModelIds = new Set([DRONE_LIGHT_MODEL_ID]);
+  }
+  droneCraftingState.unlockedModelIds.add(DRONE_LIGHT_MODEL_ID);
+  return droneCraftingState.unlockedModelIds;
+};
+
+const isDroneModelUnlocked = (modelId) => {
+  const normalizedModelId = normalizeDroneUnlockModelId(modelId);
+  if (!normalizedModelId) {
+    return false;
+  }
+  return ensureDroneUnlockedModelState().has(normalizedModelId);
+};
+
+const unlockDroneModel = (modelId) => {
+  const normalizedModelId = normalizeDroneUnlockModelId(modelId);
+  if (!normalizedModelId) {
+    return false;
+  }
+  const unlockedModelIds = ensureDroneUnlockedModelState();
+  if (unlockedModelIds.has(normalizedModelId)) {
+    return false;
+  }
+  unlockedModelIds.add(normalizedModelId);
+  return true;
+};
+
 const DRONE_CRAFTING_PROGRESS_UPDATE_MS = 200;
 
 const isDroneCraftingPartReadyToClaim = (partId) =>
@@ -7581,6 +7635,279 @@ const formatCraftingElementName = (element) => {
   }
 
   return "Unknown resource";
+};
+
+const hasInstalledAllDroneUpgradeParts = () =>
+  DRONE_CRAFTING_PARTS.length > 0 &&
+  DRONE_CRAFTING_PARTS.every((part) => isDroneCraftingPartEquipped(part.id));
+
+const getCraftingRequirementWeightGrams = (requirement) => {
+  const needed = Number.isFinite(requirement?.count)
+    ? Math.max(1, Math.floor(requirement.count))
+    : 0;
+  if (needed <= 0) {
+    return 0;
+  }
+
+  const requirementElement = sanitizeInventoryElement(requirement?.element ?? {});
+  const unitWeight = getInventoryElementWeight(requirementElement);
+  const normalizedUnitWeight =
+    Number.isFinite(unitWeight) && unitWeight > 0
+      ? unitWeight
+      : DEFAULT_ELEMENT_WEIGHT_GRAMS;
+  return normalizedUnitWeight * needed;
+};
+
+const getCraftingRequirementsTotalWeightGrams = (requirements) =>
+  (Array.isArray(requirements) ? requirements : []).reduce(
+    (totalWeight, requirement) =>
+      totalWeight + getCraftingRequirementWeightGrams(requirement),
+    0
+  );
+
+const normalizeMediumDroneCraftRequirements = (rawRequirements) => {
+  if (!Array.isArray(rawRequirements)) {
+    return [];
+  }
+
+  return rawRequirements
+    .map((requirement) => {
+      const count = Number.isFinite(requirement?.count)
+        ? Math.max(1, Math.floor(requirement.count))
+        : 0;
+      if (count <= 0) {
+        return null;
+      }
+
+      const element = sanitizeInventoryElement(requirement?.element ?? {});
+      const hasElementIdentity =
+        (typeof element.symbol === "string" && element.symbol.trim() !== "") ||
+        (typeof element.name === "string" && element.name.trim() !== "");
+      if (!hasElementIdentity) {
+        return null;
+      }
+
+      return {
+        element: {
+          number: Number.isFinite(element.number) ? element.number : null,
+          symbol: element.symbol || "",
+          name: element.name || "",
+        },
+        count,
+      };
+    })
+    .filter(Boolean);
+};
+
+const generateRandomMediumDroneCraftRequirements = () => {
+  const elementPool = (Array.isArray(PERIODIC_ELEMENTS) ? PERIODIC_ELEMENTS : [])
+    .map((element) => sanitizeInventoryElement(element ?? {}))
+    .filter((element) => {
+      const weight = getInventoryElementWeight(element);
+      const hasElementIdentity =
+        (typeof element.symbol === "string" && element.symbol.trim() !== "") ||
+        (typeof element.name === "string" && element.name.trim() !== "");
+      return hasElementIdentity && Number.isFinite(weight) && weight > 0;
+    });
+
+  if (elementPool.length === 0) {
+    return [
+      {
+        element: { symbol: "Fe", name: "Iron" },
+        count: Math.max(1, Math.ceil(DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_GRAMS / 56)),
+      },
+    ];
+  }
+
+  const shuffledElements = elementPool.slice();
+  for (let index = shuffledElements.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const current = shuffledElements[index];
+    shuffledElements[index] = shuffledElements[swapIndex];
+    shuffledElements[swapIndex] = current;
+  }
+
+  const requirementTypeCount = Math.max(
+    3,
+    Math.min(DRONE_MEDIUM_MODEL_CRAFT_MATERIAL_TYPES, shuffledElements.length)
+  );
+  const selectedElements = shuffledElements.slice(0, requirementTypeCount);
+  const targetWeightPerType =
+    DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_GRAMS / selectedElements.length;
+
+  let requirements = selectedElements.map((element) => {
+    const randomFactor = 0.6 + Math.random() * 0.8;
+    const unitWeight = Math.max(1, getInventoryElementWeight(element));
+    const count = Math.max(
+      1,
+      Math.round((targetWeightPerType * randomFactor) / unitWeight)
+    );
+
+    return {
+      element: {
+        number: Number.isFinite(element.number) ? element.number : null,
+        symbol: element.symbol || "",
+        name: element.name || "",
+      },
+      count,
+    };
+  });
+
+  const firstPassWeight = getCraftingRequirementsTotalWeightGrams(requirements);
+  if (firstPassWeight > 0) {
+    const scaleFactor = DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_GRAMS / firstPassWeight;
+    requirements = requirements.map((requirement) => ({
+      ...requirement,
+      count: Math.max(1, Math.round(requirement.count * scaleFactor)),
+    }));
+  }
+
+  const normalizedRequirements = normalizeMediumDroneCraftRequirements(requirements);
+  const normalizedWeight = getCraftingRequirementsTotalWeightGrams(
+    normalizedRequirements
+  );
+  if (
+    normalizedWeight < DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_GRAMS &&
+    normalizedRequirements.length > 0
+  ) {
+    let heaviestRequirement = normalizedRequirements[0];
+    let heaviestWeight = getCraftingRequirementWeightGrams(heaviestRequirement);
+    for (let index = 1; index < normalizedRequirements.length; index += 1) {
+      const requirement = normalizedRequirements[index];
+      const requirementWeight = getCraftingRequirementWeightGrams(requirement);
+      if (requirementWeight > heaviestWeight) {
+        heaviestRequirement = requirement;
+        heaviestWeight = requirementWeight;
+      }
+    }
+
+    const elementUnitWeight = Math.max(
+      1,
+      getInventoryElementWeight(heaviestRequirement.element)
+    );
+    const deficit = DRONE_MEDIUM_MODEL_CRAFT_WEIGHT_GRAMS - normalizedWeight;
+    heaviestRequirement.count += Math.max(
+      1,
+      Math.ceil(deficit / elementUnitWeight)
+    );
+  }
+
+  return normalizeMediumDroneCraftRequirements(normalizedRequirements);
+};
+
+const getMediumDroneCraftRequirements = () => {
+  const normalizedRequirements = normalizeMediumDroneCraftRequirements(
+    droneCraftingState.mediumModelRequirements
+  );
+
+  if (normalizedRequirements.length > 0) {
+    droneCraftingState.mediumModelRequirements = normalizedRequirements;
+    return normalizedRequirements;
+  }
+
+  const generatedRequirements = generateRandomMediumDroneCraftRequirements();
+  droneCraftingState.mediumModelRequirements = generatedRequirements;
+  persistDroneCraftingState();
+  return generatedRequirements;
+};
+
+const getMediumDroneCraftRequirementStates = () =>
+  getMediumDroneCraftRequirements().map((requirement) => {
+    const needed = Number.isFinite(requirement?.count)
+      ? Math.max(1, Math.floor(requirement.count))
+      : 1;
+    const available = getInventoryResourceCount(requirement?.element);
+    return {
+      requirement,
+      needed,
+      available,
+      ready: available >= needed,
+    };
+  });
+
+const formatMediumDroneCraftRequirementProgress = (
+  requirementStates,
+  { maxEntries = 4 } = {}
+) => {
+  const states = Array.isArray(requirementStates) ? requirementStates : [];
+  if (states.length === 0) {
+    return "No requirements.";
+  }
+
+  const limit = Math.max(1, Math.floor(maxEntries));
+  const segments = states.slice(0, limit).map((state) => {
+    const label = formatCraftingElementName(state?.requirement?.element);
+    return `${label} ${state.available}/${state.needed}`;
+  });
+
+  if (states.length > limit) {
+    segments.push(`+${states.length - limit} more`);
+  }
+
+  return segments.join(" • ");
+};
+
+const hasAllMediumDroneCraftRequirements = (requirementStates) =>
+  (Array.isArray(requirementStates) ? requirementStates : []).every(
+    (state) => state?.ready
+  );
+
+const getPreferredUnlockedDroneModelId = (requestedModelId = null) => {
+  const unlockedModelIds = ensureDroneUnlockedModelState();
+  const normalizedRequestedModelId = normalizeDroneUnlockModelId(requestedModelId);
+
+  if (normalizedRequestedModelId && unlockedModelIds.has(normalizedRequestedModelId)) {
+    return normalizedRequestedModelId;
+  }
+
+  if (unlockedModelIds.has(DRONE_LIGHT_MODEL_ID)) {
+    return DRONE_LIGHT_MODEL_ID;
+  }
+
+  return (
+    DRONE_UNLOCKABLE_MODEL_IDS.find((modelId) => unlockedModelIds.has(modelId)) ??
+    DRONE_LIGHT_MODEL_ID
+  );
+};
+
+const syncDroneModelSelectionWithUnlocks = ({
+  preferredModelId = null,
+  persist = false,
+  applyToScene = false,
+} = {}) => {
+  const nextModelId = getPreferredUnlockedDroneModelId(
+    preferredModelId ?? currentSettings?.droneModelId ?? null
+  );
+  if (!nextModelId) {
+    return null;
+  }
+
+  let settingsChanged = false;
+  if (currentSettings?.droneModelId !== nextModelId) {
+    currentSettings = { ...currentSettings, droneModelId: nextModelId };
+    settingsChanged = true;
+  }
+
+  if (applyToScene && sceneController?.setActiveDroneModelById) {
+    const appliedModelId = sceneController.setActiveDroneModelById(nextModelId);
+    const normalizedAppliedModelId = normalizeDroneUnlockModelId(appliedModelId);
+    if (
+      normalizedAppliedModelId &&
+      currentSettings?.droneModelId !== normalizedAppliedModelId
+    ) {
+      currentSettings = {
+        ...currentSettings,
+        droneModelId: normalizedAppliedModelId,
+      };
+      settingsChanged = true;
+    }
+  }
+
+  if (settingsChanged && persist) {
+    persistSettings(currentSettings);
+  }
+
+  return currentSettings?.droneModelId ?? nextModelId;
 };
 
 const getDroneCraftingInventoryParts = () =>
@@ -8660,9 +8987,21 @@ const resolveActiveDroneSkinPreviewColors = () => {
   };
 };
 
-const resolveActiveDroneModelPreviewOption = () => {
+const getUnlockedDroneModelOptions = () => {
   const modelOptions = sceneController?.getDroneModelOptions?.();
   if (!Array.isArray(modelOptions) || modelOptions.length === 0) {
+    return [];
+  }
+
+  const unlockedOptions = modelOptions.filter((option) =>
+    isDroneModelUnlocked(option?.id)
+  );
+  return unlockedOptions.length > 0 ? unlockedOptions : modelOptions;
+};
+
+const resolveActiveDroneModelPreviewOption = () => {
+  const modelOptions = getUnlockedDroneModelOptions();
+  if (modelOptions.length === 0) {
     return null;
   }
 
@@ -9620,14 +9959,98 @@ const handleDroneSkinOptionClick = (event) => {
   });
 };
 
+const craftMediumDroneModelUnlock = () => {
+  if (isDroneModelUnlocked(DRONE_MEDIUM_MODEL_ID)) {
+    showTerminalToast({
+      title: "Medium model unlocked",
+      description: "Rover is already available in Drone Setup > Model.",
+    });
+    return false;
+  }
+
+  if (!hasInstalledAllDroneUpgradeParts()) {
+    showTerminalToast({
+      title: "Install all upgrades first",
+      description: `Install all ${DRONE_CRAFTING_PARTS.length} drone parts before crafting Rover.`,
+    });
+    return false;
+  }
+
+  const requirementStates = getMediumDroneCraftRequirementStates();
+  const missingRequirement = requirementStates.find((state) => !state.ready);
+  if (missingRequirement) {
+    showTerminalToast({
+      title: "Missing materials",
+      description: `${formatCraftingElementName(
+        missingRequirement.requirement?.element
+      )}: ${missingRequirement.available}/${missingRequirement.needed}.`,
+    });
+    return false;
+  }
+
+  for (const requirementState of requirementStates) {
+    const spent = spendInventoryResource(
+      requirementState.requirement?.element,
+      requirementState.needed
+    );
+    if (!spent) {
+      showTerminalToast({
+        title: "Crafting failed",
+        description: "Inventory changed while crafting. Try again.",
+      });
+      return false;
+    }
+  }
+
+  const unlocked = unlockDroneModel(DRONE_MEDIUM_MODEL_ID);
+  if (!unlocked) {
+    return false;
+  }
+
+  persistDroneCraftingState();
+  syncDroneModelSelectionWithUnlocks({
+    preferredModelId: DRONE_MEDIUM_MODEL_ID,
+    persist: true,
+    applyToScene: true,
+  });
+  renderDroneCustomizationModal();
+  refreshInventoryUi();
+
+  showTerminalToast({
+    title: "Rover unlocked",
+    description: `Medium drone model crafted (${formatGrams(
+      getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
+    )} total materials).`,
+  });
+  showResourceToast({
+    title: "Drone upgrade complete",
+    description: "Rover frame is now available in Drone Setup > Model.",
+  });
+  return true;
+};
+
 const handleDroneModelOptionClick = (event) => {
   if (!(event?.currentTarget instanceof HTMLButtonElement)) {
     return;
   }
 
   event.preventDefault();
+  const modelAction = event.currentTarget.dataset.droneModelAction;
+  if (modelAction === "craft-medium") {
+    craftMediumDroneModelUnlock();
+    return;
+  }
+
   const requestedModelId = event.currentTarget.dataset.droneModelId;
   if (!requestedModelId || !sceneController?.setActiveDroneModelById) {
+    return;
+  }
+
+  if (!isDroneModelUnlocked(requestedModelId)) {
+    showTerminalToast({
+      title: "Model locked",
+      description: "Complete the Rover craft objective to unlock this frame.",
+    });
     return;
   }
 
@@ -9950,6 +10373,19 @@ const renderDroneCustomizationModal = () => {
 
   if (modelList instanceof HTMLElement && hasModelOptions) {
     const activeModelId = sceneController?.getActiveDroneModelId?.() ?? null;
+    const mediumModelRequirementStates = getMediumDroneCraftRequirementStates();
+    const mediumModelRequirementText = formatMediumDroneCraftRequirementProgress(
+      mediumModelRequirementStates,
+      { maxEntries: 3 }
+    );
+    const mediumModelRequirementsWeight = formatGrams(
+      getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
+    );
+    const allUpgradePartsInstalled = hasInstalledAllDroneUpgradeParts();
+    const hasMediumModelMaterials = hasAllMediumDroneCraftRequirements(
+      mediumModelRequirementStates
+    );
+    const canCraftMediumModel = allUpgradePartsInstalled && hasMediumModelMaterials;
 
     modelOptions.forEach((option) => {
       if (!option || typeof option.id !== "string" || option.id.trim() === "") {
@@ -9965,7 +10401,9 @@ const renderDroneCustomizationModal = () => {
         typeof option.description === "string" && option.description.trim() !== ""
           ? option.description.trim()
           : "Available drone model profile.";
-      const isActive = optionId === activeModelId;
+      const normalizedModelId = normalizeDroneUnlockModelId(optionId);
+      const unlocked = isDroneModelUnlocked(normalizedModelId);
+      const isActive = unlocked && optionId === activeModelId;
 
       const item = document.createElement("li");
       item.className = "lift-selector__item";
@@ -9973,10 +10411,8 @@ const renderDroneCustomizationModal = () => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "lift-selector__button";
-      button.dataset.droneModelId = optionId;
       button.dataset.droneModelLabel = optionLabel;
       button.setAttribute("aria-current", isActive ? "true" : "false");
-      button.disabled = isActive;
 
       const title = document.createElement("span");
       title.className = "lift-selector__title";
@@ -9985,13 +10421,43 @@ const renderDroneCustomizationModal = () => {
 
       const description = document.createElement("span");
       description.className = "lift-selector__description";
-      description.textContent = optionDescription;
+      if (!unlocked && normalizedModelId === DRONE_MEDIUM_MODEL_ID) {
+        const installGateText = allUpgradePartsInstalled
+          ? "All upgrades installed."
+          : `Install all ${DRONE_CRAFTING_PARTS.length} upgrades first.`;
+        description.textContent = `${installGateText} Recipe (${mediumModelRequirementsWeight}): ${mediumModelRequirementText}.`;
+      } else if (!unlocked) {
+        description.textContent =
+          "Locked frame. Complete medium-model progression first.";
+      } else {
+        description.textContent = optionDescription;
+      }
       button.appendChild(description);
 
       const status = document.createElement("span");
       status.className = "lift-selector__status";
-      status.textContent = "Active model";
-      status.hidden = !isActive;
+      if (unlocked) {
+        button.dataset.droneModelId = optionId;
+        button.disabled = isActive;
+        status.textContent = "Active model";
+        status.hidden = !isActive;
+      } else if (normalizedModelId === DRONE_MEDIUM_MODEL_ID) {
+        button.dataset.droneModelId = optionId;
+        button.dataset.droneModelAction = "craft-medium";
+        button.disabled = !canCraftMediumModel;
+        status.textContent = canCraftMediumModel
+          ? "Craft medium drone"
+          : allUpgradePartsInstalled
+            ? "Missing materials"
+            : "Install all upgrades";
+        status.hidden = false;
+        button.setAttribute("aria-current", "false");
+      } else {
+        button.disabled = true;
+        status.textContent = "Locked";
+        status.hidden = false;
+        button.setAttribute("aria-current", "false");
+      }
       button.appendChild(status);
 
       button.addEventListener("click", handleDroneModelOptionClick);
@@ -11740,6 +12206,7 @@ const serializeStorageBoxStateForPersistence = () => ({
 
 const serializeDroneCraftingStateForPersistence = () => {
   const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
+  const knownModelIds = new Set(DRONE_UNLOCKABLE_MODEL_IDS);
   const craftedPartIds = Array.from(droneCraftingState.craftedPartIds).filter(
     (partId) => typeof partId === "string" && knownPartIds.has(partId)
   );
@@ -11774,11 +12241,27 @@ const serializeDroneCraftingStateForPersistence = () => {
         }
       : null;
 
+  const unlockedModelIds = Array.from(ensureDroneUnlockedModelState()).filter(
+    (modelId) =>
+      typeof modelId === "string" &&
+      knownModelIds.has(modelId) &&
+      normalizeDroneUnlockModelId(modelId)
+  );
+  if (!unlockedModelIds.includes(DRONE_LIGHT_MODEL_ID)) {
+    unlockedModelIds.unshift(DRONE_LIGHT_MODEL_ID);
+  }
+
+  const mediumModelRequirements = normalizeMediumDroneCraftRequirements(
+    droneCraftingState.mediumModelRequirements
+  );
+
   return {
     craftedPartIds,
     equippedPartIds,
     readyPartIds,
     activeJob: activeJobForPersistence,
+    unlockedModelIds,
+    mediumModelRequirements,
   };
 };
 
@@ -11983,8 +12466,17 @@ const restoreStorageBoxStateFromStorage = () => {
 const restoreDroneCraftingStateFromStorage = () => {
   const storage = getInventoryStorage();
   if (!storage) {
-    droneCraftingState.activeJob = null;
+    droneCraftingState.craftedPartIds.clear();
+    droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
+    droneCraftingState.activeJob = null;
+    ensureDroneUnlockedModelState().clear();
+    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
+    const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
+    if (legacyModelId) {
+      ensureDroneUnlockedModelState().add(legacyModelId);
+    }
+    droneCraftingState.mediumModelRequirements = [];
     syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
@@ -11997,8 +12489,17 @@ const restoreDroneCraftingStateFromStorage = () => {
     serialized = storage.getItem(DRONE_CRAFTING_STORAGE_KEY);
   } catch (error) {
     console.warn("Unable to read stored drone crafting state", error);
-    droneCraftingState.activeJob = null;
+    droneCraftingState.craftedPartIds.clear();
+    droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
+    droneCraftingState.activeJob = null;
+    ensureDroneUnlockedModelState().clear();
+    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
+    const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
+    if (legacyModelId) {
+      ensureDroneUnlockedModelState().add(legacyModelId);
+    }
+    droneCraftingState.mediumModelRequirements = [];
     syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
@@ -12010,8 +12511,18 @@ const restoreDroneCraftingStateFromStorage = () => {
   droneCraftingState.equippedPartIds.clear();
   droneCraftingState.readyPartIds.clear();
   droneCraftingState.activeJob = null;
+  ensureDroneUnlockedModelState().clear();
+  ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
+  droneCraftingState.mediumModelRequirements = [];
 
   if (typeof serialized !== "string" || serialized.trim() === "") {
+    ensureDroneUnlockedModelState().clear();
+    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
+    const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
+    if (legacyModelId) {
+      ensureDroneUnlockedModelState().add(legacyModelId);
+    }
+    droneCraftingState.mediumModelRequirements = [];
     syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
@@ -12024,6 +12535,7 @@ const restoreDroneCraftingStateFromStorage = () => {
   try {
     const data = JSON.parse(serialized);
     const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
+    const knownModelIds = new Set(DRONE_UNLOCKABLE_MODEL_IDS);
     const storedCraftedPartIds = Array.isArray(data?.craftedPartIds)
       ? data.craftedPartIds
       : [];
@@ -12069,11 +12581,39 @@ const restoreDroneCraftingStateFromStorage = () => {
       droneCraftingState.activeJob = restoredActiveJob;
     }
 
+    const hasStoredUnlockedModelIds = Array.isArray(data?.unlockedModelIds);
+    if (hasStoredUnlockedModelIds) {
+      data.unlockedModelIds.forEach((modelId) => {
+        const normalizedModelId = normalizeDroneUnlockModelId(modelId);
+        if (normalizedModelId && knownModelIds.has(normalizedModelId)) {
+          ensureDroneUnlockedModelState().add(normalizedModelId);
+        }
+      });
+    } else {
+      const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
+      if (legacyModelId && knownModelIds.has(legacyModelId)) {
+        ensureDroneUnlockedModelState().add(legacyModelId);
+      }
+    }
+    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
+
+    const storedMediumModelRequirements = normalizeMediumDroneCraftRequirements(
+      data?.mediumModelRequirements
+    );
+    if (storedMediumModelRequirements.length > 0) {
+      droneCraftingState.mediumModelRequirements = storedMediumModelRequirements;
+    }
+
+    const hasExtraUnlockedModels = Array.from(ensureDroneUnlockedModelState()).some(
+      (modelId) => modelId !== DRONE_LIGHT_MODEL_ID
+    );
+
     restored =
       droneCraftingState.craftedPartIds.size > 0 ||
       droneCraftingState.equippedPartIds.size > 0 ||
       droneCraftingState.readyPartIds.size > 0 ||
-      Boolean(droneCraftingState.activeJob);
+      Boolean(droneCraftingState.activeJob) ||
+      hasExtraUnlockedModels;
   } catch (error) {
     console.warn("Unable to parse stored drone crafting state", error);
   }
@@ -12476,6 +13016,10 @@ const grantNewGameStarterResources = () => {
 const restoredInventoryFromStorage = restoreInventoryStateFromStorage();
 restoreStorageBoxStateFromStorage();
 restoreDroneCraftingStateFromStorage();
+syncDroneModelSelectionWithUnlocks({
+  persist: true,
+  applyToScene: false,
+});
 
 if (!restoredInventoryFromStorage) {
   grantNewGameStarterResources();
@@ -15452,6 +15996,10 @@ const bootstrapScene = () => {
   setAreaLoadingOverlayState({ active: false });
   stopElevatorTravelSound();
   sceneController?.dispose?.();
+  syncDroneModelSelectionWithUnlocks({
+    persist: true,
+    applyToScene: false,
+  });
 
   try {
     sceneController = initScene(canvas, {
@@ -15651,6 +16199,10 @@ const bootstrapScene = () => {
   sceneController?.setResourceToolEnabled?.(isDiggerToolEnabled());
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
   syncDroneMiningSpeedBonusWithScene();
+  syncDroneModelSelectionWithUnlocks({
+    persist: true,
+    applyToScene: true,
+  });
   applyPlayerOxygenPressureEffects({
     now: Date.now(),
     silent: true,
@@ -15968,6 +16520,9 @@ function handleReset(event) {
     droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
     droneCraftingState.activeJob = null;
+    ensureDroneUnlockedModelState().clear();
+    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
+    droneCraftingState.mediumModelRequirements = [];
     syncDroneCraftingProgressInterval();
     lastSerializedDroneCraftingState = null;
     syncDroneMiningSpeedBonusWithScene();

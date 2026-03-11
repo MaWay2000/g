@@ -13329,7 +13329,7 @@ export const initScene = (
       return null;
     }
   };
-  const DRONE_DEFAULT_MODEL_ID = "rover";
+  const DRONE_DEFAULT_MODEL_ID = "scout";
   const DRONE_MODEL_PRESETS = Object.freeze([
     {
       id: "scout",

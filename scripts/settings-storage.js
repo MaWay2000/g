@@ -37,7 +37,7 @@ const DEFAULT_SETTINGS = {
   skyDomeHeight: 0,
   timeZoneOffsetHours: getDefaultTimeZoneOffsetHours(),
   droneSkinId: "teal-honeycomb",
-  droneModelId: "rover",
+  droneModelId: "scout",
 };
 
 const normalizeSettings = (settings = {}) => {
