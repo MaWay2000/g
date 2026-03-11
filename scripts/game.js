@@ -171,6 +171,7 @@ const speedSettingsSubmenu = document.querySelector("[data-speed-settings-submen
 const jumpSettingsSubmenu = document.querySelector("[data-jump-settings-submenu]");
 const viewSettingsSubmenu = document.querySelector("[data-view-settings-submenu]");
 const liftSettingsSubmenu = document.querySelector("[data-lift-settings-submenu]");
+const godModeSettingsSubmenu = document.querySelector("[data-god-mode-settings-submenu]");
 const starSettingsToggleButton = settingsMenu?.querySelector(
   "[data-star-settings-toggle]"
 );
@@ -189,9 +190,14 @@ const viewSettingsToggleButton = settingsMenu?.querySelector(
 const liftSettingsToggleButton = settingsMenu?.querySelector(
   "[data-lift-settings-toggle]"
 );
+const godModeSettingsToggleButton = settingsMenu?.querySelector(
+  "[data-god-mode-settings-toggle]"
+);
 const starSettingsToggleLabel = starSettingsToggleButton?.querySelector(
   "[data-star-settings-label]"
 );
+const godModeElementSelect = document.querySelector("[data-god-mode-element-select]");
+const godModeAddElementButton = document.querySelector("[data-god-mode-add-element]");
 const liftAreaSettingsList = document.querySelector("[data-lift-area-settings-list]");
 const starSettingsInputs = [
   starFollowToggle,
@@ -1057,6 +1063,7 @@ const setSettingsMenuOpen = (isOpen) => {
     setJumpSettingsExpanded(false);
     setViewSettingsExpanded(false);
     setLiftSettingsExpanded(false);
+    setGodModeSettingsExpanded(false);
   }
 };
 
@@ -1148,6 +1155,60 @@ const setLiftSettingsExpanded = (isExpanded) => {
   }
 };
 
+const setGodModeSettingsExpanded = (isExpanded) => {
+  const nextState = Boolean(isExpanded);
+
+  if (godModeSettingsSubmenu instanceof HTMLElement) {
+    godModeSettingsSubmenu.hidden = !nextState;
+    godModeSettingsSubmenu.dataset.expanded = nextState ? "true" : "false";
+  }
+
+  if (godModeSettingsToggleButton instanceof HTMLButtonElement) {
+    godModeSettingsToggleButton.setAttribute("aria-expanded", String(nextState));
+  }
+};
+
+const populateGodModeElementSelect = () => {
+  if (!(godModeElementSelect instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  if (godModeElementSelect.options.length > 0) {
+    return;
+  }
+
+  const elements = PERIODIC_ELEMENTS.filter((element) => {
+    const symbol = typeof element?.symbol === "string" ? element.symbol.trim() : "";
+    const name = typeof element?.name === "string" ? element.name.trim() : "";
+    return symbol !== "" && name !== "";
+  }).sort((a, b) => {
+    const leftNumber = Number.isFinite(a?.number) ? a.number : Number.MAX_SAFE_INTEGER;
+    const rightNumber = Number.isFinite(b?.number) ? b.number : Number.MAX_SAFE_INTEGER;
+    if (leftNumber !== rightNumber) {
+      return leftNumber - rightNumber;
+    }
+
+    return String(a.symbol).localeCompare(String(b.symbol));
+  });
+
+  const fragment = document.createDocumentFragment();
+  elements.forEach((element) => {
+    const option = document.createElement("option");
+    const symbol = element.symbol.trim();
+    const name = element.name.trim();
+    option.value = symbol;
+    option.textContent = Number.isFinite(element?.number)
+      ? `${symbol} (${name}) • #${element.number}`
+      : `${symbol} (${name})`;
+    fragment.appendChild(option);
+  });
+
+  godModeElementSelect.appendChild(fragment);
+  if (godModeElementSelect.options.length > 0) {
+    godModeElementSelect.selectedIndex = 0;
+  }
+};
+
 setSettingsMenuOpen(false);
 setStarSettingsExpanded(false);
 setReflectionSettingsExpanded(false);
@@ -1155,6 +1216,8 @@ setSpeedSettingsExpanded(false);
 setJumpSettingsExpanded(false);
 setViewSettingsExpanded(false);
 setLiftSettingsExpanded(false);
+setGodModeSettingsExpanded(false);
+populateGodModeElementSelect();
 
 if (settingsTrigger instanceof HTMLElement && settingsPanel instanceof HTMLElement) {
   settingsTrigger.addEventListener("click", () => {
@@ -1203,6 +1266,7 @@ if (starSettingsToggleButton instanceof HTMLButtonElement) {
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
       setLiftSettingsExpanded(false);
+      setGodModeSettingsExpanded(false);
     }
 
     setStarSettingsExpanded(!isExpanded);
@@ -1221,6 +1285,7 @@ if (reflectionSettingsToggleButton instanceof HTMLButtonElement) {
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
       setLiftSettingsExpanded(false);
+      setGodModeSettingsExpanded(false);
     }
 
     setReflectionSettingsExpanded(!isExpanded);
@@ -1239,6 +1304,7 @@ if (speedSettingsToggleButton instanceof HTMLButtonElement) {
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
       setLiftSettingsExpanded(false);
+      setGodModeSettingsExpanded(false);
     }
 
     setSpeedSettingsExpanded(!isExpanded);
@@ -1257,6 +1323,7 @@ if (jumpSettingsToggleButton instanceof HTMLButtonElement) {
       setSpeedSettingsExpanded(false);
       setViewSettingsExpanded(false);
       setLiftSettingsExpanded(false);
+      setGodModeSettingsExpanded(false);
     }
 
     setJumpSettingsExpanded(!isExpanded);
@@ -1275,6 +1342,7 @@ if (viewSettingsToggleButton instanceof HTMLButtonElement) {
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setLiftSettingsExpanded(false);
+      setGodModeSettingsExpanded(false);
     }
 
     setViewSettingsExpanded(!isExpanded);
@@ -1293,9 +1361,29 @@ if (liftSettingsToggleButton instanceof HTMLButtonElement) {
       setSpeedSettingsExpanded(false);
       setJumpSettingsExpanded(false);
       setViewSettingsExpanded(false);
+      setGodModeSettingsExpanded(false);
     }
 
     setLiftSettingsExpanded(!isExpanded);
+  });
+}
+
+if (godModeSettingsToggleButton instanceof HTMLButtonElement) {
+  godModeSettingsToggleButton.addEventListener("click", () => {
+    const isExpanded =
+      godModeSettingsSubmenu instanceof HTMLElement &&
+      godModeSettingsSubmenu.hidden !== true;
+
+    if (!isExpanded) {
+      setStarSettingsExpanded(false);
+      setReflectionSettingsExpanded(false);
+      setSpeedSettingsExpanded(false);
+      setJumpSettingsExpanded(false);
+      setViewSettingsExpanded(false);
+      setLiftSettingsExpanded(false);
+    }
+
+    setGodModeSettingsExpanded(!isExpanded);
   });
 }
 
@@ -1457,6 +1545,78 @@ const applyReflectionSettingsUiState = () => {
 
 applyReflectionSettingsUiState();
 
+const getSelectedGodModeElement = () => {
+  if (!(godModeElementSelect instanceof HTMLSelectElement)) {
+    return null;
+  }
+
+  const selectedSymbol = String(godModeElementSelect.value ?? "").trim().toLowerCase();
+  if (!selectedSymbol) {
+    return null;
+  }
+
+  return (
+    PERIODIC_ELEMENTS.find((element) => {
+      const symbol = typeof element?.symbol === "string" ? element.symbol.trim() : "";
+      return symbol.toLowerCase() === selectedSymbol;
+    }) ?? null
+  );
+};
+
+const setGodModeElementGrantAvailability = (enabled) => {
+  const shouldEnable = Boolean(enabled);
+
+  godModeSettingsSubmenu?.classList.toggle("settings-menu__submenu--disabled", !shouldEnable);
+  godModeSettingsSubmenu?.setAttribute("aria-disabled", String(!shouldEnable));
+
+  if (godModeElementSelect instanceof HTMLSelectElement) {
+    godModeElementSelect.disabled = !shouldEnable;
+  }
+
+  if (godModeAddElementButton instanceof HTMLButtonElement) {
+    godModeAddElementButton.disabled = !shouldEnable;
+  }
+};
+
+const grantGodModeElementToInventory = () => {
+  if (!Boolean(currentSettings?.godMode)) {
+    showTerminalToast({
+      title: "Enable God mode",
+      description: "Turn on God mode first to use this option.",
+    });
+    return false;
+  }
+
+  const selectedElement = getSelectedGodModeElement();
+  if (!selectedElement) {
+    showTerminalToast({
+      title: "No element selected",
+      description: "Choose an element type in God mode options.",
+    });
+    return false;
+  }
+
+  const added = recordInventoryResource({
+    source: "god-mode",
+    element: selectedElement,
+  });
+  const elementLabel = `${selectedElement.symbol} (${selectedElement.name})`;
+
+  if (!added) {
+    showTerminalToast({
+      title: "Inventory full",
+      description: `${elementLabel} could not be added.`,
+    });
+    return false;
+  }
+
+  showTerminalToast({
+    title: "God mode grant",
+    description: `${elementLabel} added to inventory.`,
+  });
+  return true;
+};
+
 const applyGodModeUiState = () => {
   const godModeEnabled = Boolean(currentSettings?.godMode);
 
@@ -1465,6 +1625,7 @@ const applyGodModeUiState = () => {
     godModeToggle.setAttribute("aria-pressed", String(godModeEnabled));
   }
 
+  setGodModeElementGrantAvailability(godModeEnabled);
   sceneController?.setGodMode?.(godModeEnabled);
 };
 
@@ -15411,6 +15572,13 @@ if (godModeToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, godMode: enabled };
     persistSettings(currentSettings);
     applyGodModeUiState();
+  });
+}
+
+if (godModeAddElementButton instanceof HTMLButtonElement) {
+  godModeAddElementButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    grantGodModeElementToInventory();
   });
 }
 
