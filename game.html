@@ -3848,6 +3848,38 @@
         color: rgba(148, 163, 184, 0.8);
       }
 
+      .drone-inventory__cargo {
+        display: flex;
+        flex-direction: column;
+        gap: clamp(0.6rem, 2vw, 0.9rem);
+        padding: clamp(0.65rem, 2vw, 0.95rem);
+        border-radius: 1rem;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(59, 130, 246, 0.16);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      .drone-inventory__cargo-empty {
+        margin: 0;
+        color: rgba(148, 163, 184, 0.9);
+        font-size: clamp(0.82rem, 2.4vw, 0.92rem);
+      }
+
+      .drone-inventory__cargo-list {
+        max-height: clamp(8rem, 24vh, 12rem);
+        overflow-y: auto;
+        padding-right: clamp(0.1rem, 0.5vw, 0.2rem);
+      }
+
+      .drone-inventory__cargo-item {
+        cursor: default;
+      }
+
+      .drone-inventory__cargo-item:hover,
+      .drone-inventory__cargo-item:focus-visible {
+        transform: none;
+      }
+
       .inventory-panel__summary-bar-fill {
         width: 0%;
         height: 100%;
@@ -5826,6 +5858,28 @@
                   role="list"
                   aria-label="Fuel slots"
                 ></div>
+              </div>
+              <div
+                class="drone-inventory__cargo"
+                role="group"
+                aria-label="Drone collected elements"
+              >
+                <div class="drone-inventory__fuel-header">
+                  <p class="drone-inventory__section-title">Collected elements</p>
+                  <p class="drone-inventory__section-helper">
+                    Elements currently stored in drone payload
+                  </p>
+                </div>
+                <p class="drone-inventory__cargo-empty" data-drone-cargo-empty>
+                  No collected elements in drone payload yet.
+                </p>
+                <ul
+                  class="inventory-panel__list drone-inventory__cargo-list"
+                  data-drone-cargo-list
+                  role="list"
+                  aria-label="Elements collected by drone"
+                  hidden
+                ></ul>
               </div>
             </section>
           </div>

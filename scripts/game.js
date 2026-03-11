@@ -1909,6 +1909,10 @@ const droneFuelGrid = inventoryPanel?.querySelector("[data-drone-fuel-grid]");
 const droneFuelSourceList = inventoryPanel?.querySelector(
   "[data-drone-fuel-sources]"
 );
+const droneCargoList = inventoryPanel?.querySelector("[data-drone-cargo-list]");
+const droneCargoEmptyState = inventoryPanel?.querySelector(
+  "[data-drone-cargo-empty]"
+);
 const droneInventoryTabButton = inventoryPanel?.querySelector(
   '[data-inventory-tab-target="drone"]'
 );
@@ -4856,9 +4860,119 @@ const renderDroneFuelGrid = () => {
   droneFuelGrid.appendChild(fragment);
 };
 
+const getDroneCargoEntries = () => {
+  if (!Array.isArray(droneState.cargo) || droneState.cargo.length === 0) {
+    return [];
+  }
+
+  const entryMap = new Map();
+
+  droneState.cargo.forEach((sample) => {
+    if (!sample?.found || !sample.element) {
+      return;
+    }
+
+    const normalizedElement = sanitizeInventoryElement(sample.element);
+    const key = getInventoryEntryKey(normalizedElement);
+    const existingEntry = entryMap.get(key);
+
+    if (existingEntry) {
+      existingEntry.count += 1;
+      return;
+    }
+
+    entryMap.set(key, {
+      key,
+      count: 1,
+      element: normalizedElement,
+    });
+  });
+
+  return Array.from(entryMap.values()).sort((leftEntry, rightEntry) => {
+    const leftNumber = Number.isFinite(leftEntry?.element?.number)
+      ? leftEntry.element.number
+      : Number.POSITIVE_INFINITY;
+    const rightNumber = Number.isFinite(rightEntry?.element?.number)
+      ? rightEntry.element.number
+      : Number.POSITIVE_INFINITY;
+
+    if (leftNumber !== rightNumber) {
+      return leftNumber - rightNumber;
+    }
+
+    const leftSymbol =
+      typeof leftEntry?.element?.symbol === "string" ? leftEntry.element.symbol : "";
+    const rightSymbol =
+      typeof rightEntry?.element?.symbol === "string"
+        ? rightEntry.element.symbol
+        : "";
+
+    return leftSymbol.localeCompare(rightSymbol);
+  });
+};
+
+const renderDroneCargoElements = () => {
+  if (!(droneCargoList instanceof HTMLElement)) {
+    return;
+  }
+
+  droneCargoList.innerHTML = "";
+  const cargoEntries = getDroneCargoEntries();
+  const hasCargoEntries = cargoEntries.length > 0;
+
+  droneCargoList.hidden = !hasCargoEntries;
+
+  if (droneCargoEmptyState instanceof HTMLElement) {
+    droneCargoEmptyState.hidden = hasCargoEntries;
+  }
+
+  if (!hasCargoEntries) {
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  cargoEntries.forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = "inventory-panel__item drone-inventory__cargo-item";
+    item.tabIndex = -1;
+    item.setAttribute("role", "listitem");
+
+    const symbolElement = document.createElement("span");
+    symbolElement.className = "inventory-panel__symbol";
+    symbolElement.textContent =
+      typeof entry?.element?.symbol === "string" && entry.element.symbol.trim() !== ""
+        ? entry.element.symbol.trim()
+        : "???";
+    item.appendChild(symbolElement);
+
+    const count = Number.isFinite(entry?.count) && entry.count > 0 ? entry.count : 1;
+    const countElement = document.createElement("span");
+    countElement.className = "inventory-panel__count";
+    countElement.textContent = `×${count}`;
+    countElement.setAttribute("aria-hidden", "true");
+    item.appendChild(countElement);
+
+    const itemName =
+      typeof entry?.element?.name === "string" && entry.element.name.trim() !== ""
+        ? entry.element.name.trim()
+        : symbolElement.textContent;
+    const sampleLabel = count === 1 ? "sample" : "samples";
+    item.setAttribute(
+      "aria-label",
+      `${itemName}, ${count} ${sampleLabel} currently in drone payload`
+    );
+
+    fragment.appendChild(item);
+  });
+
+  droneCargoList.appendChild(fragment);
+};
+
 const renderDroneInventoryUi = () => {
   renderDroneFuelGrid();
   renderDroneFuelSources();
+  renderDroneCargoElements();
 };
 
 const hideInventoryTooltip = () => {
@@ -14093,7 +14207,19 @@ const getDroneFuelText = () => {
   return `${formatDurationSeconds(remainingSeconds)} left`;
 };
 
+const isDronePayloadAtCapacity = () => {
+  const capacity = Math.max(1, DRONE_MINER_MAX_PAYLOAD_GRAMS);
+  const payload = Number.isFinite(droneState.payloadGrams)
+    ? Math.max(0, droneState.payloadGrams)
+    : 0;
+  return payload >= capacity;
+};
+
 const getDroneMissionSummary = () => {
+  if (droneState.status === "full") {
+    return "Payload at capacity. Recall manually to unload cargo.";
+  }
+
   const detail = droneState.lastResult;
 
   if (!detail) {
@@ -14261,6 +14387,10 @@ function updateDroneStatusUi() {
     switch (droneState.status) {
       case "collecting":
         statusText = "Collecting";
+        detailText = getDroneMissionSummary();
+        break;
+      case "full":
+        statusText = "Drone full";
         detailText = getDroneMissionSummary();
         break;
       case "returning":
@@ -14603,6 +14733,12 @@ const attemptDroneLaunch = ({ playLaunchSound = false } = {}) => {
     return;
   }
 
+  if (isDronePayloadAtCapacity()) {
+    droneState.status = "full";
+    updateDroneStatusUi();
+    return { started: false, reason: "payload-full" };
+  }
+
   if (!canUseDroneInCurrentArea()) {
     droneState.status = "idle";
     updateDroneStatusUi();
@@ -14929,6 +15065,21 @@ const handleDroneResourceCollected = (detail) => {
 
   if (!droneState.pendingShutdown && droneState.fuelRemaining <= 0) {
     tryAutomaticDroneRefill();
+  }
+
+  if (!droneState.pendingShutdown && isDronePayloadAtCapacity()) {
+    droneState.status = "full";
+    cancelDroneAutomationRetry();
+    updateDroneStatusUi();
+    showDroneResourceToast({
+      title: "Drone full",
+      description: "Payload maxed out. Recall manually to unload cargo.",
+    });
+    showDroneTerminalToast({
+      title: "Drone full",
+      description: "Payload reached capacity. Press 2 to recall.",
+    });
+    return;
   }
 
   if (droneState.pendingShutdown || droneState.fuelRemaining <= 0) {
