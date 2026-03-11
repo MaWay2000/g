@@ -1694,9 +1694,6 @@ const applyGodModeUiState = () => {
   }
 
   setGodModeElementGrantAvailability(godModeEnabled);
-  if (godModeEnabled) {
-    completeDroneCraftingActiveJobInstantly({ notify: true });
-  }
   sceneController?.setGodMode?.(godModeEnabled);
 };
 
@@ -13136,6 +13133,9 @@ const grantNewGameStarterResources = () => {
 const restoredInventoryFromStorage = restoreInventoryStateFromStorage();
 restoreStorageBoxStateFromStorage();
 restoreDroneCraftingStateFromStorage();
+if (Boolean(currentSettings?.godMode)) {
+  completeDroneCraftingActiveJobInstantly({ notify: false });
+}
 syncDroneModelSelectionWithUnlocks({
   persist: true,
   applyToScene: false,
@@ -16395,6 +16395,9 @@ if (godModeToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, godMode: enabled };
     persistSettings(currentSettings);
     applyGodModeUiState();
+    if (enabled) {
+      completeDroneCraftingActiveJobInstantly({ notify: true });
+    }
   });
 }
 
