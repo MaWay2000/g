@@ -7347,8 +7347,7 @@ const createCraftingTablePartCard = (part) => {
   effect.textContent = formatDronePartEffectLabel(part);
   item.appendChild(effect);
 
-  const requirements = document.createElement("ul");
-  requirements.className = "crafting-panel__requirements";
+  const hideCraftingMaterialDetails = crafted || equipped;
 
   const requirementStates = (Array.isArray(part.requirements) ? part.requirements : []).map(
     (requirement) => {
@@ -7366,22 +7365,27 @@ const createCraftingTablePartCard = (part) => {
     }
   );
 
-  requirementStates.forEach(({ requirement, needed, available, ready }) => {
-    const requirementItem = document.createElement("li");
-    requirementItem.className = "crafting-panel__requirement";
-    requirementItem.dataset.ready = ready ? "true" : "false";
-    requirementItem.textContent = `${formatCraftingElementName(
-      requirement?.element
-    )}: ${available}/${needed}`;
-    requirements.appendChild(requirementItem);
-  });
-  item.appendChild(requirements);
+  if (!hideCraftingMaterialDetails) {
+    const requirements = document.createElement("ul");
+    requirements.className = "crafting-panel__requirements";
 
-  const craftDurationSeconds = getDroneCraftingPartCraftDurationSeconds(part);
-  const craftTime = document.createElement("p");
-  craftTime.className = "crafting-panel__meta";
-  craftTime.textContent = `Craft time: ${formatDurationSeconds(craftDurationSeconds)}`;
-  item.appendChild(craftTime);
+    requirementStates.forEach(({ requirement, needed, available, ready }) => {
+      const requirementItem = document.createElement("li");
+      requirementItem.className = "crafting-panel__requirement";
+      requirementItem.dataset.ready = ready ? "true" : "false";
+      requirementItem.textContent = `${formatCraftingElementName(
+        requirement?.element
+      )}: ${available}/${needed}`;
+      requirements.appendChild(requirementItem);
+    });
+    item.appendChild(requirements);
+
+    const craftDurationSeconds = getDroneCraftingPartCraftDurationSeconds(part);
+    const craftTime = document.createElement("p");
+    craftTime.className = "crafting-panel__meta";
+    craftTime.textContent = `Craft time: ${formatDurationSeconds(craftDurationSeconds)}`;
+    item.appendChild(craftTime);
+  }
 
   if (craftingThisPart) {
     const progressState = getDroneCraftingJobProgressState(activeJob);
