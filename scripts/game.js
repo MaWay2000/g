@@ -7388,9 +7388,6 @@ const getCraftingTableModalElements = () => {
   if (!quickAccessModalContent) {
     return {
       speedSummary: null,
-      nextStep: null,
-      nextText: null,
-      openDroneSetupButton: null,
       partList: null,
     };
   }
@@ -7398,11 +7395,6 @@ const getCraftingTableModalElements = () => {
   return {
     speedSummary: quickAccessModalContent.querySelector(
       "[data-crafting-speed-summary]"
-    ),
-    nextStep: quickAccessModalContent.querySelector("[data-crafting-next-step]"),
-    nextText: quickAccessModalContent.querySelector("[data-crafting-next-text]"),
-    openDroneSetupButton: quickAccessModalContent.querySelector(
-      "[data-crafting-open-drone-setup]"
     ),
     partList: quickAccessModalContent.querySelector("[data-crafting-part-list]"),
   };
@@ -8158,6 +8150,83 @@ const createCraftingTablePartCard = (part) => {
   return item;
 };
 
+const openDroneSetupModelTabFromCraftingTable = () => {
+  playTerminalInteractionSound();
+  droneCustomizationActiveTab = "model";
+  openQuickAccessModal({
+    id: QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID,
+    title: "Drone setup",
+    description: "Configure drone model, parts, and skin.",
+  });
+};
+
+const createCraftingTableMediumModelUpgradeCard = () => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card";
+  item.dataset.modelUpgrade = "true";
+
+  const mediumUnlocked = isDroneModelUnlocked(DRONE_MEDIUM_MODEL_ID);
+  const requirementStates = getMediumDroneCraftRequirementStates();
+  const canCraftMedium = hasAllMediumDroneCraftRequirements(requirementStates);
+  item.dataset.modelUpgradeReady = canCraftMedium ? "true" : "false";
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = "Rover Medium Body";
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent = mediumUnlocked
+    ? "Medium drone body unlocked. Switch to Rover in Drone Setup > Model."
+    : "All upgrades installed. Craft the medium drone body to unlock Rover.";
+  item.appendChild(description);
+
+  const effect = document.createElement("p");
+  effect.className = "crafting-panel__effect";
+  effect.textContent = "Progression unlock: Light -> Medium drone body";
+  item.appendChild(effect);
+
+  if (!mediumUnlocked) {
+    const requirements = document.createElement("ul");
+    requirements.className = "crafting-panel__requirements";
+    requirementStates.forEach((state) => {
+      const requirementItem = document.createElement("li");
+      requirementItem.className = "crafting-panel__requirement";
+      requirementItem.dataset.ready = state.ready ? "true" : "false";
+      requirementItem.textContent = `${formatCraftingElementName(
+        state.requirement?.element
+      )}: ${state.available}/${state.needed}`;
+      requirements.appendChild(requirementItem);
+    });
+    item.appendChild(requirements);
+
+    const recipeWeight = formatGrams(
+      getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
+    );
+    const recipeMeta = document.createElement("p");
+    recipeMeta.className = "crafting-panel__meta";
+    recipeMeta.textContent = `Recipe weight: ${recipeWeight}`;
+    item.appendChild(recipeMeta);
+  }
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  actionButton.className = "crafting-panel__button";
+  if (mediumUnlocked) {
+    actionButton.dataset.craftingModelAction = "open-model";
+    actionButton.textContent = "Open Drone Setup > Model";
+    actionButton.disabled = false;
+  } else {
+    actionButton.dataset.craftingModelAction = "craft-medium";
+    actionButton.textContent = canCraftMedium ? "Craft medium body" : "Need materials";
+    actionButton.disabled = !canCraftMedium;
+  }
+  item.appendChild(actionButton);
+
+  return item;
+};
+
 const renderCraftingTableModal = () => {
   if (!craftingTableModalActive) {
     return;
@@ -8165,8 +8234,7 @@ const renderCraftingTableModal = () => {
 
   finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
 
-  const { speedSummary, nextStep, nextText, openDroneSetupButton, partList } =
-    getCraftingTableModalElements();
+  const { speedSummary, partList } = getCraftingTableModalElements();
   const equippedCount = droneCraftingState.equippedPartIds.size;
   const activeJob = getDroneCraftingActiveJob();
   const progressState = getDroneCraftingJobProgressState(activeJob);
@@ -8187,44 +8255,18 @@ const renderCraftingTableModal = () => {
     speedSummary.textContent = summarySegments.join(" • ");
   }
 
-  if (nextStep instanceof HTMLElement && nextText instanceof HTMLElement) {
-    const mediumModelUnlocked = isDroneModelUnlocked(DRONE_MEDIUM_MODEL_ID);
-    const allUpgradesInstalled = hasInstalledAllDroneUpgradeParts();
-    if (mediumModelUnlocked) {
-      nextText.textContent =
-        "Rover unlocked. Open Drone Setup > Model to select the medium drone frame.";
-    } else if (!allUpgradesInstalled) {
-      nextText.textContent = `Install all ${DRONE_CRAFTING_PARTS.length} upgrades to unlock medium-model crafting in Drone Setup > Model.`;
-    } else {
-      const requirementStates = getMediumDroneCraftRequirementStates();
-      const requirementsWeight = formatGrams(
-        getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
-      );
-      const requirementProgress = formatMediumDroneCraftRequirementProgress(
-        requirementStates,
-        { maxEntries: 4 }
-      );
-      if (hasAllMediumDroneCraftRequirements(requirementStates)) {
-        nextText.textContent = `All upgrades installed. Open Drone Setup > Model and press "Craft medium drone" (${requirementsWeight} recipe ready).`;
-      } else {
-        nextText.textContent = `Next step is in Drone Setup > Model. Rover recipe (${requirementsWeight}): ${requirementProgress}.`;
-      }
-    }
-    nextStep.hidden = false;
-  }
-
-  if (openDroneSetupButton instanceof HTMLButtonElement) {
-    openDroneSetupButton.disabled = false;
-  }
-
   if (!(partList instanceof HTMLElement)) {
     return;
   }
 
   partList.innerHTML = "";
-  DRONE_CRAFTING_PARTS.forEach((part) => {
-    partList.appendChild(createCraftingTablePartCard(part));
-  });
+  if (hasInstalledAllDroneUpgradeParts()) {
+    partList.appendChild(createCraftingTableMediumModelUpgradeCard());
+  } else {
+    DRONE_CRAFTING_PARTS.forEach((part) => {
+      partList.appendChild(createCraftingTablePartCard(part));
+    });
+  }
 };
 
 const craftDroneUpgradePart = (partId) => {
@@ -8407,19 +8449,39 @@ const handleCraftingTableActionClick = (event) => {
     return;
   }
 
-  const actionTarget =
+  const modelActionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-crafting-model-action]")
+      : null;
+
+  if (modelActionTarget instanceof HTMLButtonElement) {
+    event.preventDefault();
+    const modelActionType = modelActionTarget.dataset.craftingModelAction;
+    if (modelActionType === "craft-medium") {
+      craftMediumDroneModelUnlock();
+      renderCraftingTableModal();
+      return;
+    }
+
+    if (modelActionType === "open-model") {
+      openDroneSetupModelTabFromCraftingTable();
+      return;
+    }
+  }
+
+  const partActionTarget =
     event.target instanceof HTMLElement
       ? event.target.closest("[data-crafting-part-action]")
       : null;
 
-  if (!(actionTarget instanceof HTMLButtonElement)) {
+  if (!(partActionTarget instanceof HTMLButtonElement)) {
     return;
   }
 
   event.preventDefault();
 
-  const partId = actionTarget.dataset.craftingPartId;
-  const actionType = actionTarget.dataset.craftingPartAction;
+  const partId = partActionTarget.dataset.craftingPartId;
+  const actionType = partActionTarget.dataset.craftingPartAction;
   if (!partId) {
     return;
   }
@@ -8434,21 +8496,6 @@ const handleCraftingTableActionClick = (event) => {
   }
 };
 
-const handleCraftingTableOpenDroneSetupClick = (event) => {
-  if (!(event?.currentTarget instanceof HTMLButtonElement)) {
-    return;
-  }
-
-  event.preventDefault();
-  playTerminalInteractionSound();
-  droneCustomizationActiveTab = "model";
-  openQuickAccessModal({
-    id: QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID,
-    title: "Drone setup",
-    description: "Configure drone model, parts, and skin.",
-  });
-};
-
 const teardownCraftingTableModal = () => {
   craftingTableModalActive = false;
 
@@ -8459,7 +8506,7 @@ const teardownCraftingTableModal = () => {
 };
 
 const bindCraftingTableModalEvents = () => {
-  const { partList, openDroneSetupButton } = getCraftingTableModalElements();
+  const { partList } = getCraftingTableModalElements();
 
   if (
     !(partList instanceof HTMLElement) ||
@@ -8469,17 +8516,8 @@ const bindCraftingTableModalEvents = () => {
   }
 
   partList.addEventListener("click", handleCraftingTableActionClick);
-  if (openDroneSetupButton instanceof HTMLButtonElement) {
-    openDroneSetupButton.addEventListener("click", handleCraftingTableOpenDroneSetupClick);
-  }
   teardownCraftingTableActionBinding = () => {
     partList.removeEventListener("click", handleCraftingTableActionClick);
-    if (openDroneSetupButton instanceof HTMLButtonElement) {
-      openDroneSetupButton.removeEventListener(
-        "click",
-        handleCraftingTableOpenDroneSetupClick
-      );
-    }
   };
 };
 
