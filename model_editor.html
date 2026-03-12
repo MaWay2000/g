@@ -566,6 +566,12 @@
         outline-offset: 3px;
       }
 
+      .parts-panel__item-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
       .parts-panel__visibility-toggle {
         border: none;
         background: rgba(15, 23, 42, 0.55);
@@ -602,6 +608,34 @@
         background: rgba(251, 191, 36, 0.35);
         color: #fff;
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.45);
+      }
+
+      .parts-panel__remove-button {
+        border: none;
+        background: rgba(127, 29, 29, 0.42);
+        color: rgba(254, 226, 226, 0.95);
+        font: inherit;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        width: 1.9rem;
+        height: 1.9rem;
+        border-radius: 0.65rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 150ms ease, color 150ms ease,
+          transform 150ms ease;
+      }
+
+      .parts-panel__remove-button:hover,
+      .parts-panel__remove-button:focus-visible {
+        outline: none;
+        background: rgba(220, 38, 38, 0.5);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.45);
       }
 
       .parts-panel__item[data-active="true"] {

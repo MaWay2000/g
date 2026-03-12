@@ -934,7 +934,20 @@ function createPartsListItem(object3D) {
   visibilityButton.dataset.objectUuid = object3D.uuid;
   updateVisibilityToggleButton(visibilityButton, object3D);
 
-  container.append(selectButton, visibilityButton);
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "parts-panel__remove-button";
+  removeButton.dataset.removePart = "true";
+  removeButton.dataset.objectUuid = object3D.uuid;
+  removeButton.setAttribute("aria-label", `Remove ${figureId ?? displayName}`);
+  removeButton.title = `Remove ${figureId ?? displayName}`;
+  removeButton.textContent = "X";
+
+  const actions = document.createElement("div");
+  actions.className = "parts-panel__item-actions";
+  actions.append(visibilityButton, removeButton);
+
+  container.append(selectButton, actions);
   item.append(container);
   return item;
 }
@@ -3299,6 +3312,34 @@ function toggleSelection(object3D, sourceName, options = {}) {
   });
 }
 
+function removePartObject(object3D) {
+  if (!object3D || object3D.parent !== sceneRoot) {
+    return false;
+  }
+
+  const { label } = getPartsListLabel(object3D);
+  const wasSelected =
+    selectedObjects.has(object3D) || currentSelection === object3D;
+
+  selectedObjects.delete(object3D);
+  unregisterAnimatedObject(object3D);
+  object3D.removeFromParent();
+  rebuildFigureIdRegistry();
+
+  if (wasSelected) {
+    setCurrentSelection(null, undefined, { focus: false });
+    if (hudInfo) {
+      hudInfo.textContent = "";
+    }
+  } else {
+    renderPartsList();
+  }
+
+  setStatus("ready", `Removed ${label}`);
+  pushHistorySnapshot();
+  return true;
+}
+
 function deleteSelectedObjects() {
   if (!selectedObjects.size) {
     return;
@@ -3679,6 +3720,21 @@ primitiveContainer?.addEventListener("click", (event) => {
 partsListElement?.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) {
+    return;
+  }
+  const removeButton = target.closest("button[data-remove-part]");
+  if (removeButton instanceof HTMLButtonElement) {
+    event.preventDefault();
+    const uuid = removeButton.dataset.objectUuid;
+    if (!uuid) {
+      return;
+    }
+    const object3D = sceneRoot.getObjectByProperty("uuid", uuid);
+    if (!object3D) {
+      renderPartsList();
+      return;
+    }
+    removePartObject(object3D);
     return;
   }
   const visibilityButton = target.closest("button[data-visibility-toggle]");
