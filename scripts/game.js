@@ -8170,22 +8170,29 @@ const createCraftingTableMediumModelUpgradeCard = () => {
   const canCraftMedium = hasAllMediumDroneCraftRequirements(requirementStates);
   item.dataset.modelUpgradeReady = canCraftMedium ? "true" : "false";
 
+  const layout = document.createElement("div");
+  layout.className = "crafting-panel__model-upgrade-layout";
+
+  const main = document.createElement("div");
+  main.className = "crafting-panel__model-upgrade-main";
+  layout.appendChild(main);
+
   const title = document.createElement("h3");
   title.className = "crafting-panel__title";
   title.textContent = "Rover Medium Body";
-  item.appendChild(title);
+  main.appendChild(title);
 
   const description = document.createElement("p");
   description.className = "crafting-panel__description";
   description.textContent = mediumUnlocked
     ? "Medium drone body unlocked. Switch to Rover in Drone Setup > Model."
     : "All upgrades installed. Craft the medium drone body to unlock Rover.";
-  item.appendChild(description);
+  main.appendChild(description);
 
   const effect = document.createElement("p");
   effect.className = "crafting-panel__effect";
   effect.textContent = "Progression unlock: Light -> Medium drone body";
-  item.appendChild(effect);
+  main.appendChild(effect);
 
   if (!mediumUnlocked) {
     const requirements = document.createElement("ul");
@@ -8199,7 +8206,7 @@ const createCraftingTableMediumModelUpgradeCard = () => {
       )}: ${state.available}/${state.needed}`;
       requirements.appendChild(requirementItem);
     });
-    item.appendChild(requirements);
+    main.appendChild(requirements);
 
     const recipeWeight = formatGrams(
       getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
@@ -8207,7 +8214,7 @@ const createCraftingTableMediumModelUpgradeCard = () => {
     const recipeMeta = document.createElement("p");
     recipeMeta.className = "crafting-panel__meta";
     recipeMeta.textContent = `Recipe weight: ${recipeWeight}`;
-    item.appendChild(recipeMeta);
+    main.appendChild(recipeMeta);
   }
 
   const actionButton = document.createElement("button");
@@ -8222,9 +8229,119 @@ const createCraftingTableMediumModelUpgradeCard = () => {
     actionButton.textContent = canCraftMedium ? "Craft medium body" : "Need materials";
     actionButton.disabled = !canCraftMedium;
   }
-  item.appendChild(actionButton);
+  main.appendChild(actionButton);
+
+  const preview = document.createElement("div");
+  preview.className = "crafting-panel__model-upgrade-preview";
+
+  const previewCanvas = document.createElement("canvas");
+  previewCanvas.className = "crafting-panel__model-upgrade-canvas";
+  previewCanvas.width = 960;
+  previewCanvas.height = 540;
+  previewCanvas.dataset.craftingModelPreviewCanvas = "true";
+  preview.appendChild(previewCanvas);
+
+  const previewTitle = document.createElement("p");
+  previewTitle.className = "crafting-panel__model-upgrade-preview-title";
+  previewTitle.dataset.craftingModelPreviewTitle = "true";
+  previewTitle.textContent = "Rover";
+  preview.appendChild(previewTitle);
+
+  const previewDescription = document.createElement("p");
+  previewDescription.className = "crafting-panel__model-upgrade-preview-description";
+  previewDescription.dataset.craftingModelPreviewDescription = "true";
+  previewDescription.textContent = "Medium all-purpose frame for regular mining operations.";
+  preview.appendChild(previewDescription);
+
+  layout.appendChild(preview);
+  item.appendChild(layout);
 
   return item;
+};
+
+const getCraftingTableModelPreviewElements = () => {
+  if (!quickAccessModalContent) {
+    return {
+      canvas: null,
+      title: null,
+      description: null,
+    };
+  }
+
+  return {
+    canvas: quickAccessModalContent.querySelector("[data-crafting-model-preview-canvas]"),
+    title: quickAccessModalContent.querySelector("[data-crafting-model-preview-title]"),
+    description: quickAccessModalContent.querySelector(
+      "[data-crafting-model-preview-description]"
+    ),
+  };
+};
+
+const renderCraftingTableMediumModelPreview = () => {
+  const { canvas, title, description } = getCraftingTableModelPreviewElements();
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    stopDroneModelPreviewRuntimeLoop();
+    return;
+  }
+
+  const modelOptions = sceneController?.getDroneModelOptions?.();
+  const mediumModelOption =
+    (Array.isArray(modelOptions)
+      ? modelOptions.find((option) => option?.id === DRONE_MEDIUM_MODEL_ID)
+      : null) ?? {
+      id: DRONE_MEDIUM_MODEL_ID,
+      label: "Rover",
+      description: "Medium all-purpose frame for regular mining operations.",
+      preview: { scale: 1 },
+    };
+
+  if (title instanceof HTMLElement) {
+    title.textContent =
+      typeof mediumModelOption?.label === "string" && mediumModelOption.label.trim() !== ""
+        ? mediumModelOption.label.trim()
+        : "Rover";
+  }
+
+  if (description instanceof HTMLElement) {
+    const text =
+      typeof mediumModelOption?.description === "string" &&
+      mediumModelOption.description.trim() !== ""
+        ? mediumModelOption.description.trim()
+        : "Medium all-purpose frame for regular mining operations.";
+    description.textContent = text;
+  }
+
+  const runtime = ensureDroneModelPreviewRuntime(canvas);
+  if (!runtime) {
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+      gradient.addColorStop(0, "#071528");
+      gradient.addColorStop(1, "#0f172a");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "rgba(191, 219, 254, 0.94)";
+      context.font = "600 34px 'Segoe UI', 'Inter', sans-serif";
+      context.textAlign = "center";
+      context.fillText("Preview unavailable", canvas.width / 2, canvas.height / 2);
+    }
+    return;
+  }
+
+  const optionScale =
+    Number.isFinite(mediumModelOption?.preview?.scale) && mediumModelOption.preview.scale > 0
+      ? mediumModelOption.preview.scale
+      : 1;
+  const { headLightColor, cutterLightColor } = resolveActiveDroneSkinPreviewColors();
+  applyDroneModelPreviewSelection(runtime, {
+    modelId: DRONE_MEDIUM_MODEL_ID,
+    optionScale,
+    headLightColor,
+    cutterLightColor,
+  });
+  renderDroneModelPreviewRuntimeNow(runtime);
+  startDroneModelPreviewRuntimeLoop();
 };
 
 const renderCraftingTableModal = () => {
@@ -8262,7 +8379,9 @@ const renderCraftingTableModal = () => {
   partList.innerHTML = "";
   if (hasInstalledAllDroneUpgradeParts()) {
     partList.appendChild(createCraftingTableMediumModelUpgradeCard());
+    renderCraftingTableMediumModelPreview();
   } else {
+    stopDroneModelPreviewRuntimeLoop();
     DRONE_CRAFTING_PARTS.forEach((part) => {
       partList.appendChild(createCraftingTablePartCard(part));
     });
@@ -8498,6 +8617,9 @@ const handleCraftingTableActionClick = (event) => {
 
 const teardownCraftingTableModal = () => {
   craftingTableModalActive = false;
+  if (droneModelPreviewState.runtime) {
+    stopDroneModelPreviewRuntimeLoop();
+  }
 
   if (typeof teardownCraftingTableActionBinding === "function") {
     teardownCraftingTableActionBinding();
@@ -9977,17 +10099,34 @@ const renderDroneModelPreviewRuntimeNow = (runtime) => {
   runtime.renderer.render(runtime.scene, runtime.camera);
 };
 
+const isCraftingTableModelPreviewActiveForRuntime = (runtime) => {
+  if (!runtime || !craftingTableModalActive) {
+    return false;
+  }
+
+  const { canvas } = getCraftingTableModelPreviewElements();
+  return canvas instanceof HTMLCanvasElement && runtime.canvas === canvas;
+};
+
+const isDroneModelPreviewRuntimeLoopAllowed = (runtime) => {
+  if (!runtime) {
+    return false;
+  }
+
+  if (droneCustomizationModalActive && isDroneCustomization3dPreviewTabActive()) {
+    return true;
+  }
+
+  return isCraftingTableModelPreviewActiveForRuntime(runtime);
+};
+
 const renderDroneModelPreviewRuntimeFrame = (timestamp) => {
   const runtime = droneModelPreviewState.runtime;
   if (!runtime || runtime.running !== true) {
     return;
   }
 
-  if (
-    !droneCustomizationModalActive ||
-    !isDroneCustomization3dPreviewTabActive() ||
-    !runtime.canvas.isConnected
-  ) {
+  if (!isDroneModelPreviewRuntimeLoopAllowed(runtime) || !runtime.canvas.isConnected) {
     stopDroneModelPreviewRuntimeLoop();
     return;
   }
@@ -10012,12 +10151,7 @@ const renderDroneModelPreviewRuntimeFrame = (timestamp) => {
 
 const startDroneModelPreviewRuntimeLoop = () => {
   const runtime = droneModelPreviewState.runtime;
-  if (
-    !runtime ||
-    runtime.running ||
-    !droneCustomizationModalActive ||
-    !isDroneCustomization3dPreviewTabActive()
-  ) {
+  if (!runtime || runtime.running || !isDroneModelPreviewRuntimeLoopAllowed(runtime)) {
     return;
   }
 
