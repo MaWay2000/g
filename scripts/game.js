@@ -13260,15 +13260,12 @@ const createMarketRow = (item) => {
   const copy = document.createElement("div");
   copy.className = "market-panel__identity-copy";
 
+  const itemLabel = item?.name || item?.symbol || "Unknown element";
+  const itemNumber = Number.isFinite(item?.number) ? Math.round(item.number) : null;
   const title = document.createElement("h3");
   title.className = "market-panel__name";
-  title.textContent = item?.name || item?.symbol || "Unknown element";
+  title.textContent = itemNumber !== null ? `#${itemNumber} ${itemLabel}` : itemLabel;
   copy.appendChild(title);
-
-  const meta = document.createElement("p");
-  meta.className = "market-panel__meta";
-  meta.textContent = item?.summary || "Element listing";
-  copy.appendChild(meta);
 
   identity.appendChild(copy);
   row.appendChild(identity);
