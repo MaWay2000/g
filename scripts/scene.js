@@ -5690,44 +5690,6 @@ export const initScene = (
     portalRamp.position.set(0, roomFloorY + 0.02, -deckDepth / 2 - 0.58);
     group.add(portalRamp);
 
-    const portalGlowMaterial = new THREE.MeshBasicMaterial({
-      color: 0x5eead4,
-      transparent: true,
-      opacity: 0.22,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const portalGlow = new THREE.Mesh(
-      new THREE.TorusGeometry(exteriorDoorWidth * 0.55, 0.08, 32, 96),
-      portalGlowMaterial
-    );
-    portalGlow.rotation.x = Math.PI / 2;
-    portalGlow.position.set(
-      0,
-      roomFloorY + exteriorDoorHeight * 0.6,
-      -deckDepth / 2 + 0.28
-    );
-    group.add(portalGlow);
-
-    const portalArchMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x134e4a),
-      roughness: 0.42,
-      metalness: 0.5,
-      emissive: new THREE.Color(0x04302d),
-      emissiveIntensity: 0.35,
-    });
-    const portalArch = new THREE.Mesh(
-      new THREE.TorusGeometry(exteriorDoorWidth * 0.62, 0.14, 22, 64, Math.PI),
-      portalArchMaterial
-    );
-    portalArch.rotation.x = Math.PI / 2;
-    portalArch.position.set(
-      0,
-      roomFloorY + exteriorDoorHeight * 0.92,
-      -deckDepth / 2 + 0.32
-    );
-    group.add(portalArch);
-
     const portalControl = new THREE.Mesh(
       new THREE.PlaneGeometry(
         exteriorDoorWidth * 0.82,
@@ -6305,11 +6267,7 @@ export const initScene = (
       ...exteriorExitLiftUi,
       control: portalControl,
       controls: Array.from(new Set(exteriorExitLiftControls)),
-      updateState: ({ current } = {}) => {
-        const isActive = current?.id === "operations-exterior";
-        portalGlowMaterial.opacity = isActive ? 0.46 : 0.22;
-        portalArchMaterial.emissiveIntensity = isActive ? 0.6 : 0.35;
-      },
+      updateState: () => {},
     };
 
     const adjustableEntries = [
@@ -6327,8 +6285,6 @@ export const initScene = (
       { object: roof, offset: wallHeight + wallThickness / 2 },
       { object: portalLanding, offset: 0.04 },
       { object: portalRamp, offset: 0.02 },
-      { object: portalGlow, offset: exteriorDoorHeight * 0.6 },
-      { object: portalArch, offset: exteriorDoorHeight * 0.92 },
       { object: portalControl, offset: exteriorDoorHeight * 0.56 },
       { object: oxygenStandGroup, offset: oxygenStandWallMountOffsetY },
       { object: storageBoxGroup, offset: storageBoxFloorOffset },
@@ -8769,31 +8725,9 @@ export const initScene = (
     returnDoorControl.userData.liftFloorId = "operations-concourse";
     group.add(returnDoorControl);
 
-    const returnDoorHaloMaterial = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.24,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const returnDoorHalo = new THREE.Mesh(
-      new THREE.TorusGeometry(returnDoorWidth * 0.54, 0.08, 32, 96),
-      returnDoorHaloMaterial
-    );
-    returnDoorHalo.rotation.x = Math.PI / 2;
-    returnDoorHalo.position.set(
-      outsideMapCenterX + returnDoorFrontOffset.x * 0.34,
-      entranceBaseY + returnDoorHeight * 0.6,
-      returnDoorZ + returnDoorFrontOffset.z * 0.34
-    );
-    group.add(returnDoorHalo);
-
     returnDoor.userData.liftUi = {
       control: returnDoorControl,
-      updateState: ({ current } = {}) => {
-        const isActive = current?.id === "operations-concourse";
-        returnDoorHaloMaterial.opacity = isActive ? 0.42 : 0.24;
-      },
+      updateState: () => {},
     };
 
     const outsideSurfaceSamplePosition = new THREE.Vector3();
@@ -8964,7 +8898,6 @@ export const initScene = (
       { object: entranceRightWall, offset: entranceRightWall.position.y - roomFloorY },
       { object: entranceBackWall, offset: entranceBackWall.position.y - roomFloorY },
       { object: returnDoorControl, offset: returnDoorControl.position.y - roomFloorY },
-      { object: returnDoorHalo, offset: returnDoorHalo.position.y - roomFloorY },
       { object: antennaTowerGroup, offset: antennaTowerGroup.position.y - roomFloorY },
       { object: primaryStarField, offset: starYOffset },
       { object: distantStarField, offset: starYOffset },
