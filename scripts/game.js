@@ -305,13 +305,11 @@ let previousCrosshairInteractableState =
 let pointerLockImmersiveModeEnabled = false;
 let liftModalActive = false;
 let areaLoadingOverlayHideTimeoutId = 0;
-const PLAYER_OXYGEN_MAX_PERCENT = 100;
+const PLAYER_OXYGEN_BASE_MAX_PERCENT = 100;
 const PLAYER_OXYGEN_FULL_DURATION_SECONDS = 600;
-const PLAYER_OXYGEN_DRAIN_PER_SECOND =
-  PLAYER_OXYGEN_MAX_PERCENT / PLAYER_OXYGEN_FULL_DURATION_SECONDS;
+const PLAYER_OXYGEN_BASE_DRAIN_PER_SECOND =
+  PLAYER_OXYGEN_BASE_MAX_PERCENT / PLAYER_OXYGEN_FULL_DURATION_SECONDS;
 const PLAYER_OXYGEN_REGEN_FULL_DURATION_SECONDS = 300;
-const PLAYER_OXYGEN_REGEN_PER_SECOND =
-  PLAYER_OXYGEN_MAX_PERCENT / PLAYER_OXYGEN_REGEN_FULL_DURATION_SECONDS;
 const PLAYER_OXYGEN_TICK_INTERVAL_MS = 250;
 const PLAYER_OXYGEN_STILL_DRAIN_MULTIPLIER = 0.2;
 const PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER = 0.8;
@@ -337,11 +335,8 @@ const PLAYER_OXYGEN_SURFACE_FLOOR_IDS = new Set([
 const PLAYER_OXYGEN_REFILL_COOLDOWN_MS = 800;
 const storedPlayerOxygenState = loadStoredPlayerOxygenState();
 let playerOxygenPercent = Number.isFinite(storedPlayerOxygenState?.percent)
-  ? Math.max(
-      0,
-      Math.min(PLAYER_OXYGEN_MAX_PERCENT, storedPlayerOxygenState.percent)
-    )
-  : PLAYER_OXYGEN_MAX_PERCENT;
+  ? Math.max(0, storedPlayerOxygenState.percent)
+  : PLAYER_OXYGEN_BASE_MAX_PERCENT;
 let lastPlayerOxygenRefillAt = 0;
 let playerOxygenTickLastTimestamp = 0;
 let playerOxygenDepletionNotified = false;
@@ -363,18 +358,19 @@ let lastPlayerOxygenWarningToastAt = 0;
 
 const clampPlayerOxygenPercent = (value) => {
   const numericValue = Number(value);
+  const maxPercent = getPlayerOxygenMaxPercent();
   if (!Number.isFinite(numericValue)) {
-    return PLAYER_OXYGEN_MAX_PERCENT;
+    return maxPercent;
   }
 
-  return Math.max(0, Math.min(PLAYER_OXYGEN_MAX_PERCENT, numericValue));
+  return Math.max(0, Math.min(maxPercent, numericValue));
 };
 
 const resolvePlayerOxygenState = (value) => {
-  if (value <= 20) {
+  if (value <= getPlayerOxygenThresholdPercent(20)) {
     return "critical";
   }
-  if (value <= 45) {
+  if (value <= getPlayerOxygenThresholdPercent(45)) {
     return "low";
   }
   return "safe";
@@ -401,11 +397,11 @@ const resolvePlayerOxygenPressureLevel = () => {
     return "depleted";
   }
 
-  if (playerOxygenPercent <= PLAYER_OXYGEN_EMERGENCY_PERCENT) {
+  if (playerOxygenPercent <= getPlayerOxygenThresholdPercent(PLAYER_OXYGEN_EMERGENCY_PERCENT)) {
     return "emergency";
   }
 
-  if (playerOxygenPercent <= PLAYER_OXYGEN_CRITICAL_PERCENT) {
+  if (playerOxygenPercent <= getPlayerOxygenThresholdPercent(PLAYER_OXYGEN_CRITICAL_PERCENT)) {
     return "critical";
   }
 
@@ -443,11 +439,20 @@ const resolvePlayerOxygenGuidanceText = (pressureLevel) => {
 
 const updatePlayerOxygenUi = () => {
   playerOxygenPercent = clampPlayerOxygenPercent(playerOxygenPercent);
+  const maxPercent = getPlayerOxygenMaxPercent();
   const oxygenDisplayValue = Math.max(0, Math.round(playerOxygenPercent));
-  const oxygenText = `${oxygenDisplayValue}%`;
+  const oxygenText =
+    maxPercent > PLAYER_OXYGEN_BASE_MAX_PERCENT
+      ? `${oxygenDisplayValue}% / ${Math.round(maxPercent)}%`
+      : `${oxygenDisplayValue}%`;
   const drainPercent = Math.max(
     0,
-    Math.min(100, Math.round(playerOxygenCurrentDrainMultiplier * 100))
+    Math.min(
+      100,
+      Math.round(
+        playerOxygenCurrentDrainMultiplier * getCostumeOxygenConsumptionMultiplier() * 100
+      )
+    )
   );
   const drainText = `${drainPercent}%`;
 
@@ -456,7 +461,10 @@ const updatePlayerOxygenUi = () => {
   }
 
   if (playerOxygenBarFill instanceof HTMLElement) {
-    playerOxygenBarFill.style.width = `${playerOxygenPercent}%`;
+    playerOxygenBarFill.style.width = `${Math.max(
+      0,
+      Math.min(100, (playerOxygenPercent / maxPercent) * 100)
+    )}%`;
   }
 
   if (playerOxygenDrainValueLabel instanceof HTMLElement) {
@@ -562,10 +570,7 @@ const syncPlayerOxygenChamberPenaltyState = ({ now = Date.now(), silent = false 
     );
     const targetPercent = Math.max(
       0,
-      Math.min(
-        PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT,
-        PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT * recoveryProgress
-      )
+      Math.min(getPlayerOxygenChamberRecoveryTarget(), getPlayerOxygenChamberRecoveryTarget() * recoveryProgress)
     );
     if (Math.abs(playerOxygenPercent - targetPercent) > 1e-6) {
       playerOxygenPercent = targetPercent;
@@ -577,7 +582,7 @@ const syncPlayerOxygenChamberPenaltyState = ({ now = Date.now(), silent = false 
 
   playerOxygenChamberPenaltyActive = false;
   playerOxygenChamberPenaltyRemainingMs = 0;
-  playerOxygenPercent = PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT;
+  playerOxygenPercent = getPlayerOxygenChamberRecoveryTarget();
   playerOxygenCurrentDrainMultiplier = 0;
   playerOxygenDepletionNotified = false;
   lastPlayerOxygenWarningSoundAt = 0;
@@ -862,10 +867,10 @@ const tickPlayerOxygen = () => {
       playerOxygenCurrentDrainMultiplier = 0;
       updatePlayerOxygenUi();
     }
-    if (playerOxygenPercent < PLAYER_OXYGEN_MAX_PERCENT) {
-      const regenAmount = elapsedSeconds * PLAYER_OXYGEN_REGEN_PER_SECOND;
+    if (playerOxygenPercent < getPlayerOxygenMaxPercent()) {
+      const regenAmount = elapsedSeconds * getPlayerOxygenRegenPerSecond();
       const nextPercent = Math.min(
-        PLAYER_OXYGEN_MAX_PERCENT,
+        getPlayerOxygenMaxPercent(),
         playerOxygenPercent + regenAmount
       );
       if (Math.abs(nextPercent - playerOxygenPercent) > 1e-6) {
@@ -895,7 +900,7 @@ const tickPlayerOxygen = () => {
     updatePlayerOxygenUi();
   }
   const drainAmount =
-    elapsedSeconds * PLAYER_OXYGEN_DRAIN_PER_SECOND * drainMultiplier;
+    elapsedSeconds * getPlayerOxygenDrainPerSecond() * drainMultiplier;
   const nextPercent = Math.max(0, playerOxygenPercent - drainAmount);
   if (Math.abs(nextPercent - playerOxygenPercent) > 1e-6) {
     playerOxygenPercent = nextPercent;
@@ -1769,14 +1774,19 @@ applyTimeSettingsUiState();
 
 const applySpeedSettingsUiState = () => {
   const speedMultiplier = Number(currentSettings?.playerSpeedMultiplier ?? 1);
+  const totalSpeedMultiplier = speedMultiplier * getCostumeMoveSpeedMultiplier();
+  const speedLabel =
+    Math.abs(totalSpeedMultiplier - speedMultiplier) > 1e-6
+      ? `${formatSpeedMultiplier(totalSpeedMultiplier)} total`
+      : formatSpeedMultiplier(speedMultiplier);
 
   setRangeInputValue(playerSpeedRange, speedMultiplier);
   setNumberInputValue(playerSpeedInput, speedMultiplier);
-  setValueLabel(playerSpeedValue, formatSpeedMultiplier(speedMultiplier));
-  setValueLabel(speedSummaryValue, formatSpeedMultiplier(speedMultiplier));
+  setValueLabel(playerSpeedValue, speedLabel);
+  setValueLabel(speedSummaryValue, speedLabel);
 
   sceneController?.setSpeedSettings?.({
-    playerSpeedMultiplier: speedMultiplier,
+    playerSpeedMultiplier: totalSpeedMultiplier,
   });
 };
 
@@ -1786,6 +1796,11 @@ const applyJumpSettingsUiState = () => {
   const jumpMultiplier = Number(currentSettings?.playerJumpMultiplier ?? 1);
   const jumpApexSmoothing = Number(currentSettings?.jumpApexSmoothing ?? 6);
   const jumpApexVelocity = Number(currentSettings?.jumpApexVelocity ?? 1.4);
+  const totalJumpMultiplier = jumpMultiplier * getCostumeJumpMultiplier();
+  const jumpLabel =
+    Math.abs(totalJumpMultiplier - jumpMultiplier) > 1e-6
+      ? `${formatJumpMultiplier(totalJumpMultiplier)} total`
+      : formatJumpMultiplier(jumpMultiplier);
 
   setRangeInputValue(playerJumpRange, jumpMultiplier);
   setNumberInputValue(playerJumpInput, jumpMultiplier);
@@ -1793,19 +1808,41 @@ const applyJumpSettingsUiState = () => {
   setNumberInputValue(jumpApexSmoothingInput, jumpApexSmoothing);
   setRangeInputValue(jumpApexVelocityRange, jumpApexVelocity);
   setNumberInputValue(jumpApexVelocityInput, jumpApexVelocity);
-  setValueLabel(playerJumpValue, formatJumpMultiplier(jumpMultiplier));
-  setValueLabel(jumpSummaryValue, formatJumpMultiplier(jumpMultiplier));
+  setValueLabel(playerJumpValue, jumpLabel);
+  setValueLabel(jumpSummaryValue, jumpLabel);
   setValueLabel(jumpApexSmoothingValue, formatJumpApexValue(jumpApexSmoothing));
   setValueLabel(jumpApexVelocityValue, formatJumpApexValue(jumpApexVelocity));
 
   sceneController?.setJumpSettings?.({
-    playerJumpMultiplier: jumpMultiplier,
+    playerJumpMultiplier: totalJumpMultiplier,
     jumpApexSmoothing,
     jumpApexVelocity,
   });
 };
 
 applyJumpSettingsUiState();
+
+const applyCostumeResearchBonuses = ({
+  refreshResearch = true,
+  persistOxygen = true,
+  silentPressure = true,
+} = {}) => {
+  playerOxygenPercent = clampPlayerOxygenPercent(playerOxygenPercent);
+  updatePlayerOxygenUi();
+  applyPlayerOxygenPressureEffects({
+    now: Date.now(),
+    silent: silentPressure,
+    forceUi: true,
+  });
+  applySpeedSettingsUiState();
+  applyJumpSettingsUiState();
+  if (persistOxygen) {
+    schedulePersistPlayerOxygen({ force: true });
+  }
+  if (refreshResearch) {
+    refreshResearchModalIfOpen();
+  }
+};
 
 const applyViewSettingsUiState = () => {
   const viewDistance = Number(currentSettings?.viewDistance ?? 0.2);
@@ -4600,6 +4637,104 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     ],
   },
 ]);
+const COSTUME_RESEARCH_PROJECTS = Object.freeze([
+  {
+    id: "reserve-cell-pack-i",
+    label: "Reserve Cell Pack I",
+    description: "Adds an auxiliary oxygen cell to the suit frame.",
+    maxOxygenBonus: 0.5,
+    researchDurationMinutes: 5,
+    researchRequirements: [
+      { element: { symbol: "O", name: "Oxygen" }, count: 2 },
+      { element: { symbol: "H", name: "Hydrogen" }, count: 2 },
+      { element: { symbol: "Al", name: "Aluminum" }, count: 1 },
+    ],
+  },
+  {
+    id: "reserve-cell-pack-ii",
+    label: "Reserve Cell Pack II",
+    description: "Expands tank routing and doubles the spare reserve stack.",
+    maxOxygenBonus: 0.5,
+    researchDurationMinutes: 15,
+    researchRequirements: [
+      { element: { symbol: "O", name: "Oxygen" }, count: 3 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+      { element: { symbol: "Ti", name: "Titanium" }, count: 1 },
+    ],
+  },
+  {
+    id: "recycler-breather-i",
+    label: "Recycler Breather I",
+    description: "Improves filtration so every tank lasts longer on the surface.",
+    oxygenConsumptionReduction: 0.25,
+    researchDurationMinutes: 10,
+    researchRequirements: [
+      { element: { symbol: "C", name: "Carbon" }, count: 2 },
+      { element: { symbol: "N", name: "Nitrogen" }, count: 2 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 1 },
+    ],
+  },
+  {
+    id: "recycler-breather-ii",
+    label: "Recycler Breather II",
+    description: "Adds a denser scrubber matrix to halve surface oxygen waste.",
+    oxygenConsumptionReduction: 0.25,
+    researchDurationMinutes: 25,
+    researchRequirements: [
+      { element: { symbol: "O", name: "Oxygen" }, count: 3 },
+      { element: { symbol: "Ne", name: "Neon" }, count: 1 },
+      { element: { symbol: "C", name: "Carbon" }, count: 2 },
+    ],
+  },
+  {
+    id: "servo-weave-boots-i",
+    label: "Servo Weave Boots I",
+    description: "Boot servos accelerate stride recovery during movement.",
+    moveSpeedBonus: 0.5,
+    researchDurationMinutes: 20,
+    researchRequirements: [
+      { element: { symbol: "Fe", name: "Iron" }, count: 2 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+      { element: { symbol: "Cu", name: "Copper" }, count: 1 },
+    ],
+  },
+  {
+    id: "servo-weave-boots-ii",
+    label: "Servo Weave Boots II",
+    description: "Reinforced actuator mesh pushes suit sprint output to the limit.",
+    moveSpeedBonus: 0.5,
+    researchDurationMinutes: 35,
+    researchRequirements: [
+      { element: { symbol: "Ti", name: "Titanium" }, count: 2 },
+      { element: { symbol: "Mn", name: "Manganese" }, count: 1 },
+      { element: { symbol: "Cr", name: "Chromium" }, count: 1 },
+    ],
+  },
+  {
+    id: "exo-spring-lattice-i",
+    label: "Exo Spring Lattice I",
+    description: "Leg frame springs add a powerful assist to jump launches.",
+    jumpBonus: 0.5,
+    researchDurationMinutes: 30,
+    researchRequirements: [
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 2 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 2 },
+      { element: { symbol: "Be", name: "Beryllium" }, count: 1 },
+    ],
+  },
+  {
+    id: "exo-spring-lattice-ii",
+    label: "Exo Spring Lattice II",
+    description: "High-tension lattice coils double the suit's jump assist ceiling.",
+    jumpBonus: 0.5,
+    researchDurationMinutes: 60,
+    researchRequirements: [
+      { element: { symbol: "V", name: "Vanadium" }, count: 1 },
+      { element: { symbol: "Ni", name: "Nickel" }, count: 2 },
+      { element: { symbol: "Co", name: "Cobalt" }, count: 1 },
+    ],
+  },
+]);
 const DRONE_LIGHT_MODEL_ID = "scout";
 const DRONE_MEDIUM_MODEL_ID = "rover";
 const DRONE_HEAVY_MODEL_ID = "atltas";
@@ -4653,6 +4788,64 @@ const droneCraftingState = {
   activeJob: null,
   unlockedModelIds: new Set([DRONE_LIGHT_MODEL_ID]),
   mediumModelRequirements: [],
+};
+const costumeResearchState = {
+  completedProjectIds: new Set(),
+  activeJob: null,
+};
+const COSTUME_RESEARCH_PROGRESS_UPDATE_MS = 1000;
+
+const getCostumeResearchProjectById = (projectId) =>
+  COSTUME_RESEARCH_PROJECTS.find((project) => project.id === projectId) ?? null;
+
+const isCostumeResearchProjectCompleted = (projectId) =>
+  typeof projectId === "string" && costumeResearchState.completedProjectIds.has(projectId);
+
+const getCompletedCostumeResearchProjects = () =>
+  COSTUME_RESEARCH_PROJECTS.filter((project) => isCostumeResearchProjectCompleted(project.id));
+
+const getCostumeResearchBonusSum = (bonusKey) =>
+  getCompletedCostumeResearchProjects().reduce((total, project) => {
+    const bonusValue = Number(project?.[bonusKey] ?? 0);
+    return total + (Number.isFinite(bonusValue) ? bonusValue : 0);
+  }, 0);
+
+const getCostumeMaxOxygenMultiplier = () =>
+  Math.min(2, Math.max(1, 1 + getCostumeResearchBonusSum("maxOxygenBonus")));
+
+const getCostumeOxygenConsumptionMultiplier = () =>
+  Math.max(0.5, Math.min(1, 1 - getCostumeResearchBonusSum("oxygenConsumptionReduction")));
+
+const getCostumeMoveSpeedMultiplier = () =>
+  Math.min(2, Math.max(1, 1 + getCostumeResearchBonusSum("moveSpeedBonus")));
+
+const getCostumeJumpMultiplier = () =>
+  Math.min(2, Math.max(1, 1 + getCostumeResearchBonusSum("jumpBonus")));
+
+const getPlayerOxygenMaxPercent = () =>
+  Math.max(PLAYER_OXYGEN_BASE_MAX_PERCENT, Math.round(
+    PLAYER_OXYGEN_BASE_MAX_PERCENT * getCostumeMaxOxygenMultiplier()
+  ));
+
+const getPlayerOxygenThresholdPercent = (basePercent) =>
+  Math.max(
+    0,
+    (getPlayerOxygenMaxPercent() * Math.max(0, Number(basePercent) || 0)) /
+      PLAYER_OXYGEN_BASE_MAX_PERCENT
+  );
+
+const getPlayerOxygenDrainPerSecond = () =>
+  PLAYER_OXYGEN_BASE_DRAIN_PER_SECOND * getCostumeOxygenConsumptionMultiplier();
+
+const getPlayerOxygenRegenPerSecond = () =>
+  getPlayerOxygenMaxPercent() / PLAYER_OXYGEN_REGEN_FULL_DURATION_SECONDS;
+
+const getPlayerOxygenChamberRecoveryTarget = () =>
+  getPlayerOxygenThresholdPercent(PLAYER_OXYGEN_CHAMBER_RECOVERY_PERCENT);
+
+const clearCostumeResearchState = () => {
+  costumeResearchState.completedProjectIds.clear();
+  costumeResearchState.activeJob = null;
 };
 
 const NEW_GAME_STARTER_RESOURCES = [
@@ -6056,6 +6249,7 @@ let lastSerializedInventoryState = null;
 let persistStorageBoxStateTimeoutId = 0;
 let lastSerializedStorageBoxState = null;
 let lastSerializedDroneCraftingState = null;
+let costumeResearchProgressIntervalId = 0;
 let droneCraftingProgressIntervalId = 0;
 let droneResearchProgressIntervalId = 0;
 let inventoryWasPointerLocked = false;
@@ -7472,7 +7666,6 @@ const getResearchModalElements = () => {
       dronePanel: null,
       summary: null,
       partList: null,
-      costumeEmpty: null,
     };
   }
 
@@ -7488,7 +7681,6 @@ const getResearchModalElements = () => {
   );
   let summary = quickAccessModalContent.querySelector("[data-research-summary]");
   let partList = quickAccessModalContent.querySelector("[data-research-part-list]");
-  let costumeEmpty = quickAccessModalContent.querySelector("[data-research-costume-empty]");
 
   if (
     !(panel instanceof HTMLElement) ||
@@ -7496,14 +7688,13 @@ const getResearchModalElements = () => {
     !(costumePanel instanceof HTMLElement) ||
     !(dronePanel instanceof HTMLElement) ||
     !(summary instanceof HTMLElement) ||
-    !(partList instanceof HTMLElement) ||
-    !(costumeEmpty instanceof HTMLElement)
+    !(partList instanceof HTMLElement)
   ) {
     const header = quickAccessModalContent.querySelector(".quick-access-modal__header");
     const subtitle = header?.querySelector(".quick-access-modal__subtitle");
     if (subtitle instanceof HTMLElement) {
       subtitle.textContent =
-        "Unlock drone upgrade blueprints before they can be built at the Crafting Table.";
+        "Unlock suit upgrades and drone blueprints before they can be activated in the field.";
     }
 
     panel = document.createElement("section");
@@ -7531,7 +7722,7 @@ const getResearchModalElements = () => {
     tabButtons = createdTabButtons;
 
     costumePanel = document.createElement("div");
-    costumePanel.className = "research-panel__tab-content";
+    costumePanel.className = "research-panel__tab-content crafting-panel";
     costumePanel.dataset.researchTabPanel = "costume";
     costumePanel.id = "research-panel-costume";
     costumePanel.setAttribute("role", "tabpanel");
@@ -7540,10 +7731,10 @@ const getResearchModalElements = () => {
     const costumeHint = document.createElement("p");
     costumeHint.className = "crafting-panel__hint";
     costumeHint.textContent =
-      "Cosmetic and suit-style research will appear here when costume upgrades are added.";
+      "Research permanent suit upgrades here. Costume bonuses install directly when research completes.";
     costumePanel.appendChild(costumeHint);
 
-    costumeEmpty = document.createElement("p");
+    const costumeEmpty = document.createElement("p");
     costumeEmpty.className = "research-panel__empty";
     costumeEmpty.dataset.researchCostumeEmpty = "true";
     costumeEmpty.textContent = "No costume research projects available yet.";
@@ -7590,7 +7781,6 @@ const getResearchModalElements = () => {
     dronePanel,
     summary,
     partList,
-    costumeEmpty,
   };
 };
 
@@ -8022,6 +8212,303 @@ const syncDroneCraftingProgressInterval = () => {
   }, DRONE_CRAFTING_PROGRESS_UPDATE_MS);
 };
 
+const normalizeCostumeResearchActiveJob = (rawJob) => {
+  if (!rawJob || typeof rawJob !== "object") {
+    return null;
+  }
+
+  const projectId =
+    typeof rawJob.projectId === "string" ? rawJob.projectId.trim() : "";
+  if (!projectId || !getCostumeResearchProjectById(projectId)) {
+    return null;
+  }
+
+  let durationMs = Number(rawJob.durationMs);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  durationMs = Math.max(1000, Math.floor(durationMs));
+
+  let startedAtMs = Number(rawJob.startedAtMs);
+  if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) {
+    startedAtMs = Date.now();
+  }
+  startedAtMs = Math.floor(startedAtMs);
+
+  let completedAtMs = Number(rawJob.completedAtMs);
+  if (!Number.isFinite(completedAtMs) || completedAtMs <= startedAtMs) {
+    completedAtMs = startedAtMs + durationMs;
+  }
+  completedAtMs = Math.floor(completedAtMs);
+
+  return {
+    projectId,
+    startedAtMs,
+    durationMs,
+    completedAtMs,
+  };
+};
+
+const getCostumeResearchActiveJob = () => {
+  const normalizedJob = normalizeCostumeResearchActiveJob(costumeResearchState.activeJob);
+  if (!normalizedJob) {
+    costumeResearchState.activeJob = null;
+    return null;
+  }
+
+  costumeResearchState.activeJob = normalizedJob;
+  return normalizedJob;
+};
+
+const getCostumeResearchJobProgressState = (job = getCostumeResearchActiveJob()) => {
+  if (!job) {
+    return null;
+  }
+
+  const now = Date.now();
+  const durationMs = Math.max(1, Number(job.durationMs) || 1);
+  const elapsedMs = Math.max(0, now - job.startedAtMs);
+  const remainingMs = Math.max(0, job.completedAtMs - now);
+  const progress = Math.max(0, Math.min(1, elapsedMs / durationMs));
+  const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const durationSeconds = Math.max(1, Math.round(durationMs / 1000));
+
+  return {
+    progress,
+    remainingSeconds,
+    durationSeconds,
+  };
+};
+
+const stopCostumeResearchProgressInterval = () => {
+  if (!costumeResearchProgressIntervalId) {
+    return;
+  }
+
+  window.clearInterval(costumeResearchProgressIntervalId);
+  costumeResearchProgressIntervalId = 0;
+};
+
+const isInstantCostumeResearchEnabled = () => Boolean(currentSettings?.godMode);
+
+const getCostumeResearchDurationSeconds = (project) => {
+  if (isInstantCostumeResearchEnabled()) {
+    return 0;
+  }
+
+  const durationMinutes = Number.isFinite(project?.researchDurationMinutes)
+    ? Math.max(5, Math.min(60, Math.round(project.researchDurationMinutes)))
+    : 5;
+  return durationMinutes * 60;
+};
+
+const getCostumeResearchRequirementStates = (project) =>
+  getElementRequirementStates(project?.researchRequirements);
+
+const formatCostumeResearchEffectLabel = (project) => {
+  if (Number.isFinite(project?.maxOxygenBonus) && project.maxOxygenBonus > 0) {
+    return `Max oxygen +${Math.round(project.maxOxygenBonus * 100)}%`;
+  }
+  if (
+    Number.isFinite(project?.oxygenConsumptionReduction) &&
+    project.oxygenConsumptionReduction > 0
+  ) {
+    return `Oxygen consumption -${Math.round(project.oxygenConsumptionReduction * 100)}%`;
+  }
+  if (Number.isFinite(project?.moveSpeedBonus) && project.moveSpeedBonus > 0) {
+    return `Move speed +${Math.round(project.moveSpeedBonus * 100)}%`;
+  }
+  if (Number.isFinite(project?.jumpBonus) && project.jumpBonus > 0) {
+    return `Jump height +${Math.round(project.jumpBonus * 100)}%`;
+  }
+  return "Permanent suit upgrade.";
+};
+
+const getCostumeResearchSummaryText = () =>
+  `O2 max ${getCostumeMaxOxygenMultiplier().toFixed(2)}x • O2 use ${getCostumeOxygenConsumptionMultiplier().toFixed(
+    2
+  )}x • Speed ${getCostumeMoveSpeedMultiplier().toFixed(2)}x • Jump ${getCostumeJumpMultiplier().toFixed(2)}x`;
+
+const finalizeCostumeResearchActiveJob = ({ notify = true, refreshUi = true } = {}) => {
+  const activeJob = getCostumeResearchActiveJob();
+  if (!activeJob || Date.now() < activeJob.completedAtMs) {
+    return false;
+  }
+
+  const project = getCostumeResearchProjectById(activeJob.projectId);
+  costumeResearchState.activeJob = null;
+
+  if (project) {
+    costumeResearchState.completedProjectIds.add(project.id);
+  }
+
+  persistDroneCraftingState();
+  syncCostumeResearchProgressInterval();
+  applyCostumeResearchBonuses({
+    refreshResearch: refreshUi,
+    persistOxygen: true,
+    silentPressure: true,
+  });
+
+  if (notify && project) {
+    showTerminalToast({
+      title: `${project.label} complete`,
+      description: "Suit upgrade installed and active.",
+    });
+  }
+
+  return true;
+};
+
+const completeCostumeResearchActiveJobInstantly = ({ notify = true } = {}) => {
+  if (!isInstantCostumeResearchEnabled()) {
+    return false;
+  }
+
+  const activeJob = getCostumeResearchActiveJob();
+  if (!activeJob) {
+    return false;
+  }
+
+  costumeResearchState.activeJob = {
+    ...activeJob,
+    completedAtMs: Date.now() - 1,
+  };
+
+  return finalizeCostumeResearchActiveJob({
+    notify,
+    refreshUi: true,
+  });
+};
+
+const syncCostumeResearchProgressInterval = () => {
+  const activeJob = getCostumeResearchActiveJob();
+  if (!activeJob) {
+    stopCostumeResearchProgressInterval();
+    return;
+  }
+
+  if (costumeResearchProgressIntervalId) {
+    return;
+  }
+
+  costumeResearchProgressIntervalId = window.setInterval(() => {
+    const completed = finalizeCostumeResearchActiveJob({
+      notify: true,
+      refreshUi: true,
+    });
+    if (completed) {
+      return;
+    }
+
+    if (researchModalActive) {
+      renderResearchModal();
+    }
+  }, COSTUME_RESEARCH_PROGRESS_UPDATE_MS);
+};
+
+const startCostumeResearch = (projectId) => {
+  const project = getCostumeResearchProjectById(projectId);
+  if (!project) {
+    return false;
+  }
+
+  if (isCostumeResearchProjectCompleted(project.id)) {
+    showTerminalToast({
+      title: "Already installed",
+      description: `${project.label} is already active on the suit.`,
+    });
+    return false;
+  }
+
+  finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
+  const activeJob = getCostumeResearchActiveJob();
+  if (activeJob) {
+    const activeProject = getCostumeResearchProjectById(activeJob.projectId);
+    if (activeJob.projectId === project.id) {
+      const progressState = getCostumeResearchJobProgressState(activeJob);
+      showTerminalToast({
+        title: "Research in progress",
+        description: `${project.label} will finish in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+      return false;
+    }
+
+    showTerminalToast({
+      title: "Costume lab busy",
+      description: `${activeProject?.label ?? "Another suit upgrade"} is currently running.`,
+    });
+    return false;
+  }
+
+  const requirementStates = getCostumeResearchRequirementStates(project);
+  const missingRequirement = requirementStates.find((state) => !state.ready);
+  if (missingRequirement) {
+    showTerminalToast({
+      title: "Missing research materials",
+      description: `${formatCraftingElementName(
+        missingRequirement.requirement?.element
+      )}: ${missingRequirement.available}/${missingRequirement.needed}.`,
+    });
+    refreshResearchModalIfOpen();
+    return false;
+  }
+
+  for (const requirementState of requirementStates) {
+    const spent = spendInventoryResource(
+      requirementState.requirement?.element,
+      requirementState.needed
+    );
+    if (!spent) {
+      showTerminalToast({
+        title: "Research failed",
+        description: "Inventory changed while starting the experiment. Try again.",
+      });
+      refreshResearchModalIfOpen();
+      return false;
+    }
+  }
+
+  const researchDurationSeconds = getCostumeResearchDurationSeconds(project);
+  if (researchDurationSeconds <= 0) {
+    costumeResearchState.completedProjectIds.add(project.id);
+    costumeResearchState.activeJob = null;
+    persistDroneCraftingState();
+    applyCostumeResearchBonuses({
+      refreshResearch: true,
+      persistOxygen: true,
+      silentPressure: true,
+    });
+    showTerminalToast({
+      title: `${project.label} researched`,
+      description: "God mode instant research. Suit bonus is now active.",
+    });
+    return true;
+  }
+
+  const startedAtMs = Date.now();
+  const durationMs = Math.max(1000, researchDurationSeconds * 1000);
+  costumeResearchState.activeJob = {
+    projectId: project.id,
+    startedAtMs,
+    durationMs,
+    completedAtMs: startedAtMs + durationMs,
+  };
+  persistDroneCraftingState();
+  syncCostumeResearchProgressInterval();
+  refreshResearchModalIfOpen();
+
+  showTerminalToast({
+    title: `${project.label} started`,
+    description: `Research time: ${formatDurationSeconds(
+      researchDurationSeconds
+    )}. Materials were consumed by the lab.`,
+  });
+  return true;
+};
+
 const getDroneCraftingSpeedMultiplier = () =>
   DRONE_CRAFTING_PARTS.reduce((multiplier, part) => {
     if (!isDroneCraftingPartEquipped(part.id)) {
@@ -8345,6 +8832,180 @@ const createResearchNexusPartCard = (part) => {
   return item;
 };
 
+const createCostumeResearchProjectCard = (project) => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card research-panel__card";
+  item.dataset.costumeResearchId = project.id;
+
+  const completed = isCostumeResearchProjectCompleted(project.id);
+  const activeJob = getCostumeResearchActiveJob();
+  const researchingThisProject = Boolean(activeJob && activeJob.projectId === project.id);
+  const otherResearchActive = Boolean(activeJob && activeJob.projectId !== project.id);
+  const requirementStates = getCostumeResearchRequirementStates(project);
+  const canResearch = requirementStates.every((state) => state.ready);
+  const researchDurationSeconds = getCostumeResearchDurationSeconds(project);
+
+  item.dataset.researched = completed ? "true" : "false";
+  item.dataset.researching = researchingThisProject ? "true" : "false";
+
+  const status = document.createElement("p");
+  status.className = "quick-access-modal__status-tag research-panel__status";
+  if (completed) {
+    status.textContent = "Installed";
+  } else if (researchingThisProject) {
+    status.dataset.status = "busy";
+    status.textContent = "Researching";
+  } else if (canResearch) {
+    status.textContent = "Available";
+  } else {
+    status.dataset.status = "locked";
+    status.textContent = otherResearchActive ? "Busy" : "Locked";
+  }
+  item.appendChild(status);
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = project.label;
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent = project.description;
+  item.appendChild(description);
+
+  const effect = document.createElement("p");
+  effect.className = "crafting-panel__effect";
+  effect.textContent = formatCostumeResearchEffectLabel(project);
+  item.appendChild(effect);
+
+  if (completed) {
+    const installedMeta = document.createElement("p");
+    installedMeta.className = "crafting-panel__meta";
+    installedMeta.textContent = "Installed on the suit. Permanent bonus active.";
+    item.appendChild(installedMeta);
+  } else {
+    const requirements = document.createElement("ul");
+    requirements.className = "crafting-panel__requirements";
+    requirementStates.forEach(({ requirement, needed, available, ready }) => {
+      const requirementItem = document.createElement("li");
+      requirementItem.className = "crafting-panel__requirement";
+      requirementItem.dataset.ready = ready ? "true" : "false";
+      requirementItem.textContent = `Research cost • ${formatCraftingElementName(
+        requirement?.element
+      )}: ${available}/${needed}`;
+      requirements.appendChild(requirementItem);
+    });
+    item.appendChild(requirements);
+
+    const researchTime = document.createElement("p");
+    researchTime.className = "crafting-panel__meta";
+    researchTime.textContent = `Research time: ${formatDurationSeconds(
+      researchDurationSeconds
+    )}`;
+    item.appendChild(researchTime);
+  }
+
+  if (researchingThisProject) {
+    const progressState = getCostumeResearchJobProgressState(activeJob);
+    renderResearchProgressBlock(item, progressState, "Researching");
+  }
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  actionButton.className = "crafting-panel__button";
+  actionButton.dataset.costumeResearchId = project.id;
+
+  if (completed) {
+    actionButton.textContent = "Installed";
+    actionButton.disabled = true;
+  } else if (researchingThisProject) {
+    actionButton.textContent = "Researching...";
+    actionButton.disabled = true;
+  } else {
+    actionButton.dataset.costumeResearchAction = "start";
+    actionButton.textContent = otherResearchActive
+      ? "Lab busy"
+      : canResearch
+        ? "Start research"
+        : "Need materials";
+    actionButton.disabled = otherResearchActive || !canResearch;
+  }
+
+  item.appendChild(actionButton);
+  return item;
+};
+
+const renderCostumeResearchPanel = (panel) => {
+  if (!(panel instanceof HTMLElement)) {
+    return;
+  }
+
+  panel.classList.add("crafting-panel");
+  panel.innerHTML = "";
+
+  const activeJob = getCostumeResearchActiveJob();
+  const progressState = getCostumeResearchJobProgressState(activeJob);
+  const completedCount = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+    isCostumeResearchProjectCompleted(project.id)
+  ).length;
+
+  const summary = document.createElement("p");
+  summary.className = "crafting-panel__summary";
+  const summarySegments = [
+    `Installed ${completedCount}/${COSTUME_RESEARCH_PROJECTS.length}`,
+    getCostumeResearchSummaryText(),
+  ];
+  if (activeJob && progressState) {
+    const activeProject = getCostumeResearchProjectById(activeJob.projectId);
+    summarySegments.push(
+      `Lab busy: ${activeProject?.label ?? "Costume research"} (${formatDurationSeconds(
+        progressState.remainingSeconds
+      )} left)`
+    );
+  } else {
+    summarySegments.push("Lab idle");
+  }
+  summary.textContent = summarySegments.join(" • ");
+  panel.appendChild(summary);
+
+  const hint = document.createElement("p");
+  hint.className = "crafting-panel__hint";
+  hint.textContent =
+    "Research permanent suit upgrades here. Max O2, move speed, and jump can reach 2.00x total, while oxygen drain can be cut to 0.50x.";
+  panel.appendChild(hint);
+
+  if (COSTUME_RESEARCH_PROJECTS.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "research-panel__empty";
+    empty.textContent = "No costume research projects available yet.";
+    panel.appendChild(empty);
+    return;
+  }
+
+  const orderedProjects = COSTUME_RESEARCH_PROJECTS.slice().sort((left, right) => {
+    const leftRank =
+      left.id === activeJob?.projectId ? 0 : isCostumeResearchProjectCompleted(left.id) ? 2 : 1;
+    const rightRank =
+      right.id === activeJob?.projectId
+        ? 0
+        : isCostumeResearchProjectCompleted(right.id)
+          ? 2
+          : 1;
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+    return left.label.localeCompare(right.label);
+  });
+
+  const grid = document.createElement("ul");
+  grid.className = "crafting-panel__grid";
+  grid.setAttribute("role", "list");
+  orderedProjects.forEach((project) => {
+    grid.appendChild(createCostumeResearchProjectCard(project));
+  });
+  panel.appendChild(grid);
+};
+
 const syncResearchModalTabState = () => {
   const { tabButtons, costumePanel, dronePanel } = getResearchModalElements();
   const activeTab = RESEARCH_MODAL_TAB_IDS.includes(researchModalActiveTab)
@@ -8371,9 +9032,10 @@ const renderResearchModal = () => {
     return;
   }
 
+  finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
   finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
 
-  const { summary, partList } = getResearchModalElements();
+  const { costumePanel, summary, partList } = getResearchModalElements();
   const activeJob = getDroneResearchActiveJob();
   const progressState = getDroneResearchJobProgressState(activeJob);
   const loadedCount = DRONE_CRAFTING_PARTS.filter((part) =>
@@ -8387,6 +9049,7 @@ const renderResearchModal = () => {
   ).length;
 
   syncResearchModalTabState();
+  renderCostumeResearchPanel(costumePanel);
 
   if (summary instanceof HTMLElement) {
     const summarySegments = [
@@ -9587,7 +10250,27 @@ const handleResearchModalActionClick = (event) => {
     }
 
     researchModalActiveTab = nextTab;
-    syncResearchModalTabState();
+    renderResearchModal();
+    return;
+  }
+
+  const costumeActionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-costume-research-action]")
+      : null;
+
+  if (costumeActionTarget instanceof HTMLButtonElement) {
+    event.preventDefault();
+
+    const projectId = costumeActionTarget.dataset.costumeResearchId;
+    const actionType = costumeActionTarget.dataset.costumeResearchAction;
+    if (!projectId || !actionType) {
+      return;
+    }
+
+    if (actionType === "start") {
+      startCostumeResearch(projectId);
+    }
     return;
   }
 
@@ -13627,6 +14310,9 @@ const serializeStorageBoxStateForPersistence = () => ({
 const serializeDroneCraftingStateForPersistence = () => {
   const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
   const knownModelIds = new Set(DRONE_UNLOCKABLE_MODEL_IDS);
+  const knownCostumeProjectIds = new Set(
+    COSTUME_RESEARCH_PROJECTS.map((project) => project.id)
+  );
   const researchedPartIds = Array.from(droneCraftingState.researchedPartIds).filter(
     (partId) => typeof partId === "string" && knownPartIds.has(partId)
   );
@@ -13708,6 +14394,26 @@ const serializeDroneCraftingStateForPersistence = () => {
   const mediumModelRequirements = normalizeMediumDroneCraftRequirements(
     droneCraftingState.mediumModelRequirements
   );
+  const completedCostumeResearchProjectIds = Array.from(
+    costumeResearchState.completedProjectIds
+  ).filter(
+    (projectId) => typeof projectId === "string" && knownCostumeProjectIds.has(projectId)
+  );
+  const completedCostumeResearchProjectSet = new Set(
+    completedCostumeResearchProjectIds
+  );
+  const activeCostumeResearchJob = getCostumeResearchActiveJob();
+  const activeCostumeResearchJobForPersistence =
+    activeCostumeResearchJob &&
+    knownCostumeProjectIds.has(activeCostumeResearchJob.projectId) &&
+    !completedCostumeResearchProjectSet.has(activeCostumeResearchJob.projectId)
+      ? {
+          projectId: activeCostumeResearchJob.projectId,
+          startedAtMs: Math.floor(activeCostumeResearchJob.startedAtMs),
+          durationMs: Math.floor(activeCostumeResearchJob.durationMs),
+          completedAtMs: Math.floor(activeCostumeResearchJob.completedAtMs),
+        }
+      : null;
 
   return {
     researchedPartIds,
@@ -13720,6 +14426,8 @@ const serializeDroneCraftingStateForPersistence = () => {
     activeJob: activeJobForPersistence,
     unlockedModelIds,
     mediumModelRequirements,
+    completedCostumeResearchProjectIds,
+    activeCostumeResearchJob: activeCostumeResearchJobForPersistence,
   };
 };
 
@@ -13924,6 +14632,7 @@ const restoreStorageBoxStateFromStorage = () => {
 const restoreDroneCraftingStateFromStorage = () => {
   const storage = getInventoryStorage();
   if (!storage) {
+    clearCostumeResearchState();
     droneCraftingState.researchedPartIds.clear();
     droneCraftingState.inventoryResearchPartIds.clear();
     droneCraftingState.readyResearchPartIds.clear();
@@ -13939,8 +14648,14 @@ const restoreDroneCraftingStateFromStorage = () => {
       ensureDroneUnlockedModelState().add(legacyModelId);
     }
     droneCraftingState.mediumModelRequirements = [];
+    syncCostumeResearchProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
+    applyCostumeResearchBonuses({
+      refreshResearch: false,
+      persistOxygen: false,
+      silentPressure: true,
+    });
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
@@ -13953,6 +14668,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     serialized = storage.getItem(DRONE_CRAFTING_STORAGE_KEY);
   } catch (error) {
     console.warn("Unable to read stored drone crafting state", error);
+    clearCostumeResearchState();
     droneCraftingState.researchedPartIds.clear();
     droneCraftingState.inventoryResearchPartIds.clear();
     droneCraftingState.readyResearchPartIds.clear();
@@ -13968,8 +14684,14 @@ const restoreDroneCraftingStateFromStorage = () => {
       ensureDroneUnlockedModelState().add(legacyModelId);
     }
     droneCraftingState.mediumModelRequirements = [];
+    syncCostumeResearchProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
+    applyCostumeResearchBonuses({
+      refreshResearch: false,
+      persistOxygen: false,
+      silentPressure: true,
+    });
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
@@ -13977,6 +14699,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     return false;
   }
 
+  clearCostumeResearchState();
   droneCraftingState.researchedPartIds.clear();
   droneCraftingState.inventoryResearchPartIds.clear();
   droneCraftingState.readyResearchPartIds.clear();
@@ -13997,8 +14720,14 @@ const restoreDroneCraftingStateFromStorage = () => {
       ensureDroneUnlockedModelState().add(legacyModelId);
     }
     droneCraftingState.mediumModelRequirements = [];
+    syncCostumeResearchProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
+    applyCostumeResearchBonuses({
+      refreshResearch: false,
+      persistOxygen: false,
+      silentPressure: true,
+    });
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
@@ -14012,6 +14741,9 @@ const restoreDroneCraftingStateFromStorage = () => {
     const data = JSON.parse(serialized);
     const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
     const knownModelIds = new Set(DRONE_UNLOCKABLE_MODEL_IDS);
+    const knownCostumeProjectIds = new Set(
+      COSTUME_RESEARCH_PROJECTS.map((project) => project.id)
+    );
     const storedResearchedPartIds = Array.isArray(data?.researchedPartIds)
       ? data.researchedPartIds
       : [];
@@ -14137,17 +14869,45 @@ const restoreDroneCraftingStateFromStorage = () => {
       droneCraftingState.mediumModelRequirements = storedMediumModelRequirements;
     }
 
+    const storedCompletedCostumeResearchProjectIds = Array.isArray(
+      data?.completedCostumeResearchProjectIds
+    )
+      ? data.completedCostumeResearchProjectIds
+      : [];
+    storedCompletedCostumeResearchProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownCostumeProjectIds.has(projectId)
+      ) {
+        costumeResearchState.completedProjectIds.add(projectId);
+      }
+    });
+
+    const restoredActiveCostumeResearchJob = normalizeCostumeResearchActiveJob(
+      data?.activeCostumeResearchJob
+    );
+    if (
+      restoredActiveCostumeResearchJob &&
+      !costumeResearchState.completedProjectIds.has(
+        restoredActiveCostumeResearchJob.projectId
+      )
+    ) {
+      costumeResearchState.activeJob = restoredActiveCostumeResearchJob;
+    }
+
     const hasExtraUnlockedModels = Array.from(ensureDroneUnlockedModelState()).some(
       (modelId) => modelId !== DRONE_LIGHT_MODEL_ID
     );
 
     restored =
+      costumeResearchState.completedProjectIds.size > 0 ||
       droneCraftingState.researchedPartIds.size > 0 ||
       droneCraftingState.inventoryResearchPartIds.size > 0 ||
       droneCraftingState.readyResearchPartIds.size > 0 ||
       droneCraftingState.craftedPartIds.size > 0 ||
       droneCraftingState.equippedPartIds.size > 0 ||
       droneCraftingState.readyPartIds.size > 0 ||
+      Boolean(costumeResearchState.activeJob) ||
       Boolean(droneCraftingState.activeResearchJob) ||
       Boolean(droneCraftingState.activeJob) ||
       hasExtraUnlockedModels;
@@ -14161,10 +14921,17 @@ const restoreDroneCraftingStateFromStorage = () => {
     lastSerializedDroneCraftingState = null;
   }
 
+  finalizeCostumeResearchActiveJob({ notify: false, refreshUi: false });
+  syncCostumeResearchProgressInterval();
   finalizeDroneResearchActiveJob({ notify: false, refreshUi: false });
   syncDroneResearchProgressInterval();
   finalizeDroneCraftingActiveJob({ notify: false, refreshUi: false });
   syncDroneCraftingProgressInterval();
+  applyCostumeResearchBonuses({
+    refreshResearch: false,
+    persistOxygen: false,
+    silentPressure: true,
+  });
   syncDroneMiningSpeedBonusWithScene();
   refreshInventoryUi();
   refreshCraftingTableModalIfOpen();
@@ -14557,6 +15324,7 @@ const restoredInventoryFromStorage = restoreInventoryStateFromStorage();
 restoreStorageBoxStateFromStorage();
 restoreDroneCraftingStateFromStorage();
 if (Boolean(currentSettings?.godMode)) {
+  completeCostumeResearchActiveJobInstantly({ notify: false });
   completeDroneResearchActiveJobInstantly({ notify: false });
   completeDroneCraftingActiveJobInstantly({ notify: false });
 }
@@ -16612,7 +17380,7 @@ const handlePlayerOxygenRefillInteract = () => {
       ? PLAYER_OXYGEN_SHIFT_MOVING_DRAIN_MULTIPLIER
       : PLAYER_OXYGEN_MOVING_DRAIN_MULTIPLIER
     : 0;
-  playerOxygenPercent = PLAYER_OXYGEN_MAX_PERCENT;
+  playerOxygenPercent = getPlayerOxygenMaxPercent();
   lastPlayerOxygenWarningSoundAt = 0;
   lastPlayerOxygenWarningToastAt = 0;
   applyPlayerOxygenPressureEffects({
@@ -16624,7 +17392,7 @@ const handlePlayerOxygenRefillInteract = () => {
   playTerminalInteractionSound();
   showTerminalToast({
     title: "Suit oxygen refilled",
-    description: `O2 reserves restored to ${PLAYER_OXYGEN_MAX_PERCENT}%.`,
+    description: `O2 reserves restored to ${Math.round(getPlayerOxygenMaxPercent())}%.`,
   });
   return true;
 };
@@ -17821,6 +18589,7 @@ if (godModeToggle instanceof HTMLInputElement) {
     persistSettings(currentSettings);
     applyGodModeUiState();
     if (enabled) {
+      completeCostumeResearchActiveJobInstantly({ notify: true });
       completeDroneResearchActiveJobInstantly({ notify: true });
       completeDroneCraftingActiveJobInstantly({ notify: true });
     }
@@ -18072,6 +18841,7 @@ function handleReset(event) {
     const clearedDroneCrafting = clearStoredDroneCraftingState();
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
+    clearCostumeResearchState();
     droneCraftingState.researchedPartIds.clear();
     droneCraftingState.inventoryResearchPartIds.clear();
     droneCraftingState.readyResearchPartIds.clear();
@@ -18083,9 +18853,15 @@ function handleReset(event) {
     ensureDroneUnlockedModelState().clear();
     ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
     droneCraftingState.mediumModelRequirements = [];
+    syncCostumeResearchProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     lastSerializedDroneCraftingState = null;
+    applyCostumeResearchBonuses({
+      refreshResearch: false,
+      persistOxygen: false,
+      silentPressure: true,
+    });
     syncDroneMiningSpeedBonusWithScene();
 
     resetMissions();
