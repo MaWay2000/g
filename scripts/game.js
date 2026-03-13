@@ -13038,6 +13038,45 @@ const normalizeMarketSearchQuery = (value) =>
 const getMarketSalePrice = (item) =>
   Math.max(MARKET_MIN_PRICE, Math.floor((item?.price ?? 0) * MARKET_SELL_RETURN_FACTOR));
 
+const defaultMarketItemsById = new Map(
+  getDefaultMarketState()
+    .items.filter((item) => typeof item?.id === "string" && item.id.trim() !== "")
+    .map((item) => [item.id.trim().toLowerCase(), item])
+);
+
+const getMarketItemForElement = (element) => {
+  const symbol =
+    typeof element?.symbol === "string" && element.symbol.trim() !== ""
+      ? element.symbol.trim().toLowerCase()
+      : "";
+
+  if (!symbol) {
+    return null;
+  }
+
+  const liveItem = Array.isArray(marketState?.items)
+    ? marketState.items.find((item) => item?.id === symbol)
+    : null;
+
+  return liveItem ?? defaultMarketItemsById.get(symbol) ?? null;
+};
+
+const getMissionRewardMarsMoney = (mission) => {
+  const requirement = resolveMissionRequirement(mission);
+  if (!requirement?.element) {
+    return Number.isFinite(mission?.rewardMarsMoney) ? Math.max(0, Math.round(mission.rewardMarsMoney)) : null;
+  }
+
+  const marketItem = getMarketItemForElement(requirement.element);
+  if (!marketItem) {
+    return Number.isFinite(mission?.rewardMarsMoney) ? Math.max(0, Math.round(mission.rewardMarsMoney)) : null;
+  }
+
+  const salePrice = getMarketSalePrice(marketItem);
+  const normalizedCount = Number.isFinite(requirement.count) ? Math.max(1, Math.floor(requirement.count)) : 1;
+  return Math.max(1, Math.round(salePrice * normalizedCount * 2));
+};
+
 const getMarketInventoryLoadSummary = () => {
   const currentLoadGrams = Number.isFinite(inventoryState.currentLoadGrams)
     ? inventoryState.currentLoadGrams
@@ -13356,12 +13395,13 @@ const createMissionCard = (mission) => {
   description.textContent = mission.description;
   card.appendChild(description);
 
-  const hasReward = Number.isFinite(mission.rewardMarsMoney);
+  const rewardMarsMoney = getMissionRewardMarsMoney(mission);
+  const hasReward = Number.isFinite(rewardMarsMoney);
 
   const reward = document.createElement("p");
   reward.className = "mission-reward";
   reward.textContent = hasReward
-    ? `Reward: ${formatMarsMoney(mission.rewardMarsMoney)}`
+    ? `Reward: ${formatMarsMoney(rewardMarsMoney)}`
     : "Reward unavailable";
   card.appendChild(reward);
 
@@ -13397,7 +13437,8 @@ const createMissionCard = (mission) => {
 
     action.addEventListener("click", () => {
       const status = getMissionRequirementStatus(mission);
-      const rewardDefined = Number.isFinite(mission.rewardMarsMoney);
+      const rewardDefined = getMissionRewardMarsMoney(mission);
+      const hasRewardDefined = Number.isFinite(rewardDefined);
 
       if (status.requirement && !status.hasRequiredResources) {
         const nameLabel =
@@ -13412,7 +13453,7 @@ const createMissionCard = (mission) => {
         return;
       }
 
-      if (!rewardDefined) {
+      if (!hasRewardDefined) {
         showTerminalToast({
           title: "Reward unavailable",
           description: "This mission cannot be completed until a reward is configured.",
@@ -13425,7 +13466,7 @@ const createMissionCard = (mission) => {
         spendInventoryResource(status.requirement.element, status.requirement.count);
       }
 
-      completeMission(mission.id);
+      completeMission(mission.id, { rewardMarsMoney: rewardDefined });
     });
 
     card.appendChild(action);

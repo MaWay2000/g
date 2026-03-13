@@ -208,7 +208,7 @@ export const subscribeToMissionState = (listener) => {
   return () => listeners.delete(listener);
 };
 
-export const completeMission = (missionId) => {
+export const completeMission = (missionId, { rewardMarsMoney: rewardOverride = null } = {}) => {
   const mission = missionLookup.get(missionId);
 
   if (!mission) {
@@ -228,8 +228,10 @@ export const completeMission = (missionId) => {
   missionState.statuses[missionId] = "completed";
   missionState.completedLog.push({ id: missionId, completedAt: new Date().toISOString() });
 
-  const rewardMarsMoney = Number.isFinite(mission.rewardMarsMoney)
-    ? Math.max(0, Math.round(mission.rewardMarsMoney))
+  const rewardMarsMoney = Number.isFinite(rewardOverride)
+    ? Math.max(0, Math.round(rewardOverride))
+    : Number.isFinite(mission.rewardMarsMoney)
+      ? Math.max(0, Math.round(mission.rewardMarsMoney))
     : null;
 
   const currencyBalance = rewardMarsMoney ? addMarsMoney(rewardMarsMoney) : null;
