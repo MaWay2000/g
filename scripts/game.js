@@ -4644,6 +4644,8 @@ const storageBoxState = {
 };
 const droneCraftingState = {
   researchedPartIds: new Set(),
+  inventoryResearchPartIds: new Set(),
+  readyResearchPartIds: new Set(),
   craftedPartIds: new Set(),
   equippedPartIds: new Set(),
   readyPartIds: new Set(),
@@ -7599,6 +7601,12 @@ const isDroneCraftingPartResearched = (partId) =>
     droneCraftingState.equippedPartIds.has(partId) ||
     droneCraftingState.readyPartIds.has(partId));
 
+const isDroneResearchBlueprintInInventory = (partId) =>
+  typeof partId === "string" && droneCraftingState.inventoryResearchPartIds.has(partId);
+
+const isDroneResearchBlueprintReadyToClaim = (partId) =>
+  typeof partId === "string" && droneCraftingState.readyResearchPartIds.has(partId);
+
 const isDroneCraftingPartCrafted = (partId) =>
   typeof partId === "string" && droneCraftingState.craftedPartIds.has(partId);
 
@@ -7885,8 +7893,13 @@ const finalizeDroneResearchActiveJob = ({
   const part = getDroneCraftingPartById(activeJob.partId);
   droneCraftingState.activeResearchJob = null;
 
-  if (part) {
-    droneCraftingState.researchedPartIds.add(part.id);
+  if (
+    part &&
+    !isDroneCraftingPartResearched(part.id) &&
+    !isDroneResearchBlueprintInInventory(part.id) &&
+    !isDroneResearchBlueprintReadyToClaim(part.id)
+  ) {
+    droneCraftingState.readyResearchPartIds.add(part.id);
   }
 
   persistDroneCraftingState();
@@ -7900,7 +7913,7 @@ const finalizeDroneResearchActiveJob = ({
   if (notify && part) {
     showTerminalToast({
       title: `${part.label} researched`,
-      description: "Blueprint unlocked. You can now build it at the Crafting Table.",
+      description: "Research complete. Move the blueprint to Inventory > Items.",
     });
   }
 
@@ -8162,25 +8175,73 @@ const renderResearchProgressBlock = (item, progressState, labelPrefix = "Researc
   item.appendChild(progressContainer);
 };
 
+const moveResearchedBlueprintToInventory = (partId) => {
+  const part = getDroneCraftingPartById(partId);
+  if (!part || !isDroneResearchBlueprintReadyToClaim(part.id)) {
+    return false;
+  }
+
+  droneCraftingState.readyResearchPartIds.delete(part.id);
+  droneCraftingState.inventoryResearchPartIds.add(part.id);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+
+  showTerminalToast({
+    title: `${part.label} blueprint stored`,
+    description: "Blueprint moved to Inventory > Items. Load it at the Crafting Table.",
+  });
+  return true;
+};
+
+const loadResearchBlueprintToCraftingTable = (partId) => {
+  const part = getDroneCraftingPartById(partId);
+  if (!part || !isDroneResearchBlueprintInInventory(part.id)) {
+    return false;
+  }
+
+  droneCraftingState.inventoryResearchPartIds.delete(part.id);
+  droneCraftingState.researchedPartIds.add(part.id);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+
+  showTerminalToast({
+    title: `${part.label} loaded`,
+    description: "Blueprint loaded into the Crafting Table. You can craft this part now.",
+  });
+  return true;
+};
+
 const createResearchNexusPartCard = (part) => {
   const item = document.createElement("li");
   item.className = "crafting-panel__card research-panel__card";
   item.dataset.researchPartId = part.id;
 
-  const researched = isDroneCraftingPartResearched(part.id);
+  const loadedToCraftingTable = isDroneCraftingPartResearched(part.id);
+  const storedInInventory = isDroneResearchBlueprintInInventory(part.id);
+  const readyToClaim = isDroneResearchBlueprintReadyToClaim(part.id);
   const activeJob = getDroneResearchActiveJob();
   const researchingThisPart = Boolean(activeJob && activeJob.partId === part.id);
   const requirementStates = getDroneResearchRequirementStates(part);
   const canResearch = requirementStates.every((state) => state.ready);
   const researchDurationSeconds = getDroneResearchDurationSeconds(part);
 
-  item.dataset.researched = researched ? "true" : "false";
+  item.dataset.researched = loadedToCraftingTable ? "true" : "false";
   item.dataset.researching = researchingThisPart ? "true" : "false";
 
   const status = document.createElement("p");
   status.className = "quick-access-modal__status-tag research-panel__status";
-  if (researched) {
-    status.textContent = "Researched";
+  if (loadedToCraftingTable) {
+    status.textContent = "Loaded";
+  } else if (storedInInventory) {
+    status.dataset.status = "busy";
+    status.textContent = "Inventory";
+  } else if (readyToClaim) {
+    status.dataset.status = "busy";
+    status.textContent = "Complete";
   } else if (researchingThisPart) {
     status.dataset.status = "busy";
     status.textContent = "Researching";
@@ -8205,12 +8266,24 @@ const createResearchNexusPartCard = (part) => {
   effect.textContent = formatDronePartEffectLabel(part);
   item.appendChild(effect);
 
-  if (researched) {
+  if (loadedToCraftingTable) {
     const researchedMeta = document.createElement("p");
     researchedMeta.className = "crafting-panel__meta";
     researchedMeta.textContent =
-      "Blueprint archived. This part can now be built at the Crafting Table.";
+      "Blueprint loaded into the Crafting Table. This part can now be built here.";
     item.appendChild(researchedMeta);
+  } else if (storedInInventory) {
+    const inventoryMeta = document.createElement("p");
+    inventoryMeta.className = "crafting-panel__meta";
+    inventoryMeta.textContent =
+      "Blueprint is in Inventory > Items. Open the Crafting Table to load it.";
+    item.appendChild(inventoryMeta);
+  } else if (readyToClaim) {
+    const readyMeta = document.createElement("p");
+    readyMeta.className = "crafting-panel__meta";
+    readyMeta.textContent =
+      "Research complete. Move the blueprint into Inventory > Items before loading it to the Crafting Table.";
+    item.appendChild(readyMeta);
   } else {
     const requirements = document.createElement("ul");
     requirements.className = "crafting-panel__requirements";
@@ -8243,16 +8316,23 @@ const createResearchNexusPartCard = (part) => {
   actionButton.type = "button";
   actionButton.className = "crafting-panel__button";
   actionButton.dataset.researchPartId = part.id;
-  actionButton.dataset.researchPartAction = "start";
 
-  if (researched) {
-    actionButton.textContent = "Researched";
+  if (loadedToCraftingTable) {
+    actionButton.textContent = "Loaded to table";
     actionButton.disabled = true;
+  } else if (storedInInventory) {
+    actionButton.textContent = "In inventory";
+    actionButton.disabled = true;
+  } else if (readyToClaim) {
+    actionButton.dataset.researchPartAction = "claim";
+    actionButton.textContent = "Move to inventory";
+    actionButton.disabled = false;
   } else if (researchingThisPart) {
     actionButton.textContent = "Researching...";
     actionButton.disabled = true;
   } else {
     const otherResearchActive = Boolean(activeJob && activeJob.partId !== part.id);
+    actionButton.dataset.researchPartAction = "start";
     actionButton.textContent = otherResearchActive
       ? "Lab busy"
       : canResearch
@@ -8296,14 +8376,24 @@ const renderResearchModal = () => {
   const { summary, partList } = getResearchModalElements();
   const activeJob = getDroneResearchActiveJob();
   const progressState = getDroneResearchJobProgressState(activeJob);
-  const researchedCount = DRONE_CRAFTING_PARTS.filter((part) =>
+  const loadedCount = DRONE_CRAFTING_PARTS.filter((part) =>
     isDroneCraftingPartResearched(part.id)
+  ).length;
+  const inventoryCount = DRONE_CRAFTING_PARTS.filter((part) =>
+    isDroneResearchBlueprintInInventory(part.id)
+  ).length;
+  const readyCount = DRONE_CRAFTING_PARTS.filter((part) =>
+    isDroneResearchBlueprintReadyToClaim(part.id)
   ).length;
 
   syncResearchModalTabState();
 
   if (summary instanceof HTMLElement) {
-    const summarySegments = [`Researched ${researchedCount}/${DRONE_CRAFTING_PARTS.length}`];
+    const summarySegments = [
+      `Loaded ${loadedCount}/${DRONE_CRAFTING_PARTS.length}`,
+      `Inventory ${inventoryCount}`,
+      `Ready ${readyCount}`,
+    ];
     if (activeJob && progressState) {
       const activePart = getDroneCraftingPartById(activeJob.partId);
       summarySegments.push(
@@ -8351,7 +8441,23 @@ const startDronePartResearch = (partId) => {
   if (isDroneCraftingPartResearched(part.id)) {
     showTerminalToast({
       title: "Already researched",
-      description: `${part.label} is already unlocked for crafting.`,
+      description: `${part.label} is already loaded into the Crafting Table.`,
+    });
+    return false;
+  }
+
+  if (isDroneResearchBlueprintInInventory(part.id)) {
+    showTerminalToast({
+      title: "Blueprint in inventory",
+      description: `${part.label} is already in Inventory > Items. Load it at the Crafting Table.`,
+    });
+    return false;
+  }
+
+  if (isDroneResearchBlueprintReadyToClaim(part.id)) {
+    showTerminalToast({
+      title: "Ready to collect",
+      description: `${part.label} research is complete. Move the blueprint to Inventory > Items.`,
     });
     return false;
   }
@@ -8417,14 +8523,15 @@ const startDronePartResearch = (partId) => {
 
   const researchDurationSeconds = getDroneResearchDurationSeconds(part);
   if (researchDurationSeconds <= 0) {
-    droneCraftingState.researchedPartIds.add(part.id);
+    droneCraftingState.readyResearchPartIds.add(part.id);
     droneCraftingState.activeResearchJob = null;
     persistDroneCraftingState();
+    refreshInventoryUi();
     refreshResearchModalIfOpen();
     refreshCraftingTableModalIfOpen();
     showTerminalToast({
       title: `${part.label} researched`,
-      description: "God mode instant research. Craft it now at the Crafting Table.",
+      description: "God mode instant research. Move the blueprint to Inventory > Items.",
     });
     return true;
   }
@@ -8738,6 +8845,8 @@ const createCraftingTablePartCard = (part) => {
   item.dataset.craftingPartId = part.id;
 
   const researched = isDroneCraftingPartResearched(part.id);
+  const researchInInventory = isDroneResearchBlueprintInInventory(part.id);
+  const researchReadyToClaim = isDroneResearchBlueprintReadyToClaim(part.id);
   const crafted = isDroneCraftingPartCrafted(part.id);
   const equipped = isDroneCraftingPartEquipped(part.id);
   const readyToClaim = isDroneCraftingPartReadyToClaim(part.id);
@@ -8772,30 +8881,35 @@ const createCraftingTablePartCard = (part) => {
   if (!researched) {
     const researchStatus = document.createElement("p");
     researchStatus.className = "crafting-panel__meta";
-    researchStatus.textContent =
-      "Research required first. Unlock this blueprint in Command Center > Research Nexus.";
+    researchStatus.textContent = researchReadyToClaim
+      ? "Research finished. Collect the blueprint in Research Nexus first."
+      : researchInInventory
+        ? "Blueprint is in Inventory > Items. Load it into the Crafting Table to unlock this recipe."
+        : "Research required first. Unlock this blueprint in Command Center > Research Nexus.";
     item.appendChild(researchStatus);
 
-    const researchRequirementStates = getDroneResearchRequirementStates(part);
-    const researchRequirements = document.createElement("ul");
-    researchRequirements.className = "crafting-panel__requirements";
-    researchRequirementStates.forEach(({ requirement, needed, available, ready }) => {
-      const requirementItem = document.createElement("li");
-      requirementItem.className = "crafting-panel__requirement";
-      requirementItem.dataset.ready = ready ? "true" : "false";
-      requirementItem.textContent = `Research cost • ${formatCraftingElementName(
-        requirement?.element
-      )}: ${available}/${needed}`;
-      researchRequirements.appendChild(requirementItem);
-    });
-    item.appendChild(researchRequirements);
+    if (!researchInInventory && !researchReadyToClaim) {
+      const researchRequirementStates = getDroneResearchRequirementStates(part);
+      const researchRequirements = document.createElement("ul");
+      researchRequirements.className = "crafting-panel__requirements";
+      researchRequirementStates.forEach(({ requirement, needed, available, ready }) => {
+        const requirementItem = document.createElement("li");
+        requirementItem.className = "crafting-panel__requirement";
+        requirementItem.dataset.ready = ready ? "true" : "false";
+        requirementItem.textContent = `Research cost • ${formatCraftingElementName(
+          requirement?.element
+        )}: ${available}/${needed}`;
+        researchRequirements.appendChild(requirementItem);
+      });
+      item.appendChild(researchRequirements);
 
-    const researchTime = document.createElement("p");
-    researchTime.className = "crafting-panel__meta";
-    researchTime.textContent = `Research time: ${formatDurationSeconds(
-      getDroneResearchDurationSeconds(part)
-    )}`;
-    item.appendChild(researchTime);
+      const researchTime = document.createElement("p");
+      researchTime.className = "crafting-panel__meta";
+      researchTime.textContent = `Research time: ${formatDurationSeconds(
+        getDroneResearchDurationSeconds(part)
+      )}`;
+      item.appendChild(researchTime);
+    }
 
     if (researchingThisPart) {
       const progressState = getDroneResearchJobProgressState(activeResearchJob);
@@ -8882,8 +8996,17 @@ const createCraftingTablePartCard = (part) => {
   craftButton.dataset.craftingPartId = part.id;
 
   if (!researched) {
-    craftButton.dataset.craftingPartAction = "open-research";
-    craftButton.textContent = researchingThisPart ? "View research" : "Open Research Nexus";
+    if (researchInInventory) {
+      craftButton.dataset.craftingPartAction = "load-research";
+      craftButton.textContent = "Load research";
+    } else {
+      craftButton.dataset.craftingPartAction = "open-research";
+      craftButton.textContent = researchReadyToClaim
+        ? "Collect in Research Nexus"
+        : researchingThisPart
+          ? "View research"
+          : "Open Research Nexus";
+    }
     craftButton.disabled = false;
   } else if (equipped) {
     craftButton.textContent = "Installed";
@@ -9172,6 +9295,16 @@ const craftDroneUpgradePart = (partId) => {
           progressState?.remainingSeconds ?? 0
         )}.`,
       });
+    } else if (isDroneResearchBlueprintReadyToClaim(part.id)) {
+      showTerminalToast({
+        title: "Research complete",
+        description: `${part.label} is ready in Research Nexus. Move the blueprint to Inventory > Items first.`,
+      });
+    } else if (isDroneResearchBlueprintInInventory(part.id)) {
+      showTerminalToast({
+        title: "Blueprint in inventory",
+        description: `${part.label} is in Inventory > Items. Load it into the Crafting Table first.`,
+      });
     } else {
       showTerminalToast({
         title: "Research required",
@@ -9402,6 +9535,11 @@ const handleCraftingTableActionClick = (event) => {
     return;
   }
 
+  if (actionType === "load-research") {
+    loadResearchBlueprintToCraftingTable(partId);
+    return;
+  }
+
   if (actionType === "claim") {
     moveCraftedPartToInventory(partId);
   }
@@ -9442,11 +9580,18 @@ const handleResearchModalActionClick = (event) => {
 
   const partId = actionTarget.dataset.researchPartId;
   const actionType = actionTarget.dataset.researchPartAction;
-  if (!partId || actionType !== "start") {
+  if (!partId || !actionType) {
     return;
   }
 
-  startDronePartResearch(partId);
+  if (actionType === "start") {
+    startDronePartResearch(partId);
+    return;
+  }
+
+  if (actionType === "claim") {
+    moveResearchedBlueprintToInventory(partId);
+  }
 };
 
 const teardownResearchModal = () => {
@@ -12974,19 +13119,41 @@ const renderInventoryItemsEntries = () => {
   }
 
   inventoryItemsList.innerHTML = "";
+  const researchBlueprints = DRONE_CRAFTING_PARTS.filter((part) =>
+    isDroneResearchBlueprintInInventory(part.id)
+  );
   const craftedParts = DRONE_CRAFTING_PARTS.filter((part) =>
     isDroneCraftingPartCrafted(part.id)
   );
+  const totalItems = researchBlueprints.length + craftedParts.length;
 
   if (inventoryItemsEmptyState instanceof HTMLElement) {
-    inventoryItemsEmptyState.hidden = craftedParts.length > 0;
+    inventoryItemsEmptyState.hidden = totalItems > 0;
   }
 
-  if (craftedParts.length === 0) {
+  if (totalItems === 0) {
     return;
   }
 
   const fragment = document.createDocumentFragment();
+  researchBlueprints.forEach((part) => {
+    const item = document.createElement("li");
+    item.className = "inventory-items-list__entry";
+
+    const title = document.createElement("p");
+    title.className = "inventory-items-list__title";
+    title.textContent = `${part.label} Blueprint`;
+    item.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "inventory-items-list__meta";
+    meta.textContent =
+      "Research blueprint in inventory. Load it into the Crafting Table to unlock production.";
+    item.appendChild(meta);
+
+    fragment.appendChild(item);
+  });
+
   craftedParts.forEach((part) => {
     const item = document.createElement("li");
     item.className = "inventory-items-list__entry";
@@ -13436,6 +13603,25 @@ const serializeStorageBoxStateForPersistence = () => ({
 const serializeDroneCraftingStateForPersistence = () => {
   const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
   const knownModelIds = new Set(DRONE_UNLOCKABLE_MODEL_IDS);
+  const researchedPartIds = Array.from(droneCraftingState.researchedPartIds).filter(
+    (partId) => typeof partId === "string" && knownPartIds.has(partId)
+  );
+  const researchedPartSet = new Set(researchedPartIds);
+  const inventoryResearchPartIds = Array.from(droneCraftingState.inventoryResearchPartIds).filter(
+    (partId) =>
+      typeof partId === "string" &&
+      knownPartIds.has(partId) &&
+      !researchedPartSet.has(partId)
+  );
+  const inventoryResearchPartSet = new Set(inventoryResearchPartIds);
+  const readyResearchPartIds = Array.from(droneCraftingState.readyResearchPartIds).filter(
+    (partId) =>
+      typeof partId === "string" &&
+      knownPartIds.has(partId) &&
+      !researchedPartSet.has(partId) &&
+      !inventoryResearchPartSet.has(partId)
+  );
+  const readyResearchPartSet = new Set(readyResearchPartIds);
   const craftedPartIds = Array.from(droneCraftingState.craftedPartIds).filter(
     (partId) => typeof partId === "string" && knownPartIds.has(partId)
   );
@@ -13470,22 +13656,13 @@ const serializeDroneCraftingStateForPersistence = () => {
         }
       : null;
 
-  const researchedPartIds = Array.from(
-    new Set([
-      ...Array.from(droneCraftingState.researchedPartIds),
-      ...craftedPartIds,
-      ...equippedPartIds,
-      ...readyPartIds,
-      ...(activeJobForPersistence ? [activeJobForPersistence.partId] : []),
-    ])
-  ).filter((partId) => typeof partId === "string" && knownPartIds.has(partId));
-  const researchedPartSet = new Set(researchedPartIds);
-
   const activeResearchJob = getDroneResearchActiveJob();
   const activeResearchJobForPersistence =
     activeResearchJob &&
     knownPartIds.has(activeResearchJob.partId) &&
-    !researchedPartSet.has(activeResearchJob.partId)
+    !researchedPartSet.has(activeResearchJob.partId) &&
+    !inventoryResearchPartSet.has(activeResearchJob.partId) &&
+    !readyResearchPartSet.has(activeResearchJob.partId)
       ? {
           partId: activeResearchJob.partId,
           startedAtMs: Math.floor(activeResearchJob.startedAtMs),
@@ -13510,6 +13687,8 @@ const serializeDroneCraftingStateForPersistence = () => {
 
   return {
     researchedPartIds,
+    inventoryResearchPartIds,
+    readyResearchPartIds,
     craftedPartIds,
     equippedPartIds,
     readyPartIds,
@@ -13722,6 +13901,8 @@ const restoreDroneCraftingStateFromStorage = () => {
   const storage = getInventoryStorage();
   if (!storage) {
     droneCraftingState.researchedPartIds.clear();
+    droneCraftingState.inventoryResearchPartIds.clear();
+    droneCraftingState.readyResearchPartIds.clear();
     droneCraftingState.craftedPartIds.clear();
     droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
@@ -13749,6 +13930,8 @@ const restoreDroneCraftingStateFromStorage = () => {
   } catch (error) {
     console.warn("Unable to read stored drone crafting state", error);
     droneCraftingState.researchedPartIds.clear();
+    droneCraftingState.inventoryResearchPartIds.clear();
+    droneCraftingState.readyResearchPartIds.clear();
     droneCraftingState.craftedPartIds.clear();
     droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
@@ -13771,6 +13954,8 @@ const restoreDroneCraftingStateFromStorage = () => {
   }
 
   droneCraftingState.researchedPartIds.clear();
+  droneCraftingState.inventoryResearchPartIds.clear();
+  droneCraftingState.readyResearchPartIds.clear();
   droneCraftingState.craftedPartIds.clear();
   droneCraftingState.equippedPartIds.clear();
   droneCraftingState.readyPartIds.clear();
@@ -13812,6 +13997,33 @@ const restoreDroneCraftingStateFromStorage = () => {
       }
     });
 
+    const storedInventoryResearchPartIds = Array.isArray(data?.inventoryResearchPartIds)
+      ? data.inventoryResearchPartIds
+      : [];
+    storedInventoryResearchPartIds.forEach((partId) => {
+      if (
+        typeof partId === "string" &&
+        knownPartIds.has(partId) &&
+        !droneCraftingState.researchedPartIds.has(partId)
+      ) {
+        droneCraftingState.inventoryResearchPartIds.add(partId);
+      }
+    });
+
+    const storedReadyResearchPartIds = Array.isArray(data?.readyResearchPartIds)
+      ? data.readyResearchPartIds
+      : [];
+    storedReadyResearchPartIds.forEach((partId) => {
+      if (
+        typeof partId === "string" &&
+        knownPartIds.has(partId) &&
+        !droneCraftingState.researchedPartIds.has(partId) &&
+        !droneCraftingState.inventoryResearchPartIds.has(partId)
+      ) {
+        droneCraftingState.readyResearchPartIds.add(partId);
+      }
+    });
+
     const storedCraftedPartIds = Array.isArray(data?.craftedPartIds)
       ? data.craftedPartIds
       : [];
@@ -13820,6 +14032,8 @@ const restoreDroneCraftingStateFromStorage = () => {
         typeof partId === "string" &&
         knownPartIds.has(partId)
       ) {
+        droneCraftingState.inventoryResearchPartIds.delete(partId);
+        droneCraftingState.readyResearchPartIds.delete(partId);
         droneCraftingState.researchedPartIds.add(partId);
         droneCraftingState.craftedPartIds.add(partId);
       }
@@ -13845,6 +14059,8 @@ const restoreDroneCraftingStateFromStorage = () => {
         knownPartIds.has(partId) &&
         !droneCraftingState.craftedPartIds.has(partId)
       ) {
+        droneCraftingState.inventoryResearchPartIds.delete(partId);
+        droneCraftingState.readyResearchPartIds.delete(partId);
         droneCraftingState.researchedPartIds.add(partId);
         droneCraftingState.readyPartIds.add(partId);
       }
@@ -13855,7 +14071,9 @@ const restoreDroneCraftingStateFromStorage = () => {
     );
     if (
       restoredActiveResearchJob &&
-      !droneCraftingState.researchedPartIds.has(restoredActiveResearchJob.partId)
+      !droneCraftingState.researchedPartIds.has(restoredActiveResearchJob.partId) &&
+      !droneCraftingState.inventoryResearchPartIds.has(restoredActiveResearchJob.partId) &&
+      !droneCraftingState.readyResearchPartIds.has(restoredActiveResearchJob.partId)
     ) {
       droneCraftingState.activeResearchJob = restoredActiveResearchJob;
     }
@@ -13866,6 +14084,8 @@ const restoreDroneCraftingStateFromStorage = () => {
       !droneCraftingState.craftedPartIds.has(restoredActiveJob.partId) &&
       !droneCraftingState.readyPartIds.has(restoredActiveJob.partId)
     ) {
+      droneCraftingState.inventoryResearchPartIds.delete(restoredActiveJob.partId);
+      droneCraftingState.readyResearchPartIds.delete(restoredActiveJob.partId);
       droneCraftingState.researchedPartIds.add(restoredActiveJob.partId);
       droneCraftingState.activeJob = restoredActiveJob;
     }
@@ -13899,6 +14119,8 @@ const restoreDroneCraftingStateFromStorage = () => {
 
     restored =
       droneCraftingState.researchedPartIds.size > 0 ||
+      droneCraftingState.inventoryResearchPartIds.size > 0 ||
+      droneCraftingState.readyResearchPartIds.size > 0 ||
       droneCraftingState.craftedPartIds.size > 0 ||
       droneCraftingState.equippedPartIds.size > 0 ||
       droneCraftingState.readyPartIds.size > 0 ||
@@ -17827,6 +18049,8 @@ function handleReset(event) {
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
     droneCraftingState.researchedPartIds.clear();
+    droneCraftingState.inventoryResearchPartIds.clear();
+    droneCraftingState.readyResearchPartIds.clear();
     droneCraftingState.craftedPartIds.clear();
     droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
