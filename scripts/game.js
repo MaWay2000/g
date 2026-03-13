@@ -8451,6 +8451,150 @@ const getCostumeResearchJobProgressState = (job = getCostumeResearchActiveJob())
   };
 };
 
+const getResearchLabActiveJob = () => {
+  const costumeJob = getCostumeResearchActiveJob();
+  if (costumeJob) {
+    return {
+      type: "costume",
+      id: costumeJob.projectId,
+      job: costumeJob,
+    };
+  }
+
+  const droneJob = getDroneResearchActiveJob();
+  if (droneJob) {
+    return {
+      type: "drone",
+      id: droneJob.partId,
+      job: droneJob,
+    };
+  }
+
+  return null;
+};
+
+const getResearchLabJobLabel = (activeResearchJob = getResearchLabActiveJob()) => {
+  if (!activeResearchJob) {
+    return "Research";
+  }
+
+  if (activeResearchJob.type === "costume") {
+    return (
+      getCostumeResearchProjectById(activeResearchJob.id)?.label ?? "Costume research"
+    );
+  }
+
+  return getDroneCraftingPartById(activeResearchJob.id)?.label ?? "Drone research";
+};
+
+const getResearchLabJobProgressState = (
+  activeResearchJob = getResearchLabActiveJob()
+) => {
+  if (!activeResearchJob) {
+    return null;
+  }
+
+  return activeResearchJob.type === "costume"
+    ? getCostumeResearchJobProgressState(activeResearchJob.job)
+    : getDroneResearchJobProgressState(activeResearchJob.job);
+};
+
+const refundResearchRequirements = (requirements) => {
+  const normalizedRequirements = Array.isArray(requirements) ? requirements : [];
+  let inventoryRefundedCount = 0;
+  let storageRefundedCount = 0;
+  let lostCount = 0;
+
+  normalizedRequirements.forEach((requirement) => {
+    const refundCount = Number.isFinite(requirement?.count)
+      ? Math.max(1, Math.floor(requirement.count))
+      : 1;
+
+    for (let iteration = 0; iteration < refundCount; iteration += 1) {
+      if (recordInventoryResource({ element: requirement?.element })) {
+        inventoryRefundedCount += 1;
+        continue;
+      }
+
+      if (recordStorageBoxResource(requirement?.element, 1)) {
+        storageRefundedCount += 1;
+        continue;
+      }
+
+      lostCount += 1;
+    }
+  });
+
+  return {
+    inventoryRefundedCount,
+    storageRefundedCount,
+    lostCount,
+  };
+};
+
+const ensureSingleResearchLabJob = ({ notify = false, refreshUi = true } = {}) => {
+  const costumeJob = getCostumeResearchActiveJob();
+  const droneJob = getDroneResearchActiveJob();
+
+  if (!costumeJob || !droneJob) {
+    return false;
+  }
+
+  const keepCostumeJob = costumeJob.startedAtMs <= droneJob.startedAtMs;
+  const cancelledResearch = keepCostumeJob
+    ? {
+        type: "drone",
+        label: getDroneCraftingPartById(droneJob.partId)?.label ?? "Drone research",
+        requirements: getDroneCraftingPartById(droneJob.partId)?.researchRequirements,
+      }
+    : {
+        type: "costume",
+        label:
+          getCostumeResearchProjectById(costumeJob.projectId)?.label ?? "Costume research",
+        requirements:
+          getCostumeResearchProjectById(costumeJob.projectId)?.researchRequirements,
+      };
+
+  if (keepCostumeJob) {
+    droneCraftingState.activeResearchJob = null;
+  } else {
+    costumeResearchState.activeJob = null;
+  }
+
+  const refundResult = refundResearchRequirements(cancelledResearch.requirements);
+  persistDroneCraftingState();
+  syncCostumeResearchProgressInterval();
+  syncDroneResearchProgressInterval();
+
+  if (refreshUi) {
+    refreshInventoryUi();
+    refreshResearchModalIfOpen();
+    refreshCraftingTableModalIfOpen();
+  }
+
+  if (notify) {
+    const refundSegments = [];
+    if (refundResult.inventoryRefundedCount > 0) {
+      refundSegments.push(`${refundResult.inventoryRefundedCount} returned to inventory`);
+    }
+    if (refundResult.storageRefundedCount > 0) {
+      refundSegments.push(`${refundResult.storageRefundedCount} moved to storage`);
+    }
+    if (refundResult.lostCount > 0) {
+      refundSegments.push(`${refundResult.lostCount} could not be refunded`);
+    }
+
+    showTerminalToast({
+      title: "Research lab conflict resolved",
+      description: `${cancelledResearch.label} was cancelled to keep one active lab job${
+        refundSegments.length > 0 ? `. ${refundSegments.join(", ")}.` : "."
+      }`,
+    });
+  }
+
+  return true;
+};
+
 const stopCostumeResearchProgressInterval = () => {
   if (!costumeResearchProgressIntervalId) {
     return;
@@ -8602,12 +8746,14 @@ const startCostumeResearch = (projectId) => {
     return false;
   }
 
+  ensureSingleResearchLabJob({ notify: false, refreshUi: false });
   finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
-  const activeJob = getCostumeResearchActiveJob();
-  if (activeJob) {
-    const activeProject = getCostumeResearchProjectById(activeJob.projectId);
-    if (activeJob.projectId === project.id) {
-      const progressState = getCostumeResearchJobProgressState(activeJob);
+  finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+  ensureSingleResearchLabJob({ notify: false, refreshUi: false });
+  const activeResearchJob = getResearchLabActiveJob();
+  if (activeResearchJob) {
+    if (activeResearchJob.type === "costume" && activeResearchJob.id === project.id) {
+      const progressState = getResearchLabJobProgressState(activeResearchJob);
       showTerminalToast({
         title: "Research in progress",
         description: `${project.label} will finish in ${formatDurationSeconds(
@@ -8618,8 +8764,8 @@ const startCostumeResearch = (projectId) => {
     }
 
     showTerminalToast({
-      title: "Costume lab busy",
-      description: `${activeProject?.label ?? "Another suit upgrade"} is currently running.`,
+      title: "Research lab busy",
+      description: `${getResearchLabJobLabel(activeResearchJob)} is currently running.`,
     });
     return false;
   }
@@ -8891,8 +9037,13 @@ const createResearchNexusPartCard = (part) => {
   const loadedToCraftingTable = isDroneCraftingPartResearched(part.id);
   const storedInInventory = isDroneResearchBlueprintInInventory(part.id);
   const readyToClaim = isDroneResearchBlueprintReadyToClaim(part.id);
-  const activeJob = getDroneResearchActiveJob();
-  const researchingThisPart = Boolean(activeJob && activeJob.partId === part.id);
+  const activeResearchJob = getResearchLabActiveJob();
+  const researchingThisPart = Boolean(
+    activeResearchJob &&
+      activeResearchJob.type === "drone" &&
+      activeResearchJob.id === part.id
+  );
+  const otherResearchActive = Boolean(activeResearchJob && !researchingThisPart);
   const requirementStates = getDroneResearchRequirementStates(part);
   const canResearch = requirementStates.every((state) => state.ready);
   const researchDurationSeconds = getDroneResearchDurationSeconds(part);
@@ -8913,6 +9064,11 @@ const createResearchNexusPartCard = (part) => {
   } else if (researchingThisPart) {
     status.dataset.status = "busy";
     status.textContent = "Researching";
+  } else if (otherResearchActive) {
+    status.dataset.status = "busy";
+    status.textContent = "Busy";
+  } else if (canResearch) {
+    status.textContent = "Available";
   } else {
     status.dataset.status = "locked";
     status.textContent = "Locked";
@@ -8976,7 +9132,7 @@ const createResearchNexusPartCard = (part) => {
   }
 
   if (researchingThisPart) {
-    const progressState = getDroneResearchJobProgressState(activeJob);
+    const progressState = getResearchLabJobProgressState(activeResearchJob);
     renderResearchProgressBlock(item, progressState);
   }
 
@@ -8999,7 +9155,6 @@ const createResearchNexusPartCard = (part) => {
     actionButton.textContent = "Researching...";
     actionButton.disabled = true;
   } else {
-    const otherResearchActive = Boolean(activeJob && activeJob.partId !== part.id);
     actionButton.dataset.researchPartAction = "start";
     actionButton.textContent = otherResearchActive
       ? "Lab busy"
@@ -9021,9 +9176,13 @@ const createCostumeResearchProjectCard = (project) => {
   const completed = isCostumeResearchProjectCompleted(project.id);
   const requiredProject = getCostumeResearchRequiredProject(project);
   const prerequisiteReady = isCostumeResearchProjectUnlocked(project);
-  const activeJob = getCostumeResearchActiveJob();
-  const researchingThisProject = Boolean(activeJob && activeJob.projectId === project.id);
-  const otherResearchActive = Boolean(activeJob && activeJob.projectId !== project.id);
+  const activeResearchJob = getResearchLabActiveJob();
+  const researchingThisProject = Boolean(
+    activeResearchJob &&
+      activeResearchJob.type === "costume" &&
+      activeResearchJob.id === project.id
+  );
+  const otherResearchActive = Boolean(activeResearchJob && !researchingThisProject);
   const requirementStates = getCostumeResearchRequirementStates(project);
   const canResearch = prerequisiteReady && requirementStates.every((state) => state.ready);
   const researchDurationSeconds = getCostumeResearchDurationSeconds(project);
@@ -9102,7 +9261,7 @@ const createCostumeResearchProjectCard = (project) => {
   }
 
   if (researchingThisProject) {
-    const progressState = getCostumeResearchJobProgressState(activeJob);
+    const progressState = getResearchLabJobProgressState(activeResearchJob);
     renderResearchProgressBlock(item, progressState, "Researching");
   }
 
@@ -9141,8 +9300,8 @@ const renderCostumeResearchPanel = (panel) => {
   panel.classList.add("crafting-panel");
   panel.innerHTML = "";
 
-  const activeJob = getCostumeResearchActiveJob();
-  const progressState = getCostumeResearchJobProgressState(activeJob);
+  const activeResearchJob = getResearchLabActiveJob();
+  const progressState = getResearchLabJobProgressState(activeResearchJob);
   const completedCount = COSTUME_RESEARCH_PROJECTS.filter((project) =>
     isCostumeResearchProjectCompleted(project.id)
   ).length;
@@ -9153,10 +9312,9 @@ const renderCostumeResearchPanel = (panel) => {
     `Installed ${completedCount}/${COSTUME_RESEARCH_PROJECTS.length}`,
     getCostumeResearchSummaryText(),
   ];
-  if (activeJob && progressState) {
-    const activeProject = getCostumeResearchProjectById(activeJob.projectId);
+  if (activeResearchJob && progressState) {
     summarySegments.push(
-      `Lab busy: ${activeProject?.label ?? "Costume research"} (${formatDurationSeconds(
+      `Lab busy: ${getResearchLabJobLabel(activeResearchJob)} (${formatDurationSeconds(
         progressState.remainingSeconds
       )} left)`
     );
@@ -9185,9 +9343,13 @@ const renderCostumeResearchPanel = (panel) => {
   );
   const orderedProjects = COSTUME_RESEARCH_PROJECTS.slice().sort((left, right) => {
     const leftRank =
-      left.id === activeJob?.projectId ? 0 : isCostumeResearchProjectCompleted(left.id) ? 2 : 1;
+      left.id === activeResearchJob?.id && activeResearchJob?.type === "costume"
+        ? 0
+        : isCostumeResearchProjectCompleted(left.id)
+          ? 2
+          : 1;
     const rightRank =
-      right.id === activeJob?.projectId
+      right.id === activeResearchJob?.id && activeResearchJob?.type === "costume"
         ? 0
         : isCostumeResearchProjectCompleted(right.id)
           ? 2
@@ -9237,8 +9399,8 @@ const renderResearchModal = () => {
   finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
 
   const { costumePanel, summary, partList } = getResearchModalElements();
-  const activeJob = getDroneResearchActiveJob();
-  const progressState = getDroneResearchJobProgressState(activeJob);
+  const activeResearchJob = getResearchLabActiveJob();
+  const progressState = getResearchLabJobProgressState(activeResearchJob);
   const loadedCount = DRONE_CRAFTING_PARTS.filter((part) =>
     isDroneCraftingPartResearched(part.id)
   ).length;
@@ -9258,10 +9420,9 @@ const renderResearchModal = () => {
       `Inventory ${inventoryCount}`,
       `Ready ${readyCount}`,
     ];
-    if (activeJob && progressState) {
-      const activePart = getDroneCraftingPartById(activeJob.partId);
+    if (activeResearchJob && progressState) {
       summarySegments.push(
-        `Lab busy: ${activePart?.label ?? "Research"} (${formatDurationSeconds(
+        `Lab busy: ${getResearchLabJobLabel(activeResearchJob)} (${formatDurationSeconds(
           progressState.remainingSeconds
         )} left)`
       );
@@ -9277,9 +9438,13 @@ const renderResearchModal = () => {
 
   const orderedParts = DRONE_CRAFTING_PARTS.slice().sort((left, right) => {
     const leftRank =
-      left.id === activeJob?.partId ? 0 : isDroneCraftingPartResearched(left.id) ? 2 : 1;
+      left.id === activeResearchJob?.id && activeResearchJob?.type === "drone"
+        ? 0
+        : isDroneCraftingPartResearched(left.id)
+          ? 2
+          : 1;
     const rightRank =
-      right.id === activeJob?.partId
+      right.id === activeResearchJob?.id && activeResearchJob?.type === "drone"
         ? 0
         : isDroneCraftingPartResearched(right.id)
           ? 2
@@ -9335,12 +9500,14 @@ const startDronePartResearch = (partId) => {
     return true;
   }
 
+  ensureSingleResearchLabJob({ notify: false, refreshUi: false });
+  finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
   finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
-  const activeResearchJob = getDroneResearchActiveJob();
+  ensureSingleResearchLabJob({ notify: false, refreshUi: false });
+  const activeResearchJob = getResearchLabActiveJob();
   if (activeResearchJob) {
-    const activePart = getDroneCraftingPartById(activeResearchJob.partId);
-    if (activeResearchJob.partId === part.id) {
-      const progressState = getDroneResearchJobProgressState(activeResearchJob);
+    if (activeResearchJob.type === "drone" && activeResearchJob.id === part.id) {
+      const progressState = getResearchLabJobProgressState(activeResearchJob);
       showTerminalToast({
         title: "Research in progress",
         description: `${part.label} will finish in ${formatDurationSeconds(
@@ -9352,7 +9519,7 @@ const startDronePartResearch = (partId) => {
 
     showTerminalToast({
       title: "Research lab busy",
-      description: `${activePart?.label ?? "Another blueprint"} is currently running.`,
+      description: `${getResearchLabJobLabel(activeResearchJob)} is currently running.`,
     });
     return false;
   }
@@ -15498,6 +15665,8 @@ const spendInventoryResource = (element, count = 1) => {
   schedulePersistInventoryState();
   return true;
 };
+
+ensureSingleResearchLabJob({ notify: false, refreshUi: true });
 
 const grantNewGameStarterResources = () => {
   let granted = false;
