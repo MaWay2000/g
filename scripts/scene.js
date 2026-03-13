@@ -5516,6 +5516,8 @@ export const initScene = (
     const minimumWallHeight = BASE_DOOR_HEIGHT + 0.6;
     const wallHeight = Math.max(roomHeight * 0.82, minimumWallHeight);
     const wallThickness = 0.18;
+    const wallSpanWidth = deckWidth + 0.9;
+    const wallSpanDepth = deckDepth + 0.8;
 
     const bulkheadMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x0f1f2a),
@@ -5535,7 +5537,7 @@ export const initScene = (
       side: THREE.DoubleSide,
     });
 
-    const floorBounds = createFloorBounds(deckWidth, deckDepth, {
+    const floorBounds = createFloorBounds(wallSpanWidth, deckDepth, {
       paddingX: 0.75,
       paddingZ: 0.75,
     });
@@ -5547,14 +5549,11 @@ export const initScene = (
     });
 
     const deck = new THREE.Mesh(
-      new THREE.BoxGeometry(deckWidth, deckThickness, deckDepth),
+      new THREE.BoxGeometry(wallSpanWidth, deckThickness, deckDepth),
       deckMaterial
     );
     deck.position.y = roomFloorY - deckThickness / 2;
     group.add(deck);
-
-    const wallSpanWidth = deckWidth + 0.9;
-    const wallSpanDepth = deckDepth + 0.8;
 
     const createFramedWallSegments = (
       openingWidth,
