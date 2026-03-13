@@ -12997,15 +12997,18 @@ const MARKET_SELL_RETURN_FACTOR = 0.9;
 
 let marketState = loadMarketState();
 let teardownMarketActionBinding = null;
+let marketSearchQuery = "";
 
 const getMarketModalElements = () => {
   if (!quickAccessModalContent) {
-    return { grid: null, balance: null, empty: null };
+    return { list: null, balance: null, empty: null, search: null, count: null };
   }
 
   return {
-    grid: quickAccessModalContent.querySelector("[data-market-grid]"),
+    list: quickAccessModalContent.querySelector("[data-market-list]"),
     balance: quickAccessModalContent.querySelector("[data-market-balance]"),
+    search: quickAccessModalContent.querySelector("[data-market-search]"),
+    count: quickAccessModalContent.querySelector("[data-market-count]"),
     empty: quickAccessModalContent.querySelector("[data-market-empty]") ?? null,
   };
 };
@@ -13029,73 +13032,116 @@ const persistCurrentMarketState = () => {
   }
 };
 
-const getOwnedMarketQuantity = (itemId) => {
-  if (!itemId) {
-    return 0;
-  }
+const normalizeMarketSearchQuery = (value) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
 
-  const quantity = Number(marketState?.holdings?.[itemId]);
-  if (!Number.isFinite(quantity)) {
-    return 0;
-  }
+const getMarketSalePrice = (item) =>
+  Math.max(MARKET_MIN_PRICE, Math.floor((item?.price ?? 0) * MARKET_SELL_RETURN_FACTOR));
 
-  return Math.max(0, Math.floor(quantity));
+const getMarketInventoryLoadSummary = () => {
+  const currentLoadGrams = Number.isFinite(inventoryState.currentLoadGrams)
+    ? inventoryState.currentLoadGrams
+    : recalculateInventoryLoad();
+  return `${formatGrams(currentLoadGrams)} / ${formatKilograms(getInventoryCapacityKg())}`;
 };
 
-const setOwnedMarketQuantity = (itemId, quantity) => {
-  if (!itemId) {
-    return;
+const getMarketSearchableText = (item) =>
+  [
+    item?.symbol,
+    item?.name,
+    item?.category,
+    item?.summary,
+    Number.isFinite(item?.number) ? String(item.number) : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+const getFilteredMarketItems = () => {
+  const items = Array.isArray(marketState?.items) ? marketState.items : [];
+  const normalizedQuery = normalizeMarketSearchQuery(marketSearchQuery);
+
+  if (!normalizedQuery) {
+    return items;
   }
 
-  if (!marketState || typeof marketState !== "object") {
-    marketState = loadMarketState();
-  }
-
-  if (!marketState.holdings || typeof marketState.holdings !== "object") {
-    marketState.holdings = {};
-  }
-
-  const normalizedQuantity = Number.isFinite(quantity)
-    ? Math.max(0, Math.floor(quantity))
-    : 0;
-  marketState.holdings[itemId] = normalizedQuantity;
+  return items.filter((item) => getMarketSearchableText(item).includes(normalizedQuery));
 };
 
 const executeMarketTrade = (itemId, action) => {
   const item = marketState?.items?.find((entry) => entry?.id === itemId);
 
   if (!item || (action !== "buy" && action !== "sell")) {
-    return;
+    return false;
   }
 
   if (action === "buy") {
     if (item.stock <= 0) {
-      return;
+      showTerminalToast({
+        title: "Listing sold out",
+        description: `${formatCraftingElementName(item)} is currently out of stock.`,
+      });
+      return false;
     }
 
     const balance = getCurrencyBalance();
     if (balance < item.price) {
-      return;
+      showTerminalToast({
+        title: "Insufficient funds",
+        description: `${formatCraftingElementName(item)} costs ${formatMarsMoney(item.price)}.`,
+      });
+      return false;
     }
 
+    const purchased = recordInventoryResource({
+      source: "market",
+      element: item,
+    });
+    if (!purchased) {
+      showTerminalToast({
+        title: "Inventory full",
+        description: `Free some capacity before buying ${formatCraftingElementName(item)}.`,
+      });
+      return false;
+    }
+
+    const purchasePrice = item.price;
     item.stock -= 1;
-    addMarsMoney(-item.price);
-    setOwnedMarketQuantity(item.id, getOwnedMarketQuantity(item.id) + 1);
+    addMarsMoney(-purchasePrice);
     adjustMarketPrice(item, "buy");
+    showTerminalToast({
+      title: "Element purchased",
+      description: `${formatCraftingElementName(item)} added to inventory for ${formatMarsMoney(
+        purchasePrice
+      )}.`,
+    });
   } else {
-    const ownedQuantity = getOwnedMarketQuantity(item.id);
+    const ownedQuantity = getInventoryResourceCount(item);
     if (ownedQuantity <= 0) {
-      return;
+      showTerminalToast({
+        title: "Nothing to sell",
+        description: `${formatCraftingElementName(item)} is not in your inventory.`,
+      });
+      return false;
     }
 
-    const salePrice = Math.max(
-      MARKET_MIN_PRICE,
-      Math.floor(item.price * MARKET_SELL_RETURN_FACTOR)
-    );
+    const salePrice = getMarketSalePrice(item);
+    const sold = spendInventoryResource(item, 1);
+    if (!sold) {
+      showTerminalToast({
+        title: "Trade failed",
+        description: "Inventory changed before the sale completed. Try again.",
+      });
+      return false;
+    }
+
     item.stock += 1;
     addMarsMoney(salePrice);
-    setOwnedMarketQuantity(item.id, ownedQuantity - 1);
     adjustMarketPrice(item, "sell");
+    showTerminalToast({
+      title: "Element sold",
+      description: `${formatCraftingElementName(item)} sold for ${formatMarsMoney(salePrice)}.`,
+    });
   }
 
   persistCurrentMarketState();
@@ -13103,6 +13149,8 @@ const executeMarketTrade = (itemId, action) => {
   if (marketModalActive) {
     renderMarketModal();
   }
+
+  return true;
 };
 
 const handleMarketActionClick = (event) => {
@@ -13130,8 +13178,23 @@ const handleMarketActionClick = (event) => {
   executeMarketTrade(itemId, action);
 };
 
+const handleMarketSearchInput = (event) => {
+  if (!marketModalActive) {
+    return;
+  }
+
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) {
+    return;
+  }
+
+  marketSearchQuery = normalizeMarketSearchQuery(target.value);
+  renderMarketModal();
+};
+
 const teardownMarketModal = () => {
   marketModalActive = false;
+  marketSearchQuery = "";
 
   if (typeof teardownMarketActionBinding === "function") {
     teardownMarketActionBinding();
@@ -13140,75 +13203,112 @@ const teardownMarketModal = () => {
 };
 
 const bindMarketModalEvents = () => {
-  const { grid } = getMarketModalElements();
+  const { list, search } = getMarketModalElements();
 
-  if (!(grid instanceof HTMLElement) || typeof teardownMarketActionBinding === "function") {
+  if (typeof teardownMarketActionBinding === "function") {
     return;
   }
 
-  grid.addEventListener("click", handleMarketActionClick);
-  teardownMarketActionBinding = () => grid.removeEventListener("click", handleMarketActionClick);
-};
-
-const createMarketCard = (item) => {
-  const card = document.createElement("article");
-  card.className = "quick-access-modal__card";
-
-  const status = document.createElement("p");
-  status.className = "quick-access-modal__status-tag";
-  status.textContent = "Live listing";
-  card.appendChild(status);
-
-  const title = document.createElement("h3");
-  title.textContent = `${item.accent ? `${item.accent} ` : ""}${item.name}`;
-  card.appendChild(title);
-
-  if (item.summary) {
-    const summary = document.createElement("p");
-    summary.textContent = item.summary;
-    card.appendChild(summary);
+  if (list instanceof HTMLElement) {
+    list.addEventListener("click", handleMarketActionClick);
   }
 
-  const price = document.createElement("p");
-  price.className = "mission-reward";
-  price.textContent = `Price: ${formatMarsMoney(item.price)}`;
-  card.appendChild(price);
+  if (search instanceof HTMLInputElement) {
+    search.addEventListener("input", handleMarketSearchInput);
+  }
 
-  const stock = document.createElement("p");
-  stock.className = "mission-requirement";
-  stock.textContent = `Available: ${item.stock}`;
-  card.appendChild(stock);
+  teardownMarketActionBinding = () => {
+    if (list instanceof HTMLElement) {
+      list.removeEventListener("click", handleMarketActionClick);
+    }
 
-  const ownedQuantity = getOwnedMarketQuantity(item.id);
-  const owned = document.createElement("p");
-  owned.className = "mission-requirement";
-  owned.textContent = `Owned: ${ownedQuantity}`;
-  card.appendChild(owned);
+    if (search instanceof HTMLInputElement) {
+      search.removeEventListener("input", handleMarketSearchInput);
+    }
+  };
+};
+
+const createMarketMetric = (label, value) => {
+  const metric = document.createElement("p");
+  metric.className = "market-panel__metric";
+
+  const metricLabel = document.createElement("span");
+  metricLabel.className = "market-panel__metric-label";
+  metricLabel.textContent = label;
+  metric.appendChild(metricLabel);
+
+  const metricValue = document.createElement("span");
+  metricValue.className = "market-panel__metric-value";
+  metricValue.textContent = value;
+  metric.appendChild(metricValue);
+
+  return metric;
+};
+
+const createMarketRow = (item) => {
+  const row = document.createElement("article");
+  row.className = "market-panel__row";
+
+  const identity = document.createElement("div");
+  identity.className = "market-panel__identity";
+
+  const symbol = document.createElement("span");
+  symbol.className = "market-panel__symbol";
+  symbol.textContent = item?.symbol || "?";
+  identity.appendChild(symbol);
+
+  const copy = document.createElement("div");
+  copy.className = "market-panel__identity-copy";
+
+  const title = document.createElement("h3");
+  title.className = "market-panel__name";
+  title.textContent = item?.name || item?.symbol || "Unknown element";
+  copy.appendChild(title);
+
+  const meta = document.createElement("p");
+  meta.className = "market-panel__meta";
+  meta.textContent = item?.summary || "Element listing";
+  copy.appendChild(meta);
+
+  identity.appendChild(copy);
+  row.appendChild(identity);
+
+  const metrics = document.createElement("div");
+  metrics.className = "market-panel__metrics";
+
+  const ownedQuantity = getInventoryResourceCount(item);
+  metrics.appendChild(createMarketMetric("Buy", formatMarsMoney(item.price)));
+  metrics.appendChild(createMarketMetric("Sell", formatMarsMoney(getMarketSalePrice(item))));
+  metrics.appendChild(createMarketMetric("Stock", `${Math.max(0, item?.stock ?? 0)}`));
+  metrics.appendChild(createMarketMetric("In Inventory", `${ownedQuantity}`));
+  row.appendChild(metrics);
 
   const actions = document.createElement("div");
-  actions.className = "quick-access-modal__actions";
+  actions.className = "market-panel__actions";
 
   const balance = getCurrencyBalance();
+  const hasInventorySpace = canAcceptInventoryWeight(getInventoryElementWeight(item));
 
   const buyButton = document.createElement("button");
-  buyButton.className = "quick-access-modal__action";
+  buyButton.type = "button";
+  buyButton.className = "quick-access-modal__action market-panel__button";
   buyButton.dataset.marketAction = "buy";
   buyButton.dataset.marketItemId = item.id;
-  buyButton.textContent = "Buy";
-  buyButton.disabled = item.stock <= 0 || balance < item.price;
+  buyButton.textContent = "Buy 1";
+  buyButton.disabled = item.stock <= 0 || balance < item.price || !hasInventorySpace;
   actions.appendChild(buyButton);
 
   const sellButton = document.createElement("button");
-  sellButton.className = "quick-access-modal__action";
+  sellButton.type = "button";
+  sellButton.className = "quick-access-modal__action market-panel__button";
   sellButton.dataset.marketAction = "sell";
   sellButton.dataset.marketItemId = item.id;
-  sellButton.textContent = "Sell";
+  sellButton.textContent = "Sell 1";
   sellButton.disabled = ownedQuantity <= 0;
   actions.appendChild(sellButton);
 
-  card.appendChild(actions);
-
-  return card;
+  row.appendChild(actions);
+  return row;
 };
 
 function renderMarketModal() {
@@ -13216,19 +13316,30 @@ function renderMarketModal() {
     return;
   }
 
-  const { grid, balance, empty } = getMarketModalElements();
-  const items = marketState?.items ?? [];
-  const hasItems = Array.isArray(items) && items.length > 0;
+  const { list, balance, empty, search, count } = getMarketModalElements();
+  const items = Array.isArray(marketState?.items) ? marketState.items : [];
+  const filteredItems = getFilteredMarketItems();
+  const hasItems = filteredItems.length > 0;
 
   if (balance instanceof HTMLElement) {
-    balance.textContent = `Balance: ${formatMarsMoney(getCurrencyBalance())}`;
+    balance.textContent = `Balance: ${formatMarsMoney(
+      getCurrencyBalance()
+    )} • Inventory: ${getMarketInventoryLoadSummary()}`;
   }
 
-  if (!(grid instanceof HTMLElement)) {
+  if (search instanceof HTMLInputElement && search.value !== marketSearchQuery) {
+    search.value = marketSearchQuery;
+  }
+
+  if (count instanceof HTMLElement) {
+    count.textContent = `Showing ${filteredItems.length} of ${items.length} elements`;
+  }
+
+  if (!(list instanceof HTMLElement)) {
     return;
   }
 
-  grid.innerHTML = "";
+  list.innerHTML = "";
 
   if (empty instanceof HTMLElement) {
     empty.hidden = hasItems;
@@ -13238,12 +13349,12 @@ function renderMarketModal() {
     return;
   }
 
-  items.forEach((item) => {
+  filteredItems.forEach((item) => {
     if (!item) {
       return;
     }
 
-    grid.appendChild(createMarketCard(item));
+    list.appendChild(createMarketRow(item));
   });
 }
 
