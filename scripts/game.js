@@ -4636,7 +4636,7 @@ const COSTUME_RESEARCH_PROJECTS = Object.freeze([
     id: "reserve-cell-pack-i",
     label: "Reserve Cell Pack I",
     description: "Adds an auxiliary oxygen cell to the suit frame.",
-    maxOxygenBonus: 0.5,
+    maxOxygenBonus: 0.1,
     researchDurationMinutes: 5,
     researchRequirements: [
       { element: { symbol: "O", name: "Oxygen" }, count: 2 },
@@ -4647,21 +4647,61 @@ const COSTUME_RESEARCH_PROJECTS = Object.freeze([
   {
     id: "reserve-cell-pack-ii",
     label: "Reserve Cell Pack II",
-    description: "Expands tank routing and doubles the spare reserve stack.",
-    maxOxygenBonus: 0.5,
-    researchDurationMinutes: 15,
+    description: "Expands tank routing with a heavier reserve cluster.",
+    maxOxygenBonus: 0.3,
+    requiredProjectId: "reserve-cell-pack-i",
+    researchDurationMinutes: 25,
     researchRequirements: [
-      { element: { symbol: "O", name: "Oxygen" }, count: 3 },
-      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
-      { element: { symbol: "Ti", name: "Titanium" }, count: 1 },
+      { element: { symbol: "O", name: "Oxygen" }, count: 10 },
+      { element: { symbol: "H", name: "Hydrogen" }, count: 10 },
+      { element: { symbol: "Al", name: "Aluminum" }, count: 5 },
+    ],
+  },
+  {
+    id: "reserve-cell-pack-iii",
+    label: "Reserve Cell Pack III",
+    description: "Stabilizes dual-cell pressure routing for extended sorties.",
+    maxOxygenBonus: 0.2,
+    requiredProjectId: "reserve-cell-pack-ii",
+    researchDurationMinutes: 35,
+    researchRequirements: [
+      { element: { symbol: "O", name: "Oxygen" }, count: 14 },
+      { element: { symbol: "H", name: "Hydrogen" }, count: 14 },
+      { element: { symbol: "Al", name: "Aluminum" }, count: 7 },
+    ],
+  },
+  {
+    id: "reserve-cell-pack-iv",
+    label: "Reserve Cell Pack IV",
+    description: "Reinforces the tank spine with marathon-grade reserve capacity.",
+    maxOxygenBonus: 0.2,
+    requiredProjectId: "reserve-cell-pack-iii",
+    researchDurationMinutes: 45,
+    researchRequirements: [
+      { element: { symbol: "O", name: "Oxygen" }, count: 18 },
+      { element: { symbol: "H", name: "Hydrogen" }, count: 18 },
+      { element: { symbol: "Al", name: "Aluminum" }, count: 9 },
+    ],
+  },
+  {
+    id: "reserve-cell-pack-v",
+    label: "Reserve Cell Pack V",
+    description: "Completes the suit's maximum emergency oxygen reserve architecture.",
+    maxOxygenBonus: 0.2,
+    requiredProjectId: "reserve-cell-pack-iv",
+    researchDurationMinutes: 60,
+    researchRequirements: [
+      { element: { symbol: "O", name: "Oxygen" }, count: 22 },
+      { element: { symbol: "H", name: "Hydrogen" }, count: 22 },
+      { element: { symbol: "Al", name: "Aluminum" }, count: 11 },
     ],
   },
   {
     id: "recycler-breather-i",
     label: "Recycler Breather I",
     description: "Improves filtration so every tank lasts longer on the surface.",
-    oxygenConsumptionReduction: 0.25,
-    researchDurationMinutes: 10,
+    oxygenConsumptionReduction: 0.05,
+    researchDurationMinutes: 5,
     researchRequirements: [
       { element: { symbol: "C", name: "Carbon" }, count: 2 },
       { element: { symbol: "N", name: "Nitrogen" }, count: 2 },
@@ -4671,21 +4711,61 @@ const COSTUME_RESEARCH_PROJECTS = Object.freeze([
   {
     id: "recycler-breather-ii",
     label: "Recycler Breather II",
-    description: "Adds a denser scrubber matrix to halve surface oxygen waste.",
-    oxygenConsumptionReduction: 0.25,
+    description: "Adds a denser scrubber matrix to sharply cut surface oxygen waste.",
+    oxygenConsumptionReduction: 0.15,
+    requiredProjectId: "recycler-breather-i",
     researchDurationMinutes: 25,
     researchRequirements: [
-      { element: { symbol: "O", name: "Oxygen" }, count: 3 },
-      { element: { symbol: "Ne", name: "Neon" }, count: 1 },
-      { element: { symbol: "C", name: "Carbon" }, count: 2 },
+      { element: { symbol: "C", name: "Carbon" }, count: 10 },
+      { element: { symbol: "N", name: "Nitrogen" }, count: 10 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 5 },
+    ],
+  },
+  {
+    id: "recycler-breather-iii",
+    label: "Recycler Breather III",
+    description: "Refines the recycler core for steadier oxygen recovery in motion.",
+    oxygenConsumptionReduction: 0.1,
+    requiredProjectId: "recycler-breather-ii",
+    researchDurationMinutes: 35,
+    researchRequirements: [
+      { element: { symbol: "C", name: "Carbon" }, count: 14 },
+      { element: { symbol: "N", name: "Nitrogen" }, count: 14 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 7 },
+    ],
+  },
+  {
+    id: "recycler-breather-iv",
+    label: "Recycler Breather IV",
+    description: "Adds high-retention membranes for long-duration EVA efficiency.",
+    oxygenConsumptionReduction: 0.1,
+    requiredProjectId: "recycler-breather-iii",
+    researchDurationMinutes: 45,
+    researchRequirements: [
+      { element: { symbol: "C", name: "Carbon" }, count: 18 },
+      { element: { symbol: "N", name: "Nitrogen" }, count: 18 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 9 },
+    ],
+  },
+  {
+    id: "recycler-breather-v",
+    label: "Recycler Breather V",
+    description: "Finalizes the suit's highest-efficiency oxygen recycling loop.",
+    oxygenConsumptionReduction: 0.1,
+    requiredProjectId: "recycler-breather-iv",
+    researchDurationMinutes: 60,
+    researchRequirements: [
+      { element: { symbol: "C", name: "Carbon" }, count: 22 },
+      { element: { symbol: "N", name: "Nitrogen" }, count: 22 },
+      { element: { symbol: "F", name: "Fluorine" }, count: 11 },
     ],
   },
   {
     id: "servo-weave-boots-i",
     label: "Servo Weave Boots I",
     description: "Boot servos accelerate stride recovery during movement.",
-    moveSpeedBonus: 0.5,
-    researchDurationMinutes: 20,
+    moveSpeedBonus: 0.1,
+    researchDurationMinutes: 5,
     researchRequirements: [
       { element: { symbol: "Fe", name: "Iron" }, count: 2 },
       { element: { symbol: "Si", name: "Silicon" }, count: 2 },
@@ -4695,21 +4775,61 @@ const COSTUME_RESEARCH_PROJECTS = Object.freeze([
   {
     id: "servo-weave-boots-ii",
     label: "Servo Weave Boots II",
-    description: "Reinforced actuator mesh pushes suit sprint output to the limit.",
-    moveSpeedBonus: 0.5,
+    description: "Reinforced actuator mesh sharply raises suit sprint output.",
+    moveSpeedBonus: 0.3,
+    requiredProjectId: "servo-weave-boots-i",
+    researchDurationMinutes: 25,
+    researchRequirements: [
+      { element: { symbol: "Fe", name: "Iron" }, count: 10 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 10 },
+      { element: { symbol: "Cu", name: "Copper" }, count: 5 },
+    ],
+  },
+  {
+    id: "servo-weave-boots-iii",
+    label: "Servo Weave Boots III",
+    description: "Refits the lower-body servo matrix for smoother acceleration.",
+    moveSpeedBonus: 0.2,
+    requiredProjectId: "servo-weave-boots-ii",
     researchDurationMinutes: 35,
     researchRequirements: [
-      { element: { symbol: "Ti", name: "Titanium" }, count: 2 },
-      { element: { symbol: "Mn", name: "Manganese" }, count: 1 },
-      { element: { symbol: "Cr", name: "Chromium" }, count: 1 },
+      { element: { symbol: "Fe", name: "Iron" }, count: 14 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 14 },
+      { element: { symbol: "Cu", name: "Copper" }, count: 7 },
+    ],
+  },
+  {
+    id: "servo-weave-boots-iv",
+    label: "Servo Weave Boots IV",
+    description: "Adds high-torque stride assist for heavy-load movement.",
+    moveSpeedBonus: 0.2,
+    requiredProjectId: "servo-weave-boots-iii",
+    researchDurationMinutes: 45,
+    researchRequirements: [
+      { element: { symbol: "Fe", name: "Iron" }, count: 18 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 18 },
+      { element: { symbol: "Cu", name: "Copper" }, count: 9 },
+    ],
+  },
+  {
+    id: "servo-weave-boots-v",
+    label: "Servo Weave Boots V",
+    description: "Completes the fastest servo-boot weave the suit frame can support.",
+    moveSpeedBonus: 0.2,
+    requiredProjectId: "servo-weave-boots-iv",
+    researchDurationMinutes: 60,
+    researchRequirements: [
+      { element: { symbol: "Fe", name: "Iron" }, count: 22 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 22 },
+      { element: { symbol: "Cu", name: "Copper" }, count: 11 },
     ],
   },
   {
     id: "exo-spring-lattice-i",
     label: "Exo Spring Lattice I",
-    description: "Leg frame springs add a powerful assist to jump launches.",
-    jumpBonus: 0.5,
-    researchDurationMinutes: 30,
+    description: "Leg frame springs add a measured assist to jump launches.",
+    jumpBonus: 0.1,
+    researchDurationMinutes: 5,
     researchRequirements: [
       { element: { symbol: "Mg", name: "Magnesium" }, count: 2 },
       { element: { symbol: "Ca", name: "Calcium" }, count: 2 },
@@ -4719,13 +4839,53 @@ const COSTUME_RESEARCH_PROJECTS = Object.freeze([
   {
     id: "exo-spring-lattice-ii",
     label: "Exo Spring Lattice II",
-    description: "High-tension lattice coils double the suit's jump assist ceiling.",
-    jumpBonus: 0.5,
+    description: "High-tension lattice coils dramatically increase jump assist.",
+    jumpBonus: 0.3,
+    requiredProjectId: "exo-spring-lattice-i",
+    researchDurationMinutes: 25,
+    researchRequirements: [
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 10 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 10 },
+      { element: { symbol: "Be", name: "Beryllium" }, count: 5 },
+    ],
+  },
+  {
+    id: "exo-spring-lattice-iii",
+    label: "Exo Spring Lattice III",
+    description: "Balances the spring lattice for repeatable high-arc jumps.",
+    jumpBonus: 0.2,
+    requiredProjectId: "exo-spring-lattice-ii",
+    researchDurationMinutes: 35,
+    researchRequirements: [
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 14 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 14 },
+      { element: { symbol: "Be", name: "Beryllium" }, count: 7 },
+    ],
+  },
+  {
+    id: "exo-spring-lattice-iv",
+    label: "Exo Spring Lattice IV",
+    description: "Adds reinforced spring channels for elevated launch power.",
+    jumpBonus: 0.2,
+    requiredProjectId: "exo-spring-lattice-iii",
+    researchDurationMinutes: 45,
+    researchRequirements: [
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 18 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 18 },
+      { element: { symbol: "Be", name: "Beryllium" }, count: 9 },
+    ],
+  },
+  {
+    id: "exo-spring-lattice-v",
+    label: "Exo Spring Lattice V",
+    description: "Completes the suit's maximum jump-assist spring lattice.",
+    jumpBonus: 0.2,
+    requiredProjectId: "exo-spring-lattice-iv",
     researchDurationMinutes: 60,
     researchRequirements: [
-      { element: { symbol: "V", name: "Vanadium" }, count: 1 },
-      { element: { symbol: "Ni", name: "Nickel" }, count: 2 },
-      { element: { symbol: "Co", name: "Cobalt" }, count: 1 },
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 22 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 22 },
+      { element: { symbol: "Be", name: "Beryllium" }, count: 11 },
     ],
   },
 ]);
@@ -4791,6 +4951,19 @@ const COSTUME_RESEARCH_PROGRESS_UPDATE_MS = 1000;
 
 const getCostumeResearchProjectById = (projectId) =>
   COSTUME_RESEARCH_PROJECTS.find((project) => project.id === projectId) ?? null;
+
+const getCostumeResearchRequiredProject = (project) => {
+  const requiredProjectId =
+    typeof project?.requiredProjectId === "string"
+      ? project.requiredProjectId.trim()
+      : "";
+  return requiredProjectId ? getCostumeResearchProjectById(requiredProjectId) : null;
+};
+
+const isCostumeResearchProjectUnlocked = (project) => {
+  const requiredProject = getCostumeResearchRequiredProject(project);
+  return !requiredProject || isCostumeResearchProjectCompleted(requiredProject.id);
+};
 
 const isCostumeResearchProjectCompleted = (projectId) =>
   typeof projectId === "string" && costumeResearchState.completedProjectIds.has(projectId);
@@ -8419,6 +8592,16 @@ const startCostumeResearch = (projectId) => {
     return false;
   }
 
+  const requiredProject = getCostumeResearchRequiredProject(project);
+  if (requiredProject && !isCostumeResearchProjectUnlocked(project)) {
+    showTerminalToast({
+      title: "Previous tier required",
+      description: `Research ${requiredProject.label} first.`,
+    });
+    refreshResearchModalIfOpen();
+    return false;
+  }
+
   finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
   const activeJob = getCostumeResearchActiveJob();
   if (activeJob) {
@@ -8836,11 +9019,13 @@ const createCostumeResearchProjectCard = (project) => {
   item.dataset.costumeResearchId = project.id;
 
   const completed = isCostumeResearchProjectCompleted(project.id);
+  const requiredProject = getCostumeResearchRequiredProject(project);
+  const prerequisiteReady = isCostumeResearchProjectUnlocked(project);
   const activeJob = getCostumeResearchActiveJob();
   const researchingThisProject = Boolean(activeJob && activeJob.projectId === project.id);
   const otherResearchActive = Boolean(activeJob && activeJob.projectId !== project.id);
   const requirementStates = getCostumeResearchRequirementStates(project);
-  const canResearch = requirementStates.every((state) => state.ready);
+  const canResearch = prerequisiteReady && requirementStates.every((state) => state.ready);
   const researchDurationSeconds = getCostumeResearchDurationSeconds(project);
 
   item.dataset.researched = completed ? "true" : "false";
@@ -8853,11 +9038,17 @@ const createCostumeResearchProjectCard = (project) => {
   } else if (researchingThisProject) {
     status.dataset.status = "busy";
     status.textContent = "Researching";
+  } else if (!prerequisiteReady) {
+    status.dataset.status = "locked";
+    status.textContent = "Locked";
+  } else if (otherResearchActive) {
+    status.dataset.status = "busy";
+    status.textContent = "Busy";
   } else if (canResearch) {
     status.textContent = "Available";
   } else {
     status.dataset.status = "locked";
-    status.textContent = otherResearchActive ? "Busy" : "Locked";
+    status.textContent = "Locked";
   }
   item.appendChild(status);
 
@@ -8882,6 +9073,13 @@ const createCostumeResearchProjectCard = (project) => {
     installedMeta.textContent = "Installed on the suit. Permanent bonus active.";
     item.appendChild(installedMeta);
   } else {
+    if (requiredProject && !prerequisiteReady) {
+      const prerequisiteMeta = document.createElement("p");
+      prerequisiteMeta.className = "crafting-panel__meta";
+      prerequisiteMeta.textContent = `Requires previous tier: ${requiredProject.label}.`;
+      item.appendChild(prerequisiteMeta);
+    }
+
     const requirements = document.createElement("ul");
     requirements.className = "crafting-panel__requirements";
     requirementStates.forEach(({ requirement, needed, available, ready }) => {
@@ -8921,12 +9119,14 @@ const createCostumeResearchProjectCard = (project) => {
     actionButton.disabled = true;
   } else {
     actionButton.dataset.costumeResearchAction = "start";
-    actionButton.textContent = otherResearchActive
+    actionButton.textContent = !prerequisiteReady
+      ? "Requires previous"
+      : otherResearchActive
       ? "Lab busy"
       : canResearch
         ? "Start research"
         : "Need materials";
-    actionButton.disabled = otherResearchActive || !canResearch;
+    actionButton.disabled = !prerequisiteReady || otherResearchActive || !canResearch;
   }
 
   item.appendChild(actionButton);
@@ -8969,7 +9169,7 @@ const renderCostumeResearchPanel = (panel) => {
   const hint = document.createElement("p");
   hint.className = "crafting-panel__hint";
   hint.textContent =
-    "Research permanent suit upgrades here. Max O2, move speed, and jump can reach 2.00x total, while oxygen drain can be cut to 0.50x.";
+    "Research permanent suit upgrades here. Each family now has 5 sequential tiers. Tier II costs 5x Tier I. Max O2, move speed, and jump can reach 2.00x total, while oxygen drain can be cut to 0.50x.";
   panel.appendChild(hint);
 
   if (COSTUME_RESEARCH_PROJECTS.length === 0) {
@@ -8980,6 +9180,9 @@ const renderCostumeResearchPanel = (panel) => {
     return;
   }
 
+  const projectOrder = new Map(
+    COSTUME_RESEARCH_PROJECTS.map((project, index) => [project.id, index])
+  );
   const orderedProjects = COSTUME_RESEARCH_PROJECTS.slice().sort((left, right) => {
     const leftRank =
       left.id === activeJob?.projectId ? 0 : isCostumeResearchProjectCompleted(left.id) ? 2 : 1;
@@ -8992,7 +9195,7 @@ const renderCostumeResearchPanel = (panel) => {
     if (leftRank !== rightRank) {
       return leftRank - rightRank;
     }
-    return left.label.localeCompare(right.label);
+    return (projectOrder.get(left.id) ?? 0) - (projectOrder.get(right.id) ?? 0);
   });
 
   const grid = document.createElement("ul");
