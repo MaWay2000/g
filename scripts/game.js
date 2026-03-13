@@ -9000,14 +9000,13 @@ const createCraftingTablePartCard = (part) => {
       craftButton.dataset.craftingPartAction = "load-research";
       craftButton.textContent = "Load research";
     } else {
-      craftButton.dataset.craftingPartAction = "open-research";
       craftButton.textContent = researchReadyToClaim
         ? "Collect in Research Nexus"
         : researchingThisPart
-          ? "View research"
-          : "Open Research Nexus";
+          ? "Researching in Research Nexus"
+          : "Research in Command Center";
+      craftButton.disabled = true;
     }
-    craftButton.disabled = false;
   } else if (equipped) {
     craftButton.textContent = "Installed";
     craftButton.disabled = true;
@@ -9032,13 +9031,34 @@ const createCraftingTablePartCard = (part) => {
   return item;
 };
 
-const openResearchModalFromCraftingTable = () => {
-  playTerminalInteractionSound();
-  openQuickAccessModal({
-    id: "research",
-    title: "Research Nexus",
-    description: "Unlock drone upgrade blueprints before crafting them.",
-  });
+const shouldShowCraftingTablePartCard = (part) =>
+  Boolean(
+    part &&
+      (isDroneCraftingPartResearched(part.id) || isDroneResearchBlueprintInInventory(part.id))
+  );
+
+const createCraftingTableResearchHintCard = () => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card";
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = "No blueprints loaded";
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent =
+    "Research and claim drone blueprints in Command Center > Research Nexus.";
+  item.appendChild(description);
+
+  const meta = document.createElement("p");
+  meta.className = "crafting-panel__meta";
+  meta.textContent =
+    "Claimed blueprints appear in Inventory > Items. Bring them here to load and craft parts.";
+  item.appendChild(meta);
+
+  return item;
 };
 
 const openDroneSetupModelTabFromCraftingTable = () => {
@@ -9273,7 +9293,16 @@ const renderCraftingTableModal = () => {
     renderCraftingTableMediumModelPreview();
   } else {
     stopDroneModelPreviewRuntimeLoop();
-    DRONE_CRAFTING_PARTS.forEach((part) => {
+    const visibleParts = DRONE_CRAFTING_PARTS.filter((part) =>
+      shouldShowCraftingTablePartCard(part)
+    );
+
+    if (visibleParts.length === 0) {
+      partList.appendChild(createCraftingTableResearchHintCard());
+      return;
+    }
+
+    visibleParts.forEach((part) => {
       partList.appendChild(createCraftingTablePartCard(part));
     });
   }
@@ -9527,11 +9556,6 @@ const handleCraftingTableActionClick = (event) => {
 
   if (actionType === "craft") {
     craftDroneUpgradePart(partId);
-    return;
-  }
-
-  if (actionType === "open-research") {
-    openResearchModalFromCraftingTable();
     return;
   }
 
