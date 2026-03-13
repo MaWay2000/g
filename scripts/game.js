@@ -1788,8 +1788,6 @@ const applySpeedSettingsUiState = () => {
   });
 };
 
-applySpeedSettingsUiState();
-
 const applyJumpSettingsUiState = () => {
   const jumpMultiplier = Number(currentSettings?.playerJumpMultiplier ?? 1);
   const jumpApexSmoothing = Number(currentSettings?.jumpApexSmoothing ?? 6);
@@ -1817,8 +1815,6 @@ const applyJumpSettingsUiState = () => {
     jumpApexVelocity,
   });
 };
-
-applyJumpSettingsUiState();
 
 const applyCostumeResearchBonuses = ({
   refreshResearch = true,
@@ -4847,6 +4843,8 @@ const clearCostumeResearchState = () => {
 };
 
 updatePlayerOxygenUi();
+applySpeedSettingsUiState();
+applyJumpSettingsUiState();
 
 const NEW_GAME_STARTER_RESOURCES = [
   {
