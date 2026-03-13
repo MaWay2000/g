@@ -737,8 +737,6 @@ const triggerPlayerOxygenEmergencyRespawn = (now) => {
   return true;
 };
 
-updatePlayerOxygenUi();
-
 const handlePlayerOxygenShiftKeyDown = (event) => {
   if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
     playerOxygenShiftHeld = true;
@@ -4847,6 +4845,8 @@ const clearCostumeResearchState = () => {
   costumeResearchState.completedProjectIds.clear();
   costumeResearchState.activeJob = null;
 };
+
+updatePlayerOxygenUi();
 
 const NEW_GAME_STARTER_RESOURCES = [
   {
