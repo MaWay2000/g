@@ -4384,9 +4384,11 @@ let quickAccessModalCloseFallbackId = 0;
 let lastFocusedElement = null;
 let missionModalActive = false;
 let marketModalActive = false;
+let researchModalActive = false;
 let droneCustomizationModalActive = false;
 let storageBoxModalActive = false;
 let craftingTableModalActive = false;
+let teardownResearchModalActionBinding = null;
 let teardownStorageBoxActionBinding = null;
 let teardownCraftingTableActionBinding = null;
 const QUICK_ACCESS_MODAL_MARGIN = 16;
@@ -4449,6 +4451,11 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Ion Cutter Head",
     description: "Improves cutter penetration and reduces per-sample dig time.",
     speedBonus: 0.15,
+    researchDurationMinutes: 5,
+    researchRequirements: [
+      { element: { symbol: "H", name: "Hydrogen" }, count: 3 },
+      { element: { symbol: "C", name: "Carbon" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "H", name: "Hydrogen" }, count: 2 },
       { element: { symbol: "Ta", name: "Tantalum" }, count: 1 },
@@ -4459,6 +4466,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Servo Gyro Array",
     description: "Stabilizes approach vectors for quicker scan-and-cut cycles.",
     speedBonus: 0.2,
+    researchDurationMinutes: 8,
+    researchRequirements: [
+      { element: { symbol: "Si", name: "Silicon" }, count: 1 },
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 1 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "Si", name: "Silicon" }, count: 2 },
       { element: { symbol: "Br", name: "Bromine" }, count: 1 },
@@ -4469,6 +4482,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Quantum Routing Core",
     description: "Optimizes flight paths between mining targets and base.",
     speedBonus: 0.25,
+    researchDurationMinutes: 15,
+    researchRequirements: [
+      { element: { symbol: "P", name: "Phosphorus" }, count: 2 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+      { element: { symbol: "Ag", name: "Silver" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "Os", name: "Osmium" }, count: 1 },
       { element: { symbol: "F", name: "Fluorine" }, count: 1 },
@@ -4480,6 +4499,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Adaptive Sensor Lattice",
     description: "Improves target acquisition reliability in difficult terrain.",
     successChanceBonus: 0.14,
+    researchDurationMinutes: 20,
+    researchRequirements: [
+      { element: { symbol: "He", name: "Helium" }, count: 1 },
+      { element: { symbol: "N", name: "Nitrogen" }, count: 2 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "He", name: "Helium" }, count: 1 },
       { element: { symbol: "Si", name: "Silicon" }, count: 2 },
@@ -4491,6 +4516,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Phase Lock Antenna",
     description: "Reduces scan jitter and increases lock-on consistency.",
     successChanceBonus: 0.11,
+    researchDurationMinutes: 28,
+    researchRequirements: [
+      { element: { symbol: "H", name: "Hydrogen" }, count: 2 },
+      { element: { symbol: "O", name: "Oxygen" }, count: 2 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "He", name: "Helium" }, count: 1 },
       { element: { symbol: "H", name: "Hydrogen" }, count: 2 },
@@ -4502,6 +4533,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Predictive Pathfinder AI",
     description: "Pre-computes viable veins to avoid empty extraction cycles.",
     successChanceBonus: 0.09,
+    researchDurationMinutes: 35,
+    researchRequirements: [
+      { element: { symbol: "P", name: "Phosphorus" }, count: 2 },
+      { element: { symbol: "B", name: "Boron" }, count: 1 },
+      { element: { symbol: "As", name: "Arsenic" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "Ho", name: "Holmium" }, count: 1 },
       { element: { symbol: "F", name: "Fluorine" }, count: 2 },
@@ -4513,6 +4550,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Split-Core Extractor",
     description: "Occasionally captures a second sample during a successful cut.",
     doubleYieldChance: 0.18,
+    researchDurationMinutes: 45,
+    researchRequirements: [
+      { element: { symbol: "C", name: "Carbon" }, count: 2 },
+      { element: { symbol: "S", name: "Sulfur" }, count: 2 },
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "Br", name: "Bromine" }, count: 2 },
       { element: { symbol: "Ta", name: "Tantalum" }, count: 1 },
@@ -4524,6 +4567,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Twin Hopper Magazine",
     description: "Adds a secondary containment pass for duplicate samples.",
     doubleYieldChance: 0.12,
+    researchDurationMinutes: 52,
+    researchRequirements: [
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 2 },
+      { element: { symbol: "B", name: "Boron" }, count: 1 },
+    ],
     requirements: [
       { element: { symbol: "Ta", name: "Tantalum" }, count: 1 },
       { element: { symbol: "Br", name: "Bromine" }, count: 2 },
@@ -4535,6 +4584,12 @@ const DRONE_CRAFTING_PARTS = Object.freeze([
     label: "Resonance Fracture Lens",
     description: "Resonant beam shaping can split one successful extraction into two.",
     doubleYieldChance: 0.1,
+    researchDurationMinutes: 60,
+    researchRequirements: [
+      { element: { symbol: "Ag", name: "Silver" }, count: 1 },
+      { element: { symbol: "Be", name: "Beryllium" }, count: 1 },
+      { element: { symbol: "O", name: "Oxygen" }, count: 2 },
+    ],
     requirements: [
       { element: { symbol: "Os", name: "Osmium" }, count: 1 },
       { element: { symbol: "He", name: "Helium" }, count: 1 },
@@ -4585,9 +4640,11 @@ const storageBoxState = {
   capacityRejection: null,
 };
 const droneCraftingState = {
+  researchedPartIds: new Set(),
   craftedPartIds: new Set(),
   equippedPartIds: new Set(),
   readyPartIds: new Set(),
+  activeResearchJob: null,
   activeJob: null,
   unlockedModelIds: new Set([DRONE_LIGHT_MODEL_ID]),
   mediumModelRequirements: [],
@@ -5995,6 +6052,7 @@ let persistStorageBoxStateTimeoutId = 0;
 let lastSerializedStorageBoxState = null;
 let lastSerializedDroneCraftingState = null;
 let droneCraftingProgressIntervalId = 0;
+let droneResearchProgressIntervalId = 0;
 let inventoryWasPointerLocked = false;
 let lastInventoryFocusedElement = null;
 let inventoryCloseFallbackId = 0;
@@ -7400,6 +7458,67 @@ const getCraftingTableModalElements = () => {
   };
 };
 
+const getResearchModalElements = () => {
+  if (!quickAccessModalContent) {
+    return {
+      summary: null,
+      partList: null,
+    };
+  }
+
+  let summary = quickAccessModalContent.querySelector("[data-research-summary]");
+  let partList = quickAccessModalContent.querySelector("[data-research-part-list]");
+
+  if (!(summary instanceof HTMLElement) || !(partList instanceof HTMLElement)) {
+    const header = quickAccessModalContent.querySelector(".quick-access-modal__header");
+    const subtitle = header?.querySelector(".quick-access-modal__subtitle");
+    if (subtitle instanceof HTMLElement) {
+      subtitle.textContent =
+        "Unlock drone upgrade blueprints before they can be built at the Crafting Table.";
+    }
+
+    const section = document.createElement("section");
+    section.className = "quick-access-modal__section crafting-panel research-panel";
+    section.dataset.researchPanel = "true";
+
+    summary = document.createElement("p");
+    summary.className = "crafting-panel__summary";
+    summary.dataset.researchSummary = "true";
+    summary.textContent = "Research lab status: syncing...";
+    section.appendChild(summary);
+
+    const hint = document.createElement("p");
+    hint.className = "crafting-panel__hint";
+    hint.textContent =
+      "Research consumes materials immediately and takes between 5 minutes and 1 hour. One blueprint can run in the lab at a time.";
+    section.appendChild(hint);
+
+    partList = document.createElement("ul");
+    partList.className = "crafting-panel__grid";
+    partList.dataset.researchPartList = "true";
+    partList.setAttribute("role", "list");
+    section.appendChild(partList);
+
+    if (header instanceof HTMLElement) {
+      header.insertAdjacentElement("afterend", section);
+    } else {
+      quickAccessModalContent.prepend(section);
+    }
+  }
+
+  return {
+    summary,
+    partList,
+  };
+};
+
+const isDroneCraftingPartResearched = (partId) =>
+  typeof partId === "string" &&
+  (droneCraftingState.researchedPartIds.has(partId) ||
+    droneCraftingState.craftedPartIds.has(partId) ||
+    droneCraftingState.equippedPartIds.has(partId) ||
+    droneCraftingState.readyPartIds.has(partId));
+
 const isDroneCraftingPartCrafted = (partId) =>
   typeof partId === "string" && droneCraftingState.craftedPartIds.has(partId);
 
@@ -7439,11 +7558,24 @@ const unlockDroneModel = (modelId) => {
 };
 
 const DRONE_CRAFTING_PROGRESS_UPDATE_MS = 200;
+const DRONE_RESEARCH_PROGRESS_UPDATE_MS = 1000;
 
 const isDroneCraftingPartReadyToClaim = (partId) =>
   typeof partId === "string" && droneCraftingState.readyPartIds.has(partId);
 
 const isInstantDroneCraftingEnabled = () => Boolean(currentSettings?.godMode);
+const isInstantDroneResearchEnabled = () => Boolean(currentSettings?.godMode);
+
+const getDroneResearchDurationSeconds = (part) => {
+  if (isInstantDroneResearchEnabled()) {
+    return 0;
+  }
+
+  const durationMinutes = Number.isFinite(part?.researchDurationMinutes)
+    ? Math.max(5, Math.min(60, Math.round(part.researchDurationMinutes)))
+    : 5;
+  return durationMinutes * 60;
+};
 
 const getDroneCraftingPartCraftDurationSeconds = (part) => {
   if (isInstantDroneCraftingEnabled()) {
@@ -7503,6 +7635,55 @@ const normalizeDroneCraftingActiveJob = (rawJob) => {
   };
 };
 
+const normalizeDroneResearchActiveJob = (rawJob) => {
+  if (!rawJob || typeof rawJob !== "object") {
+    return null;
+  }
+
+  const partId = typeof rawJob.partId === "string" ? rawJob.partId.trim() : "";
+  if (!partId || !getDroneCraftingPartById(partId)) {
+    return null;
+  }
+
+  let durationMs = Number(rawJob.durationMs);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  durationMs = Math.max(1000, Math.floor(durationMs));
+
+  let startedAtMs = Number(rawJob.startedAtMs);
+  if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) {
+    startedAtMs = Date.now();
+  }
+  startedAtMs = Math.floor(startedAtMs);
+
+  let completedAtMs = Number(rawJob.completedAtMs);
+  if (!Number.isFinite(completedAtMs) || completedAtMs <= startedAtMs) {
+    completedAtMs = startedAtMs + durationMs;
+  }
+  completedAtMs = Math.floor(completedAtMs);
+
+  return {
+    partId,
+    startedAtMs,
+    durationMs,
+    completedAtMs,
+  };
+};
+
+const getDroneResearchActiveJob = () => {
+  const normalizedJob = normalizeDroneResearchActiveJob(
+    droneCraftingState.activeResearchJob
+  );
+  if (!normalizedJob) {
+    droneCraftingState.activeResearchJob = null;
+    return null;
+  }
+
+  droneCraftingState.activeResearchJob = normalizedJob;
+  return normalizedJob;
+};
+
 const getDroneCraftingActiveJob = () => {
   const normalizedJob = normalizeDroneCraftingActiveJob(droneCraftingState.activeJob);
   if (!normalizedJob) {
@@ -7532,6 +7713,35 @@ const getDroneCraftingJobProgressState = (job = getDroneCraftingActiveJob()) => 
     remainingSeconds,
     durationSeconds,
   };
+};
+
+const getDroneResearchJobProgressState = (job = getDroneResearchActiveJob()) => {
+  if (!job) {
+    return null;
+  }
+
+  const now = Date.now();
+  const durationMs = Math.max(1, Number(job.durationMs) || 1);
+  const elapsedMs = Math.max(0, now - job.startedAtMs);
+  const remainingMs = Math.max(0, job.completedAtMs - now);
+  const progress = Math.max(0, Math.min(1, elapsedMs / durationMs));
+  const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const durationSeconds = Math.max(1, Math.round(durationMs / 1000));
+
+  return {
+    progress,
+    remainingSeconds,
+    durationSeconds,
+  };
+};
+
+const stopDroneResearchProgressInterval = () => {
+  if (!droneResearchProgressIntervalId) {
+    return;
+  }
+
+  window.clearInterval(droneResearchProgressIntervalId);
+  droneResearchProgressIntervalId = 0;
 };
 
 const stopDroneCraftingProgressInterval = () => {
@@ -7581,6 +7791,91 @@ const finalizeDroneCraftingActiveJob = ({
   }
 
   return true;
+};
+
+const finalizeDroneResearchActiveJob = ({
+  notify = true,
+  refreshUi = true,
+} = {}) => {
+  const activeJob = getDroneResearchActiveJob();
+  if (!activeJob || Date.now() < activeJob.completedAtMs) {
+    return false;
+  }
+
+  const part = getDroneCraftingPartById(activeJob.partId);
+  droneCraftingState.activeResearchJob = null;
+
+  if (part) {
+    droneCraftingState.researchedPartIds.add(part.id);
+  }
+
+  persistDroneCraftingState();
+  syncDroneResearchProgressInterval();
+
+  if (refreshUi) {
+    refreshResearchModalIfOpen();
+    refreshCraftingTableModalIfOpen();
+  }
+
+  if (notify && part) {
+    showTerminalToast({
+      title: `${part.label} researched`,
+      description: "Blueprint unlocked. You can now build it at the Crafting Table.",
+    });
+  }
+
+  return true;
+};
+
+const completeDroneResearchActiveJobInstantly = ({ notify = true } = {}) => {
+  if (!isInstantDroneResearchEnabled()) {
+    return false;
+  }
+
+  const activeJob = getDroneResearchActiveJob();
+  if (!activeJob) {
+    return false;
+  }
+
+  droneCraftingState.activeResearchJob = {
+    ...activeJob,
+    completedAtMs: Date.now() - 1,
+  };
+
+  const completed = finalizeDroneResearchActiveJob({
+    notify,
+    refreshUi: true,
+  });
+  if (completed && researchModalActive) {
+    renderResearchModal();
+  }
+  return completed;
+};
+
+const syncDroneResearchProgressInterval = () => {
+  const activeJob = getDroneResearchActiveJob();
+  if (!activeJob) {
+    stopDroneResearchProgressInterval();
+    return;
+  }
+
+  if (droneResearchProgressIntervalId) {
+    return;
+  }
+
+  droneResearchProgressIntervalId = window.setInterval(() => {
+    const completed = finalizeDroneResearchActiveJob({
+      notify: true,
+      refreshUi: true,
+    });
+    if (completed) {
+      return;
+    }
+
+    if (researchModalActive) {
+      renderResearchModal();
+    }
+  }, DRONE_RESEARCH_PROGRESS_UPDATE_MS);
 };
 
 const completeDroneCraftingActiveJobInstantly = ({ notify = true } = {}) => {
@@ -7734,6 +8029,323 @@ const formatCraftingElementName = (element) => {
   }
 
   return "Unknown resource";
+};
+
+const getElementRequirementStates = (requirements) =>
+  (Array.isArray(requirements) ? requirements : []).map((requirement) => {
+    const needed = Number.isFinite(requirement?.count)
+      ? Math.max(1, Math.floor(requirement.count))
+      : 1;
+    const available = getInventoryResourceCount(requirement?.element);
+    return {
+      requirement,
+      needed,
+      available,
+      ready: available >= needed,
+    };
+  });
+
+const getDroneResearchRequirementStates = (part) =>
+  getElementRequirementStates(part?.researchRequirements);
+
+const renderResearchProgressBlock = (item, progressState, labelPrefix = "Researching") => {
+  if (!progressState || !(item instanceof HTMLElement)) {
+    return;
+  }
+
+  const progressContainer = document.createElement("div");
+  progressContainer.className = "crafting-panel__progress";
+
+  const progressTrack = document.createElement("div");
+  progressTrack.className = "crafting-panel__progress-track";
+  progressTrack.setAttribute("role", "progressbar");
+  progressTrack.setAttribute("aria-valuemin", "0");
+  progressTrack.setAttribute("aria-valuemax", "100");
+  progressTrack.setAttribute(
+    "aria-valuenow",
+    String(Math.round(progressState.progress * 100))
+  );
+
+  const progressBar = document.createElement("span");
+  progressBar.className = "crafting-panel__progress-bar";
+  progressBar.style.width = `${Math.round(progressState.progress * 100)}%`;
+  progressTrack.appendChild(progressBar);
+  progressContainer.appendChild(progressTrack);
+
+  const progressMeta = document.createElement("p");
+  progressMeta.className = "crafting-panel__meta";
+  progressMeta.textContent = `${labelPrefix}... ${formatDurationSeconds(
+    progressState.remainingSeconds
+  )} remaining`;
+  progressContainer.appendChild(progressMeta);
+
+  item.appendChild(progressContainer);
+};
+
+const createResearchNexusPartCard = (part) => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card research-panel__card";
+  item.dataset.researchPartId = part.id;
+
+  const researched = isDroneCraftingPartResearched(part.id);
+  const activeJob = getDroneResearchActiveJob();
+  const researchingThisPart = Boolean(activeJob && activeJob.partId === part.id);
+  const requirementStates = getDroneResearchRequirementStates(part);
+  const canResearch = requirementStates.every((state) => state.ready);
+  const researchDurationSeconds = getDroneResearchDurationSeconds(part);
+
+  item.dataset.researched = researched ? "true" : "false";
+  item.dataset.researching = researchingThisPart ? "true" : "false";
+
+  const status = document.createElement("p");
+  status.className = "quick-access-modal__status-tag research-panel__status";
+  if (researched) {
+    status.textContent = "Researched";
+  } else if (researchingThisPart) {
+    status.dataset.status = "busy";
+    status.textContent = "Researching";
+  } else {
+    status.dataset.status = "locked";
+    status.textContent = "Locked";
+  }
+  item.appendChild(status);
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = part.label;
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent = part.description;
+  item.appendChild(description);
+
+  const effect = document.createElement("p");
+  effect.className = "crafting-panel__effect";
+  effect.textContent = formatDronePartEffectLabel(part);
+  item.appendChild(effect);
+
+  if (researched) {
+    const researchedMeta = document.createElement("p");
+    researchedMeta.className = "crafting-panel__meta";
+    researchedMeta.textContent =
+      "Blueprint archived. This part can now be built at the Crafting Table.";
+    item.appendChild(researchedMeta);
+  } else {
+    const requirements = document.createElement("ul");
+    requirements.className = "crafting-panel__requirements";
+
+    requirementStates.forEach(({ requirement, needed, available, ready }) => {
+      const requirementItem = document.createElement("li");
+      requirementItem.className = "crafting-panel__requirement";
+      requirementItem.dataset.ready = ready ? "true" : "false";
+      requirementItem.textContent = `Research cost • ${formatCraftingElementName(
+        requirement?.element
+      )}: ${available}/${needed}`;
+      requirements.appendChild(requirementItem);
+    });
+    item.appendChild(requirements);
+
+    const researchTime = document.createElement("p");
+    researchTime.className = "crafting-panel__meta";
+    researchTime.textContent = `Research time: ${formatDurationSeconds(
+      researchDurationSeconds
+    )}`;
+    item.appendChild(researchTime);
+  }
+
+  if (researchingThisPart) {
+    const progressState = getDroneResearchJobProgressState(activeJob);
+    renderResearchProgressBlock(item, progressState);
+  }
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  actionButton.className = "crafting-panel__button";
+  actionButton.dataset.researchPartId = part.id;
+  actionButton.dataset.researchPartAction = "start";
+
+  if (researched) {
+    actionButton.textContent = "Researched";
+    actionButton.disabled = true;
+  } else if (researchingThisPart) {
+    actionButton.textContent = "Researching...";
+    actionButton.disabled = true;
+  } else {
+    const otherResearchActive = Boolean(activeJob && activeJob.partId !== part.id);
+    actionButton.textContent = otherResearchActive
+      ? "Lab busy"
+      : canResearch
+        ? "Start research"
+        : "Need materials";
+    actionButton.disabled = otherResearchActive || !canResearch;
+  }
+
+  item.appendChild(actionButton);
+  return item;
+};
+
+const renderResearchModal = () => {
+  if (!researchModalActive) {
+    return;
+  }
+
+  finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+
+  const { summary, partList } = getResearchModalElements();
+  const activeJob = getDroneResearchActiveJob();
+  const progressState = getDroneResearchJobProgressState(activeJob);
+  const researchedCount = DRONE_CRAFTING_PARTS.filter((part) =>
+    isDroneCraftingPartResearched(part.id)
+  ).length;
+
+  if (summary instanceof HTMLElement) {
+    const summarySegments = [`Researched ${researchedCount}/${DRONE_CRAFTING_PARTS.length}`];
+    if (activeJob && progressState) {
+      const activePart = getDroneCraftingPartById(activeJob.partId);
+      summarySegments.push(
+        `Lab busy: ${activePart?.label ?? "Research"} (${formatDurationSeconds(
+          progressState.remainingSeconds
+        )} left)`
+      );
+    } else {
+      summarySegments.push("Lab idle");
+    }
+    summary.textContent = summarySegments.join(" • ");
+  }
+
+  if (!(partList instanceof HTMLElement)) {
+    return;
+  }
+
+  const orderedParts = DRONE_CRAFTING_PARTS.slice().sort((left, right) => {
+    const leftRank =
+      left.id === activeJob?.partId ? 0 : isDroneCraftingPartResearched(left.id) ? 2 : 1;
+    const rightRank =
+      right.id === activeJob?.partId
+        ? 0
+        : isDroneCraftingPartResearched(right.id)
+          ? 2
+          : 1;
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+    return left.label.localeCompare(right.label);
+  });
+
+  partList.innerHTML = "";
+  orderedParts.forEach((part) => {
+    partList.appendChild(createResearchNexusPartCard(part));
+  });
+};
+
+const startDronePartResearch = (partId) => {
+  const part = getDroneCraftingPartById(partId);
+  if (!part) {
+    return false;
+  }
+
+  if (isDroneCraftingPartResearched(part.id)) {
+    showTerminalToast({
+      title: "Already researched",
+      description: `${part.label} is already unlocked for crafting.`,
+    });
+    return false;
+  }
+
+  const activeCraftJob = getDroneCraftingActiveJob();
+  if (activeCraftJob?.partId === part.id) {
+    droneCraftingState.researchedPartIds.add(part.id);
+    persistDroneCraftingState();
+    refreshCraftingTableModalIfOpen();
+    refreshResearchModalIfOpen();
+    return true;
+  }
+
+  finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+  const activeResearchJob = getDroneResearchActiveJob();
+  if (activeResearchJob) {
+    const activePart = getDroneCraftingPartById(activeResearchJob.partId);
+    if (activeResearchJob.partId === part.id) {
+      const progressState = getDroneResearchJobProgressState(activeResearchJob);
+      showTerminalToast({
+        title: "Research in progress",
+        description: `${part.label} will finish in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+      return false;
+    }
+
+    showTerminalToast({
+      title: "Research lab busy",
+      description: `${activePart?.label ?? "Another blueprint"} is currently running.`,
+    });
+    return false;
+  }
+
+  const requirementStates = getDroneResearchRequirementStates(part);
+  const missingRequirement = requirementStates.find((state) => !state.ready);
+  if (missingRequirement) {
+    showTerminalToast({
+      title: "Missing research materials",
+      description: `${formatCraftingElementName(
+        missingRequirement.requirement?.element
+      )}: ${missingRequirement.available}/${missingRequirement.needed}.`,
+    });
+    renderResearchModal();
+    return false;
+  }
+
+  for (const requirementState of requirementStates) {
+    const spent = spendInventoryResource(
+      requirementState.requirement?.element,
+      requirementState.needed
+    );
+    if (!spent) {
+      showTerminalToast({
+        title: "Research failed",
+        description: "Inventory changed while starting the experiment. Try again.",
+      });
+      renderResearchModal();
+      return false;
+    }
+  }
+
+  const researchDurationSeconds = getDroneResearchDurationSeconds(part);
+  if (researchDurationSeconds <= 0) {
+    droneCraftingState.researchedPartIds.add(part.id);
+    droneCraftingState.activeResearchJob = null;
+    persistDroneCraftingState();
+    refreshResearchModalIfOpen();
+    refreshCraftingTableModalIfOpen();
+    showTerminalToast({
+      title: `${part.label} researched`,
+      description: "God mode instant research. Craft it now at the Crafting Table.",
+    });
+    return true;
+  }
+
+  const startedAtMs = Date.now();
+  const durationMs = Math.max(1000, researchDurationSeconds * 1000);
+  droneCraftingState.activeResearchJob = {
+    partId: part.id,
+    startedAtMs,
+    durationMs,
+    completedAtMs: startedAtMs + durationMs,
+  };
+  persistDroneCraftingState();
+  syncDroneResearchProgressInterval();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+
+  showTerminalToast({
+    title: `${part.label} started`,
+    description: `Research time: ${formatDurationSeconds(
+      researchDurationSeconds
+    )}. Materials were consumed by the lab.`,
+  });
+  return true;
 };
 
 const hasInstalledAllDroneUpgradeParts = () =>
@@ -8022,12 +8634,18 @@ const createCraftingTablePartCard = (part) => {
   item.className = "crafting-panel__card";
   item.dataset.craftingPartId = part.id;
 
+  const researched = isDroneCraftingPartResearched(part.id);
   const crafted = isDroneCraftingPartCrafted(part.id);
   const equipped = isDroneCraftingPartEquipped(part.id);
   const readyToClaim = isDroneCraftingPartReadyToClaim(part.id);
+  const activeResearchJob = getDroneResearchActiveJob();
+  const researchingThisPart = Boolean(
+    activeResearchJob && activeResearchJob.partId === part.id
+  );
   const activeJob = getDroneCraftingActiveJob();
   const craftingThisPart = Boolean(activeJob && activeJob.partId === part.id);
   const craftingOtherPart = Boolean(activeJob && activeJob.partId !== part.id);
+  item.dataset.researched = researched ? "true" : "false";
   item.dataset.crafted = crafted ? "true" : "false";
   item.dataset.equipped = equipped ? "true" : "false";
   item.dataset.ready = readyToClaim ? "true" : "false";
@@ -8048,7 +8666,41 @@ const createCraftingTablePartCard = (part) => {
   effect.textContent = formatDronePartEffectLabel(part);
   item.appendChild(effect);
 
-  const hideCraftingMaterialDetails = crafted || equipped;
+  if (!researched) {
+    const researchStatus = document.createElement("p");
+    researchStatus.className = "crafting-panel__meta";
+    researchStatus.textContent =
+      "Research required first. Unlock this blueprint in Command Center > Research Nexus.";
+    item.appendChild(researchStatus);
+
+    const researchRequirementStates = getDroneResearchRequirementStates(part);
+    const researchRequirements = document.createElement("ul");
+    researchRequirements.className = "crafting-panel__requirements";
+    researchRequirementStates.forEach(({ requirement, needed, available, ready }) => {
+      const requirementItem = document.createElement("li");
+      requirementItem.className = "crafting-panel__requirement";
+      requirementItem.dataset.ready = ready ? "true" : "false";
+      requirementItem.textContent = `Research cost • ${formatCraftingElementName(
+        requirement?.element
+      )}: ${available}/${needed}`;
+      researchRequirements.appendChild(requirementItem);
+    });
+    item.appendChild(researchRequirements);
+
+    const researchTime = document.createElement("p");
+    researchTime.className = "crafting-panel__meta";
+    researchTime.textContent = `Research time: ${formatDurationSeconds(
+      getDroneResearchDurationSeconds(part)
+    )}`;
+    item.appendChild(researchTime);
+
+    if (researchingThisPart) {
+      const progressState = getDroneResearchJobProgressState(activeResearchJob);
+      renderResearchProgressBlock(item, progressState);
+    }
+  }
+
+  const hideCraftingMaterialDetails = crafted || equipped || !researched;
 
   const requirementStates = (Array.isArray(part.requirements) ? part.requirements : []).map(
     (requirement) => {
@@ -8126,7 +8778,11 @@ const createCraftingTablePartCard = (part) => {
   craftButton.className = "crafting-panel__button";
   craftButton.dataset.craftingPartId = part.id;
 
-  if (equipped) {
+  if (!researched) {
+    craftButton.dataset.craftingPartAction = "open-research";
+    craftButton.textContent = researchingThisPart ? "View research" : "Open Research Nexus";
+    craftButton.disabled = false;
+  } else if (equipped) {
     craftButton.textContent = "Installed";
     craftButton.disabled = true;
   } else if (crafted) {
@@ -8148,6 +8804,15 @@ const createCraftingTablePartCard = (part) => {
   item.appendChild(craftButton);
 
   return item;
+};
+
+const openResearchModalFromCraftingTable = () => {
+  playTerminalInteractionSound();
+  openQuickAccessModal({
+    id: "research",
+    title: "Research Nexus",
+    description: "Unlock drone upgrade blueprints before crafting them.",
+  });
 };
 
 const openDroneSetupModelTabFromCraftingTable = () => {
@@ -8394,6 +9059,25 @@ const craftDroneUpgradePart = (partId) => {
     return false;
   }
 
+  if (!isDroneCraftingPartResearched(part.id)) {
+    const activeResearchJob = getDroneResearchActiveJob();
+    if (activeResearchJob?.partId === part.id) {
+      const progressState = getDroneResearchJobProgressState(activeResearchJob);
+      showTerminalToast({
+        title: "Research in progress",
+        description: `${part.label} research finishes in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+    } else {
+      showTerminalToast({
+        title: "Research required",
+        description: `${part.label} must be researched first in Command Center > Research Nexus.`,
+      });
+    }
+    return false;
+  }
+
   if (isDroneCraftingPartReadyToClaim(part.id)) {
     showTerminalToast({
       title: "Ready to collect",
@@ -8610,9 +9294,71 @@ const handleCraftingTableActionClick = (event) => {
     return;
   }
 
+  if (actionType === "open-research") {
+    openResearchModalFromCraftingTable();
+    return;
+  }
+
   if (actionType === "claim") {
     moveCraftedPartToInventory(partId);
   }
+};
+
+const handleResearchModalActionClick = (event) => {
+  if (!researchModalActive) {
+    return;
+  }
+
+  const actionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-research-part-action]")
+      : null;
+
+  if (!(actionTarget instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const partId = actionTarget.dataset.researchPartId;
+  const actionType = actionTarget.dataset.researchPartAction;
+  if (!partId || actionType !== "start") {
+    return;
+  }
+
+  startDronePartResearch(partId);
+};
+
+const teardownResearchModal = () => {
+  researchModalActive = false;
+  if (typeof teardownResearchModalActionBinding === "function") {
+    teardownResearchModalActionBinding();
+    teardownResearchModalActionBinding = null;
+  }
+};
+
+const bindResearchModalEvents = () => {
+  const { partList } = getResearchModalElements();
+
+  if (
+    !(partList instanceof HTMLElement) ||
+    typeof teardownResearchModalActionBinding === "function"
+  ) {
+    return;
+  }
+
+  partList.addEventListener("click", handleResearchModalActionClick);
+  teardownResearchModalActionBinding = () => {
+    partList.removeEventListener("click", handleResearchModalActionClick);
+  };
+};
+
+const refreshResearchModalIfOpen = () => {
+  if (!researchModalActive) {
+    return;
+  }
+
+  renderResearchModal();
 };
 
 const teardownCraftingTableModal = () => {
@@ -11390,6 +12136,7 @@ const teardownQuickAccessModalContent = () => {
   teardownDroneModelPreviewRuntime();
   newsModalState.renderToken += 1;
   teardownMarketModal();
+  teardownResearchModal();
   teardownStorageBoxModal();
   teardownCraftingTableModal();
 };
@@ -11398,6 +12145,7 @@ const initializeQuickAccessModalContent = (option) => {
   liftModalActive = option?.id === LIFT_MODAL_OPTION.id;
   missionModalActive = option?.id === "missions";
   marketModalActive = option?.id === "market";
+  researchModalActive = option?.id === "research";
   droneCustomizationModalActive = option?.id === "drone-customization";
   storageBoxModalActive = option?.id === STORAGE_BOX_MODAL_OPTION.id;
   craftingTableModalActive = option?.id === CRAFTING_TABLE_MODAL_OPTION.id;
@@ -11415,6 +12163,13 @@ const initializeQuickAccessModalContent = (option) => {
     bindMarketModalEvents();
   } else {
     teardownMarketModal();
+  }
+
+  if (researchModalActive) {
+    renderResearchModal();
+    bindResearchModalEvents();
+  } else {
+    teardownResearchModal();
   }
 
   if (droneCustomizationModalActive) {
@@ -12410,6 +13165,7 @@ const refreshInventoryUi = () => {
   renderDroneInventoryUi();
   updateInventoryCapacityWarning();
   refreshStorageBoxModalIfOpen();
+  refreshResearchModalIfOpen();
   refreshCraftingTableModalIfOpen();
 
   if (missionModalActive) {
@@ -12593,6 +13349,30 @@ const serializeDroneCraftingStateForPersistence = () => {
         }
       : null;
 
+  const researchedPartIds = Array.from(
+    new Set([
+      ...Array.from(droneCraftingState.researchedPartIds),
+      ...craftedPartIds,
+      ...equippedPartIds,
+      ...readyPartIds,
+      ...(activeJobForPersistence ? [activeJobForPersistence.partId] : []),
+    ])
+  ).filter((partId) => typeof partId === "string" && knownPartIds.has(partId));
+  const researchedPartSet = new Set(researchedPartIds);
+
+  const activeResearchJob = getDroneResearchActiveJob();
+  const activeResearchJobForPersistence =
+    activeResearchJob &&
+    knownPartIds.has(activeResearchJob.partId) &&
+    !researchedPartSet.has(activeResearchJob.partId)
+      ? {
+          partId: activeResearchJob.partId,
+          startedAtMs: Math.floor(activeResearchJob.startedAtMs),
+          durationMs: Math.floor(activeResearchJob.durationMs),
+          completedAtMs: Math.floor(activeResearchJob.completedAtMs),
+        }
+      : null;
+
   const unlockedModelIds = Array.from(ensureDroneUnlockedModelState()).filter(
     (modelId) =>
       typeof modelId === "string" &&
@@ -12608,9 +13388,11 @@ const serializeDroneCraftingStateForPersistence = () => {
   );
 
   return {
+    researchedPartIds,
     craftedPartIds,
     equippedPartIds,
     readyPartIds,
+    activeResearchJob: activeResearchJobForPersistence,
     activeJob: activeJobForPersistence,
     unlockedModelIds,
     mediumModelRequirements,
@@ -12818,9 +13600,11 @@ const restoreStorageBoxStateFromStorage = () => {
 const restoreDroneCraftingStateFromStorage = () => {
   const storage = getInventoryStorage();
   if (!storage) {
+    droneCraftingState.researchedPartIds.clear();
     droneCraftingState.craftedPartIds.clear();
     droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
+    droneCraftingState.activeResearchJob = null;
     droneCraftingState.activeJob = null;
     ensureDroneUnlockedModelState().clear();
     ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
@@ -12829,10 +13613,12 @@ const restoreDroneCraftingStateFromStorage = () => {
       ensureDroneUnlockedModelState().add(legacyModelId);
     }
     droneCraftingState.mediumModelRequirements = [];
+    syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
+    refreshResearchModalIfOpen();
     return false;
   }
 
@@ -12841,9 +13627,11 @@ const restoreDroneCraftingStateFromStorage = () => {
     serialized = storage.getItem(DRONE_CRAFTING_STORAGE_KEY);
   } catch (error) {
     console.warn("Unable to read stored drone crafting state", error);
+    droneCraftingState.researchedPartIds.clear();
     droneCraftingState.craftedPartIds.clear();
     droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
+    droneCraftingState.activeResearchJob = null;
     droneCraftingState.activeJob = null;
     ensureDroneUnlockedModelState().clear();
     ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
@@ -12852,16 +13640,20 @@ const restoreDroneCraftingStateFromStorage = () => {
       ensureDroneUnlockedModelState().add(legacyModelId);
     }
     droneCraftingState.mediumModelRequirements = [];
+    syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
+    refreshResearchModalIfOpen();
     return false;
   }
 
+  droneCraftingState.researchedPartIds.clear();
   droneCraftingState.craftedPartIds.clear();
   droneCraftingState.equippedPartIds.clear();
   droneCraftingState.readyPartIds.clear();
+  droneCraftingState.activeResearchJob = null;
   droneCraftingState.activeJob = null;
   ensureDroneUnlockedModelState().clear();
   ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
@@ -12875,10 +13667,12 @@ const restoreDroneCraftingStateFromStorage = () => {
       ensureDroneUnlockedModelState().add(legacyModelId);
     }
     droneCraftingState.mediumModelRequirements = [];
+    syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     syncDroneMiningSpeedBonusWithScene();
     refreshInventoryUi();
     refreshCraftingTableModalIfOpen();
+    refreshResearchModalIfOpen();
     return false;
   }
 
@@ -12888,6 +13682,15 @@ const restoreDroneCraftingStateFromStorage = () => {
     const data = JSON.parse(serialized);
     const knownPartIds = new Set(DRONE_CRAFTING_PARTS.map((part) => part.id));
     const knownModelIds = new Set(DRONE_UNLOCKABLE_MODEL_IDS);
+    const storedResearchedPartIds = Array.isArray(data?.researchedPartIds)
+      ? data.researchedPartIds
+      : [];
+    storedResearchedPartIds.forEach((partId) => {
+      if (typeof partId === "string" && knownPartIds.has(partId)) {
+        droneCraftingState.researchedPartIds.add(partId);
+      }
+    });
+
     const storedCraftedPartIds = Array.isArray(data?.craftedPartIds)
       ? data.craftedPartIds
       : [];
@@ -12896,6 +13699,7 @@ const restoreDroneCraftingStateFromStorage = () => {
         typeof partId === "string" &&
         knownPartIds.has(partId)
       ) {
+        droneCraftingState.researchedPartIds.add(partId);
         droneCraftingState.craftedPartIds.add(partId);
       }
     });
@@ -12920,9 +13724,20 @@ const restoreDroneCraftingStateFromStorage = () => {
         knownPartIds.has(partId) &&
         !droneCraftingState.craftedPartIds.has(partId)
       ) {
+        droneCraftingState.researchedPartIds.add(partId);
         droneCraftingState.readyPartIds.add(partId);
       }
     });
+
+    const restoredActiveResearchJob = normalizeDroneResearchActiveJob(
+      data?.activeResearchJob
+    );
+    if (
+      restoredActiveResearchJob &&
+      !droneCraftingState.researchedPartIds.has(restoredActiveResearchJob.partId)
+    ) {
+      droneCraftingState.activeResearchJob = restoredActiveResearchJob;
+    }
 
     const restoredActiveJob = normalizeDroneCraftingActiveJob(data?.activeJob);
     if (
@@ -12930,6 +13745,7 @@ const restoreDroneCraftingStateFromStorage = () => {
       !droneCraftingState.craftedPartIds.has(restoredActiveJob.partId) &&
       !droneCraftingState.readyPartIds.has(restoredActiveJob.partId)
     ) {
+      droneCraftingState.researchedPartIds.add(restoredActiveJob.partId);
       droneCraftingState.activeJob = restoredActiveJob;
     }
 
@@ -12961,9 +13777,11 @@ const restoreDroneCraftingStateFromStorage = () => {
     );
 
     restored =
+      droneCraftingState.researchedPartIds.size > 0 ||
       droneCraftingState.craftedPartIds.size > 0 ||
       droneCraftingState.equippedPartIds.size > 0 ||
       droneCraftingState.readyPartIds.size > 0 ||
+      Boolean(droneCraftingState.activeResearchJob) ||
       Boolean(droneCraftingState.activeJob) ||
       hasExtraUnlockedModels;
   } catch (error) {
@@ -12976,11 +13794,14 @@ const restoreDroneCraftingStateFromStorage = () => {
     lastSerializedDroneCraftingState = null;
   }
 
+  finalizeDroneResearchActiveJob({ notify: false, refreshUi: false });
+  syncDroneResearchProgressInterval();
   finalizeDroneCraftingActiveJob({ notify: false, refreshUi: false });
   syncDroneCraftingProgressInterval();
   syncDroneMiningSpeedBonusWithScene();
   refreshInventoryUi();
   refreshCraftingTableModalIfOpen();
+  refreshResearchModalIfOpen();
   return restored;
 };
 
@@ -13369,6 +14190,7 @@ const restoredInventoryFromStorage = restoreInventoryStateFromStorage();
 restoreStorageBoxStateFromStorage();
 restoreDroneCraftingStateFromStorage();
 if (Boolean(currentSettings?.godMode)) {
+  completeDroneResearchActiveJobInstantly({ notify: false });
   completeDroneCraftingActiveJobInstantly({ notify: false });
 }
 syncDroneModelSelectionWithUnlocks({
@@ -14617,6 +15439,7 @@ const finishClosingQuickAccessModal = () => {
 
   liftModalActive = false;
   missionModalActive = false;
+  researchModalActive = false;
   droneCustomizationModalActive = false;
   storageBoxModalActive = false;
   craftingTableModalActive = false;
@@ -16631,6 +17454,7 @@ if (godModeToggle instanceof HTMLInputElement) {
     persistSettings(currentSettings);
     applyGodModeUiState();
     if (enabled) {
+      completeDroneResearchActiveJobInstantly({ notify: true });
       completeDroneCraftingActiveJobInstantly({ notify: true });
     }
   });
@@ -16881,13 +17705,16 @@ function handleReset(event) {
     const clearedDroneCrafting = clearStoredDroneCraftingState();
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
+    droneCraftingState.researchedPartIds.clear();
     droneCraftingState.craftedPartIds.clear();
     droneCraftingState.equippedPartIds.clear();
     droneCraftingState.readyPartIds.clear();
+    droneCraftingState.activeResearchJob = null;
     droneCraftingState.activeJob = null;
     ensureDroneUnlockedModelState().clear();
     ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
     droneCraftingState.mediumModelRequirements = [];
+    syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     lastSerializedDroneCraftingState = null;
     syncDroneMiningSpeedBonusWithScene();
