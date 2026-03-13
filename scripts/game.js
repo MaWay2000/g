@@ -13076,14 +13076,6 @@ const executeMarketTrade = (itemId, action) => {
   }
 
   if (action === "buy") {
-    if (item.stock <= 0) {
-      showTerminalToast({
-        title: "Listing sold out",
-        description: `${formatCraftingElementName(item)} is currently out of stock.`,
-      });
-      return false;
-    }
-
     const balance = getCurrencyBalance();
     if (balance < item.price) {
       showTerminalToast({
@@ -13106,7 +13098,6 @@ const executeMarketTrade = (itemId, action) => {
     }
 
     const purchasePrice = item.price;
-    item.stock -= 1;
     addMarsMoney(-purchasePrice);
     adjustMarketPrice(item, "buy");
     showTerminalToast({
@@ -13135,7 +13126,6 @@ const executeMarketTrade = (itemId, action) => {
       return false;
     }
 
-    item.stock += 1;
     addMarsMoney(salePrice);
     adjustMarketPrice(item, "sell");
     showTerminalToast({
@@ -13276,7 +13266,6 @@ const createMarketRow = (item) => {
   const ownedQuantity = getInventoryResourceCount(item);
   metrics.appendChild(createMarketMetric("Buy", formatMarsMoney(item.price)));
   metrics.appendChild(createMarketMetric("Sell", formatMarsMoney(getMarketSalePrice(item))));
-  metrics.appendChild(createMarketMetric("Stock", `${Math.max(0, item?.stock ?? 0)}`));
   metrics.appendChild(createMarketMetric("In Inventory", `${ownedQuantity}`));
   row.appendChild(metrics);
 
@@ -13292,7 +13281,7 @@ const createMarketRow = (item) => {
   buyButton.dataset.marketAction = "buy";
   buyButton.dataset.marketItemId = item.id;
   buyButton.textContent = "Buy 1";
-  buyButton.disabled = item.stock <= 0 || balance < item.price || !hasInventorySpace;
+  buyButton.disabled = balance < item.price || !hasInventorySpace;
   actions.appendChild(buyButton);
 
   const sellButton = document.createElement("button");
