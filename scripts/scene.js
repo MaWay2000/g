@@ -8833,48 +8833,6 @@ export const initScene = (
     antennaCrossbar.position.y = antennaHeight * 0.75;
     antennaTowerGroup.add(antennaCrossbar);
 
-    const antennaLampGeometry = new THREE.SphereGeometry(0.18, 16, 16);
-    const antennaLampMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffd34d,
-      transparent: true,
-      opacity: 0.8,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    antennaLampMaterial.fog = false;
-    const createAntennaLamp = (x, phase) => {
-      const lamp = new THREE.Mesh(antennaLampGeometry, antennaLampMaterial.clone());
-      lamp.userData.viewDistanceMultiplier = 3;
-      lamp.position.set(x, antennaCrossbar.position.y, 0);
-      antennaTowerGroup.add(lamp);
-      const lampLight = new THREE.PointLight(0xffe066, 1.6, 14, 2);
-      lampLight.userData.viewDistanceMultiplier = 3;
-      lampLight.position.copy(lamp.position);
-      antennaTowerGroup.add(lampLight);
-      environmentViewDistanceTargets.push(lamp, lampLight);
-      liftIndicatorLights.push({ mesh: lamp, light: lampLight, phase });
-    };
-    const antennaLampOffsetX = 0.42;
-    createAntennaLamp(-antennaLampOffsetX, 0);
-    createAntennaLamp(antennaLampOffsetX, Math.PI);
-
-    const beaconMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff2d2d,
-      transparent: true,
-      opacity: 0.75,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    beaconMaterial.fog = false;
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 18), beaconMaterial);
-    beacon.userData.viewDistanceMultiplier = 3;
-    beacon.position.y = antennaHeight + 0.36;
-    antennaTowerGroup.add(beacon);
-    const beaconLight = new THREE.PointLight(0xff4d4d, 2.2, 26, 2);
-    beaconLight.userData.viewDistanceMultiplier = 3;
-    beaconLight.position.copy(beacon.position);
-    antennaTowerGroup.add(beaconLight);
-    environmentViewDistanceTargets.push(beacon, beaconLight);
     group.add(antennaTowerGroup);
     operationsExteriorRadioTower = antennaTowerGroup;
     const previousEnvironmentDispose = group.userData?.dispose;
@@ -8889,8 +8847,6 @@ export const initScene = (
 
       stopTowerRadioAudio();
     };
-    liftIndicatorLights.push({ mesh: beacon, light: beaconLight, phase: Math.PI / 2 });
-
     const adjustableEntries = [
       { object: returnDoor, offset: returnDoor.position.y - roomFloorY },
       { object: entranceRoof, offset: entranceRoof.position.y - roomFloorY },
