@@ -3458,7 +3458,8 @@ export const initScene = (
     const boltOffsetX = doorWidth / 2 + frameWidth * 0.25;
     const boltOffsetY = doorHeight / 2 - 0.35;
     const boltSpacingY = doorHeight / 3;
-    for (let i = -1; i <= 1; i += 1) {
+    // Skip the top row so the exterior bolts stay attached to the frame.
+    for (let i = 0; i <= 1; i += 1) {
       boltPositions.push([-boltOffsetX, boltOffsetY - boltSpacingY * i]);
       boltPositions.push([boltOffsetX, boltOffsetY - boltSpacingY * i]);
     }
