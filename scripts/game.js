@@ -4406,6 +4406,9 @@ const quickAccessModalLayoutState = {
   width: 0,
   height: 0,
 };
+const RESEARCH_MODAL_TAB_IDS = Object.freeze(["costume", "drone"]);
+const RESEARCH_MODAL_DEFAULT_TAB_ID = "drone";
+let researchModalActiveTab = RESEARCH_MODAL_DEFAULT_TAB_ID;
 const DRONE_CUSTOMIZATION_TAB_IDS = Object.freeze(["parts", "skins", "model"]);
 const DRONE_CUSTOMIZATION_DEFAULT_TAB_ID = "skins";
 let droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
@@ -7461,15 +7464,39 @@ const getCraftingTableModalElements = () => {
 const getResearchModalElements = () => {
   if (!quickAccessModalContent) {
     return {
+      panel: null,
+      tabButtons: [],
+      costumePanel: null,
+      dronePanel: null,
       summary: null,
       partList: null,
+      costumeEmpty: null,
     };
   }
 
+  let panel = quickAccessModalContent.querySelector("[data-research-panel]");
+  let tabButtons = Array.from(
+    quickAccessModalContent.querySelectorAll("[data-research-tab]")
+  ).filter((button) => button instanceof HTMLButtonElement);
+  let costumePanel = quickAccessModalContent.querySelector(
+    '[data-research-tab-panel="costume"]'
+  );
+  let dronePanel = quickAccessModalContent.querySelector(
+    '[data-research-tab-panel="drone"]'
+  );
   let summary = quickAccessModalContent.querySelector("[data-research-summary]");
   let partList = quickAccessModalContent.querySelector("[data-research-part-list]");
+  let costumeEmpty = quickAccessModalContent.querySelector("[data-research-costume-empty]");
 
-  if (!(summary instanceof HTMLElement) || !(partList instanceof HTMLElement)) {
+  if (
+    !(panel instanceof HTMLElement) ||
+    tabButtons.length !== RESEARCH_MODAL_TAB_IDS.length ||
+    !(costumePanel instanceof HTMLElement) ||
+    !(dronePanel instanceof HTMLElement) ||
+    !(summary instanceof HTMLElement) ||
+    !(partList instanceof HTMLElement) ||
+    !(costumeEmpty instanceof HTMLElement)
+  ) {
     const header = quickAccessModalContent.querySelector(".quick-access-modal__header");
     const subtitle = header?.querySelector(".quick-access-modal__subtitle");
     if (subtitle instanceof HTMLElement) {
@@ -7477,38 +7504,91 @@ const getResearchModalElements = () => {
         "Unlock drone upgrade blueprints before they can be built at the Crafting Table.";
     }
 
-    const section = document.createElement("section");
-    section.className = "quick-access-modal__section crafting-panel research-panel";
-    section.dataset.researchPanel = "true";
+    panel = document.createElement("section");
+    panel.className = "quick-access-modal__section research-panel";
+    panel.dataset.researchPanel = "true";
+
+    const tabs = document.createElement("nav");
+    tabs.className = "drone-customization-tabs research-panel__tabs";
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Research tabs");
+    panel.appendChild(tabs);
+
+    const createdTabButtons = RESEARCH_MODAL_TAB_IDS.map((tabId) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "drone-customization-tabs__button";
+      button.dataset.researchTab = tabId;
+      button.id = `research-tab-${tabId}`;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", `research-panel-${tabId}`);
+      button.textContent = tabId === "costume" ? "Costume" : "Drone";
+      tabs.appendChild(button);
+      return button;
+    });
+    tabButtons = createdTabButtons;
+
+    costumePanel = document.createElement("div");
+    costumePanel.className = "research-panel__tab-content";
+    costumePanel.dataset.researchTabPanel = "costume";
+    costumePanel.id = "research-panel-costume";
+    costumePanel.setAttribute("role", "tabpanel");
+    costumePanel.setAttribute("aria-labelledby", "research-tab-costume");
+
+    const costumeHint = document.createElement("p");
+    costumeHint.className = "crafting-panel__hint";
+    costumeHint.textContent =
+      "Cosmetic and suit-style research will appear here when costume upgrades are added.";
+    costumePanel.appendChild(costumeHint);
+
+    costumeEmpty = document.createElement("p");
+    costumeEmpty.className = "research-panel__empty";
+    costumeEmpty.dataset.researchCostumeEmpty = "true";
+    costumeEmpty.textContent = "No costume research projects available yet.";
+    costumePanel.appendChild(costumeEmpty);
+    panel.appendChild(costumePanel);
+
+    dronePanel = document.createElement("div");
+    dronePanel.className = "research-panel__tab-content crafting-panel";
+    dronePanel.dataset.researchTabPanel = "drone";
+    dronePanel.id = "research-panel-drone";
+    dronePanel.setAttribute("role", "tabpanel");
+    dronePanel.setAttribute("aria-labelledby", "research-tab-drone");
 
     summary = document.createElement("p");
     summary.className = "crafting-panel__summary";
     summary.dataset.researchSummary = "true";
     summary.textContent = "Research lab status: syncing...";
-    section.appendChild(summary);
+    dronePanel.appendChild(summary);
 
     const hint = document.createElement("p");
     hint.className = "crafting-panel__hint";
     hint.textContent =
       "Research consumes materials immediately and takes between 5 minutes and 1 hour. One blueprint can run in the lab at a time.";
-    section.appendChild(hint);
+    dronePanel.appendChild(hint);
 
     partList = document.createElement("ul");
     partList.className = "crafting-panel__grid";
     partList.dataset.researchPartList = "true";
     partList.setAttribute("role", "list");
-    section.appendChild(partList);
+    dronePanel.appendChild(partList);
+    panel.appendChild(dronePanel);
 
     if (header instanceof HTMLElement) {
-      header.insertAdjacentElement("afterend", section);
+      header.insertAdjacentElement("afterend", panel);
     } else {
-      quickAccessModalContent.prepend(section);
+      quickAccessModalContent.prepend(panel);
     }
   }
 
   return {
+    panel,
+    tabButtons,
+    costumePanel,
+    dronePanel,
     summary,
     partList,
+    costumeEmpty,
   };
 };
 
@@ -8185,6 +8265,27 @@ const createResearchNexusPartCard = (part) => {
   return item;
 };
 
+const syncResearchModalTabState = () => {
+  const { tabButtons, costumePanel, dronePanel } = getResearchModalElements();
+  const activeTab = RESEARCH_MODAL_TAB_IDS.includes(researchModalActiveTab)
+    ? researchModalActiveTab
+    : RESEARCH_MODAL_DEFAULT_TAB_ID;
+
+  tabButtons.forEach((button) => {
+    const isActive = button.dataset.researchTab === activeTab;
+    button.dataset.active = isActive ? "true" : "false";
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
+  });
+
+  if (costumePanel instanceof HTMLElement) {
+    costumePanel.hidden = activeTab !== "costume";
+  }
+  if (dronePanel instanceof HTMLElement) {
+    dronePanel.hidden = activeTab !== "drone";
+  }
+};
+
 const renderResearchModal = () => {
   if (!researchModalActive) {
     return;
@@ -8198,6 +8299,8 @@ const renderResearchModal = () => {
   const researchedCount = DRONE_CRAFTING_PARTS.filter((part) =>
     isDroneCraftingPartResearched(part.id)
   ).length;
+
+  syncResearchModalTabState();
 
   if (summary instanceof HTMLElement) {
     const summarySegments = [`Researched ${researchedCount}/${DRONE_CRAFTING_PARTS.length}`];
@@ -9309,6 +9412,23 @@ const handleResearchModalActionClick = (event) => {
     return;
   }
 
+  const tabButton =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-research-tab]")
+      : null;
+
+  if (tabButton instanceof HTMLButtonElement) {
+    event.preventDefault();
+    const nextTab = tabButton.dataset.researchTab;
+    if (!RESEARCH_MODAL_TAB_IDS.includes(nextTab)) {
+      return;
+    }
+
+    researchModalActiveTab = nextTab;
+    syncResearchModalTabState();
+    return;
+  }
+
   const actionTarget =
     event.target instanceof HTMLElement
       ? event.target.closest("[data-research-part-action]")
@@ -9331,6 +9451,7 @@ const handleResearchModalActionClick = (event) => {
 
 const teardownResearchModal = () => {
   researchModalActive = false;
+  researchModalActiveTab = RESEARCH_MODAL_DEFAULT_TAB_ID;
   if (typeof teardownResearchModalActionBinding === "function") {
     teardownResearchModalActionBinding();
     teardownResearchModalActionBinding = null;
@@ -9338,18 +9459,18 @@ const teardownResearchModal = () => {
 };
 
 const bindResearchModalEvents = () => {
-  const { partList } = getResearchModalElements();
+  const { panel } = getResearchModalElements();
 
   if (
-    !(partList instanceof HTMLElement) ||
+    !(panel instanceof HTMLElement) ||
     typeof teardownResearchModalActionBinding === "function"
   ) {
     return;
   }
 
-  partList.addEventListener("click", handleResearchModalActionClick);
+  panel.addEventListener("click", handleResearchModalActionClick);
   teardownResearchModalActionBinding = () => {
-    partList.removeEventListener("click", handleResearchModalActionClick);
+    panel.removeEventListener("click", handleResearchModalActionClick);
   };
 };
 
