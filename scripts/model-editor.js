@@ -2657,6 +2657,29 @@ function centerObject(object3D) {
   object3D.position.sub(center);
 }
 
+function placeImportedObjectOnGround(object3D) {
+  if (!object3D) {
+    return;
+  }
+
+  const box = new THREE.Box3().setFromObject(object3D);
+  if (
+    !Number.isFinite(box.min.x) ||
+    !Number.isFinite(box.min.y) ||
+    !Number.isFinite(box.min.z) ||
+    !Number.isFinite(box.max.x) ||
+    !Number.isFinite(box.max.y) ||
+    !Number.isFinite(box.max.z)
+  ) {
+    return;
+  }
+
+  const center = box.getCenter(new THREE.Vector3());
+  object3D.position.x -= center.x;
+  object3D.position.z -= center.z;
+  object3D.position.y -= box.min.y;
+}
+
 function focusObject(object3D) {
   if (!object3D) {
     return;
@@ -3553,8 +3576,11 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
       });
 
       const centerOffset = boundingBox.getCenter(new THREE.Vector3());
+      const groundOffset = boundingBox.min.y;
       separatedChildren.forEach((child) => {
-        child.position.sub(centerOffset);
+        child.position.x -= centerOffset.x;
+        child.position.z -= centerOffset.z;
+        child.position.y -= groundOffset;
       });
 
       separatedPieces.forEach((piece) => {
@@ -3574,7 +3600,7 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
       return;
     }
 
-    centerObject(imported);
+    placeImportedObjectOnGround(imported);
     setCurrentSelection(imported, name);
     pushHistorySnapshot();
   } catch (error) {
