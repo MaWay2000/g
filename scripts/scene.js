@@ -4825,6 +4825,128 @@ export const initScene = (
     }
   };
 
+  const getImportedStorageBoxModelOptions = (model) => {
+    const rawOptions = model?.userData?.modelOptions?.storageBox;
+    if (!rawOptions || rawOptions.enabled !== true) {
+      return null;
+    }
+
+    const numericCapacityKg = Number(rawOptions.maxLoadKg);
+    return {
+      maxLoadKg:
+        Number.isFinite(numericCapacityKg) && numericCapacityKg > 0
+          ? numericCapacityKg
+          : null,
+    };
+  };
+
+  const formatImportedStorageBoxLabel = (placement) => {
+    const explicitLabel =
+      typeof placement?.name === "string" ? placement.name.trim() : "";
+    if (explicitLabel) {
+      return explicitLabel;
+    }
+
+    const rawPath = typeof placement?.path === "string" ? placement.path.trim() : "";
+    if (!rawPath) {
+      return "Storage box";
+    }
+
+    const fileName = rawPath.split(/[\\/]/).pop() ?? rawPath;
+    const stem = fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+    return stem
+      ? stem.replace(/\b([a-z])/gi, (match) => match.toUpperCase())
+      : "Storage box";
+  };
+
+  const getLocalBoundsForImportedObject = (object) => {
+    if (!object?.isObject3D) {
+      return null;
+    }
+
+    const rootInverseWorld = new THREE.Matrix4();
+    const childToRootMatrix = new THREE.Matrix4();
+    const bounds = new THREE.Box3();
+    const childBounds = new THREE.Box3();
+    let hasBounds = false;
+
+    object.updateWorldMatrix(true, true);
+    rootInverseWorld.copy(object.matrixWorld).invert();
+
+    object.traverse((child) => {
+      if (!child?.isMesh || !child.geometry) {
+        return;
+      }
+
+      if (!child.geometry.boundingBox) {
+        child.geometry.computeBoundingBox();
+      }
+      if (!child.geometry.boundingBox) {
+        return;
+      }
+
+      child.updateWorldMatrix(true, false);
+      childToRootMatrix.copy(rootInverseWorld).multiply(child.matrixWorld);
+      childBounds.copy(child.geometry.boundingBox).applyMatrix4(childToRootMatrix);
+
+      if (!hasBounds) {
+        bounds.copy(childBounds);
+        hasBounds = true;
+      } else {
+        bounds.union(childBounds);
+      }
+    });
+
+    return hasBounds ? bounds : null;
+  };
+
+  const createImportedStorageBoxControl = (
+    model,
+    { storageBoxId, storageBoxLabel, storageBoxCapacityKg } = {}
+  ) => {
+    if (!model?.isObject3D) {
+      return null;
+    }
+
+    const localBounds = getLocalBoundsForImportedObject(model);
+    if (!localBounds) {
+      return null;
+    }
+
+    const size = localBounds.getSize(new THREE.Vector3());
+    const center = localBounds.getCenter(new THREE.Vector3());
+    const control = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        Math.max(0.24, size.x + 0.18),
+        Math.max(0.24, size.y + 0.18),
+        Math.max(0.24, size.z + 0.18)
+      ),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0x22d3ee),
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      })
+    );
+
+    control.name = `${storageBoxLabel || "storage-box"}-control`;
+    control.position.copy(center);
+    control.userData.isStorageBoxControl = true;
+    control.userData.storageBoxId =
+      typeof storageBoxId === "string" && storageBoxId.trim()
+        ? storageBoxId.trim()
+        : "storage-box";
+    control.userData.storageBoxLabel =
+      typeof storageBoxLabel === "string" && storageBoxLabel.trim()
+        ? storageBoxLabel.trim()
+        : "Storage box";
+    if (Number.isFinite(storageBoxCapacityKg) && storageBoxCapacityKg > 0) {
+      control.userData.storageBoxCapacityKg = storageBoxCapacityKg;
+    }
+
+    return control;
+  };
+
   const createStoredAreaOverlay = ({
     areaId,
     floorBounds,
@@ -5361,6 +5483,17 @@ export const initScene = (
               })
             : [];
           const modelUserData = model.userData || (model.userData = {});
+          const storageBoxOptions = getImportedStorageBoxModelOptions(model);
+          if (storageBoxOptions) {
+            const storageBoxControl = createImportedStorageBoxControl(model, {
+              storageBoxId: placementId,
+              storageBoxLabel: formatImportedStorageBoxLabel(placement),
+              storageBoxCapacityKg: storageBoxOptions.maxLoadKg,
+            });
+            if (storageBoxControl) {
+              model.add(storageBoxControl);
+            }
+          }
           modelUserData.mapMakerStoned = placementStoned;
           modelUserData.manifestPlacementColliders = Array.isArray(descriptors)
             ? descriptors
@@ -8266,6 +8399,20 @@ export const initScene = (
                   });
                   viewDistanceTargets.push(model);
                   const modelUserData = model.userData || (model.userData = {});
+                  const storageBoxOptions = getImportedStorageBoxModelOptions(model);
+                  if (storageBoxOptions) {
+                    const storageBoxControl = createImportedStorageBoxControl(
+                      model,
+                      {
+                        storageBoxId: placementId,
+                        storageBoxLabel: formatImportedStorageBoxLabel(placement),
+                        storageBoxCapacityKg: storageBoxOptions.maxLoadKg,
+                      }
+                    );
+                    if (storageBoxControl) {
+                      model.add(storageBoxControl);
+                    }
+                  }
                   modelUserData.mapMakerStoned = placementStoned;
                   if (placementCollisionEnabled) {
                     const modelColliders = registerCollidersForImportedRoot(
@@ -15724,15 +15871,28 @@ export const initScene = (
 
     const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
     const activeGroup = activeEnvironment?.getGroup?.();
-    const controls = activeGroup?.userData?.storageBoxControls;
-    if (!Array.isArray(controls) || controls.length === 0) {
+    if (!activeGroup?.isObject3D) {
       return [];
     }
 
-    return controls.filter(
-      (control) =>
-        control?.isObject3D && control.visible !== false && control.parent
-    );
+    const controls = [];
+    const seenControls = new Set();
+    activeGroup.traverse((candidate) => {
+      if (
+        !candidate?.isObject3D ||
+        candidate.visible === false ||
+        !candidate.parent ||
+        candidate.userData?.isStorageBoxControl !== true ||
+        seenControls.has(candidate)
+      ) {
+        return;
+      }
+
+      seenControls.add(candidate);
+      controls.push(candidate);
+    });
+
+    return controls;
   };
 
   const collectEnvironmentCraftingTableControls = () => {

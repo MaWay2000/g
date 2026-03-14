@@ -4475,8 +4475,9 @@ const newsModalState = {
 
 const INVENTORY_SLOT_COUNT = 200;
 const DEFAULT_INVENTORY_CAPACITY_KG = 200;
+const STORAGE_BOX_DEFAULT_ID = "operations-concourse-exit";
+const STORAGE_BOX_DEFAULT_LABEL = "Outside exit room";
 const STORAGE_BOX_CAPACITY_KG = 100;
-const STORAGE_BOX_CAPACITY_GRAMS = STORAGE_BOX_CAPACITY_KG * GRAMS_PER_KILOGRAM;
 const STORAGE_BOX_STORAGE_KEY = "dustyNova.storage-box";
 const DRONE_CRAFTING_STORAGE_KEY = "dustyNova.drone-crafting";
 const DRONE_CRAFTING_PARTS = Object.freeze([
@@ -4926,10 +4927,8 @@ const inventoryState = {
 };
 let activeInventoryTab = "inventory";
 const storageBoxState = {
-  entries: [],
-  entryMap: new Map(),
-  currentLoadGrams: 0,
-  capacityRejection: null,
+  boxes: new Map(),
+  activeBoxId: STORAGE_BOX_DEFAULT_ID,
 };
 const droneCraftingState = {
   researchedPartIds: new Set(),
@@ -7582,6 +7581,8 @@ const getStorageEntryDisplayName = (entry) => {
 const getStorageBoxModalElements = () => {
   if (!quickAccessModalContent) {
     return {
+      location: null,
+      subtitle: null,
       warning: null,
       inventoryLoad: null,
       storedLoad: null,
@@ -7593,6 +7594,8 @@ const getStorageBoxModalElements = () => {
   }
 
   return {
+    location: quickAccessModalContent.querySelector("[data-storage-box-location]"),
+    subtitle: quickAccessModalContent.querySelector("[data-storage-box-subtitle]"),
     warning: quickAccessModalContent.querySelector("[data-storage-box-warning]"),
     inventoryLoad: quickAccessModalContent.querySelector(
       "[data-storage-box-inventory-load]"
@@ -7610,7 +7613,7 @@ const getStorageBoxModalElements = () => {
 };
 
 const getOrderedStorageBoxEntries = () =>
-  Array.from(storageBoxState.entries).sort(
+  Array.from(getActiveStorageBoxRecord().entries).sort(
     (left, right) => (right?.lastTransferredAt ?? 0) - (left?.lastTransferredAt ?? 0)
   );
 
@@ -7658,6 +7661,8 @@ const renderStorageBoxModal = () => {
   }
 
   const {
+    location,
+    subtitle,
     warning,
     inventoryLoad: inventoryLoadLabel,
     storedLoad: storedLoadLabel,
@@ -7667,13 +7672,24 @@ const renderStorageBoxModal = () => {
     storedEmpty,
   } = getStorageBoxModalElements();
 
-  const storageLoad = recalculateStorageBoxLoad();
+  const activeStorageBox = getActiveStorageBoxRecord();
+  const storageLoad = recalculateStorageBoxLoad(activeStorageBox.id);
   const storageFill = `${formatGrams(storageLoad)} / ${formatKilograms(
-    STORAGE_BOX_CAPACITY_KG
+    getStorageBoxCapacityKg(activeStorageBox.id)
   )}`;
   const inventoryLoadGrams = Number.isFinite(inventoryState.currentLoadGrams)
     ? inventoryState.currentLoadGrams
     : recalculateInventoryLoad();
+
+  if (location instanceof HTMLElement) {
+    location.textContent = activeStorageBox.label;
+  }
+
+  if (subtitle instanceof HTMLElement) {
+    subtitle.textContent = `Transfer collected elements between your inventory and this ${formatKilograms(
+      getStorageBoxCapacityKg(activeStorageBox.id)
+    )} stash.`;
+  }
 
   if (inventoryLoadLabel instanceof HTMLElement) {
     inventoryLoadLabel.textContent = `Load: ${formatGrams(
@@ -7689,8 +7705,8 @@ const renderStorageBoxModal = () => {
 
   if (warning instanceof HTMLElement) {
     const rejection =
-      typeof storageBoxState.capacityRejection === "string"
-        ? storageBoxState.capacityRejection.trim()
+      typeof activeStorageBox.capacityRejection === "string"
+        ? activeStorageBox.capacityRejection.trim()
         : "";
     warning.hidden = rejection === "";
     warning.textContent = rejection || "";
@@ -7707,7 +7723,7 @@ const renderStorageBoxModal = () => {
     inventoryList.innerHTML = "";
     inventoryEntries.forEach((entry) => {
       const unitWeight = getInventoryElementWeight(entry.element);
-      const canStore = canStorageBoxAcceptWeight(unitWeight);
+      const canStore = canStorageBoxAcceptWeight(unitWeight, activeStorageBox.id);
       inventoryList.appendChild(
         createStorageBoxModalEntryItem({
           entry,
@@ -13825,62 +13841,161 @@ const canAcceptInventoryWeight = (additionalWeight) => {
   return currentLoad + normalizedAdditional <= getInventoryCapacityGrams();
 };
 
-const getStorageBoxCapacityGrams = () => STORAGE_BOX_CAPACITY_GRAMS;
+const normalizeStorageBoxId = (value) => {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized || STORAGE_BOX_DEFAULT_ID;
+};
 
-const recalculateStorageBoxLoad = () => {
-  const totalWeight = storageBoxState.entries.reduce(
+const normalizeStorageBoxLabel = (value) => {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized || STORAGE_BOX_DEFAULT_LABEL;
+};
+
+const normalizeStorageBoxCapacityKg = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? Math.max(0.1, numericValue)
+    : STORAGE_BOX_CAPACITY_KG;
+};
+
+const createStorageBoxRecord = (boxId, { label, capacityKg } = {}) => ({
+  id: normalizeStorageBoxId(boxId),
+  label: normalizeStorageBoxLabel(label),
+  capacityKg: normalizeStorageBoxCapacityKg(capacityKg),
+  entries: [],
+  entryMap: new Map(),
+  currentLoadGrams: 0,
+  capacityRejection: null,
+});
+
+const updateStorageBoxRecordMetadata = (record, { label, capacityKg } = {}) => {
+  if (!record || typeof record !== "object") {
+    return null;
+  }
+
+  if (typeof label === "string" && label.trim()) {
+    record.label = normalizeStorageBoxLabel(label);
+  }
+
+  if (Number.isFinite(Number(capacityKg)) && Number(capacityKg) > 0) {
+    record.capacityKg = normalizeStorageBoxCapacityKg(capacityKg);
+  }
+
+  return record;
+};
+
+const ensureStorageBoxRecord = (boxId = STORAGE_BOX_DEFAULT_ID, options = {}) => {
+  const normalizedId = normalizeStorageBoxId(boxId);
+  let record = storageBoxState.boxes.get(normalizedId);
+
+  if (!record) {
+    record = createStorageBoxRecord(normalizedId, options);
+    storageBoxState.boxes.set(normalizedId, record);
+    return record;
+  }
+
+  return updateStorageBoxRecordMetadata(record, options);
+};
+
+const getStorageBoxRecord = (boxId = STORAGE_BOX_DEFAULT_ID, options = {}) =>
+  ensureStorageBoxRecord(boxId, options);
+
+const getActiveStorageBoxRecord = () =>
+  getStorageBoxRecord(storageBoxState.activeBoxId ?? STORAGE_BOX_DEFAULT_ID);
+
+const setActiveStorageBoxRecord = ({ id, label, capacityKg } = {}) => {
+  const record = ensureStorageBoxRecord(id, { label, capacityKg });
+  storageBoxState.activeBoxId = record.id;
+  refreshStorageBoxModalIfOpen();
+  schedulePersistStorageBoxState();
+  return record;
+};
+
+const getStorageBoxCapacityKg = (boxId = STORAGE_BOX_DEFAULT_ID) =>
+  getStorageBoxRecord(boxId).capacityKg;
+
+const getStorageBoxCapacityGrams = (boxId = STORAGE_BOX_DEFAULT_ID) =>
+  Math.max(
+    0,
+    Math.round(getStorageBoxCapacityKg(boxId) * GRAMS_PER_KILOGRAM)
+  );
+
+const recalculateStorageBoxLoad = (boxId = STORAGE_BOX_DEFAULT_ID) => {
+  const record = getStorageBoxRecord(boxId);
+  const totalWeight = record.entries.reduce(
     (sum, entry) => sum + getInventoryEntryWeight(entry),
     0
   );
 
-  storageBoxState.currentLoadGrams = Math.max(0, totalWeight);
-  return storageBoxState.currentLoadGrams;
+  record.currentLoadGrams = Math.max(0, totalWeight);
+  return record.currentLoadGrams;
 };
 
-const canStorageBoxAcceptWeight = (additionalWeight) => {
+const canStorageBoxAcceptWeight = (
+  additionalWeight,
+  boxId = STORAGE_BOX_DEFAULT_ID
+) => {
   const normalizedAdditional = Math.max(0, Number(additionalWeight) || 0);
-  const currentLoad = Number.isFinite(storageBoxState.currentLoadGrams)
-    ? storageBoxState.currentLoadGrams
-    : recalculateStorageBoxLoad();
+  const record = getStorageBoxRecord(boxId);
+  const currentLoad = Number.isFinite(record.currentLoadGrams)
+    ? record.currentLoadGrams
+    : recalculateStorageBoxLoad(record.id);
 
-  return currentLoad + normalizedAdditional <= getStorageBoxCapacityGrams();
+  return currentLoad + normalizedAdditional <= getStorageBoxCapacityGrams(record.id);
 };
 
-const getStorageBoxEntryByKey = (key) => {
+const getStorageBoxEntryByKey = (
+  key,
+  boxId = storageBoxState.activeBoxId ?? STORAGE_BOX_DEFAULT_ID
+) => {
   if (typeof key !== "string" || key.trim() === "") {
     return null;
   }
 
-  return storageBoxState.entryMap.get(key) ?? null;
+  return getStorageBoxRecord(boxId).entryMap.get(key) ?? null;
 };
 
-const getStorageBoxResourceEntry = (element) => {
+const getStorageBoxResourceEntry = (element, boxId = STORAGE_BOX_DEFAULT_ID) => {
   const sanitized = sanitizeInventoryElement(element ?? {});
   const key = getInventoryEntryKey(sanitized);
-  return storageBoxState.entryMap.get(key) ?? null;
+  return getStorageBoxRecord(boxId).entryMap.get(key) ?? null;
 };
 
-const getStorageBoxResourceCount = (element) =>
-  getStorageBoxResourceEntry(element)?.count ?? 0;
+const getStorageBoxResourceCount = (element, boxId = STORAGE_BOX_DEFAULT_ID) =>
+  getStorageBoxResourceEntry(element, boxId)?.count ?? 0;
 
-const setStorageBoxCapacityRejection = (message) => {
+const setStorageBoxCapacityRejection = (
+  message,
+  boxId = STORAGE_BOX_DEFAULT_ID
+) => {
+  const record = getStorageBoxRecord(boxId);
   const normalized = typeof message === "string" ? message.trim() : "";
-  storageBoxState.capacityRejection = normalized || null;
-  refreshStorageBoxModalIfOpen();
+  record.capacityRejection = normalized || null;
+  if (record.id === (storageBoxState.activeBoxId ?? STORAGE_BOX_DEFAULT_ID)) {
+    refreshStorageBoxModalIfOpen();
+  }
   schedulePersistStorageBoxState();
 };
 
-const clearStorageBoxCapacityRejection = () => {
-  if (!storageBoxState.capacityRejection) {
+const clearStorageBoxCapacityRejection = (boxId = STORAGE_BOX_DEFAULT_ID) => {
+  const record = getStorageBoxRecord(boxId);
+  if (!record.capacityRejection) {
     return;
   }
 
-  storageBoxState.capacityRejection = null;
-  refreshStorageBoxModalIfOpen();
+  record.capacityRejection = null;
+  if (record.id === (storageBoxState.activeBoxId ?? STORAGE_BOX_DEFAULT_ID)) {
+    refreshStorageBoxModalIfOpen();
+  }
   schedulePersistStorageBoxState();
 };
 
-const recordStorageBoxResource = (element, count = 1) => {
+const recordStorageBoxResource = (
+  element,
+  count = 1,
+  boxId = STORAGE_BOX_DEFAULT_ID
+) => {
+  const record = getStorageBoxRecord(boxId);
   const normalizedCount = Number.isFinite(count)
     ? Math.max(1, Math.floor(count))
     : 1;
@@ -13895,20 +14010,21 @@ const recordStorageBoxResource = (element, count = 1) => {
 
   const unitWeight = getInventoryElementWeight(normalizedElement);
   const additionalWeight = unitWeight * normalizedCount;
-  if (!canStorageBoxAcceptWeight(additionalWeight)) {
+  if (!canStorageBoxAcceptWeight(additionalWeight, record.id)) {
     const label =
       normalizedElement.name || normalizedElement.symbol || "This resource";
     const attemptedWeight = formatGrams(additionalWeight || 0);
     setStorageBoxCapacityRejection(
       `${label} cannot be stored. Storage full (${attemptedWeight} would exceed ${formatKilograms(
-        STORAGE_BOX_CAPACITY_KG
-      )}).`
+        getStorageBoxCapacityKg(record.id)
+      )}).`,
+      record.id
     );
     return false;
   }
 
   const key = getInventoryEntryKey(normalizedElement);
-  let entry = storageBoxState.entryMap.get(key);
+  let entry = record.entryMap.get(key);
 
   if (!entry) {
     entry = {
@@ -13917,8 +14033,8 @@ const recordStorageBoxResource = (element, count = 1) => {
       count: 0,
       lastTransferredAt: 0,
     };
-    storageBoxState.entryMap.set(key, entry);
-    storageBoxState.entries.push(entry);
+    record.entryMap.set(key, entry);
+    record.entries.push(entry);
   } else {
     if (!entry.element.symbol && normalizedElement.symbol) {
       entry.element.symbol = normalizedElement.symbol;
@@ -13940,15 +14056,22 @@ const recordStorageBoxResource = (element, count = 1) => {
 
   entry.count += normalizedCount;
   entry.lastTransferredAt = Date.now();
-  recalculateStorageBoxLoad();
-  clearStorageBoxCapacityRejection();
-  refreshStorageBoxModalIfOpen();
+  recalculateStorageBoxLoad(record.id);
+  clearStorageBoxCapacityRejection(record.id);
+  if (record.id === (storageBoxState.activeBoxId ?? STORAGE_BOX_DEFAULT_ID)) {
+    refreshStorageBoxModalIfOpen();
+  }
   schedulePersistStorageBoxState();
   return true;
 };
 
-const spendStorageBoxResource = (element, count = 1) => {
-  const entry = getStorageBoxResourceEntry(element);
+const spendStorageBoxResource = (
+  element,
+  count = 1,
+  boxId = STORAGE_BOX_DEFAULT_ID
+) => {
+  const record = getStorageBoxRecord(boxId);
+  const entry = getStorageBoxResourceEntry(element, record.id);
   const normalizedCount = Number.isFinite(count)
     ? Math.max(1, Math.floor(count))
     : 1;
@@ -13961,23 +14084,26 @@ const spendStorageBoxResource = (element, count = 1) => {
   entry.lastTransferredAt = Date.now();
 
   if (entry.count <= 0) {
-    storageBoxState.entryMap.delete(entry.key);
-    const index = storageBoxState.entries.indexOf(entry);
+    record.entryMap.delete(entry.key);
+    const index = record.entries.indexOf(entry);
     if (index >= 0) {
-      storageBoxState.entries.splice(index, 1);
+      record.entries.splice(index, 1);
     }
   }
 
-  recalculateStorageBoxLoad();
-  if (storageBoxState.currentLoadGrams <= getStorageBoxCapacityGrams()) {
-    clearStorageBoxCapacityRejection();
+  recalculateStorageBoxLoad(record.id);
+  if (record.currentLoadGrams <= getStorageBoxCapacityGrams(record.id)) {
+    clearStorageBoxCapacityRejection(record.id);
   }
-  refreshStorageBoxModalIfOpen();
+  if (record.id === (storageBoxState.activeBoxId ?? STORAGE_BOX_DEFAULT_ID)) {
+    refreshStorageBoxModalIfOpen();
+  }
   schedulePersistStorageBoxState();
   return true;
 };
 
 const transferInventoryToStorageBox = (entryKey, count = 1) => {
+  const activeBoxId = getActiveStorageBoxRecord().id;
   const inventoryEntry = getInventoryEntryByKey(entryKey);
   const normalizedCount = Number.isFinite(count)
     ? Math.max(1, Math.floor(count))
@@ -13992,10 +14118,11 @@ const transferInventoryToStorageBox = (entryKey, count = 1) => {
 
   const unitWeight = getInventoryElementWeight(inventoryEntry.element);
   const transferWeight = unitWeight * normalizedCount;
-  if (!canStorageBoxAcceptWeight(transferWeight)) {
+  if (!canStorageBoxAcceptWeight(transferWeight, activeBoxId)) {
     const label = getStorageEntryDisplayName(inventoryEntry);
     setStorageBoxCapacityRejection(
-      `${label} cannot be stored. ${formatGrams(transferWeight)} exceeds free storage capacity.`
+      `${label} cannot be stored. ${formatGrams(transferWeight)} exceeds free storage capacity.`,
+      activeBoxId
     );
     return false;
   }
@@ -14005,7 +14132,11 @@ const transferInventoryToStorageBox = (entryKey, count = 1) => {
     return false;
   }
 
-  const stored = recordStorageBoxResource(inventoryEntry.element, normalizedCount);
+  const stored = recordStorageBoxResource(
+    inventoryEntry.element,
+    normalizedCount,
+    activeBoxId
+  );
   if (stored) {
     return true;
   }
@@ -14017,7 +14148,8 @@ const transferInventoryToStorageBox = (entryKey, count = 1) => {
 };
 
 const transferStorageBoxToInventory = (entryKey, count = 1) => {
-  const storageEntry = getStorageBoxEntryByKey(entryKey);
+  const activeBoxId = getActiveStorageBoxRecord().id;
+  const storageEntry = getStorageBoxEntryByKey(entryKey, activeBoxId);
   const normalizedCount = Number.isFinite(count)
     ? Math.max(1, Math.floor(count))
     : 1;
@@ -14041,7 +14173,11 @@ const transferStorageBoxToInventory = (entryKey, count = 1) => {
     return false;
   }
 
-  const removed = spendStorageBoxResource(storageEntry.element, normalizedCount);
+  const removed = spendStorageBoxResource(
+    storageEntry.element,
+    normalizedCount,
+    activeBoxId
+  );
   if (!removed) {
     return false;
   }
@@ -14061,7 +14197,7 @@ const transferStorageBoxToInventory = (entryKey, count = 1) => {
 
   const missingCount = normalizedCount - addedCount;
   if (missingCount > 0) {
-    recordStorageBoxResource(storageEntry.element, missingCount);
+    recordStorageBoxResource(storageEntry.element, missingCount, activeBoxId);
   }
   return addedCount > 0;
 };
@@ -14759,6 +14895,82 @@ const normalizeStoredStorageBoxEntry = (rawEntry) => {
   };
 };
 
+const aggregateStoredStorageBoxEntries = (rawEntries) => {
+  const aggregatedEntries = [];
+  const aggregatedMap = new Map();
+
+  const sourceEntries = Array.isArray(rawEntries) ? rawEntries : [];
+  sourceEntries.forEach((rawEntry) => {
+    const normalized = normalizeStoredStorageBoxEntry(rawEntry);
+    if (!normalized) {
+      return;
+    }
+
+    const existing = aggregatedMap.get(normalized.key);
+    if (!existing) {
+      aggregatedMap.set(normalized.key, normalized);
+      aggregatedEntries.push(normalized);
+      return;
+    }
+
+    existing.count += normalized.count;
+    if (normalized.lastTransferredAt > existing.lastTransferredAt) {
+      existing.lastTransferredAt = normalized.lastTransferredAt;
+    }
+
+    if (!existing.element.symbol && normalized.element.symbol) {
+      existing.element.symbol = normalized.element.symbol;
+    }
+    if (!existing.element.name && normalized.element.name) {
+      existing.element.name = normalized.element.name;
+    }
+    if (
+      (!Number.isFinite(existing.element.weight) || existing.element.weight <= 0) &&
+      Number.isFinite(normalized.element.weight) &&
+      normalized.element.weight > 0
+    ) {
+      existing.element.weight = normalized.element.weight;
+    }
+    if (
+      existing.element.number === null &&
+      normalized.element.number !== null
+    ) {
+      existing.element.number = normalized.element.number;
+    }
+  });
+
+  return {
+    entries: aggregatedEntries,
+    entryMap: aggregatedMap,
+  };
+};
+
+const createRestoredStorageBoxRecord = ({
+  id,
+  label,
+  capacityKg,
+  entries,
+  loadGrams,
+  capacityRejection,
+} = {}) => {
+  const record = createStorageBoxRecord(id, { label, capacityKg });
+  const aggregated = aggregateStoredStorageBoxEntries(entries);
+  record.entries.push(...aggregated.entries);
+  record.entryMap = aggregated.entryMap;
+  record.currentLoadGrams = Math.max(
+    0,
+    aggregated.entries.reduce((sum, entry) => sum + getInventoryEntryWeight(entry), 0),
+    Number.isFinite(loadGrams) ? loadGrams : 0
+  );
+
+  if (typeof capacityRejection === "string") {
+    const normalizedRejection = capacityRejection.trim();
+    record.capacityRejection = normalizedRejection || null;
+  }
+
+  return record;
+};
+
 const serializeInventoryStateForPersistence = () => {
   normalizeInventoryCustomOrder();
 
@@ -14803,14 +15015,22 @@ const serializeInventoryStateForPersistence = () => {
 };
 
 const serializeStorageBoxStateForPersistence = () => ({
-  entries: storageBoxState.entries.map((entry) => ({
-    key: entry.key,
-    element: { ...entry.element },
-    count: entry.count,
-    lastTransferredAt: entry.lastTransferredAt ?? 0,
-  })),
-  loadGrams: Math.max(0, Math.round(storageBoxState.currentLoadGrams || 0)),
-  capacityRejection: storageBoxState.capacityRejection,
+  activeBoxId: normalizeStorageBoxId(storageBoxState.activeBoxId),
+  boxes: Array.from(storageBoxState.boxes.values())
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map((record) => ({
+      id: record.id,
+      label: record.label,
+      capacityKg: record.capacityKg,
+      entries: record.entries.map((entry) => ({
+        key: entry.key,
+        element: { ...entry.element },
+        count: entry.count,
+        lastTransferredAt: entry.lastTransferredAt ?? 0,
+      })),
+      loadGrams: Math.max(0, Math.round(record.currentLoadGrams || 0)),
+      capacityRejection: record.capacityRejection,
+    })),
 });
 
 const serializeDroneCraftingStateForPersistence = () => {
@@ -15030,8 +15250,11 @@ const schedulePersistStorageBoxState = () => {
 
 const restoreStorageBoxStateFromStorage = () => {
   const storage = getInventoryStorage();
+  storageBoxState.boxes.clear();
+  storageBoxState.activeBoxId = STORAGE_BOX_DEFAULT_ID;
   if (!storage) {
-    recalculateStorageBoxLoad();
+    ensureStorageBoxRecord(STORAGE_BOX_DEFAULT_ID);
+    recalculateStorageBoxLoad(STORAGE_BOX_DEFAULT_ID);
     refreshStorageBoxModalIfOpen();
     return false;
   }
@@ -15041,13 +15264,15 @@ const restoreStorageBoxStateFromStorage = () => {
     serialized = storage.getItem(STORAGE_BOX_STORAGE_KEY);
   } catch (error) {
     console.warn("Unable to read stored storage box state", error);
-    recalculateStorageBoxLoad();
+    ensureStorageBoxRecord(STORAGE_BOX_DEFAULT_ID);
+    recalculateStorageBoxLoad(STORAGE_BOX_DEFAULT_ID);
     refreshStorageBoxModalIfOpen();
     return false;
   }
 
   if (typeof serialized !== "string" || serialized.trim() === "") {
-    recalculateStorageBoxLoad();
+    ensureStorageBoxRecord(STORAGE_BOX_DEFAULT_ID);
+    recalculateStorageBoxLoad(STORAGE_BOX_DEFAULT_ID);
     refreshStorageBoxModalIfOpen();
     return false;
   }
@@ -15056,76 +15281,44 @@ const restoreStorageBoxStateFromStorage = () => {
 
   try {
     const data = JSON.parse(serialized);
-    if (data && Array.isArray(data.entries)) {
-      const aggregatedEntries = [];
-      const aggregatedMap = new Map();
-
-      data.entries.forEach((rawEntry) => {
-        const normalized = normalizeStoredStorageBoxEntry(rawEntry);
-        if (!normalized) {
+    if (data && Array.isArray(data.boxes)) {
+      data.boxes.forEach((rawBox) => {
+        if (!rawBox || typeof rawBox !== "object") {
           return;
         }
 
-        const existing = aggregatedMap.get(normalized.key);
-        if (!existing) {
-          aggregatedMap.set(normalized.key, normalized);
-          aggregatedEntries.push(normalized);
-          return;
-        }
-
-        existing.count += normalized.count;
-        if (normalized.lastTransferredAt > existing.lastTransferredAt) {
-          existing.lastTransferredAt = normalized.lastTransferredAt;
-        }
-
-        if (!existing.element.symbol && normalized.element.symbol) {
-          existing.element.symbol = normalized.element.symbol;
-        }
-        if (!existing.element.name && normalized.element.name) {
-          existing.element.name = normalized.element.name;
-        }
-        if (
-          (!Number.isFinite(existing.element.weight) || existing.element.weight <= 0) &&
-          Number.isFinite(normalized.element.weight) &&
-          normalized.element.weight > 0
-        ) {
-          existing.element.weight = normalized.element.weight;
-        }
-        if (
-          existing.element.number === null &&
-          normalized.element.number !== null
-        ) {
-          existing.element.number = normalized.element.number;
-        }
+        const restoredBox = createRestoredStorageBoxRecord({
+          id: rawBox.id,
+          label: rawBox.label,
+          capacityKg: rawBox.capacityKg,
+          entries: rawBox.entries,
+          loadGrams: rawBox.loadGrams,
+          capacityRejection: rawBox.capacityRejection,
+        });
+        storageBoxState.boxes.set(restoredBox.id, restoredBox);
       });
 
-      storageBoxState.entries.length = 0;
-      storageBoxState.entries.push(...aggregatedEntries);
-      storageBoxState.entryMap.clear();
-      aggregatedEntries.forEach((entry) => {
-        storageBoxState.entryMap.set(entry.key, entry);
+      storageBoxState.activeBoxId = normalizeStorageBoxId(data.activeBoxId);
+      ensureStorageBoxRecord(storageBoxState.activeBoxId);
+      restored = storageBoxState.boxes.size > 0;
+    } else if (data && Array.isArray(data.entries)) {
+      const restoredBox = createRestoredStorageBoxRecord({
+        id: STORAGE_BOX_DEFAULT_ID,
+        label: STORAGE_BOX_DEFAULT_LABEL,
+        capacityKg: STORAGE_BOX_CAPACITY_KG,
+        entries: data.entries,
+        loadGrams: data.loadGrams,
+        capacityRejection: data.capacityRejection,
       });
-
-      recalculateStorageBoxLoad();
-      if (Number.isFinite(data.loadGrams) && data.loadGrams >= 0) {
-        storageBoxState.currentLoadGrams = Math.max(
-          storageBoxState.currentLoadGrams,
-          data.loadGrams
-        );
-      }
-
-      if (typeof data.capacityRejection === "string") {
-        const rejection = data.capacityRejection.trim();
-        storageBoxState.capacityRejection = rejection || null;
-      } else {
-        storageBoxState.capacityRejection = null;
-      }
-
-      restored = aggregatedEntries.length > 0;
+      storageBoxState.boxes.set(restoredBox.id, restoredBox);
+      storageBoxState.activeBoxId = restoredBox.id;
+      restored = restoredBox.entries.length > 0;
     }
   } catch (error) {
     console.warn("Unable to parse stored storage box state", error);
   }
+
+  ensureStorageBoxRecord(storageBoxState.activeBoxId);
 
   if (restored) {
     lastSerializedStorageBoxState = serialized;
@@ -18853,7 +19046,12 @@ const bootstrapScene = () => {
       onStorageBoxInteractableChange(value) {
         setCrosshairSourceState("storage", value);
       },
-      onStorageBoxInteract() {
+      onStorageBoxInteract({ control } = {}) {
+        setActiveStorageBoxRecord({
+          id: control?.userData?.storageBoxId,
+          label: control?.userData?.storageBoxLabel,
+          capacityKg: control?.userData?.storageBoxCapacityKg,
+        });
         playTerminalInteractionSound();
         openQuickAccessModal(STORAGE_BOX_MODAL_OPTION);
         return true;
@@ -19349,6 +19547,9 @@ function handleReset(event) {
     const clearedDroneCrafting = clearStoredDroneCraftingState();
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
     const resetMarketState = persistMarketState(getDefaultMarketState());
+    storageBoxState.boxes.clear();
+    storageBoxState.activeBoxId = STORAGE_BOX_DEFAULT_ID;
+    ensureStorageBoxRecord(STORAGE_BOX_DEFAULT_ID);
     clearCostumeResearchState();
     droneCraftingState.researchedPartIds.clear();
     droneCraftingState.inventoryResearchPartIds.clear();
