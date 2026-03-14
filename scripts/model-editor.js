@@ -1217,6 +1217,26 @@ function clearAppliedTexture(material) {
   material.needsUpdate = true;
 }
 
+function normalizeMaterialForTextureApplication(material, mapTypes = []) {
+  if (!material) {
+    return;
+  }
+
+  const normalizedMapTypes = new Set(
+    Array.isArray(mapTypes) ? mapTypes.filter(Boolean) : []
+  );
+
+  if (material.color) {
+    material.color.set("#ffffff");
+  }
+
+  if (material.emissive) {
+    const shouldUseEmissive = normalizedMapTypes.has("emissive");
+    material.emissive.set(shouldUseEmissive ? "#ffffff" : "#000000");
+    material.emissiveIntensity = shouldUseEmissive ? 1 : 0;
+  }
+}
+
 function getAppliedTextureReference(material) {
   if (!material || !material.userData) {
     return null;
@@ -1575,6 +1595,8 @@ async function applyTextureToMaterial(material, packId, textureId, manifestEntry
     : fallbackMap
     ? [fallbackMap]
     : [];
+
+  normalizeMaterialForTextureApplication(material, mapTypesToLoad);
 
   const appliedProperties = [];
   const loadPromises = mapTypesToLoad.map((mapType) => {
