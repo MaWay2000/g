@@ -430,6 +430,26 @@ function hasExplicitModelOptions(object3D) {
   );
 }
 
+function findModelOptionsSource(object3D) {
+  if (!object3D) {
+    return null;
+  }
+
+  if (hasExplicitModelOptions(object3D)) {
+    return object3D;
+  }
+
+  let match = null;
+  object3D.traverse((child) => {
+    if (match || !hasExplicitModelOptions(child)) {
+      return;
+    }
+    match = child;
+  });
+
+  return match;
+}
+
 function syncModelOptionsControls() {
   const options = getSceneModelOptions();
   const { enabled, maxLoadKg } = options.storageBox;
@@ -472,15 +492,41 @@ function setSceneModelOptions(nextOptions, { pushHistory = false, announce = fal
 }
 
 function applyImportedModelOptions(imported) {
-  if (!hasExplicitModelOptions(imported)) {
+  const optionsSource = findModelOptionsSource(imported);
+  if (!optionsSource) {
     syncModelOptionsControls();
     return;
   }
 
-  setSceneModelOptions(imported.userData.modelOptions, {
+  setSceneModelOptions(optionsSource.userData.modelOptions, {
     pushHistory: false,
     announce: false,
   });
+}
+
+function createExportSceneRoot() {
+  const exportRoot = sceneRoot.clone(true);
+  exportRoot.name = sceneRoot.name || "EditableScene";
+  exportRoot.userData =
+    sceneRoot.userData && typeof sceneRoot.userData === "object"
+      ? {
+          ...sceneRoot.userData,
+          modelOptions: normalizeModelOptions(sceneRoot.userData.modelOptions),
+        }
+      : {
+          modelOptions: getSceneModelOptions(),
+        };
+
+  if (exportRoot.children.length > 0) {
+    const primaryChild = exportRoot.children[0];
+    primaryChild.userData =
+      primaryChild.userData && typeof primaryChild.userData === "object"
+        ? { ...primaryChild.userData }
+        : {};
+    primaryChild.userData.modelOptions = exportRoot.userData.modelOptions;
+  }
+
+  return exportRoot;
 }
 
 setSceneModelOptions(null, { pushHistory: false, announce: false });
@@ -4606,8 +4652,9 @@ function exportScene() {
   }
 
   setStatus("loading", "Exporting scene…");
+  const exportRoot = createExportSceneRoot();
   gltfExporter.parse(
-    sceneRoot,
+    exportRoot,
     (result) => {
       const blob = new Blob([result], { type: "model/gltf-binary" });
       const url = URL.createObjectURL(blob);

@@ -4826,18 +4826,35 @@ export const initScene = (
   };
 
   const getImportedStorageBoxModelOptions = (model) => {
-    const rawOptions = model?.userData?.modelOptions?.storageBox;
-    if (!rawOptions || rawOptions.enabled !== true) {
-      return null;
+    const getOptionsFromCandidate = (candidate) => {
+      const rawOptions = candidate?.userData?.modelOptions?.storageBox;
+      if (!rawOptions || rawOptions.enabled !== true) {
+        return null;
+      }
+
+      const numericCapacityKg = Number(rawOptions.maxLoadKg);
+      return {
+        maxLoadKg:
+          Number.isFinite(numericCapacityKg) && numericCapacityKg > 0
+            ? numericCapacityKg
+            : null,
+      };
+    };
+
+    const directOptions = getOptionsFromCandidate(model);
+    if (directOptions) {
+      return directOptions;
     }
 
-    const numericCapacityKg = Number(rawOptions.maxLoadKg);
-    return {
-      maxLoadKg:
-        Number.isFinite(numericCapacityKg) && numericCapacityKg > 0
-          ? numericCapacityKg
-          : null,
-    };
+    let nestedOptions = null;
+    model?.traverse?.((child) => {
+      if (nestedOptions) {
+        return;
+      }
+      nestedOptions = getOptionsFromCandidate(child);
+    });
+
+    return nestedOptions;
   };
 
   const formatImportedStorageBoxLabel = (placement) => {
