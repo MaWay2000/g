@@ -2475,15 +2475,114 @@ function ensureStandardMaterial(material) {
   return standardMaterial;
 }
 
+function cloneEditableMaterial(material) {
+  if (!material) {
+    return material;
+  }
+
+  if (material.userData?.editorIsolatedMaterial) {
+    return material;
+  }
+
+  const cloned = material.clone();
+  cloned.userData = {
+    ...(material.userData && typeof material.userData === "object"
+      ? material.userData
+      : {}),
+    editorIsolatedMaterial: true,
+  };
+  return cloned;
+}
+
+function ensureGeometryTextureCoordinates(geometry) {
+  if (!geometry || typeof geometry.getAttribute !== "function") {
+    return;
+  }
+
+  const positionAttribute = geometry.getAttribute("position");
+  if (!positionAttribute || positionAttribute.count <= 0) {
+    return;
+  }
+
+  const ensureUv2 = () => {
+    const uvAttribute = geometry.getAttribute("uv");
+    if (!uvAttribute || geometry.getAttribute("uv2")) {
+      return;
+    }
+
+    geometry.setAttribute("uv2", uvAttribute.clone());
+  };
+
+  if (geometry.getAttribute("uv")) {
+    ensureUv2();
+    return;
+  }
+
+  geometry.computeBoundingBox();
+  const boundingBox = geometry.boundingBox;
+  if (!boundingBox) {
+    return;
+  }
+
+  const size = boundingBox.getSize(new THREE.Vector3());
+  const spanX = Math.max(size.x, 1e-6);
+  const spanY = Math.max(size.y, 1e-6);
+  const spanZ = Math.max(size.z, 1e-6);
+  const min = boundingBox.min;
+  const normalAttribute = geometry.getAttribute("normal");
+  const uvValues = new Float32Array(positionAttribute.count * 2);
+
+  for (let index = 0; index < positionAttribute.count; index += 1) {
+    const x = positionAttribute.getX(index);
+    const y = positionAttribute.getY(index);
+    const z = positionAttribute.getZ(index);
+
+    let u = (x - min.x) / spanX;
+    let v = (y - min.y) / spanY;
+
+    if (normalAttribute) {
+      const normalX = Math.abs(normalAttribute.getX(index));
+      const normalY = Math.abs(normalAttribute.getY(index));
+      const normalZ = Math.abs(normalAttribute.getZ(index));
+
+      if (normalY >= normalX && normalY >= normalZ) {
+        u = (x - min.x) / spanX;
+        v = (z - min.z) / spanZ;
+      } else if (normalX >= normalY && normalX >= normalZ) {
+        u = (z - min.z) / spanZ;
+        v = (y - min.y) / spanY;
+      } else {
+        u = (x - min.x) / spanX;
+        v = (y - min.y) / spanY;
+      }
+    }
+
+    uvValues[index * 2] = u;
+    uvValues[index * 2 + 1] = v;
+  }
+
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uvValues, 2));
+  ensureUv2();
+}
+
 function collectEditableMeshes(object3D) {
   const meshes = [];
   object3D.traverse((child) => {
     if (child.isMesh) {
       child.castShadow = true;
       child.receiveShadow = true;
-      child.material = ensureStandardMaterial(child.material);
+      if (Array.isArray(child.material)) {
+        child.material = child.material.map((material) =>
+          cloneEditableMaterial(ensureStandardMaterial(material))
+        );
+      } else {
+        child.material = cloneEditableMaterial(
+          ensureStandardMaterial(child.material)
+        );
+      }
       if (child.geometry) {
         child.geometry.computeVertexNormals();
+        ensureGeometryTextureCoordinates(child.geometry);
       }
       meshes.push(child);
     }
