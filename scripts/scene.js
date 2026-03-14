@@ -15880,21 +15880,12 @@ export const initScene = (
     );
   };
 
-  const collectEnvironmentStorageBoxControls = () => {
-    const activeFloorId = getActiveLiftFloor()?.id ?? null;
-    if (!activeFloorId) {
-      return [];
+  const collectStorageBoxControlsFromRoot = (root, controls, seenControls) => {
+    if (!root?.isObject3D) {
+      return;
     }
 
-    const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
-    const activeGroup = activeEnvironment?.getGroup?.();
-    if (!activeGroup?.isObject3D) {
-      return [];
-    }
-
-    const controls = [];
-    const seenControls = new Set();
-    activeGroup.traverse((candidate) => {
+    root.traverse((candidate) => {
       if (
         !candidate?.isObject3D ||
         candidate.visible === false ||
@@ -15907,6 +15898,34 @@ export const initScene = (
 
       seenControls.add(candidate);
       controls.push(candidate);
+    });
+  };
+
+  const collectEnvironmentStorageBoxControls = () => {
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    const controls = [];
+    const seenControls = new Set();
+    if (activeFloorId) {
+      const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
+      const activeGroup = activeEnvironment?.getGroup?.();
+      collectStorageBoxControlsFromRoot(activeGroup, controls, seenControls);
+    }
+
+    const manifestPlacements = Array.isArray(getManifestPlacements?.())
+      ? getManifestPlacements()
+      : [];
+    manifestPlacements.forEach((placement) => {
+      const placementFloorId =
+        typeof placement?.userData?.manifestFloorId === "string"
+          ? placement.userData.manifestFloorId
+          : null;
+      if (activeFloorId && placementFloorId && placementFloorId !== activeFloorId) {
+        return;
+      }
+      if (placement?.visible === false) {
+        return;
+      }
+      collectStorageBoxControlsFromRoot(placement, controls, seenControls);
     });
 
     return controls;
