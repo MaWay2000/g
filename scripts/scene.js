@@ -5843,48 +5843,86 @@ export const initScene = (
     storageBoxGroup.rotation.y = Math.PI / 2;
     group.add(storageBoxGroup);
 
-    const storageBoxBodyMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x111827),
-      roughness: 0.58,
-      metalness: 0.38,
-      emissive: new THREE.Color(0x0f172a),
-      emissiveIntensity: 0.24,
-    });
-    const storageBoxAccentMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x22d3ee),
-      roughness: 0.25,
-      metalness: 0.42,
-      emissive: new THREE.Color(0x0ea5e9),
-      emissiveIntensity: 0.58,
-    });
+    const storageBoxVisualRoot = new THREE.Group();
+    storageBoxGroup.add(storageBoxVisualRoot);
 
-    const storageBoxBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.94, 0.56, 0.56),
-      storageBoxBodyMaterial
-    );
-    storageBoxBody.position.set(0, 0.28, 0);
-    storageBoxGroup.add(storageBoxBody);
+    const createFallbackStorageBoxVisual = () => {
+      const fallbackGroup = new THREE.Group();
+      const storageBoxBodyMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x111827),
+        roughness: 0.58,
+        metalness: 0.38,
+        emissive: new THREE.Color(0x0f172a),
+        emissiveIntensity: 0.24,
+      });
+      const storageBoxAccentMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x22d3ee),
+        roughness: 0.25,
+        metalness: 0.42,
+        emissive: new THREE.Color(0x0ea5e9),
+        emissiveIntensity: 0.58,
+      });
 
-    const storageBoxLid = new THREE.Mesh(
-      new THREE.BoxGeometry(0.98, 0.08, 0.62),
-      storageBoxBodyMaterial
-    );
-    storageBoxLid.position.set(0, 0.6, 0);
-    storageBoxGroup.add(storageBoxLid);
+      const storageBoxBody = new THREE.Mesh(
+        new THREE.BoxGeometry(0.94, 0.56, 0.56),
+        storageBoxBodyMaterial
+      );
+      storageBoxBody.position.set(0, 0.28, 0);
+      fallbackGroup.add(storageBoxBody);
 
-    const storageBoxTrim = new THREE.Mesh(
-      new THREE.BoxGeometry(0.86, 0.04, 0.06),
-      storageBoxAccentMaterial
-    );
-    storageBoxTrim.position.set(0, 0.6, -0.3);
-    storageBoxGroup.add(storageBoxTrim);
+      const storageBoxLid = new THREE.Mesh(
+        new THREE.BoxGeometry(0.98, 0.08, 0.62),
+        storageBoxBodyMaterial
+      );
+      storageBoxLid.position.set(0, 0.6, 0);
+      fallbackGroup.add(storageBoxLid);
 
-    const storageBoxIndicator = new THREE.Mesh(
-      new THREE.BoxGeometry(0.18, 0.14, 0.04),
-      storageBoxAccentMaterial
-    );
-    storageBoxIndicator.position.set(0, 0.34, -0.3);
-    storageBoxGroup.add(storageBoxIndicator);
+      const storageBoxTrim = new THREE.Mesh(
+        new THREE.BoxGeometry(0.86, 0.04, 0.06),
+        storageBoxAccentMaterial
+      );
+      storageBoxTrim.position.set(0, 0.6, -0.3);
+      fallbackGroup.add(storageBoxTrim);
+
+      const storageBoxIndicator = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.14, 0.04),
+        storageBoxAccentMaterial
+      );
+      storageBoxIndicator.position.set(0, 0.34, -0.3);
+      fallbackGroup.add(storageBoxIndicator);
+
+      return fallbackGroup;
+    };
+
+    let storageBoxFallbackVisual = createFallbackStorageBoxVisual();
+    storageBoxVisualRoot.add(storageBoxFallbackVisual);
+
+    const storageBoxModelReadyPromise = (async () => {
+      let importedStorageBox = null;
+      try {
+        importedStorageBox = await loadModelFromManifestEntry({
+          path: "storage-box.glb",
+        });
+      } catch (error) {
+        console.warn('Unable to load "storage-box.glb" for operations concourse', error);
+        return;
+      }
+
+      if (!importedStorageBox) {
+        return;
+      }
+
+      importedStorageBox.position.set(0, 0, 0);
+      importedStorageBox.rotation.set(0, 0, 0);
+      importedStorageBox.scale.setScalar(1);
+      storageBoxVisualRoot.add(importedStorageBox);
+
+      if (storageBoxFallbackVisual) {
+        storageBoxVisualRoot.remove(storageBoxFallbackVisual);
+        disposeObject3D(storageBoxFallbackVisual);
+        storageBoxFallbackVisual = null;
+      }
+    })();
 
     const storageBoxGlow = new THREE.PointLight(0x22d3ee, 0.52, 2.8, 2);
     storageBoxGlow.position.set(0, 0.55, -0.12);
@@ -6367,7 +6405,11 @@ export const initScene = (
       colliderDescriptors: mapColliderDescriptors,
       terrainTiles: mapTerrainTiles,
       viewDistanceTargets: mapViewDistanceTargets,
-      readyPromise: mapOverlay?.readyPromise,
+      readyPromise: Promise.allSettled(
+        [mapOverlay?.readyPromise, storageBoxModelReadyPromise].filter(
+          (candidate) => candidate && typeof candidate.then === "function"
+        )
+      ).then(() => undefined),
     };
   };
 
