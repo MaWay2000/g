@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   jumpApexSmoothing: 6,
   jumpApexVelocity: 1.4,
   viewDistance: 0.2,
+  thirdPersonCamera: false,
   godMode: false,
   liftDoorFiltering: true,
   liftDoorFilterByArea: {},
@@ -160,6 +161,7 @@ const normalizeSettings = (settings = {}) => {
     jumpApexSmoothing: normalizeJumpApexSmoothing(settings.jumpApexSmoothing),
     jumpApexVelocity: normalizeJumpApexVelocity(settings.jumpApexVelocity),
     viewDistance: normalizeViewDistance(settings.viewDistance),
+    thirdPersonCamera: Boolean(settings.thirdPersonCamera),
     godMode: Boolean(settings.godMode),
     liftDoorFiltering: settings.liftDoorFiltering !== false,
     liftDoorFilterByArea: normalizeLiftDoorFilterByArea(

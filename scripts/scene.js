@@ -272,6 +272,9 @@ export const initScene = (
   const viewSettings = {
     distanceMultiplier: normalizeViewDistance(settings?.viewDistance),
   };
+  const cameraViewSettings = {
+    thirdPersonEnabled: settings?.thirdPersonCamera === true,
+  };
   let godModeEnabled = settings?.godMode === true;
   const BASE_SUN_SCALE = 18;
   const MIN_SUN_SCALE = 6;
@@ -12652,7 +12655,9 @@ export const initScene = (
   };
 
   const createPlayerReflectionMesh = (geometry, material) => {
-    return new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.raycast = () => null;
+    return mesh;
   };
 
   const reflectionHips = createPlayerReflectionMesh(
@@ -15612,7 +15617,10 @@ export const initScene = (
   };
 
   resetResourceToolState();
-  resourceToolGroup.visible = controls.isLocked && resourceToolEnabled;
+  resourceToolGroup.visible =
+    controls.isLocked &&
+    resourceToolEnabled &&
+    !cameraViewSettings.thirdPersonEnabled;
 
   const setResourceToolEnabled = (enabled = true) => {
     const nextState = Boolean(enabled);
@@ -15628,7 +15636,7 @@ export const initScene = (
       resetResourceToolState();
     }
 
-    resourceToolGroup.visible = controls.isLocked && resourceToolEnabled;
+    updateResourceToolVisibility();
     return resourceToolEnabled;
   };
 
@@ -15823,6 +15831,74 @@ export const initScene = (
     );
 
     firstPersonCameraOffset.set(0, adjustedEyeLevel, 0);
+  };
+
+  const THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER = 1.45;
+  const THIRD_PERSON_CAMERA_MIN_DISTANCE = 2.2;
+  const THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER = 0.72;
+  const THIRD_PERSON_CAMERA_MIN_HEIGHT = 1.05;
+  const thirdPersonCameraOffset = new THREE.Vector3(
+    0,
+    Math.max(
+      THIRD_PERSON_CAMERA_MIN_HEIGHT,
+      playerHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER
+    ),
+    Math.max(
+      THIRD_PERSON_CAMERA_MIN_DISTANCE,
+      playerHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER
+    )
+  );
+
+  const updateThirdPersonCameraOffset = () => {
+    const baseHeight = Number.isFinite(playerHeight)
+      ? Math.max(playerHeight, MIN_PLAYER_HEIGHT)
+      : MIN_PLAYER_HEIGHT;
+
+    thirdPersonCameraOffset.set(
+      0,
+      Math.max(
+        THIRD_PERSON_CAMERA_MIN_HEIGHT,
+        baseHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER
+      ),
+      Math.max(
+        THIRD_PERSON_CAMERA_MIN_DISTANCE,
+        baseHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER
+      )
+    );
+  };
+
+  const updatePlayerReflectionProxyVisibility = () => {
+    playerReflectionProxy.visible = cameraViewSettings.thirdPersonEnabled;
+  };
+
+  const updateResourceToolVisibility = () => {
+    resourceToolGroup.visible =
+      controls.isLocked &&
+      resourceToolEnabled &&
+      !cameraViewSettings.thirdPersonEnabled;
+  };
+
+  const applyCameraViewMode = () => {
+    updateFirstPersonCameraOffset();
+    updateThirdPersonCameraOffset();
+    controls.setCameraOffset(
+      cameraViewSettings.thirdPersonEnabled
+        ? thirdPersonCameraOffset
+        : firstPersonCameraOffset
+    );
+    updatePlayerReflectionProxyVisibility();
+    updateResourceToolVisibility();
+    return cameraViewSettings.thirdPersonEnabled;
+  };
+
+  const setCameraViewMode = (nextSettings = {}) => {
+    const nextEnabled = nextSettings.thirdPersonEnabled === true;
+
+    if (cameraViewSettings.thirdPersonEnabled !== nextEnabled) {
+      cameraViewSettings.thirdPersonEnabled = nextEnabled;
+    }
+
+    return applyCameraViewMode();
   };
 
   const defaultPlayerPosition = new THREE.Vector3(
@@ -16410,7 +16486,7 @@ export const initScene = (
     defaultPlayerPosition.y = roomFloorY;
     playerObject.position.y = Math.max(playerObject.position.y, roomFloorY);
     playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
-    controls.setCameraOffset(firstPersonCameraOffset);
+    applyCameraViewMode();
 
     if (persist) {
       persistPlayerHeight(playerHeight);
@@ -17174,7 +17250,7 @@ export const initScene = (
   void restoreStoredManifestPlacements();
 
   controls.addEventListener("lock", () => {
-    resourceToolGroup.visible = resourceToolEnabled;
+    updateResourceToolVisibility();
     resetResourceToolState();
     unlockTowerRadioAudio();
     unlockPlayerDiggingAudio();
@@ -18262,7 +18338,7 @@ export const initScene = (
     if (!resourceToolGroup) {
       return;
     }
-    resourceToolGroup.visible = controls.isLocked && resourceToolEnabled;
+    updateResourceToolVisibility();
 
     if (resourceToolState.cooldown > 0) {
       resourceToolState.cooldown = Math.max(
@@ -18787,6 +18863,7 @@ export const initScene = (
       return jumpSettings.playerJumpMultiplier;
     },
     setViewSettings: (nextSettings = {}) => applyViewDistance(nextSettings),
+    setCameraViewMode: (nextSettings = {}) => setCameraViewMode(nextSettings),
     setStarsEnabled: (enabled) => {
       const nextState = Boolean(enabled);
 

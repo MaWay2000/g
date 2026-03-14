@@ -108,6 +108,7 @@ const reflectionsToggle = document.querySelector("[data-reflections-toggle]");
 const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
 const godModeToggle = document.querySelector("[data-god-mode-toggle]");
 const liftDoorFilterToggle = document.querySelector("[data-lift-door-filter-toggle]");
+const thirdPersonToggle = document.querySelector("[data-third-person-toggle]");
 const playerSpeedRange = document.querySelector("[data-player-speed-range]");
 const playerSpeedInput = document.querySelector("[data-player-speed-input]");
 const playerJumpRange = document.querySelector("[data-player-jump-range]");
@@ -1852,7 +1853,21 @@ const applyViewSettingsUiState = () => {
   });
 };
 
+const applyThirdPersonUiState = () => {
+  const thirdPersonEnabled = currentSettings?.thirdPersonCamera === true;
+
+  if (thirdPersonToggle instanceof HTMLInputElement) {
+    thirdPersonToggle.checked = thirdPersonEnabled;
+    thirdPersonToggle.setAttribute("aria-pressed", String(thirdPersonEnabled));
+  }
+
+  sceneController?.setCameraViewMode?.({
+    thirdPersonEnabled,
+  });
+};
+
 applyViewSettingsUiState();
+applyThirdPersonUiState();
 
 if (previousCrosshairInteractableState) {
   crosshairStates.terminal = true;
@@ -20618,6 +20633,7 @@ const bootstrapScene = () => {
   applyLiftDoorFilterUiState();
   applyJumpSettingsUiState();
   applyViewSettingsUiState();
+  applyThirdPersonUiState();
 
   updateDroneStatusUi();
   relaunchDroneAfterRestoreIfNeeded();
@@ -20697,6 +20713,15 @@ if (liftDoorFilterToggle instanceof HTMLInputElement) {
     currentSettings = { ...currentSettings, liftDoorFiltering: enabled };
     persistSettings(currentSettings);
     applyLiftDoorFilterUiState();
+  });
+}
+
+if (thirdPersonToggle instanceof HTMLInputElement) {
+  thirdPersonToggle.addEventListener("change", (event) => {
+    const enabled = Boolean(event.target?.checked);
+    currentSettings = { ...currentSettings, thirdPersonCamera: enabled };
+    persistSettings(currentSettings);
+    applyThirdPersonUiState();
   });
 }
 
