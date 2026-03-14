@@ -30,5 +30,9 @@
   {
     "path": "box2.glb",
     "label": "Box 2 (GLB)"
+  },
+  {
+    "path": "box3.glb",
+    "label": "Box 3 (GLB)"
   }
 ]

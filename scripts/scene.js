@@ -5901,10 +5901,10 @@ export const initScene = (
       let importedStorageBox = null;
       try {
         importedStorageBox = await loadModelFromManifestEntry({
-          path: "box2.glb",
+          path: "box3.glb",
         });
       } catch (error) {
-        console.warn('Unable to load "box2.glb" for operations concourse', error);
+        console.warn('Unable to load "box3.glb" for operations concourse', error);
         return;
       }
 
