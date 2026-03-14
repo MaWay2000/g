@@ -2052,6 +2052,9 @@ const quickAccessModalTemplates = {
   "drone-customization": document.getElementById(
     "quick-access-modal-drone-customization"
   ),
+  "costume-customization": document.getElementById(
+    "quick-access-modal-costume-customization"
+  ),
   "storage-box": document.getElementById("quick-access-modal-storage-box"),
   "crafting-table": document.getElementById("quick-access-modal-crafting-table"),
   news: document.getElementById("quick-access-modal-news"),
@@ -4417,6 +4420,7 @@ let missionModalActive = false;
 let marketModalActive = false;
 let researchModalActive = false;
 let droneCustomizationModalActive = false;
+let costumeCustomizationModalActive = false;
 let storageBoxModalActive = false;
 let craftingTableModalActive = false;
 let teardownResearchModalActionBinding = null;
@@ -4424,6 +4428,7 @@ let teardownStorageBoxActionBinding = null;
 let teardownCraftingTableActionBinding = null;
 const QUICK_ACCESS_MODAL_MARGIN = 16;
 const QUICK_ACCESS_MODAL_DRONE_SETUP_OPTION_ID = "drone-customization";
+const QUICK_ACCESS_MODAL_COSTUME_SETUP_OPTION_ID = "costume-customization";
 const quickAccessModalLayoutState = {
   optionId: null,
   offsetX: 0,
@@ -4947,6 +4952,8 @@ const droneCraftingState = {
 };
 const costumeResearchState = {
   completedProjectIds: new Set(),
+  craftedProjectIds: new Set(),
+  equippedProjectIds: new Set(),
   researchedProjectIds: new Set(),
   inventoryResearchProjectIds: new Set(),
   readyResearchProjectIds: new Set(),
@@ -4973,7 +4980,10 @@ const isCostumeResearchProjectUnlocked = (project) => {
 };
 
 const isCostumeResearchProjectCompleted = (projectId) =>
-  typeof projectId === "string" && costumeResearchState.completedProjectIds.has(projectId);
+  typeof projectId === "string" && costumeResearchState.equippedProjectIds.has(projectId);
+
+const isCostumeResearchProjectCrafted = (projectId) =>
+  typeof projectId === "string" && costumeResearchState.craftedProjectIds.has(projectId);
 
 const isCostumeResearchBlueprintLoaded = (projectId) =>
   typeof projectId === "string" && costumeResearchState.researchedProjectIds.has(projectId);
@@ -5031,6 +5041,8 @@ const getPlayerOxygenChamberRecoveryTarget = () =>
 
 const clearCostumeResearchState = () => {
   costumeResearchState.completedProjectIds.clear();
+  costumeResearchState.craftedProjectIds.clear();
+  costumeResearchState.equippedProjectIds.clear();
   costumeResearchState.researchedProjectIds.clear();
   costumeResearchState.inventoryResearchProjectIds.clear();
   costumeResearchState.readyResearchProjectIds.clear();
@@ -9057,6 +9069,14 @@ const startCostumeResearch = (projectId) => {
     return false;
   }
 
+  if (isCostumeResearchProjectCrafted(project.id)) {
+    showTerminalToast({
+      title: "Already crafted",
+      description: `${project.label} is already built. Install it in Costume Setup.`,
+    });
+    return false;
+  }
+
   if (isCostumeResearchBlueprintLoaded(project.id)) {
     showTerminalToast({
       title: "Already researched",
@@ -9213,6 +9233,14 @@ const craftCostumeUpgradeProject = (projectId) => {
     return false;
   }
 
+  if (isCostumeResearchProjectCrafted(project.id)) {
+    showTerminalToast({
+      title: "Already crafted",
+      description: `${project.label} is already built. Install it in Costume Setup.`,
+    });
+    return false;
+  }
+
   if (isCostumeResearchProjectCompleted(project.id)) {
     showTerminalToast({
       title: "Already installed",
@@ -9324,6 +9352,14 @@ const moveCraftedCostumeProjectToInventory = (projectId) => {
     return false;
   }
 
+  if (isCostumeResearchProjectCrafted(project.id)) {
+    showTerminalToast({
+      title: "Already in inventory",
+      description: `${project.label} can be installed in Costume Setup.`,
+    });
+    return false;
+  }
+
   if (!isCostumeCraftingProjectReadyToClaim(project.id)) {
     const activeJob = getCostumeCraftingActiveJob();
     if (activeJob && activeJob.projectId === project.id) {
@@ -9339,23 +9375,17 @@ const moveCraftedCostumeProjectToInventory = (projectId) => {
   }
 
   costumeResearchState.readyProjectIds.delete(project.id);
-  costumeResearchState.researchedProjectIds.delete(project.id);
-  costumeResearchState.inventoryResearchProjectIds.delete(project.id);
-  costumeResearchState.readyResearchProjectIds.delete(project.id);
-  costumeResearchState.completedProjectIds.add(project.id);
+  costumeResearchState.researchedProjectIds.add(project.id);
+  costumeResearchState.craftedProjectIds.add(project.id);
   persistDroneCraftingState();
   refreshInventoryUi();
   refreshResearchModalIfOpen();
   refreshCraftingTableModalIfOpen();
-  applyCostumeResearchBonuses({
-    refreshResearch: false,
-    persistOxygen: true,
-    silentPressure: true,
-  });
+  refreshCostumeCustomizationModalIfOpen();
 
   showTerminalToast({
-    title: `${project.label} installed`,
-    description: "Now active on the suit and listed in Inventory > Items.",
+    title: `${project.label} added`,
+    description: "Now available in Inventory > Items and Costume Setup.",
   });
   return true;
 };
@@ -10460,6 +10490,16 @@ const getDroneCraftingInventoryParts = () =>
 const getDroneCraftingInstalledParts = () =>
   DRONE_CRAFTING_PARTS.filter((part) => isDroneCraftingPartEquipped(part.id));
 
+const getCostumeCraftingInventoryProjects = () =>
+  COSTUME_RESEARCH_PROJECTS.filter(
+    (project) =>
+      isCostumeResearchProjectCrafted(project.id) &&
+      !isCostumeResearchProjectCompleted(project.id)
+  );
+
+const getCostumeCraftingInstalledProjects = () =>
+  COSTUME_RESEARCH_PROJECTS.filter((project) => isCostumeResearchProjectCompleted(project.id));
+
 const createCostumeCraftingTableProjectCard = (project) => {
   const item = document.createElement("li");
   item.className = "crafting-panel__card";
@@ -10468,6 +10508,7 @@ const createCostumeCraftingTableProjectCard = (project) => {
   const researched = isCostumeResearchBlueprintLoaded(project.id);
   const researchInInventory = isCostumeResearchBlueprintInInventory(project.id);
   const researchReadyToClaim = isCostumeResearchBlueprintReadyToClaim(project.id);
+  const crafted = isCostumeResearchProjectCrafted(project.id);
   const installed = isCostumeResearchProjectCompleted(project.id);
   const readyToClaim = isCostumeCraftingProjectReadyToClaim(project.id);
   const activeResearchJob = getCostumeResearchActiveJob();
@@ -10480,7 +10521,7 @@ const createCostumeCraftingTableProjectCard = (project) => {
   );
   const craftingOtherProject = Boolean(activeJob && !craftingThisProject);
   item.dataset.researched = researched ? "true" : "false";
-  item.dataset.crafted = installed ? "true" : "false";
+  item.dataset.crafted = crafted ? "true" : "false";
   item.dataset.ready = readyToClaim ? "true" : "false";
   item.dataset.crafting = craftingThisProject ? "true" : "false";
 
@@ -10504,6 +10545,11 @@ const createCostumeCraftingTableProjectCard = (project) => {
     installedMeta.className = "crafting-panel__meta";
     installedMeta.textContent = "Installed on the suit. Permanent bonus active.";
     item.appendChild(installedMeta);
+  } else if (crafted) {
+    const craftedMeta = document.createElement("p");
+    craftedMeta.className = "crafting-panel__meta";
+    craftedMeta.textContent = "Crafted module is in Inventory > Items. Install it in Costume Setup.";
+    item.appendChild(craftedMeta);
   } else if (!researched) {
     const researchStatus = document.createElement("p");
     researchStatus.className = "crafting-panel__meta";
@@ -10543,7 +10589,7 @@ const createCostumeCraftingTableProjectCard = (project) => {
     }
   }
 
-  const hideCraftingMaterialDetails = installed || !researched;
+  const hideCraftingMaterialDetails = crafted || installed || !researched;
   const requirementStates = getCostumeCraftRequirementStates(project);
 
   if (!hideCraftingMaterialDetails) {
@@ -10582,6 +10628,9 @@ const createCostumeCraftingTableProjectCard = (project) => {
   if (installed) {
     craftButton.textContent = "Installed";
     craftButton.disabled = true;
+  } else if (crafted) {
+    craftButton.textContent = "In inventory";
+    craftButton.disabled = true;
   } else if (!researched) {
     if (researchInInventory) {
       craftButton.dataset.craftingCostumeAction = "load-research";
@@ -10617,6 +10666,7 @@ const shouldShowCostumeCraftingTableProjectCard = (project) =>
     project &&
       (
         isCostumeResearchProjectCompleted(project.id) ||
+        isCostumeResearchProjectCrafted(project.id) ||
         isCostumeResearchBlueprintLoaded(project.id) ||
         isCostumeResearchBlueprintInInventory(project.id) ||
         isCostumeCraftingProjectReadyToClaim(project.id)
@@ -11088,14 +11138,14 @@ const renderCraftingTableModal = () => {
   if (subtitle instanceof HTMLElement) {
     subtitle.textContent =
       activeTab === "costume"
-        ? "Assemble researched suit upgrade modules and move them into Inventory to activate them."
+        ? "Assemble researched suit upgrade modules, move them into Inventory, then install them in Costume Setup."
         : "Build permanent drone upgrade parts from collected elements to mine faster.";
   }
 
   if (hint instanceof HTMLElement) {
     hint.textContent =
       activeTab === "costume"
-        ? "Research blueprints in Command Center first. Craft time = total required material weight (1g = 1s)."
+        ? "Research blueprints in Command Center first. Craft time = total required material weight (1g = 1s). Finished modules must be installed in Costume Setup."
         : "Craft time = total required material weight (1g = 1s). When complete, move the part to Inventory.";
   }
 
@@ -11624,6 +11674,208 @@ const refreshCraftingTableModalIfOpen = () => {
   }
 
   renderCraftingTableModal();
+};
+
+const refreshCostumeCustomizationModalIfOpen = () => {
+  if (!costumeCustomizationModalActive) {
+    return;
+  }
+
+  renderCostumeCustomizationModal();
+};
+
+const getCostumeCustomizationModalElements = () => {
+  if (!quickAccessModalContent) {
+    return {
+      summary: null,
+      availableList: null,
+      availableEmpty: null,
+      installedList: null,
+      installedEmpty: null,
+    };
+  }
+
+  return {
+    summary: quickAccessModalContent.querySelector("[data-costume-setup-summary]"),
+    availableList: quickAccessModalContent.querySelector("[data-costume-setup-available-list]"),
+    availableEmpty: quickAccessModalContent.querySelector(
+      "[data-costume-setup-available-empty]"
+    ),
+    installedList: quickAccessModalContent.querySelector("[data-costume-setup-installed-list]"),
+    installedEmpty: quickAccessModalContent.querySelector(
+      "[data-costume-setup-installed-empty]"
+    ),
+  };
+};
+
+const createCostumeSetupPanelItem = ({ project, action, actionLabel }) => {
+  const item = document.createElement("li");
+  item.className = "drone-parts-panel__item";
+
+  const body = document.createElement("div");
+  const title = document.createElement("p");
+  title.className = "drone-parts-panel__item-title";
+  title.textContent = project.label;
+  body.appendChild(title);
+
+  const meta = document.createElement("p");
+  meta.className = "drone-parts-panel__item-meta";
+  meta.textContent = `${project.description} • ${formatCostumeResearchEffectLabel(project)}`;
+  body.appendChild(meta);
+  item.appendChild(body);
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  actionButton.className = "drone-parts-panel__action";
+  actionButton.dataset.costumeProjectAction = action;
+  actionButton.dataset.costumeProjectId = project.id;
+  actionButton.textContent = actionLabel;
+  item.appendChild(actionButton);
+
+  return item;
+};
+
+const installCostumeProject = (projectId) => {
+  const project = getCostumeResearchProjectById(projectId);
+  if (!project) {
+    return false;
+  }
+
+  if (
+    !isCostumeResearchProjectCrafted(projectId) ||
+    isCostumeResearchProjectCompleted(projectId)
+  ) {
+    return false;
+  }
+
+  costumeResearchState.craftedProjectIds.add(projectId);
+  costumeResearchState.equippedProjectIds.add(projectId);
+  costumeResearchState.completedProjectIds.add(projectId);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshCraftingTableModalIfOpen();
+  renderCostumeCustomizationModal();
+  applyCostumeResearchBonuses({
+    refreshResearch: true,
+    persistOxygen: true,
+    silentPressure: true,
+  });
+  showTerminalToast({
+    title: `${project.label} installed`,
+    description: getCostumeResearchSummaryText(),
+  });
+  return true;
+};
+
+const removeCostumeProject = (projectId) => {
+  const project = getCostumeResearchProjectById(projectId);
+  if (!project || !isCostumeResearchProjectCompleted(projectId)) {
+    return false;
+  }
+
+  costumeResearchState.equippedProjectIds.delete(projectId);
+  costumeResearchState.completedProjectIds.delete(projectId);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshCraftingTableModalIfOpen();
+  renderCostumeCustomizationModal();
+  applyCostumeResearchBonuses({
+    refreshResearch: true,
+    persistOxygen: true,
+    silentPressure: true,
+  });
+  showTerminalToast({
+    title: `${project.label} removed`,
+    description: getCostumeResearchSummaryText(),
+  });
+  return true;
+};
+
+const handleCostumeProjectActionClick = (event) => {
+  const button =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-costume-project-action]")
+      : null;
+
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const projectId = button.dataset.costumeProjectId;
+  const action = button.dataset.costumeProjectAction;
+  if (!projectId || !action) {
+    return;
+  }
+
+  if (action === "install") {
+    installCostumeProject(projectId);
+    return;
+  }
+
+  if (action === "remove") {
+    removeCostumeProject(projectId);
+  }
+};
+
+const renderCostumeCustomizationModal = () => {
+  if (!costumeCustomizationModalActive) {
+    return;
+  }
+
+  const { summary, availableList, availableEmpty, installedList, installedEmpty } =
+    getCostumeCustomizationModalElements();
+  if (!(availableList instanceof HTMLElement) || !(installedList instanceof HTMLElement)) {
+    return;
+  }
+
+  const inventoryProjects = getCostumeCraftingInventoryProjects();
+  const installedProjects = getCostumeCraftingInstalledProjects();
+
+  if (summary instanceof HTMLElement) {
+    summary.textContent = `Installed ${installedProjects.length}/${COSTUME_RESEARCH_PROJECTS.length} • ${getCostumeResearchSummaryText()}`;
+  }
+
+  availableList.innerHTML = "";
+  inventoryProjects.forEach((project) => {
+    availableList.appendChild(
+      createCostumeSetupPanelItem({
+        project,
+        action: "install",
+        actionLabel: "Install",
+      })
+    );
+  });
+
+  installedList.innerHTML = "";
+  installedProjects.forEach((project) => {
+    installedList.appendChild(
+      createCostumeSetupPanelItem({
+        project,
+        action: "remove",
+        actionLabel: "Remove",
+      })
+    );
+  });
+
+  if (availableEmpty instanceof HTMLElement) {
+    availableEmpty.hidden = inventoryProjects.length > 0;
+  }
+
+  if (installedEmpty instanceof HTMLElement) {
+    installedEmpty.hidden = installedProjects.length > 0;
+  }
+
+  if (!availableList.dataset.boundCostumeActions) {
+    availableList.dataset.boundCostumeActions = "true";
+    availableList.addEventListener("click", handleCostumeProjectActionClick);
+  }
+
+  if (!installedList.dataset.boundCostumeActions) {
+    installedList.dataset.boundCostumeActions = "true";
+    installedList.addEventListener("click", handleCostumeProjectActionClick);
+  }
 };
 
 const getDroneCustomizationModalElements = () => {
@@ -14497,6 +14749,7 @@ subscribeToMissionState(handleMissionStateChanged);
 
 const teardownQuickAccessModalContent = () => {
   droneCustomizationModalActive = false;
+  costumeCustomizationModalActive = false;
   droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
   droneSkinPreviewState.renderToken += 1;
   droneSkinPreviewState.pendingSkinId = null;
@@ -14514,6 +14767,7 @@ const initializeQuickAccessModalContent = (option) => {
   marketModalActive = option?.id === "market";
   researchModalActive = option?.id === "research";
   droneCustomizationModalActive = option?.id === "drone-customization";
+  costumeCustomizationModalActive = option?.id === QUICK_ACCESS_MODAL_COSTUME_SETUP_OPTION_ID;
   storageBoxModalActive = option?.id === STORAGE_BOX_MODAL_OPTION.id;
   craftingTableModalActive = option?.id === CRAFTING_TABLE_MODAL_OPTION.id;
 
@@ -14541,6 +14795,10 @@ const initializeQuickAccessModalContent = (option) => {
 
   if (droneCustomizationModalActive) {
     renderDroneCustomizationModal();
+  }
+
+  if (costumeCustomizationModalActive) {
+    renderCostumeCustomizationModal();
   }
 
   if (storageBoxModalActive) {
@@ -15349,14 +15607,14 @@ const renderInventoryItemsEntries = () => {
   const craftedParts = DRONE_CRAFTING_PARTS.filter((part) =>
     isDroneCraftingPartCrafted(part.id)
   );
-  const installedCostumeProjects = COSTUME_RESEARCH_PROJECTS.filter((project) =>
-    isCostumeResearchProjectCompleted(project.id)
+  const craftedCostumeProjects = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+    isCostumeResearchProjectCrafted(project.id)
   );
   const totalItems =
     researchBlueprints.length +
     costumeBlueprints.length +
     craftedParts.length +
-    installedCostumeProjects.length;
+    craftedCostumeProjects.length;
 
   if (inventoryItemsEmptyState instanceof HTMLElement) {
     inventoryItemsEmptyState.hidden = totalItems > 0;
@@ -15423,7 +15681,7 @@ const renderInventoryItemsEntries = () => {
     fragment.appendChild(item);
   });
 
-  installedCostumeProjects.forEach((project) => {
+  craftedCostumeProjects.forEach((project) => {
     const item = document.createElement("li");
     item.className = "inventory-items-list__entry";
 
@@ -15434,7 +15692,9 @@ const renderInventoryItemsEntries = () => {
 
     const meta = document.createElement("p");
     meta.className = "inventory-items-list__meta";
-    meta.textContent = `Installed on suit. ${formatCostumeResearchEffectLabel(project)}`;
+    meta.textContent = isCostumeResearchProjectCompleted(project.id)
+      ? `Installed on suit. ${formatCostumeResearchEffectLabel(project)}`
+      : `Available to install in Costume Setup. ${formatCostumeResearchEffectLabel(project)}`;
     item.appendChild(meta);
 
     fragment.appendChild(item);
@@ -16037,14 +16297,18 @@ const serializeDroneCraftingStateForPersistence = () => {
   const mediumModelRequirements = normalizeMediumDroneCraftRequirements(
     droneCraftingState.mediumModelRequirements
   );
-  const completedCostumeResearchProjectIds = Array.from(
-    costumeResearchState.completedProjectIds
-  ).filter(
+  const costumeCraftedProjectIds = Array.from(costumeResearchState.craftedProjectIds).filter(
     (projectId) => typeof projectId === "string" && knownCostumeProjectIds.has(projectId)
   );
-  const completedCostumeResearchProjectSet = new Set(
-    completedCostumeResearchProjectIds
+  const costumeCraftedProjectSet = new Set(costumeCraftedProjectIds);
+  const costumeEquippedProjectIds = Array.from(costumeResearchState.equippedProjectIds).filter(
+    (projectId) =>
+      typeof projectId === "string" &&
+      knownCostumeProjectIds.has(projectId) &&
+      costumeCraftedProjectSet.has(projectId)
   );
+  const completedCostumeResearchProjectIds = costumeEquippedProjectIds.slice();
+  const completedCostumeResearchProjectSet = new Set(costumeEquippedProjectIds);
   const costumeResearchedProjectIds = Array.from(
     costumeResearchState.researchedProjectIds
   ).filter(
@@ -16127,6 +16391,8 @@ const serializeDroneCraftingStateForPersistence = () => {
     costumeResearchedProjectIds,
     costumeInventoryResearchProjectIds,
     costumeReadyResearchProjectIds,
+    costumeCraftedProjectIds,
+    costumeEquippedProjectIds,
     completedCostumeResearchProjectIds,
     costumeReadyProjectIds,
     activeCostumeResearchJob: activeCostumeResearchJobForPersistence,
@@ -16548,6 +16814,32 @@ const restoreDroneCraftingStateFromStorage = () => {
       droneCraftingState.mediumModelRequirements = storedMediumModelRequirements;
     }
 
+    const storedCostumeCraftedProjectIds = Array.isArray(data?.costumeCraftedProjectIds)
+      ? data.costumeCraftedProjectIds
+      : [];
+    storedCostumeCraftedProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownCostumeProjectIds.has(projectId)
+      ) {
+        costumeResearchState.craftedProjectIds.add(projectId);
+      }
+    });
+
+    const storedCostumeEquippedProjectIds = Array.isArray(data?.costumeEquippedProjectIds)
+      ? data.costumeEquippedProjectIds
+      : [];
+    storedCostumeEquippedProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownCostumeProjectIds.has(projectId)
+      ) {
+        costumeResearchState.craftedProjectIds.add(projectId);
+        costumeResearchState.equippedProjectIds.add(projectId);
+        costumeResearchState.completedProjectIds.add(projectId);
+      }
+    });
+
     const storedCompletedCostumeResearchProjectIds = Array.isArray(
       data?.completedCostumeResearchProjectIds
     )
@@ -16558,6 +16850,8 @@ const restoreDroneCraftingStateFromStorage = () => {
         typeof projectId === "string" &&
         knownCostumeProjectIds.has(projectId)
       ) {
+        costumeResearchState.craftedProjectIds.add(projectId);
+        costumeResearchState.equippedProjectIds.add(projectId);
         costumeResearchState.completedProjectIds.add(projectId);
       }
     });
@@ -16569,7 +16863,7 @@ const restoreDroneCraftingStateFromStorage = () => {
       if (
         typeof projectId === "string" &&
         knownCostumeProjectIds.has(projectId) &&
-        !costumeResearchState.completedProjectIds.has(projectId)
+        !costumeResearchState.equippedProjectIds.has(projectId)
       ) {
         costumeResearchState.researchedProjectIds.add(projectId);
       }
@@ -16584,7 +16878,7 @@ const restoreDroneCraftingStateFromStorage = () => {
       if (
         typeof projectId === "string" &&
         knownCostumeProjectIds.has(projectId) &&
-        !costumeResearchState.completedProjectIds.has(projectId) &&
+        !costumeResearchState.equippedProjectIds.has(projectId) &&
         !costumeResearchState.researchedProjectIds.has(projectId)
       ) {
         costumeResearchState.inventoryResearchProjectIds.add(projectId);
@@ -16600,7 +16894,7 @@ const restoreDroneCraftingStateFromStorage = () => {
       if (
         typeof projectId === "string" &&
         knownCostumeProjectIds.has(projectId) &&
-        !costumeResearchState.completedProjectIds.has(projectId) &&
+        !costumeResearchState.equippedProjectIds.has(projectId) &&
         !costumeResearchState.researchedProjectIds.has(projectId) &&
         !costumeResearchState.inventoryResearchProjectIds.has(projectId)
       ) {
@@ -16615,7 +16909,7 @@ const restoreDroneCraftingStateFromStorage = () => {
       if (
         typeof projectId === "string" &&
         knownCostumeProjectIds.has(projectId) &&
-        !costumeResearchState.completedProjectIds.has(projectId)
+        !costumeResearchState.equippedProjectIds.has(projectId)
       ) {
         costumeResearchState.inventoryResearchProjectIds.delete(projectId);
         costumeResearchState.readyResearchProjectIds.delete(projectId);
@@ -16629,7 +16923,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     );
     if (
       restoredActiveCostumeResearchJob &&
-      !costumeResearchState.completedProjectIds.has(
+      !costumeResearchState.equippedProjectIds.has(
         restoredActiveCostumeResearchJob.projectId
       ) &&
       !costumeResearchState.researchedProjectIds.has(
@@ -16650,7 +16944,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     );
     if (
       restoredActiveCostumeCraftJob &&
-      !costumeResearchState.completedProjectIds.has(
+      !costumeResearchState.equippedProjectIds.has(
         restoredActiveCostumeCraftJob.projectId
       ) &&
       !costumeResearchState.readyProjectIds.has(restoredActiveCostumeCraftJob.projectId)
@@ -16670,7 +16964,8 @@ const restoreDroneCraftingStateFromStorage = () => {
     );
 
     restored =
-      costumeResearchState.completedProjectIds.size > 0 ||
+      costumeResearchState.craftedProjectIds.size > 0 ||
+      costumeResearchState.equippedProjectIds.size > 0 ||
       costumeResearchState.researchedProjectIds.size > 0 ||
       costumeResearchState.inventoryResearchProjectIds.size > 0 ||
       costumeResearchState.readyResearchProjectIds.size > 0 ||

@@ -6967,6 +6967,41 @@
       </div>
     </template>
 
+    <template id="quick-access-modal-costume-customization">
+      <button
+        class="quick-access-modal__close"
+        type="button"
+        data-quick-access-modal-close
+        aria-label="Close panel"
+      >
+        &times;
+      </button>
+      <header class="quick-access-modal__header" data-quick-access-drag-handle>
+        <h2 class="quick-access-modal__title">Costume Setup</h2>
+      </header>
+      <section class="quick-access-modal__section drone-parts-panel">
+        <p class="drone-parts-panel__summary" data-costume-setup-summary>
+          Installed bonuses: loading...
+        </p>
+        <div class="drone-parts-panel__layout">
+          <article class="drone-parts-panel__column">
+            <h3 class="quick-access-modal__section-title">Inventory modules</h3>
+            <ul class="drone-parts-panel__list" data-costume-setup-available-list></ul>
+            <p class="drone-parts-panel__empty" data-costume-setup-available-empty hidden>
+              No crafted suit modules in inventory. Build them at the Crafting Table first.
+            </p>
+          </article>
+          <article class="drone-parts-panel__column">
+            <h3 class="quick-access-modal__section-title">Installed modules</h3>
+            <ul class="drone-parts-panel__list" data-costume-setup-installed-list></ul>
+            <p class="drone-parts-panel__empty" data-costume-setup-installed-empty hidden>
+              No suit modules installed yet.
+            </p>
+          </article>
+        </div>
+      </section>
+    </template>
+
     <script type="importmap">
       {
         "imports": {

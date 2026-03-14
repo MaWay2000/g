@@ -10453,13 +10453,18 @@ export const initScene = (
       new THREE.Vector3(-commandTableWidth * 0.22, 0, -bayDepth * 0.34),
     ]);
 
-    const createDroneCustomizationDisplay = () => {
+    const createEngineeringSetupDisplay = ({
+      id,
+      title,
+      headline,
+      description = "Open setup station",
+    }) => {
       const width = 960;
       const height = 512;
       const actionZone = {
-        id: "drone-customization",
-        title: "Drone Setup",
-        description: "Open setup station",
+        id,
+        title,
+        description,
         minX: 72,
         maxX: width - 72,
         minY: 168,
@@ -10527,16 +10532,13 @@ export const initScene = (
         context.strokeRect(actionZone.minX, actionZone.minY, zoneWidth, zoneHeight);
 
         context.fillStyle = hovered ? "#371807" : "#f5f5f4";
-        context.font = "700 74px 'Segoe UI', sans-serif";
-        context.fillText("DRONE SETUP", actionZone.minX + 44, actionZone.minY + 108);
+        const headlineFontSize = headline.length >= 13 ? 62 : 74;
+        context.font = `700 ${headlineFontSize}px 'Segoe UI', sans-serif`;
+        context.fillText(headline, actionZone.minX + 44, actionZone.minY + 108);
 
         context.fillStyle = hovered ? "rgba(55, 24, 7, 0.9)" : "rgba(255, 215, 170, 0.9)";
         context.font = "500 34px 'Segoe UI', sans-serif";
-        context.fillText(
-          "Open setup station",
-          actionZone.minX + 46,
-          actionZone.minY + 164
-        );
+        context.fillText(description, actionZone.minX + 46, actionZone.minY + 164);
 
         context.fillStyle = hovered ? "rgba(120, 53, 15, 0.95)" : "rgba(120, 53, 15, 0.8)";
         context.font = "600 28px 'Segoe UI', sans-serif";
@@ -10585,83 +10587,96 @@ export const initScene = (
       };
     };
 
-    const droneCustomizationConsoleX = 0;
-    const droneCustomizationConsoleZ = -commandTableDepth * 0.42;
     const droneCustomizationSurfaceOffset = 0.8;
+    const setupConsoleZ = -commandTableDepth * 0.42;
+    const setupConsoleSpacing = 1.2;
+    const createEngineeringSetupConsole = ({
+      id,
+      title,
+      headline,
+      description = "Open setup station",
+      x = 0,
+      z = setupConsoleZ,
+    }) => {
+      const display = createEngineeringSetupDisplay({
+        id,
+        title,
+        headline,
+        description,
+      });
+      const screenMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: display.texture,
+        emissive: new THREE.Color(0x6b3410),
+        emissiveMap: display.texture,
+        emissiveIntensity: 1.1,
+        metalness: 0.14,
+        roughness: 0.2,
+        side: THREE.DoubleSide,
+      });
+      const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.44), screenMaterial);
+      screen.position.set(x, roomFloorY + droneCustomizationSurfaceOffset + 0.26, z);
+      screen.rotation.set(THREE.MathUtils.degToRad(17), Math.PI, 0);
+      screen.userData.getQuickAccessZones = () => display.getQuickAccessZones();
+      screen.userData.getQuickAccessTextureSize = () => display.getQuickAccessTextureSize();
+      screen.userData.setHoveredZone = (zoneId) => {
+        display.setHoveredZone(zoneId);
+      };
+      screen.userData.updateDisplayTexture = (delta = 0, elapsed = 0) => {
+        display.update(delta, elapsed);
+      };
+      screen.userData.dispose = () => {
+        display.dispose();
+      };
+      group.add(screen);
 
-    const droneCustomizationDisplay = createDroneCustomizationDisplay();
-    const droneCustomizationScreenMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      map: droneCustomizationDisplay.texture,
-      emissive: new THREE.Color(0x6b3410),
-      emissiveMap: droneCustomizationDisplay.texture,
-      emissiveIntensity: 1.1,
-      metalness: 0.14,
-      roughness: 0.2,
-      side: THREE.DoubleSide,
+      const keyboardBase = new THREE.Mesh(
+        new THREE.BoxGeometry(0.46, 0.03, 0.2),
+        new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0x1b120c),
+          roughness: 0.52,
+          metalness: 0.42,
+        })
+      );
+      keyboardBase.position.set(x, roomFloorY + droneCustomizationSurfaceOffset + 0.04, z - 0.1);
+      keyboardBase.rotation.x = -THREE.MathUtils.degToRad(6);
+      group.add(keyboardBase);
+
+      const keyboardKeys = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 0.012, 0.145),
+        new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0x2f1f14),
+          roughness: 0.44,
+          metalness: 0.28,
+          emissive: new THREE.Color(0x1f0f06),
+          emissiveIntensity: 0.2,
+        })
+      );
+      keyboardKeys.position.set(x, roomFloorY + droneCustomizationSurfaceOffset + 0.056, z - 0.1);
+      keyboardKeys.rotation.copy(keyboardBase.rotation);
+      group.add(keyboardKeys);
+
+      return {
+        screen,
+        keyboardBase,
+        keyboardKeys,
+      };
+    };
+
+    const costumeCustomizationConsole = createEngineeringSetupConsole({
+      id: "costume-customization",
+      title: "Costume Setup",
+      headline: "COSTUME SETUP",
+      description: "Open suit station",
+      x: -setupConsoleSpacing * 0.5,
     });
-    const droneCustomizationScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.9, 0.44),
-      droneCustomizationScreenMaterial
-    );
-    droneCustomizationScreen.position.set(
-      droneCustomizationConsoleX,
-      roomFloorY + droneCustomizationSurfaceOffset + 0.26,
-      droneCustomizationConsoleZ
-    );
-    droneCustomizationScreen.rotation.set(
-      THREE.MathUtils.degToRad(17),
-      Math.PI,
-      0
-    );
-    droneCustomizationScreen.userData.getQuickAccessZones = () =>
-      droneCustomizationDisplay.getQuickAccessZones();
-    droneCustomizationScreen.userData.getQuickAccessTextureSize = () =>
-      droneCustomizationDisplay.getQuickAccessTextureSize();
-    droneCustomizationScreen.userData.setHoveredZone = (zoneId) => {
-      droneCustomizationDisplay.setHoveredZone(zoneId);
-    };
-    droneCustomizationScreen.userData.updateDisplayTexture = (delta = 0, elapsed = 0) => {
-      droneCustomizationDisplay.update(delta, elapsed);
-    };
-    droneCustomizationScreen.userData.dispose = () => {
-      droneCustomizationDisplay.dispose();
-    };
-    group.add(droneCustomizationScreen);
-
-    const droneCustomizationKeyboardBase = new THREE.Mesh(
-      new THREE.BoxGeometry(0.46, 0.03, 0.2),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x1b120c),
-        roughness: 0.52,
-        metalness: 0.42,
-      })
-    );
-    droneCustomizationKeyboardBase.position.set(
-      droneCustomizationConsoleX,
-      roomFloorY + droneCustomizationSurfaceOffset + 0.04,
-      droneCustomizationConsoleZ - 0.1
-    );
-    droneCustomizationKeyboardBase.rotation.x = -THREE.MathUtils.degToRad(6);
-    group.add(droneCustomizationKeyboardBase);
-
-    const droneCustomizationKeyboardKeys = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 0.012, 0.145),
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x2f1f14),
-        roughness: 0.44,
-        metalness: 0.28,
-        emissive: new THREE.Color(0x1f0f06),
-        emissiveIntensity: 0.2,
-      })
-    );
-    droneCustomizationKeyboardKeys.position.set(
-      droneCustomizationConsoleX,
-      roomFloorY + droneCustomizationSurfaceOffset + 0.056,
-      droneCustomizationConsoleZ - 0.1
-    );
-    droneCustomizationKeyboardKeys.rotation.copy(droneCustomizationKeyboardBase.rotation);
-    group.add(droneCustomizationKeyboardKeys);
+    const droneCustomizationConsole = createEngineeringSetupConsole({
+      id: "drone-customization",
+      title: "Drone Setup",
+      headline: "DRONE SETUP",
+      description: "Open setup station",
+      x: setupConsoleSpacing * 0.5,
+    });
 
     const liftDoor = createHangarDoor(ENGINEERING_BAY_DOOR_THEME, {
       includeBackWall: true,
@@ -10698,15 +10713,27 @@ export const initScene = (
       ...doorLabelAdjustableEntries,
       { object: ambientWarmLight, offset: 2.08 },
       {
-        object: droneCustomizationScreen,
+        object: costumeCustomizationConsole.screen,
         offset: droneCustomizationSurfaceOffset + 0.26,
       },
       {
-        object: droneCustomizationKeyboardBase,
+        object: costumeCustomizationConsole.keyboardBase,
         offset: droneCustomizationSurfaceOffset + 0.04,
       },
       {
-        object: droneCustomizationKeyboardKeys,
+        object: costumeCustomizationConsole.keyboardKeys,
+        offset: droneCustomizationSurfaceOffset + 0.056,
+      },
+      {
+        object: droneCustomizationConsole.screen,
+        offset: droneCustomizationSurfaceOffset + 0.26,
+      },
+      {
+        object: droneCustomizationConsole.keyboardBase,
+        offset: droneCustomizationSurfaceOffset + 0.04,
+      },
+      {
+        object: droneCustomizationConsole.keyboardKeys,
         offset: droneCustomizationSurfaceOffset + 0.056,
       },
       ...wallpaperAdjustableEntries,
@@ -10892,7 +10919,10 @@ export const initScene = (
       group,
       liftDoor,
       liftDoors: [liftDoor, ...mapLiftDoors],
-      quickAccessInteractables: [droneCustomizationScreen],
+      quickAccessInteractables: [
+        costumeCustomizationConsole.screen,
+        droneCustomizationConsole.screen,
+      ],
       updateForRoomHeight,
       update: (payload = {}) => {
         updatePanelMalfunctionEffects(payload);
