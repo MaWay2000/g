@@ -12798,7 +12798,11 @@ export const initScene = (
   const syncPlayerReflectionProxyTransform = () => {
     playerReflectionProxy.position.copy(playerObject.position);
     playerReflectionProxy.rotation.set(0, playerObject.rotation.y, 0);
-    playerReflectionAvatar.position.set(0, 0, -0.18);
+    playerReflectionAvatar.position.set(
+      0,
+      0,
+      cameraViewSettings.thirdPersonEnabled ? -0.28 : -0.18
+    );
   };
 
   const updatePlayerReflectionProxyDimensions = () => {
@@ -15833,12 +15837,17 @@ export const initScene = (
     firstPersonCameraOffset.set(0, adjustedEyeLevel, 0);
   };
 
-  const THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER = 1.45;
-  const THIRD_PERSON_CAMERA_MIN_DISTANCE = 2.2;
-  const THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER = 0.72;
-  const THIRD_PERSON_CAMERA_MIN_HEIGHT = 1.05;
+  const THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER = 1.6;
+  const THIRD_PERSON_CAMERA_MIN_DISTANCE = 2.45;
+  const THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER = 0.82;
+  const THIRD_PERSON_CAMERA_MIN_HEIGHT = 1.2;
+  const THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER = 0.34;
+  const THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET = 0.56;
   const thirdPersonCameraOffset = new THREE.Vector3(
-    0,
+    Math.max(
+      THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET,
+      playerHeight * THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER
+    ),
     Math.max(
       THIRD_PERSON_CAMERA_MIN_HEIGHT,
       playerHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER
@@ -15855,7 +15864,10 @@ export const initScene = (
       : MIN_PLAYER_HEIGHT;
 
     thirdPersonCameraOffset.set(
-      0,
+      Math.max(
+        THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET,
+        baseHeight * THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER
+      ),
       Math.max(
         THIRD_PERSON_CAMERA_MIN_HEIGHT,
         baseHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER

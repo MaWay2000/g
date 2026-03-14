@@ -1866,6 +1866,33 @@ const applyThirdPersonUiState = () => {
   });
 };
 
+const setThirdPersonCameraEnabled = (
+  enabled,
+  { persist = true, notify = false } = {}
+) => {
+  const nextEnabled = Boolean(enabled);
+  const previousEnabled = currentSettings?.thirdPersonCamera === true;
+
+  currentSettings = { ...currentSettings, thirdPersonCamera: nextEnabled };
+
+  if (persist) {
+    persistSettings(currentSettings);
+  }
+
+  applyThirdPersonUiState();
+
+  if (notify && previousEnabled !== nextEnabled) {
+    showTerminalToast({
+      title: nextEnabled ? "Third-person view enabled" : "First-person view enabled",
+      description: nextEnabled
+        ? "Press V to switch back anytime."
+        : "Press V to return to third person.",
+    });
+  }
+
+  return nextEnabled;
+};
+
 applyViewSettingsUiState();
 applyThirdPersonUiState();
 
@@ -20718,12 +20745,41 @@ if (liftDoorFilterToggle instanceof HTMLInputElement) {
 
 if (thirdPersonToggle instanceof HTMLInputElement) {
   thirdPersonToggle.addEventListener("change", (event) => {
-    const enabled = Boolean(event.target?.checked);
-    currentSettings = { ...currentSettings, thirdPersonCamera: enabled };
-    persistSettings(currentSettings);
-    applyThirdPersonUiState();
+    setThirdPersonCameraEnabled(Boolean(event.target?.checked));
   });
 }
+
+const shouldIgnoreThirdPersonHotkey = (event) => {
+  if (!(event instanceof KeyboardEvent)) {
+    return true;
+  }
+
+  if (event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
+    return true;
+  }
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  return Boolean(target.closest("input, textarea, select, button"));
+};
+
+document.addEventListener("keydown", (event) => {
+  if (event.code !== "KeyV" || shouldIgnoreThirdPersonHotkey(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  setThirdPersonCameraEnabled(!(currentSettings?.thirdPersonCamera === true), {
+    notify: true,
+  });
+});
 
 const bindStarSettingInput = (key, inputs) => {
   const elements = Array.isArray(inputs) ? inputs : [inputs];
