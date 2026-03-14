@@ -18,5 +18,9 @@
   {
     "path": "rocks.glb",
     "label": "Rocks (GLB)"
+  },
+  {
+    "path": "storage-box.glb",
+    "label": "Storage Box (GLB)"
   }
 ]
