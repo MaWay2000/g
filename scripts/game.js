@@ -4440,6 +4440,9 @@ const quickAccessModalLayoutState = {
 const RESEARCH_MODAL_TAB_IDS = Object.freeze(["costume", "drone"]);
 const RESEARCH_MODAL_DEFAULT_TAB_ID = "drone";
 let researchModalActiveTab = RESEARCH_MODAL_DEFAULT_TAB_ID;
+const CRAFTING_TABLE_TAB_IDS = Object.freeze(["costume", "drone"]);
+const CRAFTING_TABLE_DEFAULT_TAB_ID = "drone";
+let craftingTableActiveTab = CRAFTING_TABLE_DEFAULT_TAB_ID;
 const DRONE_CUSTOMIZATION_TAB_IDS = Object.freeze(["parts", "skins", "model"]);
 const DRONE_CUSTOMIZATION_DEFAULT_TAB_ID = "skins";
 let droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
@@ -4944,7 +4947,12 @@ const droneCraftingState = {
 };
 const costumeResearchState = {
   completedProjectIds: new Set(),
+  researchedProjectIds: new Set(),
+  inventoryResearchProjectIds: new Set(),
+  readyResearchProjectIds: new Set(),
+  readyProjectIds: new Set(),
   activeJob: null,
+  activeCraftJob: null,
 };
 const COSTUME_RESEARCH_PROGRESS_UPDATE_MS = 1000;
 
@@ -4966,6 +4974,18 @@ const isCostumeResearchProjectUnlocked = (project) => {
 
 const isCostumeResearchProjectCompleted = (projectId) =>
   typeof projectId === "string" && costumeResearchState.completedProjectIds.has(projectId);
+
+const isCostumeResearchBlueprintLoaded = (projectId) =>
+  typeof projectId === "string" && costumeResearchState.researchedProjectIds.has(projectId);
+
+const isCostumeResearchBlueprintInInventory = (projectId) =>
+  typeof projectId === "string" && costumeResearchState.inventoryResearchProjectIds.has(projectId);
+
+const isCostumeResearchBlueprintReadyToClaim = (projectId) =>
+  typeof projectId === "string" && costumeResearchState.readyResearchProjectIds.has(projectId);
+
+const isCostumeCraftingProjectReadyToClaim = (projectId) =>
+  typeof projectId === "string" && costumeResearchState.readyProjectIds.has(projectId);
 
 const getCompletedCostumeResearchProjects = () =>
   COSTUME_RESEARCH_PROJECTS.filter((project) => isCostumeResearchProjectCompleted(project.id));
@@ -5011,7 +5031,12 @@ const getPlayerOxygenChamberRecoveryTarget = () =>
 
 const clearCostumeResearchState = () => {
   costumeResearchState.completedProjectIds.clear();
+  costumeResearchState.researchedProjectIds.clear();
+  costumeResearchState.inventoryResearchProjectIds.clear();
+  costumeResearchState.readyResearchProjectIds.clear();
+  costumeResearchState.readyProjectIds.clear();
   costumeResearchState.activeJob = null;
+  costumeResearchState.activeCraftJob = null;
 };
 
 updatePlayerOxygenUi();
@@ -6420,6 +6445,7 @@ let persistStorageBoxStateTimeoutId = 0;
 let lastSerializedStorageBoxState = null;
 let lastSerializedDroneCraftingState = null;
 let costumeResearchProgressIntervalId = 0;
+let costumeCraftingProgressIntervalId = 0;
 let droneCraftingProgressIntervalId = 0;
 let droneResearchProgressIntervalId = 0;
 let inventoryWasPointerLocked = false;
@@ -7831,15 +7857,23 @@ const refreshStorageBoxModalIfOpen = () => {
 const getCraftingTableModalElements = () => {
   if (!quickAccessModalContent) {
     return {
+      tabButtons: [],
+      subtitle: null,
       speedSummary: null,
+      hint: null,
       partList: null,
     };
   }
 
   return {
+    tabButtons: Array.from(
+      quickAccessModalContent.querySelectorAll("[data-crafting-tab]")
+    ),
+    subtitle: quickAccessModalContent.querySelector("[data-crafting-table-subtitle]"),
     speedSummary: quickAccessModalContent.querySelector(
       "[data-crafting-speed-summary]"
     ),
+    hint: quickAccessModalContent.querySelector("[data-crafting-table-hint]"),
     partList: quickAccessModalContent.querySelector("[data-crafting-part-list]"),
   };
 };
@@ -7918,7 +7952,7 @@ const getResearchModalElements = () => {
     const costumeHint = document.createElement("p");
     costumeHint.className = "crafting-panel__hint";
     costumeHint.textContent =
-      "Research permanent suit upgrades here. Costume bonuses install directly when research completes.";
+      "Research suit blueprints here, then move them to Inventory > Items before loading them into the Crafting Table.";
     costumePanel.appendChild(costumeHint);
 
     const costumeEmpty = document.createElement("p");
@@ -8660,6 +8694,16 @@ const getCostumeResearchSummaryText = () =>
     2
   )}x • Speed ${getCostumeMoveSpeedMultiplier().toFixed(2)}x • Jump ${getCostumeJumpMultiplier().toFixed(2)}x`;
 
+const getCostumeCraftRequirements = (project) =>
+  Array.isArray(project?.craftRequirements) && project.craftRequirements.length > 0
+    ? project.craftRequirements
+    : Array.isArray(project?.researchRequirements)
+      ? project.researchRequirements
+      : [];
+
+const getCostumeCraftRequirementStates = (project) =>
+  getElementRequirementStates(getCostumeCraftRequirements(project));
+
 const finalizeCostumeResearchActiveJob = ({ notify = true, refreshUi = true } = {}) => {
   const activeJob = getCostumeResearchActiveJob();
   if (!activeJob || Date.now() < activeJob.completedAtMs) {
@@ -8669,22 +8713,27 @@ const finalizeCostumeResearchActiveJob = ({ notify = true, refreshUi = true } = 
   const project = getCostumeResearchProjectById(activeJob.projectId);
   costumeResearchState.activeJob = null;
 
-  if (project) {
-    costumeResearchState.completedProjectIds.add(project.id);
+  if (
+    project &&
+    !isCostumeResearchProjectCompleted(project.id) &&
+    !isCostumeResearchBlueprintLoaded(project.id) &&
+    !isCostumeResearchBlueprintInInventory(project.id)
+  ) {
+    costumeResearchState.readyResearchProjectIds.add(project.id);
   }
 
   persistDroneCraftingState();
   syncCostumeResearchProgressInterval();
-  applyCostumeResearchBonuses({
-    refreshResearch: refreshUi,
-    persistOxygen: true,
-    silentPressure: true,
-  });
+  if (refreshUi) {
+    refreshInventoryUi();
+    refreshResearchModalIfOpen();
+    refreshCraftingTableModalIfOpen();
+  }
 
   if (notify && project) {
     showTerminalToast({
       title: `${project.label} complete`,
-      description: "Suit upgrade installed and active.",
+      description: "Research complete. Move the blueprint to Inventory > Items.",
     });
   }
 
@@ -8738,6 +8787,262 @@ const syncCostumeResearchProgressInterval = () => {
   }, COSTUME_RESEARCH_PROGRESS_UPDATE_MS);
 };
 
+const moveCostumeResearchBlueprintToInventory = (projectId) => {
+  const project = getCostumeResearchProjectById(projectId);
+  if (!project || !isCostumeResearchBlueprintReadyToClaim(project.id)) {
+    return false;
+  }
+
+  costumeResearchState.readyResearchProjectIds.delete(project.id);
+  costumeResearchState.inventoryResearchProjectIds.add(project.id);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+
+  showTerminalToast({
+    title: `${project.label} blueprint stored`,
+    description: "Blueprint moved to Inventory > Items. Load it at the Crafting Table.",
+  });
+  return true;
+};
+
+const loadCostumeResearchBlueprintToCraftingTable = (projectId) => {
+  const project = getCostumeResearchProjectById(projectId);
+  if (!project || !isCostumeResearchBlueprintInInventory(project.id)) {
+    return false;
+  }
+
+  costumeResearchState.inventoryResearchProjectIds.delete(project.id);
+  costumeResearchState.researchedProjectIds.add(project.id);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+
+  showTerminalToast({
+    title: `${project.label} loaded`,
+    description: "Blueprint loaded into the Crafting Table. You can craft this suit upgrade now.",
+  });
+  return true;
+};
+
+const stopCostumeCraftingProgressInterval = () => {
+  if (!costumeCraftingProgressIntervalId) {
+    return;
+  }
+
+  window.clearInterval(costumeCraftingProgressIntervalId);
+  costumeCraftingProgressIntervalId = 0;
+};
+
+const isInstantCostumeCraftingEnabled = () => Boolean(currentSettings?.godMode);
+
+const getCostumeCraftDurationSeconds = (project) => {
+  if (isInstantCostumeCraftingEnabled()) {
+    return 0;
+  }
+
+  const totalWeightGrams = getCraftingRequirementsTotalWeightGrams(
+    getCostumeCraftRequirements(project)
+  );
+  return Math.max(1, Math.ceil(totalWeightGrams));
+};
+
+const normalizeCostumeCraftingActiveJob = (rawJob) => {
+  if (!rawJob || typeof rawJob !== "object") {
+    return null;
+  }
+
+  const projectId =
+    typeof rawJob.projectId === "string" ? rawJob.projectId.trim() : "";
+  if (!projectId || !getCostumeResearchProjectById(projectId)) {
+    return null;
+  }
+
+  let durationMs = Number(rawJob.durationMs);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  durationMs = Math.max(1000, Math.floor(durationMs));
+
+  let startedAtMs = Number(rawJob.startedAtMs);
+  if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) {
+    startedAtMs = Date.now();
+  }
+  startedAtMs = Math.floor(startedAtMs);
+
+  let completedAtMs = Number(rawJob.completedAtMs);
+  if (!Number.isFinite(completedAtMs) || completedAtMs <= startedAtMs) {
+    completedAtMs = startedAtMs + durationMs;
+  }
+  completedAtMs = Math.floor(completedAtMs);
+
+  return {
+    projectId,
+    startedAtMs,
+    durationMs,
+    completedAtMs,
+  };
+};
+
+const getCostumeCraftingActiveJob = () => {
+  const normalizedJob = normalizeCostumeCraftingActiveJob(costumeResearchState.activeCraftJob);
+  if (!normalizedJob) {
+    costumeResearchState.activeCraftJob = null;
+    return null;
+  }
+
+  costumeResearchState.activeCraftJob = normalizedJob;
+  return normalizedJob;
+};
+
+const getCostumeCraftingJobProgressState = (
+  job = getCostumeCraftingActiveJob()
+) => {
+  if (!job) {
+    return null;
+  }
+
+  const now = Date.now();
+  const durationMs = Math.max(1, Number(job.durationMs) || 1);
+  const elapsedMs = Math.max(0, now - job.startedAtMs);
+  const remainingMs = Math.max(0, job.completedAtMs - now);
+  const progress = Math.max(0, Math.min(1, elapsedMs / durationMs));
+  const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const durationSeconds = Math.max(1, Math.round(durationMs / 1000));
+
+  return {
+    progress,
+    remainingSeconds,
+    durationSeconds,
+  };
+};
+
+const getCraftingTableActiveJob = () => {
+  const costumeJob = getCostumeCraftingActiveJob();
+  if (costumeJob) {
+    return {
+      type: "costume",
+      id: costumeJob.projectId,
+      job: costumeJob,
+    };
+  }
+
+  const droneJob = getDroneCraftingActiveJob();
+  if (droneJob) {
+    return {
+      type: "drone",
+      id: droneJob.partId,
+      job: droneJob,
+    };
+  }
+
+  return null;
+};
+
+const getCraftingTableJobLabel = (activeJob = getCraftingTableActiveJob()) => {
+  if (!activeJob) {
+    return "Crafting";
+  }
+
+  if (activeJob.type === "costume") {
+    return (
+      getCostumeResearchProjectById(activeJob.id)?.label ?? "Costume upgrade"
+    );
+  }
+
+  return getDroneCraftingPartById(activeJob.id)?.label ?? "Drone part";
+};
+
+const getCraftingTableJobProgressState = (activeJob = getCraftingTableActiveJob()) => {
+  if (!activeJob) {
+    return null;
+  }
+
+  return activeJob.type === "costume"
+    ? getCostumeCraftingJobProgressState(activeJob.job)
+    : getDroneCraftingJobProgressState(activeJob.job);
+};
+
+const finalizeCostumeCraftingActiveJob = ({ notify = true, refreshUi = true } = {}) => {
+  const activeJob = getCostumeCraftingActiveJob();
+  if (!activeJob || Date.now() < activeJob.completedAtMs) {
+    return false;
+  }
+
+  const project = getCostumeResearchProjectById(activeJob.projectId);
+  costumeResearchState.activeCraftJob = null;
+
+  if (project && !isCostumeResearchProjectCompleted(project.id)) {
+    costumeResearchState.readyProjectIds.add(project.id);
+  }
+
+  persistDroneCraftingState();
+  syncCostumeCraftingProgressInterval();
+  if (refreshUi) {
+    refreshInventoryUi();
+    refreshResearchModalIfOpen();
+    refreshCraftingTableModalIfOpen();
+  }
+
+  if (notify && project) {
+    showTerminalToast({
+      title: `${project.label} complete`,
+      description: "Crafting done. Move the suit upgrade to Inventory > Items.",
+    });
+  }
+
+  return true;
+};
+
+const completeCostumeCraftingActiveJobInstantly = ({ notify = true } = {}) => {
+  if (!isInstantCostumeCraftingEnabled()) {
+    return false;
+  }
+
+  const activeJob = getCostumeCraftingActiveJob();
+  if (!activeJob) {
+    return false;
+  }
+
+  costumeResearchState.activeCraftJob = {
+    ...activeJob,
+    completedAtMs: Date.now() - 1,
+  };
+
+  return finalizeCostumeCraftingActiveJob({
+    notify,
+    refreshUi: true,
+  });
+};
+
+const syncCostumeCraftingProgressInterval = () => {
+  const activeJob = getCostumeCraftingActiveJob();
+  if (!activeJob) {
+    stopCostumeCraftingProgressInterval();
+    return;
+  }
+
+  if (costumeCraftingProgressIntervalId) {
+    return;
+  }
+
+  costumeCraftingProgressIntervalId = window.setInterval(() => {
+    const completed = finalizeCostumeCraftingActiveJob({
+      notify: true,
+      refreshUi: true,
+    });
+    if (completed) {
+      return;
+    }
+
+    if (craftingTableModalActive) {
+      renderCraftingTableModal();
+    }
+  }, COSTUME_RESEARCH_PROGRESS_UPDATE_MS);
+};
+
 const startCostumeResearch = (projectId) => {
   const project = getCostumeResearchProjectById(projectId);
   if (!project) {
@@ -8748,6 +9053,30 @@ const startCostumeResearch = (projectId) => {
     showTerminalToast({
       title: "Already installed",
       description: `${project.label} is already active on the suit.`,
+    });
+    return false;
+  }
+
+  if (isCostumeResearchBlueprintLoaded(project.id)) {
+    showTerminalToast({
+      title: "Already researched",
+      description: `${project.label} is already loaded into the Crafting Table.`,
+    });
+    return false;
+  }
+
+  if (isCostumeResearchBlueprintInInventory(project.id)) {
+    showTerminalToast({
+      title: "Blueprint in inventory",
+      description: `${project.label} is already in Inventory > Items. Load it at the Crafting Table.`,
+    });
+    return false;
+  }
+
+  if (isCostumeResearchBlueprintReadyToClaim(project.id)) {
+    showTerminalToast({
+      title: "Ready to collect",
+      description: `${project.label} research is complete. Move the blueprint to Inventory > Items.`,
     });
     return false;
   }
@@ -8816,17 +9145,15 @@ const startCostumeResearch = (projectId) => {
 
   const researchDurationSeconds = getCostumeResearchDurationSeconds(project);
   if (researchDurationSeconds <= 0) {
-    costumeResearchState.completedProjectIds.add(project.id);
+    costumeResearchState.readyResearchProjectIds.add(project.id);
     costumeResearchState.activeJob = null;
     persistDroneCraftingState();
-    applyCostumeResearchBonuses({
-      refreshResearch: true,
-      persistOxygen: true,
-      silentPressure: true,
-    });
+    refreshInventoryUi();
+    refreshResearchModalIfOpen();
+    refreshCraftingTableModalIfOpen();
     showTerminalToast({
       title: `${project.label} researched`,
-      description: "God mode instant research. Suit bonus is now active.",
+      description: "God mode instant research. Move the blueprint to Inventory > Items.",
     });
     return true;
   }
@@ -8848,6 +9175,187 @@ const startCostumeResearch = (projectId) => {
     description: `Research time: ${formatDurationSeconds(
       researchDurationSeconds
     )}. Materials were consumed by the lab.`,
+  });
+  return true;
+};
+
+const craftCostumeUpgradeProject = (projectId) => {
+  const project = getCostumeResearchProjectById(projectId);
+  if (!project) {
+    return false;
+  }
+
+  if (!isCostumeResearchBlueprintLoaded(project.id)) {
+    if (isCostumeResearchBlueprintReadyToClaim(project.id)) {
+      showTerminalToast({
+        title: "Research complete",
+        description: `${project.label} is ready in Research Nexus. Move the blueprint to Inventory > Items first.`,
+      });
+    } else if (isCostumeResearchBlueprintInInventory(project.id)) {
+      showTerminalToast({
+        title: "Blueprint in inventory",
+        description: `${project.label} is in Inventory > Items. Load it into the Crafting Table first.`,
+      });
+    } else {
+      showTerminalToast({
+        title: "Research required",
+        description: `${project.label} must be researched first in Command Center > Research Nexus.`,
+      });
+    }
+    return false;
+  }
+
+  if (isCostumeCraftingProjectReadyToClaim(project.id)) {
+    showTerminalToast({
+      title: "Ready to collect",
+      description: `${project.label} is complete. Move it to Inventory > Items.`,
+    });
+    return false;
+  }
+
+  if (isCostumeResearchProjectCompleted(project.id)) {
+    showTerminalToast({
+      title: "Already installed",
+      description: `${project.label} is already active on the suit.`,
+    });
+    return false;
+  }
+
+  finalizeCostumeCraftingActiveJob({ notify: true, refreshUi: false });
+  finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
+  const activeJob = getCraftingTableActiveJob();
+  if (activeJob) {
+    if (activeJob.type === "costume" && activeJob.id === project.id) {
+      const progressState = getCraftingTableJobProgressState(activeJob);
+      showTerminalToast({
+        title: "Craft in progress",
+        description: `${project.label} will finish in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+      return false;
+    }
+
+    showTerminalToast({
+      title: "Crafting table busy",
+      description: `${getCraftingTableJobLabel(activeJob)} is currently crafting.`,
+    });
+    return false;
+  }
+
+  const requirementStates = getCostumeCraftRequirementStates(project);
+  const missingRequirement = requirementStates.find((state) => !state.ready);
+  if (missingRequirement) {
+    showTerminalToast({
+      title: "Missing materials",
+      description: `${formatCraftingElementName(
+        missingRequirement.requirement?.element
+      )}: ${missingRequirement.available}/${missingRequirement.needed}.`,
+    });
+    refreshCraftingTableModalIfOpen();
+    return false;
+  }
+
+  for (const requirementState of requirementStates) {
+    const spent = spendInventoryResource(
+      requirementState.requirement?.element,
+      requirementState.needed
+    );
+    if (!spent) {
+      showTerminalToast({
+        title: "Crafting failed",
+        description: "Inventory changed while crafting. Try again.",
+      });
+      refreshCraftingTableModalIfOpen();
+      return false;
+    }
+  }
+
+  const craftDurationSeconds = getCostumeCraftDurationSeconds(project);
+  if (craftDurationSeconds <= 0) {
+    costumeResearchState.activeCraftJob = null;
+    costumeResearchState.readyProjectIds.add(project.id);
+    persistDroneCraftingState();
+    syncCostumeCraftingProgressInterval();
+    refreshInventoryUi();
+    refreshCraftingTableModalIfOpen();
+    showTerminalToast({
+      title: `${project.label} complete`,
+      description: "God mode instant craft. Move it to Inventory > Items.",
+    });
+    return true;
+  }
+
+  const startedAtMs = Date.now();
+  const durationMs = Math.max(1000, craftDurationSeconds * 1000);
+  costumeResearchState.activeCraftJob = {
+    projectId: project.id,
+    startedAtMs,
+    durationMs,
+    completedAtMs: startedAtMs + durationMs,
+  };
+  persistDroneCraftingState();
+  syncCostumeCraftingProgressInterval();
+  refreshInventoryUi();
+  refreshCraftingTableModalIfOpen();
+
+  showTerminalToast({
+    title: `${project.label} started`,
+    description: `Crafting time: ${formatDurationSeconds(
+      craftDurationSeconds
+    )}. Move it to Inventory after completion.`,
+  });
+  return true;
+};
+
+const moveCraftedCostumeProjectToInventory = (projectId) => {
+  const project = getCostumeResearchProjectById(projectId);
+  if (!project) {
+    return false;
+  }
+
+  finalizeCostumeCraftingActiveJob({ notify: true, refreshUi: false });
+
+  if (isCostumeResearchProjectCompleted(project.id)) {
+    showTerminalToast({
+      title: "Already installed",
+      description: `${project.label} is already active on the suit.`,
+    });
+    return false;
+  }
+
+  if (!isCostumeCraftingProjectReadyToClaim(project.id)) {
+    const activeJob = getCostumeCraftingActiveJob();
+    if (activeJob && activeJob.projectId === project.id) {
+      const progressState = getCostumeCraftingJobProgressState(activeJob);
+      showTerminalToast({
+        title: "Still crafting",
+        description: `${project.label} will be ready in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+    }
+    return false;
+  }
+
+  costumeResearchState.readyProjectIds.delete(project.id);
+  costumeResearchState.researchedProjectIds.delete(project.id);
+  costumeResearchState.inventoryResearchProjectIds.delete(project.id);
+  costumeResearchState.readyResearchProjectIds.delete(project.id);
+  costumeResearchState.completedProjectIds.add(project.id);
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+  applyCostumeResearchBonuses({
+    refreshResearch: false,
+    persistOxygen: true,
+    silentPressure: true,
+  });
+
+  showTerminalToast({
+    title: `${project.label} installed`,
+    description: "Now active on the suit and listed in Inventory > Items.",
   });
   return true;
 };
@@ -9190,6 +9698,9 @@ const createCostumeResearchProjectCard = (project) => {
   item.dataset.costumeResearchId = project.id;
 
   const completed = isCostumeResearchProjectCompleted(project.id);
+  const loadedToCraftingTable = isCostumeResearchBlueprintLoaded(project.id);
+  const storedInInventory = isCostumeResearchBlueprintInInventory(project.id);
+  const readyToClaim = isCostumeResearchBlueprintReadyToClaim(project.id);
   const requiredProject = getCostumeResearchRequiredProject(project);
   const prerequisiteReady = isCostumeResearchProjectUnlocked(project);
   const activeResearchJob = getResearchLabActiveJob();
@@ -9203,13 +9714,21 @@ const createCostumeResearchProjectCard = (project) => {
   const canResearch = prerequisiteReady && requirementStates.every((state) => state.ready);
   const researchDurationSeconds = getCostumeResearchDurationSeconds(project);
 
-  item.dataset.researched = completed ? "true" : "false";
+  item.dataset.researched = completed || loadedToCraftingTable ? "true" : "false";
   item.dataset.researching = researchingThisProject ? "true" : "false";
 
   const status = document.createElement("p");
   status.className = "quick-access-modal__status-tag research-panel__status";
   if (completed) {
     status.textContent = "Installed";
+  } else if (loadedToCraftingTable) {
+    status.textContent = "Loaded";
+  } else if (storedInInventory) {
+    status.dataset.status = "busy";
+    status.textContent = "Inventory";
+  } else if (readyToClaim) {
+    status.dataset.status = "busy";
+    status.textContent = "Complete";
   } else if (researchingThisProject) {
     status.dataset.status = "busy";
     status.textContent = "Researching";
@@ -9247,6 +9766,24 @@ const createCostumeResearchProjectCard = (project) => {
     installedMeta.className = "crafting-panel__meta";
     installedMeta.textContent = "Installed on the suit. Permanent bonus active.";
     item.appendChild(installedMeta);
+  } else if (loadedToCraftingTable) {
+    const loadedMeta = document.createElement("p");
+    loadedMeta.className = "crafting-panel__meta";
+    loadedMeta.textContent =
+      "Blueprint loaded into the Crafting Table. This upgrade can now be built there.";
+    item.appendChild(loadedMeta);
+  } else if (storedInInventory) {
+    const inventoryMeta = document.createElement("p");
+    inventoryMeta.className = "crafting-panel__meta";
+    inventoryMeta.textContent =
+      "Blueprint is in Inventory > Items. Open the Crafting Table to load it.";
+    item.appendChild(inventoryMeta);
+  } else if (readyToClaim) {
+    const readyMeta = document.createElement("p");
+    readyMeta.className = "crafting-panel__meta";
+    readyMeta.textContent =
+      "Research complete. Move the blueprint into Inventory > Items before loading it to the Crafting Table.";
+    item.appendChild(readyMeta);
   } else {
     if (requiredProject && !prerequisiteReady) {
       const prerequisiteMeta = document.createElement("p");
@@ -9289,6 +9826,16 @@ const createCostumeResearchProjectCard = (project) => {
   if (completed) {
     actionButton.textContent = "Installed";
     actionButton.disabled = true;
+  } else if (loadedToCraftingTable) {
+    actionButton.textContent = "Loaded to table";
+    actionButton.disabled = true;
+  } else if (storedInInventory) {
+    actionButton.textContent = "In inventory";
+    actionButton.disabled = true;
+  } else if (readyToClaim) {
+    actionButton.dataset.costumeResearchAction = "claim";
+    actionButton.textContent = "Move to inventory";
+    actionButton.disabled = false;
   } else if (researchingThisProject) {
     actionButton.textContent = "Researching...";
     actionButton.disabled = true;
@@ -9321,10 +9868,23 @@ const renderCostumeResearchPanel = (panel) => {
   const completedCount = COSTUME_RESEARCH_PROJECTS.filter((project) =>
     isCostumeResearchProjectCompleted(project.id)
   ).length;
+  const loadedCount = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+    !isCostumeResearchProjectCompleted(project.id) &&
+    isCostumeResearchBlueprintLoaded(project.id)
+  ).length;
+  const inventoryCount = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+    isCostumeResearchBlueprintInInventory(project.id)
+  ).length;
+  const readyCount = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+    isCostumeResearchBlueprintReadyToClaim(project.id)
+  ).length;
 
   const summary = document.createElement("p");
   summary.className = "crafting-panel__summary";
   const summarySegments = [
+    `Loaded ${loadedCount}/${COSTUME_RESEARCH_PROJECTS.length}`,
+    `Inventory ${inventoryCount}`,
+    `Ready ${readyCount}`,
     `Installed ${completedCount}/${COSTUME_RESEARCH_PROJECTS.length}`,
     getCostumeResearchSummaryText(),
   ];
@@ -9343,7 +9903,7 @@ const renderCostumeResearchPanel = (panel) => {
   const hint = document.createElement("p");
   hint.className = "crafting-panel__hint";
   hint.textContent =
-    "Research permanent suit upgrades here. Each family now has 5 sequential tiers. Tier II costs 5x Tier I. Max O2, move speed, and jump can reach 2.00x total, while oxygen drain can be cut to 0.50x.";
+    "Research suit blueprints here, move them to Inventory > Items, then load them into the Crafting Table outside. Crafted suit upgrades become active when moved to Inventory. Each family has 5 sequential tiers.";
   panel.appendChild(hint);
 
   if (COSTUME_RESEARCH_PROJECTS.length === 0) {
@@ -9474,6 +10034,20 @@ const renderResearchModal = () => {
   partList.innerHTML = "";
   orderedParts.forEach((part) => {
     partList.appendChild(createResearchNexusPartCard(part));
+  });
+};
+
+const syncCraftingTableTabState = () => {
+  const { tabButtons } = getCraftingTableModalElements();
+  const activeTab = CRAFTING_TABLE_TAB_IDS.includes(craftingTableActiveTab)
+    ? craftingTableActiveTab
+    : CRAFTING_TABLE_DEFAULT_TAB_ID;
+
+  tabButtons.forEach((button) => {
+    const isActive = button.dataset.craftingTab === activeTab;
+    button.dataset.active = isActive ? "true" : "false";
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
   });
 };
 
@@ -9886,6 +10460,193 @@ const getDroneCraftingInventoryParts = () =>
 const getDroneCraftingInstalledParts = () =>
   DRONE_CRAFTING_PARTS.filter((part) => isDroneCraftingPartEquipped(part.id));
 
+const createCostumeCraftingTableProjectCard = (project) => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card";
+  item.dataset.craftingCostumeProjectId = project.id;
+
+  const researched = isCostumeResearchBlueprintLoaded(project.id);
+  const researchInInventory = isCostumeResearchBlueprintInInventory(project.id);
+  const researchReadyToClaim = isCostumeResearchBlueprintReadyToClaim(project.id);
+  const installed = isCostumeResearchProjectCompleted(project.id);
+  const readyToClaim = isCostumeCraftingProjectReadyToClaim(project.id);
+  const activeResearchJob = getCostumeResearchActiveJob();
+  const researchingThisProject = Boolean(
+    activeResearchJob && activeResearchJob.projectId === project.id
+  );
+  const activeJob = getCraftingTableActiveJob();
+  const craftingThisProject = Boolean(
+    activeJob && activeJob.type === "costume" && activeJob.id === project.id
+  );
+  const craftingOtherProject = Boolean(activeJob && !craftingThisProject);
+  item.dataset.researched = researched ? "true" : "false";
+  item.dataset.crafted = installed ? "true" : "false";
+  item.dataset.ready = readyToClaim ? "true" : "false";
+  item.dataset.crafting = craftingThisProject ? "true" : "false";
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = project.label;
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent = project.description;
+  item.appendChild(description);
+
+  const effect = document.createElement("p");
+  effect.className = "crafting-panel__effect";
+  effect.textContent = formatCostumeResearchEffectLabel(project);
+  item.appendChild(effect);
+
+  if (installed) {
+    const installedMeta = document.createElement("p");
+    installedMeta.className = "crafting-panel__meta";
+    installedMeta.textContent = "Installed on the suit. Permanent bonus active.";
+    item.appendChild(installedMeta);
+  } else if (!researched) {
+    const researchStatus = document.createElement("p");
+    researchStatus.className = "crafting-panel__meta";
+    researchStatus.textContent = researchReadyToClaim
+      ? "Research finished. Collect the blueprint in Research Nexus first."
+      : researchInInventory
+        ? "Blueprint is in Inventory > Items. Load it into the Crafting Table to unlock this recipe."
+        : "Research required first. Unlock this blueprint in Command Center > Research Nexus.";
+    item.appendChild(researchStatus);
+
+    if (!researchInInventory && !researchReadyToClaim) {
+      const researchRequirementStates = getCostumeResearchRequirementStates(project);
+      const researchRequirements = document.createElement("ul");
+      researchRequirements.className = "crafting-panel__requirements";
+      researchRequirementStates.forEach(({ requirement, needed, available, ready }) => {
+        const requirementItem = document.createElement("li");
+        requirementItem.className = "crafting-panel__requirement";
+        requirementItem.dataset.ready = ready ? "true" : "false";
+        requirementItem.textContent = `Research cost • ${formatCraftingElementName(
+          requirement?.element
+        )}: ${available}/${needed}`;
+        researchRequirements.appendChild(requirementItem);
+      });
+      item.appendChild(researchRequirements);
+
+      const researchTime = document.createElement("p");
+      researchTime.className = "crafting-panel__meta";
+      researchTime.textContent = `Research time: ${formatDurationSeconds(
+        getCostumeResearchDurationSeconds(project)
+      )}`;
+      item.appendChild(researchTime);
+    }
+
+    if (researchingThisProject) {
+      const progressState = getCostumeResearchJobProgressState(activeResearchJob);
+      renderResearchProgressBlock(item, progressState);
+    }
+  }
+
+  const hideCraftingMaterialDetails = installed || !researched;
+  const requirementStates = getCostumeCraftRequirementStates(project);
+
+  if (!hideCraftingMaterialDetails) {
+    const requirements = document.createElement("ul");
+    requirements.className = "crafting-panel__requirements";
+
+    requirementStates.forEach(({ requirement, needed, available, ready }) => {
+      const requirementItem = document.createElement("li");
+      requirementItem.className = "crafting-panel__requirement";
+      requirementItem.dataset.ready = ready ? "true" : "false";
+      requirementItem.textContent = `${formatCraftingElementName(
+        requirement?.element
+      )}: ${available}/${needed}`;
+      requirements.appendChild(requirementItem);
+    });
+    item.appendChild(requirements);
+
+    const craftTime = document.createElement("p");
+    craftTime.className = "crafting-panel__meta";
+    craftTime.textContent = `Craft time: ${formatDurationSeconds(
+      getCostumeCraftDurationSeconds(project)
+    )}`;
+    item.appendChild(craftTime);
+  }
+
+  if (craftingThisProject) {
+    const progressState = getCraftingTableJobProgressState(activeJob);
+    renderResearchProgressBlock(item, progressState, "Crafting");
+  }
+
+  const craftButton = document.createElement("button");
+  craftButton.type = "button";
+  craftButton.className = "crafting-panel__button";
+  craftButton.dataset.craftingCostumeProjectId = project.id;
+
+  if (installed) {
+    craftButton.textContent = "Installed";
+    craftButton.disabled = true;
+  } else if (!researched) {
+    if (researchInInventory) {
+      craftButton.dataset.craftingCostumeAction = "load-research";
+      craftButton.textContent = "Load research";
+    } else {
+      craftButton.textContent = researchReadyToClaim
+        ? "Collect in Research Nexus"
+        : researchingThisProject
+          ? "Researching in Research Nexus"
+          : "Research in Command Center";
+      craftButton.disabled = true;
+    }
+  } else if (readyToClaim) {
+    craftButton.dataset.craftingCostumeAction = "claim";
+    craftButton.textContent = "Move to inventory";
+    craftButton.disabled = false;
+  } else if (craftingThisProject) {
+    craftButton.textContent = "Crafting...";
+    craftButton.disabled = true;
+  } else {
+    const canCraft = requirementStates.every((state) => state.ready);
+    craftButton.dataset.craftingCostumeAction = "craft";
+    craftButton.textContent = craftingOtherProject ? "Busy" : "Craft";
+    craftButton.disabled = craftingOtherProject || !canCraft;
+  }
+  item.appendChild(craftButton);
+
+  return item;
+};
+
+const shouldShowCostumeCraftingTableProjectCard = (project) =>
+  Boolean(
+    project &&
+      (
+        isCostumeResearchProjectCompleted(project.id) ||
+        isCostumeResearchBlueprintLoaded(project.id) ||
+        isCostumeResearchBlueprintInInventory(project.id) ||
+        isCostumeCraftingProjectReadyToClaim(project.id)
+      )
+  );
+
+const createCostumeCraftingTableResearchHintCard = () => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card";
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = "No suit blueprints loaded";
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent =
+    "Research and claim suit blueprints in Command Center > Research Nexus.";
+  item.appendChild(description);
+
+  const meta = document.createElement("p");
+  meta.className = "crafting-panel__meta";
+  meta.textContent =
+    "Claimed blueprints appear in Inventory > Items. Bring them here to load and craft suit upgrades.";
+  item.appendChild(meta);
+
+  return item;
+};
+
 const createCraftingTablePartCard = (part) => {
   const item = document.createElement("li");
   item.className = "crafting-panel__card";
@@ -9901,9 +10662,11 @@ const createCraftingTablePartCard = (part) => {
   const researchingThisPart = Boolean(
     activeResearchJob && activeResearchJob.partId === part.id
   );
-  const activeJob = getDroneCraftingActiveJob();
-  const craftingThisPart = Boolean(activeJob && activeJob.partId === part.id);
-  const craftingOtherPart = Boolean(activeJob && activeJob.partId !== part.id);
+  const activeJob = getCraftingTableActiveJob();
+  const craftingThisPart = Boolean(
+    activeJob && activeJob.type === "drone" && activeJob.id === part.id
+  );
+  const craftingOtherPart = Boolean(activeJob && !craftingThisPart);
   item.dataset.researched = researched ? "true" : "false";
   item.dataset.crafted = crafted ? "true" : "false";
   item.dataset.equipped = equipped ? "true" : "false";
@@ -10005,7 +10768,7 @@ const createCraftingTablePartCard = (part) => {
   }
 
   if (craftingThisPart) {
-    const progressState = getDroneCraftingJobProgressState(activeJob);
+    const progressState = getCraftingTableJobProgressState(activeJob);
     if (progressState) {
       const progressContainer = document.createElement("div");
       progressContainer.className = "crafting-panel__progress";
@@ -10307,27 +11070,67 @@ const renderCraftingTableModal = () => {
     return;
   }
 
+  finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
+  finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+  finalizeCostumeCraftingActiveJob({ notify: true, refreshUi: false });
   finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
 
-  const { speedSummary, partList } = getCraftingTableModalElements();
+  const { subtitle, speedSummary, hint, partList } = getCraftingTableModalElements();
+  const activeTab = CRAFTING_TABLE_TAB_IDS.includes(craftingTableActiveTab)
+    ? craftingTableActiveTab
+    : CRAFTING_TABLE_DEFAULT_TAB_ID;
+  const activeCraftJob = getCraftingTableActiveJob();
+  const progressState = getCraftingTableJobProgressState(activeCraftJob);
   const equippedCount = droneCraftingState.equippedPartIds.size;
-  const activeJob = getDroneCraftingActiveJob();
-  const progressState = getDroneCraftingJobProgressState(activeJob);
+
+  syncCraftingTableTabState();
+
+  if (subtitle instanceof HTMLElement) {
+    subtitle.textContent =
+      activeTab === "costume"
+        ? "Assemble researched suit upgrade modules and move them into Inventory to activate them."
+        : "Build permanent drone upgrade parts from collected elements to mine faster.";
+  }
+
+  if (hint instanceof HTMLElement) {
+    hint.textContent =
+      activeTab === "costume"
+        ? "Research blueprints in Command Center first. Craft time = total required material weight (1g = 1s)."
+        : "Craft time = total required material weight (1g = 1s). When complete, move the part to Inventory.";
+  }
 
   if (speedSummary instanceof HTMLElement) {
-    const summarySegments = [
-      `Installed ${equippedCount}/${DRONE_CRAFTING_PARTS.length}`,
-      getInstalledDroneBonusSummaryText(),
-    ];
-    if (activeJob && progressState) {
-      const activePart = getDroneCraftingPartById(activeJob.partId);
-      summarySegments.push(
-        `Crafting ${activePart?.label ?? "part"} (${formatDurationSeconds(
-          progressState.remainingSeconds
-        )} left)`
-      );
+    if (activeTab === "costume") {
+      const completedCount = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+        isCostumeResearchProjectCompleted(project.id)
+      ).length;
+      const summarySegments = [
+        `Installed ${completedCount}/${COSTUME_RESEARCH_PROJECTS.length}`,
+        getCostumeResearchSummaryText(),
+      ];
+      if (activeCraftJob && progressState) {
+        summarySegments.push(
+          `Crafting ${getCraftingTableJobLabel(activeCraftJob)} (${formatDurationSeconds(
+            progressState.remainingSeconds
+          )} left)`
+        );
+      }
+      speedSummary.textContent = summarySegments.join(" • ");
+    } else {
+      const summarySegments = [
+        `Installed ${equippedCount}/${DRONE_CRAFTING_PARTS.length}`,
+        getInstalledDroneBonusSummaryText(),
+      ];
+      if (activeCraftJob && progressState) {
+        const activeLabel = getCraftingTableJobLabel(activeCraftJob);
+        summarySegments.push(
+          `Crafting ${activeLabel} (${formatDurationSeconds(
+            progressState.remainingSeconds
+          )} left)`
+        );
+      }
+      speedSummary.textContent = summarySegments.join(" • ");
     }
-    speedSummary.textContent = summarySegments.join(" • ");
   }
 
   if (!(partList instanceof HTMLElement)) {
@@ -10335,6 +11138,24 @@ const renderCraftingTableModal = () => {
   }
 
   partList.innerHTML = "";
+
+  if (activeTab === "costume") {
+    stopDroneModelPreviewRuntimeLoop();
+    const visibleProjects = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+      shouldShowCostumeCraftingTableProjectCard(project)
+    );
+
+    if (visibleProjects.length === 0) {
+      partList.appendChild(createCostumeCraftingTableResearchHintCard());
+      return;
+    }
+
+    visibleProjects.forEach((project) => {
+      partList.appendChild(createCostumeCraftingTableProjectCard(project));
+    });
+    return;
+  }
+
   if (hasInstalledAllDroneUpgradeParts()) {
     partList.appendChild(createCraftingTableMediumModelUpgradeCard());
     renderCraftingTableMediumModelPreview();
@@ -10406,12 +11227,12 @@ const craftDroneUpgradePart = (partId) => {
     return false;
   }
 
+  finalizeCostumeCraftingActiveJob({ notify: true, refreshUi: false });
   finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
-  const activeJob = getDroneCraftingActiveJob();
+  const activeJob = getCraftingTableActiveJob();
   if (activeJob) {
-    const activePart = getDroneCraftingPartById(activeJob.partId);
-    if (activeJob.partId === part.id) {
-      const progressState = getDroneCraftingJobProgressState(activeJob);
+    if (activeJob.type === "drone" && activeJob.id === part.id) {
+      const progressState = getCraftingTableJobProgressState(activeJob);
       showTerminalToast({
         title: "Craft in progress",
         description: `${part.label} will finish in ${formatDurationSeconds(
@@ -10423,7 +11244,7 @@ const craftDroneUpgradePart = (partId) => {
 
     showTerminalToast({
       title: "Crafting table busy",
-      description: `${activePart?.label ?? "Another part"} is currently crafting.`,
+      description: `${getCraftingTableJobLabel(activeJob)} is currently crafting.`,
     });
     return false;
   }
@@ -10564,6 +11385,23 @@ const handleCraftingTableActionClick = (event) => {
     return;
   }
 
+  const tabButton =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-crafting-tab]")
+      : null;
+
+  if (tabButton instanceof HTMLButtonElement) {
+    event.preventDefault();
+    const nextTab = tabButton.dataset.craftingTab;
+    if (!CRAFTING_TABLE_TAB_IDS.includes(nextTab)) {
+      return;
+    }
+
+    craftingTableActiveTab = nextTab;
+    renderCraftingTableModal();
+    return;
+  }
+
   const modelActionTarget =
     event.target instanceof HTMLElement
       ? event.target.closest("[data-crafting-model-action]")
@@ -10582,6 +11420,36 @@ const handleCraftingTableActionClick = (event) => {
       openDroneSetupModelTabFromCraftingTable();
       return;
     }
+  }
+
+  const costumeActionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-crafting-costume-action]")
+      : null;
+
+  if (costumeActionTarget instanceof HTMLButtonElement) {
+    event.preventDefault();
+
+    const projectId = costumeActionTarget.dataset.craftingCostumeProjectId;
+    const actionType = costumeActionTarget.dataset.craftingCostumeAction;
+    if (!projectId || !actionType) {
+      return;
+    }
+
+    if (actionType === "craft") {
+      craftCostumeUpgradeProject(projectId);
+      return;
+    }
+
+    if (actionType === "load-research") {
+      loadCostumeResearchBlueprintToCraftingTable(projectId);
+      return;
+    }
+
+    if (actionType === "claim") {
+      moveCraftedCostumeProjectToInventory(projectId);
+    }
+    return;
   }
 
   const partActionTarget =
@@ -10654,6 +11522,11 @@ const handleResearchModalActionClick = (event) => {
 
     if (actionType === "start") {
       startCostumeResearch(projectId);
+      return;
+    }
+
+    if (actionType === "claim") {
+      moveCostumeResearchBlueprintToInventory(projectId);
     }
     return;
   }
@@ -10731,18 +11604,17 @@ const teardownCraftingTableModal = () => {
 };
 
 const bindCraftingTableModalEvents = () => {
-  const { partList } = getCraftingTableModalElements();
-
+  const craftingContent = quickAccessModalContent;
   if (
-    !(partList instanceof HTMLElement) ||
+    !(craftingContent instanceof HTMLElement) ||
     typeof teardownCraftingTableActionBinding === "function"
   ) {
     return;
   }
 
-  partList.addEventListener("click", handleCraftingTableActionClick);
+  craftingContent.addEventListener("click", handleCraftingTableActionClick);
   teardownCraftingTableActionBinding = () => {
-    partList.removeEventListener("click", handleCraftingTableActionClick);
+    craftingContent.removeEventListener("click", handleCraftingTableActionClick);
   };
 };
 
@@ -14471,10 +15343,20 @@ const renderInventoryItemsEntries = () => {
   const researchBlueprints = DRONE_CRAFTING_PARTS.filter((part) =>
     isDroneResearchBlueprintInInventory(part.id)
   );
+  const costumeBlueprints = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+    isCostumeResearchBlueprintInInventory(project.id)
+  );
   const craftedParts = DRONE_CRAFTING_PARTS.filter((part) =>
     isDroneCraftingPartCrafted(part.id)
   );
-  const totalItems = researchBlueprints.length + craftedParts.length;
+  const installedCostumeProjects = COSTUME_RESEARCH_PROJECTS.filter((project) =>
+    isCostumeResearchProjectCompleted(project.id)
+  );
+  const totalItems =
+    researchBlueprints.length +
+    costumeBlueprints.length +
+    craftedParts.length +
+    installedCostumeProjects.length;
 
   if (inventoryItemsEmptyState instanceof HTMLElement) {
     inventoryItemsEmptyState.hidden = totalItems > 0;
@@ -14503,6 +15385,24 @@ const renderInventoryItemsEntries = () => {
     fragment.appendChild(item);
   });
 
+  costumeBlueprints.forEach((project) => {
+    const item = document.createElement("li");
+    item.className = "inventory-items-list__entry";
+
+    const title = document.createElement("p");
+    title.className = "inventory-items-list__title";
+    title.textContent = `${project.label} Blueprint`;
+    item.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "inventory-items-list__meta";
+    meta.textContent =
+      "Suit upgrade blueprint in inventory. Load it into the Crafting Table to unlock production.";
+    item.appendChild(meta);
+
+    fragment.appendChild(item);
+  });
+
   craftedParts.forEach((part) => {
     const item = document.createElement("li");
     item.className = "inventory-items-list__entry";
@@ -14518,6 +15418,23 @@ const renderInventoryItemsEntries = () => {
     meta.textContent = isDroneCraftingPartEquipped(part.id)
       ? `Installed on drone. ${effectLabel}`
       : `Available to install in Drone Setup > Parts. ${effectLabel}`;
+    item.appendChild(meta);
+
+    fragment.appendChild(item);
+  });
+
+  installedCostumeProjects.forEach((project) => {
+    const item = document.createElement("li");
+    item.className = "inventory-items-list__entry";
+
+    const title = document.createElement("p");
+    title.className = "inventory-items-list__title";
+    title.textContent = project.label;
+    item.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "inventory-items-list__meta";
+    meta.textContent = `Installed on suit. ${formatCostumeResearchEffectLabel(project)}`;
     item.appendChild(meta);
 
     fragment.appendChild(item);
@@ -15128,16 +16045,71 @@ const serializeDroneCraftingStateForPersistence = () => {
   const completedCostumeResearchProjectSet = new Set(
     completedCostumeResearchProjectIds
   );
+  const costumeResearchedProjectIds = Array.from(
+    costumeResearchState.researchedProjectIds
+  ).filter(
+    (projectId) =>
+      typeof projectId === "string" &&
+      knownCostumeProjectIds.has(projectId) &&
+      !completedCostumeResearchProjectSet.has(projectId)
+  );
+  const costumeResearchedProjectSet = new Set(costumeResearchedProjectIds);
+  const costumeInventoryResearchProjectIds = Array.from(
+    costumeResearchState.inventoryResearchProjectIds
+  ).filter(
+    (projectId) =>
+      typeof projectId === "string" &&
+      knownCostumeProjectIds.has(projectId) &&
+      !completedCostumeResearchProjectSet.has(projectId) &&
+      !costumeResearchedProjectSet.has(projectId)
+  );
+  const costumeInventoryResearchProjectSet = new Set(
+    costumeInventoryResearchProjectIds
+  );
+  const costumeReadyResearchProjectIds = Array.from(
+    costumeResearchState.readyResearchProjectIds
+  ).filter(
+    (projectId) =>
+      typeof projectId === "string" &&
+      knownCostumeProjectIds.has(projectId) &&
+      !completedCostumeResearchProjectSet.has(projectId) &&
+      !costumeResearchedProjectSet.has(projectId) &&
+      !costumeInventoryResearchProjectSet.has(projectId)
+  );
+  const costumeReadyResearchProjectSet = new Set(costumeReadyResearchProjectIds);
+  const costumeReadyProjectIds = Array.from(costumeResearchState.readyProjectIds).filter(
+    (projectId) =>
+      typeof projectId === "string" &&
+      knownCostumeProjectIds.has(projectId) &&
+      !completedCostumeResearchProjectSet.has(projectId)
+  );
+  const costumeReadyProjectSet = new Set(costumeReadyProjectIds);
   const activeCostumeResearchJob = getCostumeResearchActiveJob();
   const activeCostumeResearchJobForPersistence =
     activeCostumeResearchJob &&
     knownCostumeProjectIds.has(activeCostumeResearchJob.projectId) &&
-    !completedCostumeResearchProjectSet.has(activeCostumeResearchJob.projectId)
+    !completedCostumeResearchProjectSet.has(activeCostumeResearchJob.projectId) &&
+    !costumeResearchedProjectSet.has(activeCostumeResearchJob.projectId) &&
+    !costumeInventoryResearchProjectSet.has(activeCostumeResearchJob.projectId) &&
+    !costumeReadyResearchProjectSet.has(activeCostumeResearchJob.projectId)
       ? {
           projectId: activeCostumeResearchJob.projectId,
           startedAtMs: Math.floor(activeCostumeResearchJob.startedAtMs),
           durationMs: Math.floor(activeCostumeResearchJob.durationMs),
           completedAtMs: Math.floor(activeCostumeResearchJob.completedAtMs),
+        }
+      : null;
+  const activeCostumeCraftJob = getCostumeCraftingActiveJob();
+  const activeCostumeCraftJobForPersistence =
+    activeCostumeCraftJob &&
+    knownCostumeProjectIds.has(activeCostumeCraftJob.projectId) &&
+    !completedCostumeResearchProjectSet.has(activeCostumeCraftJob.projectId) &&
+    !costumeReadyProjectSet.has(activeCostumeCraftJob.projectId)
+      ? {
+          projectId: activeCostumeCraftJob.projectId,
+          startedAtMs: Math.floor(activeCostumeCraftJob.startedAtMs),
+          durationMs: Math.floor(activeCostumeCraftJob.durationMs),
+          completedAtMs: Math.floor(activeCostumeCraftJob.completedAtMs),
         }
       : null;
 
@@ -15152,8 +16124,13 @@ const serializeDroneCraftingStateForPersistence = () => {
     activeJob: activeJobForPersistence,
     unlockedModelIds,
     mediumModelRequirements,
+    costumeResearchedProjectIds,
+    costumeInventoryResearchProjectIds,
+    costumeReadyResearchProjectIds,
     completedCostumeResearchProjectIds,
+    costumeReadyProjectIds,
     activeCostumeResearchJob: activeCostumeResearchJobForPersistence,
+    activeCostumeCraftJob: activeCostumeCraftJobForPersistence,
   };
 };
 
@@ -15348,6 +16325,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     }
     droneCraftingState.mediumModelRequirements = [];
     syncCostumeResearchProgressInterval();
+    syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     applyCostumeResearchBonuses({
@@ -15384,6 +16362,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     }
     droneCraftingState.mediumModelRequirements = [];
     syncCostumeResearchProgressInterval();
+    syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     applyCostumeResearchBonuses({
@@ -15420,6 +16399,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     }
     droneCraftingState.mediumModelRequirements = [];
     syncCostumeResearchProgressInterval();
+    syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     applyCostumeResearchBonuses({
@@ -15582,6 +16562,68 @@ const restoreDroneCraftingStateFromStorage = () => {
       }
     });
 
+    const storedCostumeResearchedProjectIds = Array.isArray(data?.costumeResearchedProjectIds)
+      ? data.costumeResearchedProjectIds
+      : [];
+    storedCostumeResearchedProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownCostumeProjectIds.has(projectId) &&
+        !costumeResearchState.completedProjectIds.has(projectId)
+      ) {
+        costumeResearchState.researchedProjectIds.add(projectId);
+      }
+    });
+
+    const storedCostumeInventoryResearchProjectIds = Array.isArray(
+      data?.costumeInventoryResearchProjectIds
+    )
+      ? data.costumeInventoryResearchProjectIds
+      : [];
+    storedCostumeInventoryResearchProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownCostumeProjectIds.has(projectId) &&
+        !costumeResearchState.completedProjectIds.has(projectId) &&
+        !costumeResearchState.researchedProjectIds.has(projectId)
+      ) {
+        costumeResearchState.inventoryResearchProjectIds.add(projectId);
+      }
+    });
+
+    const storedCostumeReadyResearchProjectIds = Array.isArray(
+      data?.costumeReadyResearchProjectIds
+    )
+      ? data.costumeReadyResearchProjectIds
+      : [];
+    storedCostumeReadyResearchProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownCostumeProjectIds.has(projectId) &&
+        !costumeResearchState.completedProjectIds.has(projectId) &&
+        !costumeResearchState.researchedProjectIds.has(projectId) &&
+        !costumeResearchState.inventoryResearchProjectIds.has(projectId)
+      ) {
+        costumeResearchState.readyResearchProjectIds.add(projectId);
+      }
+    });
+
+    const storedCostumeReadyProjectIds = Array.isArray(data?.costumeReadyProjectIds)
+      ? data.costumeReadyProjectIds
+      : [];
+    storedCostumeReadyProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownCostumeProjectIds.has(projectId) &&
+        !costumeResearchState.completedProjectIds.has(projectId)
+      ) {
+        costumeResearchState.inventoryResearchProjectIds.delete(projectId);
+        costumeResearchState.readyResearchProjectIds.delete(projectId);
+        costumeResearchState.researchedProjectIds.add(projectId);
+        costumeResearchState.readyProjectIds.add(projectId);
+      }
+    });
+
     const restoredActiveCostumeResearchJob = normalizeCostumeResearchActiveJob(
       data?.activeCostumeResearchJob
     );
@@ -15589,9 +16631,38 @@ const restoreDroneCraftingStateFromStorage = () => {
       restoredActiveCostumeResearchJob &&
       !costumeResearchState.completedProjectIds.has(
         restoredActiveCostumeResearchJob.projectId
+      ) &&
+      !costumeResearchState.researchedProjectIds.has(
+        restoredActiveCostumeResearchJob.projectId
+      ) &&
+      !costumeResearchState.inventoryResearchProjectIds.has(
+        restoredActiveCostumeResearchJob.projectId
+      ) &&
+      !costumeResearchState.readyResearchProjectIds.has(
+        restoredActiveCostumeResearchJob.projectId
       )
     ) {
       costumeResearchState.activeJob = restoredActiveCostumeResearchJob;
+    }
+
+    const restoredActiveCostumeCraftJob = normalizeCostumeCraftingActiveJob(
+      data?.activeCostumeCraftJob
+    );
+    if (
+      restoredActiveCostumeCraftJob &&
+      !costumeResearchState.completedProjectIds.has(
+        restoredActiveCostumeCraftJob.projectId
+      ) &&
+      !costumeResearchState.readyProjectIds.has(restoredActiveCostumeCraftJob.projectId)
+    ) {
+      costumeResearchState.inventoryResearchProjectIds.delete(
+        restoredActiveCostumeCraftJob.projectId
+      );
+      costumeResearchState.readyResearchProjectIds.delete(
+        restoredActiveCostumeCraftJob.projectId
+      );
+      costumeResearchState.researchedProjectIds.add(restoredActiveCostumeCraftJob.projectId);
+      costumeResearchState.activeCraftJob = restoredActiveCostumeCraftJob;
     }
 
     const hasExtraUnlockedModels = Array.from(ensureDroneUnlockedModelState()).some(
@@ -15600,6 +16671,10 @@ const restoreDroneCraftingStateFromStorage = () => {
 
     restored =
       costumeResearchState.completedProjectIds.size > 0 ||
+      costumeResearchState.researchedProjectIds.size > 0 ||
+      costumeResearchState.inventoryResearchProjectIds.size > 0 ||
+      costumeResearchState.readyResearchProjectIds.size > 0 ||
+      costumeResearchState.readyProjectIds.size > 0 ||
       droneCraftingState.researchedPartIds.size > 0 ||
       droneCraftingState.inventoryResearchPartIds.size > 0 ||
       droneCraftingState.readyResearchPartIds.size > 0 ||
@@ -15607,6 +16682,7 @@ const restoreDroneCraftingStateFromStorage = () => {
       droneCraftingState.equippedPartIds.size > 0 ||
       droneCraftingState.readyPartIds.size > 0 ||
       Boolean(costumeResearchState.activeJob) ||
+      Boolean(costumeResearchState.activeCraftJob) ||
       Boolean(droneCraftingState.activeResearchJob) ||
       Boolean(droneCraftingState.activeJob) ||
       hasExtraUnlockedModels;
@@ -15622,6 +16698,8 @@ const restoreDroneCraftingStateFromStorage = () => {
 
   finalizeCostumeResearchActiveJob({ notify: false, refreshUi: false });
   syncCostumeResearchProgressInterval();
+  finalizeCostumeCraftingActiveJob({ notify: false, refreshUi: false });
+  syncCostumeCraftingProgressInterval();
   finalizeDroneResearchActiveJob({ notify: false, refreshUi: false });
   syncDroneResearchProgressInterval();
   finalizeDroneCraftingActiveJob({ notify: false, refreshUi: false });
@@ -16026,6 +17104,7 @@ restoreStorageBoxStateFromStorage();
 restoreDroneCraftingStateFromStorage();
 if (Boolean(currentSettings?.godMode)) {
   completeCostumeResearchActiveJobInstantly({ notify: false });
+  completeCostumeCraftingActiveJobInstantly({ notify: false });
   completeDroneResearchActiveJobInstantly({ notify: false });
   completeDroneCraftingActiveJobInstantly({ notify: false });
 }
@@ -19296,6 +20375,7 @@ if (godModeToggle instanceof HTMLInputElement) {
     applyGodModeUiState();
     if (enabled) {
       completeCostumeResearchActiveJobInstantly({ notify: true });
+      completeCostumeCraftingActiveJobInstantly({ notify: true });
       completeDroneResearchActiveJobInstantly({ notify: true });
       completeDroneCraftingActiveJobInstantly({ notify: true });
     }
@@ -19563,6 +20643,7 @@ function handleReset(event) {
     ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
     droneCraftingState.mediumModelRequirements = [];
     syncCostumeResearchProgressInterval();
+    syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
     lastSerializedDroneCraftingState = null;

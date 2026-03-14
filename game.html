@@ -6787,15 +6787,41 @@
       <header class="quick-access-modal__header">
         <p class="quick-access-modal__eyebrow">Outside exit room</p>
         <h2 class="quick-access-modal__title">Crafting Table</h2>
-        <p class="quick-access-modal__subtitle">
-          Build permanent drone upgrade parts from collected elements to mine faster.
+        <p class="quick-access-modal__subtitle" data-crafting-table-subtitle>
+          Build permanent suit modules and drone upgrade parts from collected elements.
         </p>
       </header>
+      <nav class="drone-customization-tabs" role="tablist" aria-label="Crafting table tabs">
+        <button
+          type="button"
+          class="drone-customization-tabs__button"
+          data-crafting-tab="costume"
+          id="crafting-table-tab-costume"
+          role="tab"
+          aria-selected="false"
+          aria-controls="crafting-table-panel-main"
+          tabindex="-1"
+        >
+          Costume
+        </button>
+        <button
+          type="button"
+          class="drone-customization-tabs__button"
+          data-crafting-tab="drone"
+          id="crafting-table-tab-drone"
+          role="tab"
+          aria-selected="false"
+          aria-controls="crafting-table-panel-main"
+          tabindex="-1"
+        >
+          Drone
+        </button>
+      </nav>
       <section class="quick-access-modal__section crafting-panel">
         <p class="crafting-panel__summary" data-crafting-speed-summary>
           Installed bonuses: loading...
         </p>
-        <p class="crafting-panel__hint">
+        <p class="crafting-panel__hint" data-crafting-table-hint>
           Craft time = total required material weight (1g = 1s). When complete, move the part to Inventory.
         </p>
         <ul class="crafting-panel__grid" data-crafting-part-list role="list"></ul>
