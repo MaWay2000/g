@@ -46,5 +46,13 @@
   {
     "path": "box6.glb",
     "label": "Box 6 (GLB)"
+  },
+  {
+    "path": "box7.glb",
+    "label": "Box 7 (GLB)"
+  },
+  {
+    "path": "box8.glb",
+    "label": "Box 8 (GLB)"
   }
 ]
