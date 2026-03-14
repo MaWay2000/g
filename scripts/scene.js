@@ -12610,10 +12610,11 @@ export const initScene = (
 
   const playerReflectionProxy = new THREE.Group();
   playerReflectionProxy.name = "PlayerReflectionProxy";
+  playerReflectionProxy.layers.set(REFLECTION_PLAYER_LAYER);
   const playerReflectionAvatar = new THREE.Group();
   playerReflectionAvatar.name = "PlayerReflectionAvatar";
   playerReflectionProxy.add(playerReflectionAvatar);
-  playerObject.add(playerReflectionProxy);
+  scene.add(playerReflectionProxy);
 
   const playerReflectionMaterials = {
     suit: new THREE.MeshStandardMaterial({
@@ -12792,6 +12793,12 @@ export const initScene = (
     walkCycle: 0,
   };
 
+  const syncPlayerReflectionProxyTransform = () => {
+    playerReflectionProxy.position.copy(playerObject.position);
+    playerReflectionProxy.rotation.set(0, playerObject.rotation.y, 0);
+    playerReflectionAvatar.position.set(0, 0, -0.18);
+  };
+
   const updatePlayerReflectionProxyDimensions = () => {
     const heightScale = playerHeight / DEFAULT_PLAYER_HEIGHT;
     const widthScale = THREE.MathUtils.clamp(0.92 + (heightScale - 1) * 0.35, 0.82, 1.16);
@@ -12862,6 +12869,7 @@ export const initScene = (
     }
   };
 
+  syncPlayerReflectionProxyTransform();
   updatePlayerReflectionProxyDimensions();
 
   const viewDistanceCullingState = {
@@ -17592,6 +17600,7 @@ export const initScene = (
 
   let movementEnabled = true;
   let movementSprintEnabled = true;
+  syncPlayerReflectionProxyTransform();
   updatePlayerReflectionProxyPose(0, 0);
   const playerConfinementState = {
     active: false,
@@ -18499,6 +18508,7 @@ export const initScene = (
     }
 
     applyPlayerConfinement();
+    syncPlayerReflectionProxyTransform();
     updatePlayerReflectionProxyPose(delta, elapsedTime);
 
 
