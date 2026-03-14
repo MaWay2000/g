@@ -104,7 +104,7 @@ export const registerCollidersForImportedRoot = (root, { padding } = {}) => {
   const descriptors = [];
 
   root.traverse((child) => {
-    if (!child.isMesh) {
+    if (!child.isMesh || child.userData?.isStorageBoxControl === true) {
       return;
     }
 

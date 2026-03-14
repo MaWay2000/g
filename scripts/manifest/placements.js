@@ -253,6 +253,193 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     return trimmed ? trimmed : null;
   };
 
+  const normalizeManifestPlacementId = (value) => {
+    if (typeof value !== "string") {
+      return null;
+    }
+
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const generateManifestPlacementId = () => {
+    const randomUuid =
+      typeof globalThis.crypto?.randomUUID === "function"
+        ? globalThis.crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    return `manifest-${randomUuid}`;
+  };
+
+  const ensureManifestPlacementId = (container, fallbackId = null) => {
+    if (!container) {
+      return null;
+    }
+
+    const userData = container.userData || (container.userData = {});
+    const existingId = normalizeManifestPlacementId(userData.manifestPlacementId);
+    if (existingId) {
+      return existingId;
+    }
+
+    const resolvedId =
+      normalizeManifestPlacementId(fallbackId) ?? generateManifestPlacementId();
+    userData.manifestPlacementId = resolvedId;
+    return resolvedId;
+  };
+
+  const getManifestPlacementStorageBoxOptions = (object3D) => {
+    const readCandidate = (candidate) => {
+      const rawOptions = candidate?.userData?.modelOptions?.storageBox;
+      if (!rawOptions || rawOptions.enabled !== true) {
+        return null;
+      }
+
+      const numericCapacityKg = Number(rawOptions.maxLoadKg);
+      return {
+        maxLoadKg:
+          Number.isFinite(numericCapacityKg) && numericCapacityKg > 0
+            ? numericCapacityKg
+            : null,
+      };
+    };
+
+    const directOptions = readCandidate(object3D);
+    if (directOptions) {
+      return directOptions;
+    }
+
+    let nestedOptions = null;
+    object3D?.traverse?.((child) => {
+      if (nestedOptions) {
+        return;
+      }
+      nestedOptions = readCandidate(child);
+    });
+
+    return nestedOptions;
+  };
+
+  const getManifestPlacementContentRoot = (container) =>
+    container?.children?.find(
+      (child) => child?.isObject3D && child.userData?.isStorageBoxControl !== true
+    ) ?? null;
+
+  const getLocalBoundsForPlacementContent = (container, contentRoot) => {
+    if (!container?.isObject3D || !contentRoot?.isObject3D) {
+      return null;
+    }
+
+    const rootInverseWorld = new THREE.Matrix4();
+    const childToRootMatrix = new THREE.Matrix4();
+    const bounds = new THREE.Box3();
+    const childBounds = new THREE.Box3();
+    let hasBounds = false;
+
+    container.updateWorldMatrix(true, true);
+    rootInverseWorld.copy(container.matrixWorld).invert();
+
+    contentRoot.traverse((child) => {
+      if (!child?.isMesh || !child.geometry) {
+        return;
+      }
+
+      if (!child.geometry.boundingBox) {
+        child.geometry.computeBoundingBox();
+      }
+      if (!child.geometry.boundingBox) {
+        return;
+      }
+
+      child.updateWorldMatrix(true, false);
+      childToRootMatrix.copy(rootInverseWorld).multiply(child.matrixWorld);
+      childBounds.copy(child.geometry.boundingBox).applyMatrix4(childToRootMatrix);
+
+      if (!hasBounds) {
+        bounds.copy(childBounds);
+        hasBounds = true;
+      } else {
+        bounds.union(childBounds);
+      }
+    });
+
+    return hasBounds ? bounds : null;
+  };
+
+  const ensureManifestPlacementStorageBoxControl = (container) => {
+    if (!container?.isObject3D) {
+      return null;
+    }
+
+    const contentRoot = getManifestPlacementContentRoot(container);
+    if (!contentRoot) {
+      return null;
+    }
+
+    const storageBoxOptions = getManifestPlacementStorageBoxOptions(contentRoot);
+    const existingControl = container.children.find(
+      (child) => child?.userData?.isStorageBoxControl === true
+    );
+
+    if (!storageBoxOptions) {
+      if (existingControl?.parent === container) {
+        container.remove(existingControl);
+      }
+      return null;
+    }
+
+    const placementId = ensureManifestPlacementId(container);
+    const manifestEntry = container.userData?.manifestEntry ?? null;
+    const label =
+      typeof manifestEntry?.label === "string" && manifestEntry.label.trim()
+        ? manifestEntry.label.trim()
+        : typeof manifestEntry?.path === "string" && manifestEntry.path.trim()
+          ? manifestEntry.path.trim()
+          : "Storage box";
+    const localBounds = getLocalBoundsForPlacementContent(container, contentRoot);
+    if (!localBounds) {
+      return null;
+    }
+
+    const size = localBounds.getSize(new THREE.Vector3());
+    const center = localBounds.getCenter(new THREE.Vector3());
+    const control =
+      existingControl instanceof THREE.Mesh
+        ? existingControl
+        : new THREE.Mesh(
+            new THREE.BoxGeometry(
+              Math.max(0.24, size.x + 0.18),
+              Math.max(0.24, size.y + 0.18),
+              Math.max(0.24, size.z + 0.18)
+            ),
+            new THREE.MeshBasicMaterial({
+              color: new THREE.Color(0x22d3ee),
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+            })
+          );
+
+    control.name = `${label}-storage-control`;
+    control.position.copy(center);
+    control.userData.isStorageBoxControl = true;
+    control.userData.storageBoxId = placementId;
+    control.userData.storageBoxLabel = label;
+    if (
+      Number.isFinite(storageBoxOptions.maxLoadKg) &&
+      storageBoxOptions.maxLoadKg > 0
+    ) {
+      control.userData.storageBoxCapacityKg = storageBoxOptions.maxLoadKg;
+    } else {
+      delete control.userData.storageBoxCapacityKg;
+    }
+
+    if (!existingControl) {
+      container.add(control);
+    }
+
+    return control;
+  };
+
   let activeManifestFloorId = normalizeManifestPlacementFloorId(
     typeof getActiveFloorId === "function" ? getActiveFloorId() : null
   );
@@ -309,10 +496,15 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       typeof manifestEntry?.label === "string" ? manifestEntry.label.trim() : "";
     const label = rawLabel || rawPath;
     const floorId = getPlacementFloorId(container);
+    const placementId = ensureManifestPlacementId(
+      container,
+      manifestEntry?.placementId ?? null
+    );
 
     return {
       path: rawPath,
       label,
+      ...(placementId ? { placementId } : {}),
       position: {
         x: normalizeManifestPlacementScalar(container.position.x, 0),
         y: normalizeManifestPlacementScalar(container.position.y, 0),
@@ -850,7 +1042,27 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
     }
 
     container.updateMatrixWorld(true);
-    bounds.setFromObject(container);
+    let hasBounds = false;
+    container.traverse((child) => {
+      if (
+        !child?.isMesh ||
+        child.userData?.isStorageBoxControl === true
+      ) {
+        return;
+      }
+
+      const childBounds = new THREE.Box3().setFromObject(child);
+      if (childBounds.isEmpty()) {
+        return;
+      }
+
+      if (!hasBounds) {
+        bounds.copy(childBounds);
+        hasBounds = true;
+      } else {
+        bounds.union(childBounds);
+      }
+    });
 
     if (bounds.isEmpty()) {
       return bounds;
@@ -2219,6 +2431,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       floorId ?? getPlacementFloorId(container) ?? activeManifestFloorId
     );
     applyPlacementColliderEntries(container, colliderEntries);
+    ensureManifestPlacementStorageBoxControl(container);
 
     const shouldBeVisible = shouldShowPlacementOnActiveFloor(container);
     container.visible = shouldBeVisible;
@@ -3283,6 +3496,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       : "ManifestModel";
     const userData = container.userData || (container.userData = {});
     userData.manifestEntry = manifestEntry ?? null;
+    ensureManifestPlacementId(container, manifestEntry?.placementId ?? null);
     container.add(object);
 
     const boundingBox = new THREE.Box3().setFromObject(container);
@@ -3353,6 +3567,7 @@ export const createManifestPlacementManager = (sceneDependencies = {}) => {
       const manifestEntry = {
         path: rawPath,
         label: rawLabel || rawPath,
+        placementId: snapshot?.placementId ?? null,
       };
 
       try {
