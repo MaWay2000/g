@@ -26,5 +26,9 @@
   {
     "path": "body.glb",
     "label": "Body (GLB)"
+  },
+  {
+    "path": "box2.glb",
+    "label": "Box 2 (GLB)"
   }
 ]
