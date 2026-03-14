@@ -56,6 +56,9 @@ const motionStatusLabel = document.querySelector("[data-motion-status]");
 const motionControlGroups = Array.from(
   document.querySelectorAll("[data-motion-controls]")
 );
+const storageBoxEnabledInput = document.querySelector("[data-storage-box-enabled]");
+const storageBoxMaxLoadInput = document.querySelector("[data-storage-box-max-load]");
+const storageBoxStatusLabel = document.querySelector("[data-storage-box-status]");
 const clockDisplay = document.querySelector("[data-clock-display]");
 const playerHeightToggle = document.querySelector("[data-player-height-toggle]");
 const playerHeightStatusLabel = document.querySelector("[data-player-height-status]");
@@ -101,6 +104,7 @@ const hudControlSet = {
 
 const MOTION_DEFAULT_SPEED = 45;
 const MOTION_DEFAULT_AXES = { x: false, y: true, z: false };
+const DEFAULT_STORAGE_BOX_MAX_LOAD_KG = 100;
 
 if (clockDisplay) {
   const clockFormatter = new Intl.DateTimeFormat(undefined, {
@@ -395,6 +399,91 @@ scene.background = new THREE.Color("#0b1120");
 const sceneRoot = new THREE.Group();
 sceneRoot.name = "EditableScene";
 scene.add(sceneRoot);
+
+function normalizeModelOptions(rawOptions = null) {
+  const storageBox = rawOptions?.storageBox ?? {};
+  const normalizedMaxLoad = Number.parseFloat(storageBox.maxLoadKg);
+  return {
+    storageBox: {
+      enabled: Boolean(storageBox.enabled),
+      maxLoadKg:
+        Number.isFinite(normalizedMaxLoad) && normalizedMaxLoad > 0
+          ? Math.min(100000, Math.max(1, Math.round(normalizedMaxLoad)))
+          : DEFAULT_STORAGE_BOX_MAX_LOAD_KG,
+    },
+  };
+}
+
+function getSceneModelOptions() {
+  const options = normalizeModelOptions(sceneRoot.userData?.modelOptions);
+  sceneRoot.userData = sceneRoot.userData ?? {};
+  sceneRoot.userData.modelOptions = options;
+  return options;
+}
+
+function hasExplicitModelOptions(object3D) {
+  return Boolean(
+    object3D?.userData &&
+      typeof object3D.userData === "object" &&
+      object3D.userData.modelOptions &&
+      typeof object3D.userData.modelOptions === "object"
+  );
+}
+
+function syncModelOptionsControls() {
+  const options = getSceneModelOptions();
+  const { enabled, maxLoadKg } = options.storageBox;
+
+  if (storageBoxEnabledInput) {
+    storageBoxEnabledInput.checked = enabled;
+  }
+
+  if (storageBoxMaxLoadInput) {
+    storageBoxMaxLoadInput.value = String(maxLoadKg);
+    storageBoxMaxLoadInput.disabled = !enabled;
+  }
+
+  if (storageBoxStatusLabel) {
+    storageBoxStatusLabel.textContent = enabled
+      ? `This model exports as a storage box with ${maxLoadKg} kg max load.`
+      : "Export this model as a regular object.";
+  }
+}
+
+function setSceneModelOptions(nextOptions, { pushHistory = false, announce = false } = {}) {
+  const normalized = normalizeModelOptions(nextOptions);
+  sceneRoot.userData = sceneRoot.userData ?? {};
+  sceneRoot.userData.modelOptions = normalized;
+  syncModelOptionsControls();
+
+  if (pushHistory && !isRestoringHistory) {
+    scheduleHistoryCommit();
+  }
+
+  if (announce) {
+    const { enabled, maxLoadKg } = normalized.storageBox;
+    setStatus(
+      "ready",
+      enabled
+        ? `Storage box enabled (${maxLoadKg} kg)`
+        : "Storage box disabled"
+    );
+  }
+}
+
+function applyImportedModelOptions(imported) {
+  if (!hasExplicitModelOptions(imported)) {
+    syncModelOptionsControls();
+    return;
+  }
+
+  setSceneModelOptions(imported.userData.modelOptions, {
+    pushHistory: false,
+    announce: false,
+  });
+}
+
+setSceneModelOptions(null, { pushHistory: false, announce: false });
 
 const animatedObjects = new Map();
 
@@ -2217,6 +2306,10 @@ function applySnapshot(snapshot) {
     const restoredRoot = loader.parse(snapshot.objectJSON);
 
     sceneRoot.clear();
+    sceneRoot.userData =
+      restoredRoot.userData && typeof restoredRoot.userData === "object"
+        ? { ...restoredRoot.userData }
+        : {};
     sceneRoot.position.copy(restoredRoot.position);
     sceneRoot.quaternion.copy(restoredRoot.quaternion);
     sceneRoot.scale.copy(restoredRoot.scale);
@@ -2224,6 +2317,8 @@ function applySnapshot(snapshot) {
       const child = restoredRoot.children[0];
       sceneRoot.add(child);
     }
+
+    syncModelOptionsControls();
 
     rebuildFigureIdRegistry();
 
@@ -3513,6 +3608,8 @@ function clearScene() {
   selectedObjects.clear();
   editableMeshes = [];
   sceneRoot.clear();
+  sceneRoot.userData = {};
+  setSceneModelOptions(null, { pushHistory: false, announce: false });
   animatedObjects.clear();
   figureIdRegistry.clear();
   nextFigureId = 1;
@@ -3685,6 +3782,8 @@ async function loadModelFromData({ name, extension, arrayBuffer, text, url, file
     if (!imported) {
       throw new Error("Unable to import model");
     }
+
+    applyImportedModelOptions(imported);
 
     const separationResult = separateImportedObject(imported, name);
     if (separationResult) {
@@ -4335,6 +4434,53 @@ roughnessInput?.addEventListener("input", (event) => {
 });
 
 updateColorPickerPreview(colorInput?.value ?? "#ffffff");
+syncModelOptionsControls();
+
+storageBoxEnabledInput?.addEventListener("change", (event) => {
+  const enabled =
+    event.currentTarget instanceof HTMLInputElement
+      ? event.currentTarget.checked
+      : event.target instanceof HTMLInputElement
+      ? event.target.checked
+      : false;
+  const currentOptions = getSceneModelOptions();
+  setSceneModelOptions(
+    {
+      ...currentOptions,
+      storageBox: {
+        ...currentOptions.storageBox,
+        enabled,
+      },
+    },
+    {
+      pushHistory: true,
+      announce: true,
+    }
+  );
+});
+
+storageBoxMaxLoadInput?.addEventListener("change", (event) => {
+  const value =
+    event.currentTarget instanceof HTMLInputElement
+      ? event.currentTarget.value
+      : event.target instanceof HTMLInputElement
+      ? event.target.value
+      : "";
+  const currentOptions = getSceneModelOptions();
+  setSceneModelOptions(
+    {
+      ...currentOptions,
+      storageBox: {
+        ...currentOptions.storageBox,
+        maxLoadKg: Number.parseFloat(value),
+      },
+    },
+    {
+      pushHistory: true,
+      announce: currentOptions.storageBox.enabled,
+    }
+  );
+});
 
 texturePackSelect?.addEventListener("change", (event) => {
   const packId = event.target.value;
@@ -4381,7 +4527,7 @@ function saveSession() {
   try {
     const snapshot = captureSceneSnapshot();
     const sessionData = {
-      version: 4,
+      version: 5,
       selectionUUID: snapshot.selectionUUID,
       material: snapshot.material,
       objectJSON: snapshot.objectJSON,

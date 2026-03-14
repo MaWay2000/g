@@ -1022,6 +1022,15 @@
         >
           Animation
         </button>
+        <button
+          type="button"
+          class="left-menu__link"
+          role="tab"
+          data-panel-target="model-options"
+          aria-controls="model-options"
+        >
+          Options
+        </button>
       </div>
       <div
         class="left-menu__clock"
@@ -1239,6 +1248,41 @@
               <span>Z</span>
             </label>
           </div>
+        </div>
+      </section>
+
+      <section
+        class="sidebar__section"
+        id="model-options"
+        aria-label="Model options"
+        role="tabpanel"
+        aria-live="polite"
+        data-panel
+      >
+        <h2>Options</h2>
+        <div class="control-group">
+          <label class="toggle-control">
+            <input type="checkbox" data-storage-box-enabled />
+            <span>Storage box</span>
+          </label>
+          <p class="info-text" data-storage-box-status>
+            Export this model as a regular object.
+          </p>
+        </div>
+        <div class="control-group">
+          <label for="storageBoxMaxLoad">Max load (kg)</label>
+          <input
+            type="number"
+            id="storageBoxMaxLoad"
+            data-storage-box-max-load
+            min="1"
+            max="100000"
+            step="1"
+            value="100"
+          />
+          <p class="info-text">
+            Saved into model metadata so exported GLBs can be used as storage boxes in-game.
+          </p>
         </div>
       </section>
 
