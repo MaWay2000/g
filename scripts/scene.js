@@ -2911,19 +2911,19 @@ export const initScene = (
 
   const roomMaterials = includeRoomCeiling
     ? [
-        createWallMaterial(0x213331),
-        createWallMaterial(0x273c39),
-        createWallMaterial(0x1a2826),
+        createWallMaterial(0x243340),
+        createWallMaterial(0x2d3d4b),
+        createWallMaterial(0x182430),
         floorMaterial,
-        createWallMaterial(0x213331),
-        createWallMaterial(0x273c39),
+        createWallMaterial(0x243340),
+        createWallMaterial(0x2d3d4b),
       ]
     : [
-        createWallMaterial(0x213331),
-        createWallMaterial(0x273c39),
+        createWallMaterial(0x243340),
+        createWallMaterial(0x2d3d4b),
         floorMaterial,
-        createWallMaterial(0x213331),
-        createWallMaterial(0x273c39),
+        createWallMaterial(0x243340),
+        createWallMaterial(0x2d3d4b),
       ];
 
   const roomMesh = new THREE.Mesh(roomGeometry, roomMaterials);
@@ -11930,16 +11930,18 @@ export const initScene = (
     return new THREE.LineSegments(geometry, material);
   };
 
-  const gridColor = 0x94a3b8;
-  const gridOpacity = 0.35;
+  const floorGridColor = 0x94a3b8;
+  const floorGridOpacity = 0.28;
+  const wallGridColor = 0x64748b;
+  const wallGridOpacity = 0.16;
 
   const floorGrid = createGridLines(
     scaledRoomWidth,
     scaledRoomDepth,
     20,
     20,
-    gridColor,
-    gridOpacity
+    floorGridColor,
+    floorGridOpacity
   );
   floorGrid.rotation.x = -Math.PI / 2;
   floorGrid.position.y = roomFloorY + 0.02;
@@ -11950,8 +11952,8 @@ export const initScene = (
     BASE_ROOM_HEIGHT,
     20,
     10,
-    gridColor,
-    gridOpacity
+    wallGridColor,
+    wallGridOpacity
   );
   backWallGrid.position.z = -scaledRoomDepth / 2 + 0.02;
   hangarDeckEnvironmentGroup.add(backWallGrid);
@@ -11961,8 +11963,8 @@ export const initScene = (
     BASE_ROOM_HEIGHT,
     20,
     10,
-    gridColor,
-    gridOpacity
+    wallGridColor,
+    wallGridOpacity
   );
   frontWallGrid.rotation.y = Math.PI;
   frontWallGrid.position.z = scaledRoomDepth / 2 - 0.02;
@@ -11973,8 +11975,8 @@ export const initScene = (
     BASE_ROOM_HEIGHT,
     20,
     10,
-    gridColor,
-    gridOpacity
+    wallGridColor,
+    wallGridOpacity
   );
   leftWallGrid.rotation.y = Math.PI / 2;
   leftWallGrid.position.x = -scaledRoomWidth / 2 + 0.02;
@@ -11985,16 +11987,354 @@ export const initScene = (
     BASE_ROOM_HEIGHT,
     20,
     10,
-    gridColor,
-    gridOpacity
+    wallGridColor,
+    wallGridOpacity
   );
   rightWallGrid.rotation.y = -Math.PI / 2;
   rightWallGrid.position.x = scaledRoomWidth / 2 - 0.02;
   hangarDeckEnvironmentGroup.add(rightWallGrid);
 
+  const commandCenterWallDecorAdjustableEntries = [];
+  const commandCenterPanelMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x1f2937),
+    roughness: 0.56,
+    metalness: 0.46,
+    emissive: new THREE.Color(0x0f172a),
+    emissiveIntensity: 0.22,
+  });
+  const commandCenterInsetMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x0f172a),
+    roughness: 0.42,
+    metalness: 0.34,
+    emissive: new THREE.Color(0x0b1324),
+    emissiveIntensity: 0.18,
+  });
+  const commandCenterTrimMaterial = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0x475569),
+    roughness: 0.3,
+    metalness: 0.72,
+    emissive: new THREE.Color(0x111827),
+    emissiveIntensity: 0.16,
+  });
+
+  const createCommandCenterArtTexture = ({
+    title = "COMMAND",
+    subtitle = "",
+    lines = [],
+    accentColor = "#38bdf8",
+  } = {}) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 640;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return null;
+    }
+
+    const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, "#07101c");
+    gradient.addColorStop(1, "#0b1727");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.strokeStyle = "rgba(125, 211, 252, 0.14)";
+    context.lineWidth = 1;
+    for (let x = 0; x <= canvas.width; x += 48) {
+      context.beginPath();
+      context.moveTo(x + 0.5, 0);
+      context.lineTo(x + 0.5, canvas.height);
+      context.stroke();
+    }
+    for (let y = 0; y <= canvas.height; y += 36) {
+      context.beginPath();
+      context.moveTo(0, y + 0.5);
+      context.lineTo(canvas.width, y + 0.5);
+      context.stroke();
+    }
+
+    context.strokeStyle = accentColor;
+    context.lineWidth = 5;
+    context.strokeRect(34, 34, canvas.width - 68, canvas.height - 68);
+    context.strokeRect(58, 58, canvas.width - 116, canvas.height - 116);
+
+    context.save();
+    context.translate(canvas.width * 0.78, canvas.height * 0.34);
+    context.strokeStyle = "rgba(56, 189, 248, 0.42)";
+    context.lineWidth = 8;
+    context.beginPath();
+    context.arc(0, 0, 92, 0, Math.PI * 2);
+    context.stroke();
+    context.lineWidth = 3;
+    context.beginPath();
+    context.arc(0, 0, 58, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+
+    context.fillStyle = "#e2e8f0";
+    context.font = "700 72px 'Segoe UI', sans-serif";
+    context.textAlign = "left";
+    context.textBaseline = "middle";
+    context.fillText(String(title || "").toUpperCase(), 84, 136);
+
+    if (subtitle) {
+      context.fillStyle = "rgba(148, 163, 184, 0.92)";
+      context.font = "500 28px 'Segoe UI', sans-serif";
+      context.fillText(subtitle, 88, 188);
+    }
+
+    const safeLines = Array.isArray(lines) ? lines.filter(Boolean).slice(0, 5) : [];
+    safeLines.forEach((line, index) => {
+      const y = 288 + index * 56;
+      context.fillStyle = accentColor;
+      context.fillRect(88, y - 12, 18, 18);
+      context.fillStyle = "#bfdbfe";
+      context.font = "600 30px 'Segoe UI', sans-serif";
+      context.fillText(String(line).toUpperCase(), 124, y);
+    });
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    texture.needsUpdate = true;
+    return texture;
+  };
+
+  const createCommandCenterWallPanel = ({
+    width = 1,
+    height = 1,
+    x = 0,
+    y = 1,
+    z = 0,
+    rotationY = 0,
+    depth = 0.09,
+    texture = null,
+    accentColor = 0x38bdf8,
+    glowOpacity = 0.18,
+    scaleWithHeight = false,
+  } = {}) => {
+    const mount = new THREE.Group();
+    mount.position.set(x, roomFloorY + y, z);
+    mount.rotation.y = rotationY;
+    hangarDeckEnvironmentGroup.add(mount);
+    commandCenterWallDecorAdjustableEntries.push({
+      object: mount,
+      offset: y,
+      scaleWithHeight,
+    });
+
+    const shell = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.2, height + 0.2, depth),
+      commandCenterPanelMaterial
+    );
+    mount.add(shell);
+
+    const inset = new THREE.Mesh(
+      new THREE.BoxGeometry(width + 0.04, height + 0.04, depth * 0.46),
+      commandCenterInsetMaterial
+    );
+    inset.position.z = depth * 0.14;
+    mount.add(inset);
+
+    const frameThickness = Math.max(0.04, Math.min(width, height) * 0.06);
+    const horizontalFrameGeometry = new THREE.BoxGeometry(
+      width + frameThickness * 2,
+      frameThickness,
+      depth * 0.74
+    );
+    const topFrame = new THREE.Mesh(horizontalFrameGeometry, commandCenterTrimMaterial);
+    topFrame.position.y = height / 2 + frameThickness / 2;
+    topFrame.position.z = depth * 0.1;
+    mount.add(topFrame);
+
+    const bottomFrame = topFrame.clone();
+    bottomFrame.position.y *= -1;
+    mount.add(bottomFrame);
+
+    const verticalFrameGeometry = new THREE.BoxGeometry(
+      frameThickness,
+      height,
+      depth * 0.74
+    );
+    const leftFrame = new THREE.Mesh(verticalFrameGeometry, commandCenterTrimMaterial);
+    leftFrame.position.x = -(width / 2 + frameThickness / 2);
+    leftFrame.position.z = depth * 0.1;
+    mount.add(leftFrame);
+
+    const rightFrame = leftFrame.clone();
+    rightFrame.position.x *= -1;
+    mount.add(rightFrame);
+
+    const glowBarMaterial = new THREE.MeshBasicMaterial({
+      color: accentColor,
+      transparent: true,
+      opacity: glowOpacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const glowBar = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.82, 0.025, 0.01),
+      glowBarMaterial
+    );
+    glowBar.position.set(0, height / 2 + frameThickness * 0.45, depth / 2 + 0.005);
+    mount.add(glowBar);
+
+    if (texture) {
+      const screenMaterial = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.96,
+        toneMapped: false,
+        side: THREE.DoubleSide,
+      });
+      const screen = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        screenMaterial
+      );
+      screen.position.z = depth / 2 + 0.006;
+      screen.renderOrder = 2;
+      mount.add(screen);
+
+      const screenGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(width * 0.94, height * 0.94),
+        new THREE.MeshBasicMaterial({
+          color: accentColor,
+          transparent: true,
+          opacity: glowOpacity * 0.65,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      screenGlow.position.z = depth / 2 + 0.002;
+      mount.add(screenGlow);
+    }
+
+    return mount;
+  };
+
+  const createCommandCenterWallRail = ({
+    length = 1,
+    x = 0,
+    y = 1,
+    z = 0,
+    rotationY = 0,
+  } = {}) => {
+    const mount = new THREE.Group();
+    mount.position.set(x, roomFloorY + y, z);
+    mount.rotation.y = rotationY;
+    hangarDeckEnvironmentGroup.add(mount);
+    commandCenterWallDecorAdjustableEntries.push({ object: mount, offset: y });
+
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(length, 0.08, 0.08),
+      commandCenterTrimMaterial
+    );
+    mount.add(rail);
+
+    const railGlow = new THREE.Mesh(
+      new THREE.BoxGeometry(length * 0.92, 0.012, 0.01),
+      new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    railGlow.position.z = 0.046;
+    mount.add(railGlow);
+
+    return mount;
+  };
+
   const wallMirror = createWallMirror();
   const mirrorDimensions = wallMirror.userData?.dimensions;
+  const mirrorWidth = mirrorDimensions?.width ?? BASE_MIRROR_WIDTH;
   const mirrorHeight = mirrorDimensions?.height ?? BASE_MIRROR_HEIGHT;
+  const commandRearPanelZ = -scaledRoomDepth / 2 + 0.09;
+  const commandSidePanelX = scaledRoomWidth / 2 - 0.09;
+  const commandBackplateDepth = 0.11;
+  createCommandCenterWallPanel({
+    width: scaledRoomWidth * 0.42,
+    height: 1.34,
+    x: 0.74,
+    y: 1.76,
+    z: commandRearPanelZ,
+    rotationY: Math.PI,
+    depth: commandBackplateDepth,
+    texture: createCommandCenterArtTexture({
+      title: "Command Grid",
+      subtitle: "Core terminal relay",
+      lines: ["News uplink", "Mission board", "Research queue", "Market exchange"],
+    }),
+    glowOpacity: 0.14,
+  });
+  createCommandCenterWallPanel({
+    width: 1.12,
+    height: 1.58,
+    x: -scaledRoomWidth / 2 + 0.08,
+    y: 1.54,
+    z: -scaledRoomDepth * 0.1,
+    rotationY: Math.PI / 2,
+    depth: commandBackplateDepth,
+    texture: createCommandCenterArtTexture({
+      title: "Mission Relay",
+      subtitle: "Priority routing",
+      lines: ["Alpha queue", "Bravo tasks", "Cargo status", "Reward sync"],
+    }),
+    glowOpacity: 0.16,
+  });
+  createCommandCenterWallPanel({
+    width: 1.06,
+    height: 1.46,
+    x: commandSidePanelX,
+    y: 1.5,
+    z: -scaledRoomDepth * 0.18,
+    rotationY: -Math.PI / 2,
+    depth: commandBackplateDepth,
+    texture: createCommandCenterArtTexture({
+      title: "Research",
+      subtitle: "Lab blueprint traffic",
+      lines: ["Drone systems", "Suit mods", "Claim queue", "Fabrication link"],
+    }),
+    glowOpacity: 0.16,
+  });
+  createCommandCenterWallPanel({
+    width: mirrorWidth + 0.72,
+    height: mirrorHeight + 0.56,
+    x: scaledRoomWidth / 2 - MIRROR_WALL_INSET - 0.03,
+    y: MIRROR_VERTICAL_OFFSET + mirrorHeight / 2,
+    z: 6 * ROOM_SCALE_FACTOR,
+    rotationY: -Math.PI / 2,
+    depth: 0.12,
+    texture: null,
+    glowOpacity: 0.1,
+    scaleWithHeight: true,
+  });
+  createCommandCenterWallRail({
+    length: scaledRoomWidth * 0.56,
+    x: 0.2,
+    y: 1.04,
+    z: commandRearPanelZ + 0.01,
+    rotationY: Math.PI,
+  });
+  createCommandCenterWallRail({
+    length: scaledRoomDepth * 0.48,
+    x: -scaledRoomWidth / 2 + 0.07,
+    y: 1.02,
+    z: -scaledRoomDepth * 0.08,
+    rotationY: Math.PI / 2,
+  });
+  createCommandCenterWallRail({
+    length: scaledRoomDepth * 0.52,
+    x: scaledRoomWidth / 2 - 0.07,
+    y: 1.02,
+    z: -scaledRoomDepth * 0.14,
+    rotationY: -Math.PI / 2,
+  });
+
   wallMirror.position.set(
     scaledRoomWidth / 2 - MIRROR_WALL_INSET,
     roomFloorY + MIRROR_VERTICAL_OFFSET + mirrorHeight / 2,
@@ -12127,6 +12467,21 @@ export const initScene = (
     };
     wallMirror.position.y =
       roomFloorY + MIRROR_VERTICAL_OFFSET + scaledMirrorHeight / 2;
+
+    commandCenterWallDecorAdjustableEntries.forEach((entry) => {
+      const object = entry?.object;
+      if (!object) {
+        return;
+      }
+
+      const offset = Number.isFinite(entry?.offset) ? entry.offset : 0;
+      object.position.y = roomFloorY + offset;
+      if (entry?.scaleWithHeight) {
+        object.scale.setScalar(heightScale);
+      } else {
+        object.scale.setScalar(1);
+      }
+    });
 
     const reflector = wallMirror.userData?.reflector;
     if (reflector) {
