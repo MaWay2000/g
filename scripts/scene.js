@@ -12030,9 +12030,13 @@ export const initScene = (
         typeof cameraLayers?.isEnabled === "function"
           ? cameraLayers.isEnabled(REFLECTION_PLAYER_LAYER)
           : false;
+      const hadReflectionProxyVisible = playerReflectionProxy?.visible === true;
 
       if (cameraLayers?.enable) {
         cameraLayers.enable(REFLECTION_PLAYER_LAYER);
+      }
+      if (playerReflectionProxy) {
+        playerReflectionProxy.visible = true;
       }
 
       if (typeof baseOnBeforeRender === "function") {
@@ -12049,6 +12053,9 @@ export const initScene = (
 
       if (!hadPlayerLayer && cameraLayers?.disable) {
         cameraLayers.disable(REFLECTION_PLAYER_LAYER);
+      }
+      if (playerReflectionProxy) {
+        playerReflectionProxy.visible = hadReflectionProxyVisible;
       }
     };
     const reflectorUserData = reflector.userData || (reflector.userData = {});
@@ -12606,11 +12613,9 @@ export const initScene = (
     playerObject.rotation.order = "YXZ";
   }
   scene.add(playerObject);
-  camera.layers.disable(REFLECTION_PLAYER_LAYER);
-
   const playerReflectionProxy = new THREE.Group();
   playerReflectionProxy.name = "PlayerReflectionProxy";
-  playerReflectionProxy.layers.set(REFLECTION_PLAYER_LAYER);
+  playerReflectionProxy.visible = false;
   const playerReflectionAvatar = new THREE.Group();
   playerReflectionAvatar.name = "PlayerReflectionAvatar";
   playerReflectionProxy.add(playerReflectionAvatar);
@@ -12647,9 +12652,7 @@ export const initScene = (
   };
 
   const createPlayerReflectionMesh = (geometry, material) => {
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.layers.set(REFLECTION_PLAYER_LAYER);
-    return mesh;
+    return new THREE.Mesh(geometry, material);
   };
 
   const reflectionHips = createPlayerReflectionMesh(
@@ -12781,12 +12784,6 @@ export const initScene = (
   const rightReflectionArm = createReflectionArmRig(1);
   const leftReflectionLeg = createReflectionLegRig(-1);
   const rightReflectionLeg = createReflectionLegRig(1);
-
-  playerReflectionProxy.traverse((child) => {
-    if (child?.layers?.set) {
-      child.layers.set(REFLECTION_PLAYER_LAYER);
-    }
-  });
 
   const playerReflectionAnimationState = {
     moveBlend: 0,
