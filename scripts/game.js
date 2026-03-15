@@ -1861,6 +1861,14 @@ const applyThirdPersonUiState = () => {
     thirdPersonToggle.setAttribute("aria-pressed", String(thirdPersonEnabled));
   }
 
+  if (crosshair instanceof HTMLElement) {
+    if (thirdPersonEnabled) {
+      crosshair.dataset.thirdPerson = "true";
+    } else {
+      delete crosshair.dataset.thirdPerson;
+    }
+  }
+
   sceneController?.setCameraViewMode?.({
     thirdPersonEnabled,
   });
