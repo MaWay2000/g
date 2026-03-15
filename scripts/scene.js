@@ -12426,46 +12426,49 @@ export const initScene = (
   const MAX_OXYGEN_REFILL_INTERACTION_DISTANCE = 2.5;
   const MAX_STORAGE_BOX_INTERACTION_DISTANCE = 2.5;
   const MAX_CRAFTING_TABLE_INTERACTION_DISTANCE = 2.5;
-  const INTERACTION_RAY_CAMERA_TARGET_DISTANCE = 24;
-  const interactionRayOrigin = new THREE.Vector3();
-  const interactionRayDirection = new THREE.Vector3();
-  const interactionCameraOrigin = new THREE.Vector3();
-  const interactionCameraDirection = new THREE.Vector3();
-  const interactionCameraTarget = new THREE.Vector3();
+  const interactionReachOrigin = new THREE.Vector3();
+  const interactionReachTarget = new THREE.Vector3();
 
   const configureInteractionRaycaster = (maxDistance = Infinity) => {
-    if (cameraViewSettings.thirdPersonEnabled) {
-      camera.updateMatrixWorld(true);
-      playerObject.updateMatrixWorld(true);
-      camera.getWorldPosition(interactionCameraOrigin);
-      camera.getWorldDirection(interactionCameraDirection);
-      interactionRayOrigin.copy(playerObject.position);
-      interactionRayOrigin.y += Math.max(MIN_PLAYER_HEIGHT, firstPersonCameraOffset.y);
-      interactionCameraTarget
-        .copy(interactionCameraOrigin)
-        .addScaledVector(
-          interactionCameraDirection,
-          INTERACTION_RAY_CAMERA_TARGET_DISTANCE
-        );
-      interactionRayDirection
-        .copy(interactionCameraTarget)
-        .sub(interactionRayOrigin);
-
-      if (interactionRayDirection.lengthSq() <= 1e-8) {
-        interactionRayDirection.copy(interactionCameraDirection);
-      } else {
-        interactionRayDirection.normalize();
-      }
-
-      raycaster.set(interactionRayOrigin, interactionRayDirection);
-    } else {
-      raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    }
-
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     raycaster.near = 0;
     raycaster.far =
       Number.isFinite(maxDistance) && maxDistance > 0 ? maxDistance : Infinity;
     return raycaster;
+  };
+
+  const isIntersectionWithinInteractionReach = (
+    intersection,
+    maxDistance = Infinity
+  ) => {
+    if (!intersection || !Number.isFinite(maxDistance) || maxDistance <= 0) {
+      return false;
+    }
+
+    interactionReachOrigin.copy(playerObject.position);
+    interactionReachOrigin.y += Math.max(
+      MIN_PLAYER_HEIGHT,
+      firstPersonCameraOffset.y
+    );
+
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    if (intersection.point instanceof THREE.Vector3) {
+      bestDistance = interactionReachOrigin.distanceTo(intersection.point);
+    }
+
+    if (
+      intersection.object?.isObject3D &&
+      typeof intersection.object.getWorldPosition === "function"
+    ) {
+      intersection.object.getWorldPosition(interactionReachTarget);
+      bestDistance = Math.min(
+        bestDistance,
+        interactionReachOrigin.distanceTo(interactionReachTarget)
+      );
+    }
+
+    return bestDistance <= maxDistance;
   };
 
   let liftInteractable = false;
@@ -17489,7 +17492,10 @@ export const initScene = (
 
     if (
       !intersection ||
-      intersection.distance > MAX_LIFT_INTERACTION_DISTANCE
+      !isIntersectionWithinInteractionReach(
+        intersection,
+        MAX_LIFT_INTERACTION_DISTANCE
+      )
     ) {
       return null;
     }
@@ -17516,7 +17522,10 @@ export const initScene = (
 
     if (
       !intersection ||
-      intersection.distance > MAX_OXYGEN_REFILL_INTERACTION_DISTANCE
+      !isIntersectionWithinInteractionReach(
+        intersection,
+        MAX_OXYGEN_REFILL_INTERACTION_DISTANCE
+      )
     ) {
       return null;
     }
@@ -17543,7 +17552,10 @@ export const initScene = (
 
     if (
       !intersection ||
-      intersection.distance > MAX_STORAGE_BOX_INTERACTION_DISTANCE
+      !isIntersectionWithinInteractionReach(
+        intersection,
+        MAX_STORAGE_BOX_INTERACTION_DISTANCE
+      )
     ) {
       return null;
     }
@@ -17570,7 +17582,10 @@ export const initScene = (
 
     if (
       !intersection ||
-      intersection.distance > MAX_CRAFTING_TABLE_INTERACTION_DISTANCE
+      !isIntersectionWithinInteractionReach(
+        intersection,
+        MAX_CRAFTING_TABLE_INTERACTION_DISTANCE
+      )
     ) {
       return null;
     }
@@ -17698,7 +17713,10 @@ export const initScene = (
 
     if (
       !intersection ||
-      intersection.distance > MAX_TERMINAL_INTERACTION_DISTANCE ||
+      !isIntersectionWithinInteractionReach(
+        intersection,
+        MAX_TERMINAL_INTERACTION_DISTANCE
+      ) ||
       !intersection.uv
     ) {
       return null;
