@@ -17274,6 +17274,10 @@ export const initScene = (
         Number.isFinite(spawnPosition.y) ? spawnPosition.y : roomFloorY,
         spawnPosition.z
       );
+      const groundedSpawnY = getPlayerGroundHeight(playerObject.position);
+      if (Number.isFinite(groundedSpawnY)) {
+        playerObject.position.y = Math.max(roomFloorY, groundedSpawnY);
+      }
     }
 
     clampWithinActiveFloor();
@@ -18065,6 +18069,10 @@ export const initScene = (
     doorPosition.y = Math.max(roomFloorY, doorPosition.y);
 
     playerObject.position.copy(doorPosition);
+    const groundedDoorY = getPlayerGroundHeight(playerObject.position);
+    if (Number.isFinite(groundedDoorY)) {
+      playerObject.position.y = Math.max(roomFloorY, groundedDoorY);
+    }
     clampWithinActiveFloor();
     playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
     previousPlayerPosition.copy(playerObject.position);
