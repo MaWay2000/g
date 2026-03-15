@@ -15999,25 +15999,69 @@ export const initScene = (
   const THIRD_PERSON_CAMERA_MIN_ZOOM = 0.65;
   const THIRD_PERSON_CAMERA_MAX_ZOOM = 1.8;
   const THIRD_PERSON_CAMERA_ZOOM_STEP = 0.08;
-  const thirdPersonCameraOffset = new THREE.Vector3(
-    Math.max(
+  const thirdPersonCameraOffset = new THREE.Vector3();
+  const resolveThirdPersonCameraOffset = (
+    baseHeight = MIN_PLAYER_HEIGHT,
+    zoom = 1,
+    target = thirdPersonCameraOffset
+  ) => {
+    const resolvedHeight = Number.isFinite(baseHeight)
+      ? Math.max(baseHeight, MIN_PLAYER_HEIGHT)
+      : MIN_PLAYER_HEIGHT;
+    const resolvedZoom = THREE.MathUtils.clamp(
+      zoom,
+      THIRD_PERSON_CAMERA_MIN_ZOOM,
+      THIRD_PERSON_CAMERA_MAX_ZOOM
+    );
+    const closeZoomBlend = THREE.MathUtils.clamp(
+      (1.05 - resolvedZoom) / (1.05 - THIRD_PERSON_CAMERA_MIN_ZOOM),
+      0,
+      1
+    );
+    const baseShoulderOffset = Math.max(
       THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET,
-      playerHeight *
+      resolvedHeight *
         THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER *
-        cameraViewSettings.thirdPersonZoom
-    ),
-    Math.max(
+        resolvedZoom
+    );
+    const baseVerticalOffset = Math.max(
       THIRD_PERSON_CAMERA_MIN_HEIGHT,
-      playerHeight *
-        THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER *
-        cameraViewSettings.thirdPersonZoom
-    ),
-    Math.max(
+      resolvedHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER * resolvedZoom
+    );
+    const baseDistanceOffset = Math.max(
       THIRD_PERSON_CAMERA_MIN_DISTANCE,
-      playerHeight *
-        THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER *
-        cameraViewSettings.thirdPersonZoom
-    )
+      resolvedHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER * resolvedZoom
+    );
+    const closeShoulderOffset = Math.max(0.08, resolvedHeight * 0.05);
+    const closeVerticalOffset = Math.max(
+      resolvedHeight + 0.12,
+      baseVerticalOffset
+    );
+    const closeDistanceOffset = Math.max(0.56, resolvedHeight * 0.34);
+
+    target.set(
+      THREE.MathUtils.lerp(
+        baseShoulderOffset,
+        closeShoulderOffset,
+        closeZoomBlend
+      ),
+      THREE.MathUtils.lerp(
+        baseVerticalOffset,
+        closeVerticalOffset,
+        closeZoomBlend
+      ),
+      THREE.MathUtils.lerp(
+        baseDistanceOffset,
+        closeDistanceOffset,
+        closeZoomBlend
+      )
+    );
+    return target;
+  };
+  resolveThirdPersonCameraOffset(
+    playerHeight,
+    cameraViewSettings.thirdPersonZoom,
+    thirdPersonCameraOffset
   );
 
   const updateThirdPersonCameraOffset = () => {
@@ -16029,21 +16073,7 @@ export const initScene = (
       THIRD_PERSON_CAMERA_MIN_ZOOM,
       THIRD_PERSON_CAMERA_MAX_ZOOM
     );
-
-    thirdPersonCameraOffset.set(
-      Math.max(
-        THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET,
-        baseHeight * THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER * zoom
-      ),
-      Math.max(
-        THIRD_PERSON_CAMERA_MIN_HEIGHT,
-        baseHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER * zoom
-      ),
-      Math.max(
-        THIRD_PERSON_CAMERA_MIN_DISTANCE,
-        baseHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER * zoom
-      )
-    );
+    resolveThirdPersonCameraOffset(baseHeight, zoom, thirdPersonCameraOffset);
   };
 
   const updatePlayerReflectionProxyVisibility = () => {
