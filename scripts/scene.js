@@ -15991,12 +15991,12 @@ export const initScene = (
   };
 
   const THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER = 0.94;
-  const THIRD_PERSON_CAMERA_MIN_DISTANCE = 0.62;
+  const THIRD_PERSON_CAMERA_MIN_DISTANCE = 0.24;
   const THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER = 1.02;
   const THIRD_PERSON_CAMERA_MIN_HEIGHT = 1.58;
   const THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER = 0.16;
   const THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET = 0.22;
-  const THIRD_PERSON_CAMERA_MIN_ZOOM = 0.35;
+  const THIRD_PERSON_CAMERA_MIN_ZOOM = 0.18;
   const THIRD_PERSON_CAMERA_MAX_ZOOM = 1.8;
   const THIRD_PERSON_CAMERA_ZOOM_STEP = 0.08;
   const THIRD_PERSON_CAMERA_ZOOM_OUT_ANGLE_DEGREES = 55;
@@ -16036,12 +16036,12 @@ export const initScene = (
       THIRD_PERSON_CAMERA_MIN_DISTANCE,
       resolvedHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER * resolvedZoom
     );
-    const closeShoulderOffset = Math.max(0.005, resolvedHeight * 0.004);
+    const closeShoulderOffset = Math.max(0.001, resolvedHeight * 0.001);
     const closeVerticalOffset = Math.max(
       resolvedHeight + 0.24,
       baseVerticalOffset
     );
-    const closeDistanceOffset = Math.max(0.08, resolvedHeight * 0.04);
+    const closeDistanceOffset = Math.max(0.015, resolvedHeight * 0.008);
     const zoomOutBlend = 1 - closeZoomBlend;
     const resolvedShoulderOffset = THREE.MathUtils.lerp(
       closeShoulderOffset,
