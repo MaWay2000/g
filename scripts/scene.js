@@ -12420,7 +12420,7 @@ export const initScene = (
   updateEnvironmentForPlayerHeight();
 
   const raycaster = new THREE.Raycaster();
-  const MAX_TERMINAL_INTERACTION_DISTANCE = 1.5;
+  const MAX_TERMINAL_INTERACTION_DISTANCE = 2.7;
 
   const MAX_LIFT_INTERACTION_DISTANCE = 3.5;
   const MAX_OXYGEN_REFILL_INTERACTION_DISTANCE = 2.5;
