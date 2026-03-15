@@ -16014,9 +16014,11 @@ export const initScene = (
   const thirdPersonCameraSampleWorld = new THREE.Vector3();
   const thirdPersonCameraSampleDirection = new THREE.Vector3();
   const thirdPersonCameraSideWorld = new THREE.Vector3();
+  const thirdPersonCameraCeilingProbeOrigin = new THREE.Vector3();
   const thirdPersonCameraInverseYaw = new THREE.Quaternion();
   const thirdPersonCameraOcclusionRaycaster = new THREE.Raycaster();
   const thirdPersonCameraOcclusionIntersections = [];
+  const thirdPersonCameraCeilingIntersections = [];
   const thirdPersonCameraOccluderMeshes = [];
   const thirdPersonCameraOccluderSeen = new Set();
   const THIRD_PERSON_CAMERA_OCCLUSION_SAMPLE_PROFILE = [
@@ -16028,6 +16030,7 @@ export const initScene = (
   ];
   const THIRD_PERSON_CAMERA_OCCLUSION_PADDING = 0.08;
   const THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE = 0.04;
+  const THIRD_PERSON_CAMERA_CEILING_CLEARANCE = 0.14;
   const THIRD_PERSON_CAMERA_OCCLUSION_PULL_IN_SPEED = 18;
   const THIRD_PERSON_CAMERA_OCCLUSION_RELEASE_SPEED = 7;
   const resolveThirdPersonCameraOffset = (
@@ -16185,6 +16188,58 @@ export const initScene = (
     return thirdPersonCameraOccluderMeshes;
   };
 
+  const getThirdPersonCameraCeilingY = (anchorWorld, occluderMeshes) => {
+    if (
+      !anchorWorld ||
+      !Array.isArray(occluderMeshes) ||
+      occluderMeshes.length === 0
+    ) {
+      return null;
+    }
+
+    const probeHeight = Math.max(
+      roomFloorY +
+        roomHeight +
+        OUTSIDE_HEIGHT_ELEVATION_MAX +
+        playerHeight +
+        12,
+      anchorWorld.y + 6
+    );
+    thirdPersonCameraCeilingProbeOrigin.set(
+      anchorWorld.x,
+      probeHeight,
+      anchorWorld.z
+    );
+    thirdPersonCameraOcclusionRaycaster.ray.origin.copy(
+      thirdPersonCameraCeilingProbeOrigin
+    );
+    thirdPersonCameraOcclusionRaycaster.ray.direction.set(0, -1, 0);
+    thirdPersonCameraOcclusionRaycaster.near = 0;
+    thirdPersonCameraOcclusionRaycaster.far = Math.max(
+      0.5,
+      probeHeight - anchorWorld.y + 1
+    );
+
+    thirdPersonCameraCeilingIntersections.length = 0;
+    thirdPersonCameraOcclusionRaycaster.intersectObjects(
+      occluderMeshes,
+      false,
+      thirdPersonCameraCeilingIntersections
+    );
+
+    const ceilingIntersection = thirdPersonCameraCeilingIntersections.find(
+      (intersection) =>
+        intersection?.point instanceof THREE.Vector3 &&
+        Number.isFinite(intersection.point.y) &&
+        intersection.point.y >
+          anchorWorld.y + THIRD_PERSON_CAMERA_CEILING_CLEARANCE
+    );
+
+    return Number.isFinite(ceilingIntersection?.point?.y)
+      ? ceilingIntersection.point.y
+      : null;
+  };
+
   const updateThirdPersonCameraCollisionOffset = (delta = 0) => {
     if (!cameraViewSettings.thirdPersonEnabled) {
       thirdPersonTargetCameraOffset.copy(thirdPersonCameraOffset);
@@ -16205,6 +16260,23 @@ export const initScene = (
     thirdPersonCameraDesiredWorld
       .copy(playerObject.position)
       .add(thirdPersonCameraWorldOffset);
+
+    const occluderMeshes = collectThirdPersonCameraOccluderMeshes();
+    let maxCameraY = null;
+    const ceilingY = getThirdPersonCameraCeilingY(
+      thirdPersonCameraAnchorWorld,
+      occluderMeshes
+    );
+    if (Number.isFinite(ceilingY)) {
+      maxCameraY = Math.max(
+        thirdPersonCameraAnchorWorld.y + THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE,
+        ceilingY - THIRD_PERSON_CAMERA_CEILING_CLEARANCE
+      );
+      if (thirdPersonCameraDesiredWorld.y > maxCameraY) {
+        thirdPersonCameraDesiredWorld.y = maxCameraY;
+      }
+    }
+
     thirdPersonCameraRayDirection
       .copy(thirdPersonCameraDesiredWorld)
       .sub(thirdPersonCameraAnchorWorld);
@@ -16214,7 +16286,6 @@ export const initScene = (
 
     if (desiredDistance > 1e-4) {
       thirdPersonCameraRayDirection.divideScalar(desiredDistance);
-      const occluderMeshes = collectThirdPersonCameraOccluderMeshes();
       if (occluderMeshes.length > 0) {
         const sampleHorizontal = Math.max(
           0.12,
@@ -16248,6 +16319,12 @@ export const initScene = (
           }
           if (verticalFactor !== 0) {
             thirdPersonCameraSampleWorld.y += sampleVertical * verticalFactor;
+          }
+          if (Number.isFinite(maxCameraY)) {
+            thirdPersonCameraSampleWorld.y = Math.min(
+              thirdPersonCameraSampleWorld.y,
+              maxCameraY
+            );
           }
 
           thirdPersonCameraSampleDirection
