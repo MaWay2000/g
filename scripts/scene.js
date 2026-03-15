@@ -2934,6 +2934,28 @@ export const initScene = (
   roomMesh.scale.set(1, roomHeight / BASE_ROOM_HEIGHT, 1);
   hangarDeckEnvironmentGroup.add(roomMesh);
 
+  const hangarDeckRoofShellThickness = 0.18;
+  const hangarDeckRoofShell = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      scaledRoomWidth + 0.18,
+      hangarDeckRoofShellThickness,
+      scaledRoomDepth + 0.18
+    ),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x161b24),
+      roughness: 0.82,
+      metalness: 0.18,
+      emissive: new THREE.Color(0x05070c),
+      emissiveIntensity: 0.12,
+    })
+  );
+  hangarDeckRoofShell.position.set(
+    0,
+    roomFloorY + roomHeight + hangarDeckRoofShellThickness / 2,
+    0
+  );
+  hangarDeckEnvironmentGroup.add(hangarDeckRoofShell);
+
   const createHangarDoor = (themeOverrides = {}, options = {}) => {
     const theme = { ...DEFAULT_DOOR_THEME, ...themeOverrides };
     const { includeBackWall = false } = options;
@@ -12325,6 +12347,8 @@ export const initScene = (
     roomFloorY = -roomHeight / 2;
 
     roomMesh.scale.set(1, heightScale, 1);
+    hangarDeckRoofShell.position.y =
+      roomFloorY + roomHeight + hangarDeckRoofShellThickness / 2;
 
     liftState.floors.forEach((floor) => {
       if (floor?.position instanceof THREE.Vector3) {
