@@ -16011,9 +16011,11 @@ export const initScene = (
   const thirdPersonCameraAdjustedWorld = new THREE.Vector3();
   const thirdPersonCameraWorldOffset = new THREE.Vector3();
   const thirdPersonCameraRayDirection = new THREE.Vector3();
-  const thirdPersonCameraCollisionPoint = new THREE.Vector3();
   const thirdPersonCameraInverseYaw = new THREE.Quaternion();
-  const thirdPersonCameraOcclusionRay = new THREE.Ray();
+  const thirdPersonCameraOcclusionRaycaster = new THREE.Raycaster();
+  const thirdPersonCameraOcclusionIntersections = [];
+  const thirdPersonCameraOccluderMeshes = [];
+  const thirdPersonCameraOccluderSeen = new Set();
   const THIRD_PERSON_CAMERA_OCCLUSION_PADDING = 0.08;
   const THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE = 0.04;
   const THIRD_PERSON_CAMERA_OCCLUSION_PULL_IN_SPEED = 18;
@@ -16099,6 +16101,80 @@ export const initScene = (
     resolveThirdPersonCameraOffset(baseHeight, zoom, thirdPersonCameraOffset);
   };
 
+  const isThirdPersonCameraOccluderMesh = (candidate) => {
+    if (!candidate?.isMesh || candidate.visible === false || !candidate.parent) {
+      return false;
+    }
+
+    if (
+      candidate.userData?.isLiftControl === true ||
+      candidate.userData?.isOxygenRefillControl === true ||
+      candidate.userData?.isStorageBoxControl === true ||
+      candidate.userData?.isCraftingTableControl === true
+    ) {
+      return false;
+    }
+
+    const materialCandidates = Array.isArray(candidate.material)
+      ? candidate.material
+      : [candidate.material];
+    const hasVisibleMaterial = materialCandidates.some((material) => {
+      if (!material || material.visible === false) {
+        return false;
+      }
+
+      const opacity = Number.isFinite(material.opacity) ? material.opacity : 1;
+      if (opacity <= 0.08) {
+        return false;
+      }
+
+      if (material.transparent === true && opacity < 0.22) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return hasVisibleMaterial;
+  };
+
+  const collectThirdPersonCameraOccludersFromRoot = (root) => {
+    if (!root?.isObject3D || root.visible === false || !root.parent) {
+      return;
+    }
+
+    root.traverse((candidate) => {
+      if (
+        !isThirdPersonCameraOccluderMesh(candidate) ||
+        thirdPersonCameraOccluderSeen.has(candidate)
+      ) {
+        return;
+      }
+
+      thirdPersonCameraOccluderSeen.add(candidate);
+      thirdPersonCameraOccluderMeshes.push(candidate);
+    });
+  };
+
+  const collectThirdPersonCameraOccluderMeshes = () => {
+    thirdPersonCameraOccluderMeshes.length = 0;
+    thirdPersonCameraOccluderSeen.clear();
+
+    deckEnvironmentMap.forEach((environment) => {
+      const root = environment?.getGroup?.() ?? null;
+      collectThirdPersonCameraOccludersFromRoot(root);
+    });
+
+    const manifestPlacements = Array.isArray(getManifestPlacements?.())
+      ? getManifestPlacements()
+      : [];
+    manifestPlacements.forEach((placement) => {
+      collectThirdPersonCameraOccludersFromRoot(placement);
+    });
+
+    return thirdPersonCameraOccluderMeshes;
+  };
+
   const updateThirdPersonCameraCollisionOffset = (delta = 0) => {
     if (!cameraViewSettings.thirdPersonEnabled) {
       thirdPersonTargetCameraOffset.copy(thirdPersonCameraOffset);
@@ -16128,40 +16204,33 @@ export const initScene = (
 
     if (desiredDistance > 1e-4) {
       thirdPersonCameraRayDirection.divideScalar(desiredDistance);
-      thirdPersonCameraOcclusionRay.set(
-        thirdPersonCameraAnchorWorld,
+      thirdPersonCameraOcclusionRaycaster.ray.origin.copy(
+        thirdPersonCameraAnchorWorld
+      );
+      thirdPersonCameraOcclusionRaycaster.ray.direction.copy(
         thirdPersonCameraRayDirection
       );
+      thirdPersonCameraOcclusionRaycaster.near =
+        THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE;
+      thirdPersonCameraOcclusionRaycaster.far = desiredDistance;
 
-      colliderDescriptors.forEach((descriptor) => {
-        if (!isMapMakerDescriptorCollisionEnabled(descriptor)) {
-          return;
-        }
+      thirdPersonCameraOcclusionIntersections.length = 0;
+      thirdPersonCameraOcclusionRaycaster.intersectObjects(
+        collectThirdPersonCameraOccluderMeshes(),
+        false,
+        thirdPersonCameraOcclusionIntersections
+      );
 
-        const box = descriptor?.box;
-        if (!box || box.isEmpty()) {
-          return;
-        }
+      const blockingIntersection = thirdPersonCameraOcclusionIntersections.find(
+        (intersection) =>
+          Number.isFinite(intersection?.distance) &&
+          intersection.distance > THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE &&
+          intersection.distance < blockedDistance
+      );
 
-        const hitPoint = thirdPersonCameraOcclusionRay.intersectBox(
-          box,
-          thirdPersonCameraCollisionPoint
-        );
-        if (!(hitPoint instanceof THREE.Vector3)) {
-          return;
-        }
-
-        const distance = thirdPersonCameraAnchorWorld.distanceTo(hitPoint);
-        if (
-          !Number.isFinite(distance) ||
-          distance <= THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE ||
-          distance >= blockedDistance
-        ) {
-          return;
-        }
-
-        blockedDistance = distance;
-      });
+      if (blockingIntersection) {
+        blockedDistance = blockingIntersection.distance;
+      }
     }
 
     if (blockedDistance < desiredDistance) {
