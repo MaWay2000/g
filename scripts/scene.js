@@ -15999,6 +15999,10 @@ export const initScene = (
   const THIRD_PERSON_CAMERA_MIN_ZOOM = 0.35;
   const THIRD_PERSON_CAMERA_MAX_ZOOM = 1.8;
   const THIRD_PERSON_CAMERA_ZOOM_STEP = 0.08;
+  const THIRD_PERSON_CAMERA_ZOOM_OUT_ANGLE_DEGREES = 55;
+  const THIRD_PERSON_CAMERA_ZOOM_OUT_RISE_RATIO = Math.tan(
+    THREE.MathUtils.degToRad(90 - THIRD_PERSON_CAMERA_ZOOM_OUT_ANGLE_DEGREES)
+  );
   const thirdPersonCameraOffset = new THREE.Vector3();
   const resolveThirdPersonCameraOffset = (
     baseHeight = MIN_PLAYER_HEIGHT,
@@ -16038,23 +16042,26 @@ export const initScene = (
       baseVerticalOffset
     );
     const closeDistanceOffset = Math.max(0.08, resolvedHeight * 0.04);
+    const zoomOutBlend = 1 - closeZoomBlend;
+    const resolvedShoulderOffset = THREE.MathUtils.lerp(
+      closeShoulderOffset,
+      baseShoulderOffset,
+      zoomOutBlend
+    );
+    const resolvedDistanceOffset = THREE.MathUtils.lerp(
+      closeDistanceOffset,
+      baseDistanceOffset,
+      zoomOutBlend
+    );
+    const resolvedVerticalOffset =
+      closeVerticalOffset +
+      Math.max(0, resolvedDistanceOffset - closeDistanceOffset) *
+        THIRD_PERSON_CAMERA_ZOOM_OUT_RISE_RATIO;
 
     target.set(
-      THREE.MathUtils.lerp(
-        baseShoulderOffset,
-        closeShoulderOffset,
-        closeZoomBlend
-      ),
-      THREE.MathUtils.lerp(
-        baseVerticalOffset,
-        closeVerticalOffset,
-        closeZoomBlend
-      ),
-      THREE.MathUtils.lerp(
-        baseDistanceOffset,
-        closeDistanceOffset,
-        closeZoomBlend
-      )
+      resolvedShoulderOffset,
+      Math.max(baseVerticalOffset, resolvedVerticalOffset),
+      resolvedDistanceOffset
     );
     return target;
   };
