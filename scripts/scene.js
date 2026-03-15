@@ -12626,37 +12626,37 @@ export const initScene = (
 
   const playerReflectionMaterials = {
     suit: new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x334155),
-      emissive: new THREE.Color(0x0f172a),
-      emissiveIntensity: 0.16,
-      metalness: 0.2,
-      roughness: 0.52,
+      color: new THREE.Color(0x43566f),
+      emissive: new THREE.Color(0x111827),
+      emissiveIntensity: 0.18,
+      metalness: 0.22,
+      roughness: 0.48,
     }),
     underSuit: new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x1f2937),
+      color: new THREE.Color(0x2a3546),
       emissive: new THREE.Color(0x0b1220),
-      emissiveIntensity: 0.08,
-      metalness: 0.1,
-      roughness: 0.68,
+      emissiveIntensity: 0.1,
+      metalness: 0.12,
+      roughness: 0.64,
     }),
     visor: new THREE.MeshStandardMaterial({
       color: new THREE.Color(0x7dd3fc),
       emissive: new THREE.Color(0x38bdf8),
-      emissiveIntensity: 0.62,
-      metalness: 0.24,
-      roughness: 0.16,
+      emissiveIntensity: 0.72,
+      metalness: 0.26,
+      roughness: 0.14,
     }),
     accent: new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x475569),
-      emissive: new THREE.Color(0x1e293b),
-      emissiveIntensity: 0.12,
-      metalness: 0.3,
-      roughness: 0.38,
+      color: new THREE.Color(0x64748b),
+      emissive: new THREE.Color(0x243041),
+      emissiveIntensity: 0.14,
+      metalness: 0.32,
+      roughness: 0.34,
     }),
     boots: new THREE.MeshStandardMaterial({
-      color: new THREE.Color(0x111827),
-      metalness: 0.14,
-      roughness: 0.7,
+      color: new THREE.Color(0x172033),
+      metalness: 0.16,
+      roughness: 0.62,
     }),
   };
 
@@ -12667,36 +12667,58 @@ export const initScene = (
   };
 
   const reflectionHips = createPlayerReflectionMesh(
-    new THREE.BoxGeometry(0.3, 0.15, 0.22),
+    new THREE.BoxGeometry(0.32, 0.16, 0.24),
     playerReflectionMaterials.accent
   );
   reflectionHips.position.y = 0.9;
   playerReflectionAvatar.add(reflectionHips);
+
+  const reflectionPelvisShell = createPlayerReflectionMesh(
+    new THREE.SphereGeometry(0.145, 14, 12),
+    playerReflectionMaterials.suit
+  );
+  reflectionPelvisShell.position.set(0, 0.82, -0.03);
+  reflectionPelvisShell.scale.set(1.05, 0.88, 0.98);
+  playerReflectionAvatar.add(reflectionPelvisShell);
 
   const reflectionTorsoRoot = new THREE.Group();
   reflectionTorsoRoot.position.y = 1.01;
   playerReflectionAvatar.add(reflectionTorsoRoot);
 
   const reflectionTorso = createPlayerReflectionMesh(
-    new THREE.CapsuleGeometry(0.175, 0.54, 6, 12),
+    new THREE.CapsuleGeometry(0.18, 0.52, 6, 12),
     playerReflectionMaterials.suit
   );
   reflectionTorso.position.y = 0.22;
   reflectionTorsoRoot.add(reflectionTorso);
 
   const reflectionChestPlate = createPlayerReflectionMesh(
-    new THREE.BoxGeometry(0.34, 0.28, 0.18),
+    new THREE.BoxGeometry(0.36, 0.3, 0.18),
     playerReflectionMaterials.accent
   );
   reflectionChestPlate.position.set(0, 0.25, 0.08);
   reflectionTorsoRoot.add(reflectionChestPlate);
 
   const reflectionBackpack = createPlayerReflectionMesh(
-    new THREE.BoxGeometry(0.26, 0.32, 0.16),
+    new THREE.BoxGeometry(0.28, 0.36, 0.14),
+    playerReflectionMaterials.accent
+  );
+  reflectionBackpack.position.set(0, 0.22, -0.115);
+  reflectionTorsoRoot.add(reflectionBackpack);
+
+  const reflectionSpinePack = createPlayerReflectionMesh(
+    new THREE.BoxGeometry(0.12, 0.3, 0.18),
     playerReflectionMaterials.underSuit
   );
-  reflectionBackpack.position.set(0, 0.22, -0.13);
-  reflectionTorsoRoot.add(reflectionBackpack);
+  reflectionSpinePack.position.set(0, 0.18, -0.08);
+  reflectionTorsoRoot.add(reflectionSpinePack);
+
+  const reflectionLowerBackPlate = createPlayerReflectionMesh(
+    new THREE.BoxGeometry(0.22, 0.18, 0.12),
+    playerReflectionMaterials.underSuit
+  );
+  reflectionLowerBackPlate.position.set(0, 0.02, -0.08);
+  reflectionTorsoRoot.add(reflectionLowerBackPlate);
 
   const reflectionNeck = createPlayerReflectionMesh(
     new THREE.CylinderGeometry(0.055, 0.065, 0.1, 10),
@@ -12710,12 +12732,20 @@ export const initScene = (
   reflectionTorsoRoot.add(reflectionHeadPivot);
 
   const reflectionHead = createPlayerReflectionMesh(
-    new THREE.SphereGeometry(0.145, 16, 14),
+    new THREE.SphereGeometry(0.135, 16, 14),
     playerReflectionMaterials.suit
   );
-  reflectionHead.position.y = 0.16;
-  reflectionHead.scale.set(0.96, 1.04, 0.94);
+  reflectionHead.position.set(0, 0.15, -0.01);
+  reflectionHead.scale.set(0.9, 1.1, 0.88);
   reflectionHeadPivot.add(reflectionHead);
+
+  const reflectionHelmetRear = createPlayerReflectionMesh(
+    new THREE.SphereGeometry(0.11, 14, 12),
+    playerReflectionMaterials.accent
+  );
+  reflectionHelmetRear.position.set(0, 0.14, -0.065);
+  reflectionHelmetRear.scale.set(0.92, 0.96, 1.08);
+  reflectionHeadPivot.add(reflectionHelmetRear);
 
   const reflectionVisor = createPlayerReflectionMesh(
     new THREE.BoxGeometry(0.16, 0.08, 0.075),
@@ -12733,76 +12763,98 @@ export const initScene = (
 
   const createReflectionArmRig = (side = 1) => {
     const shoulder = new THREE.Group();
-    shoulder.position.set(0.235 * side, 0.37, 0.01);
+    shoulder.position.set(0.212 * side, 0.355, 0.015);
     reflectionTorsoRoot.add(shoulder);
 
+    const shoulderBridge = createPlayerReflectionMesh(
+      new THREE.BoxGeometry(0.1, 0.09, 0.13),
+      playerReflectionMaterials.suit
+    );
+    shoulderBridge.position.set(-0.045 * side, -0.005, 0);
+    shoulder.add(shoulderBridge);
+
     const shoulderCap = createPlayerReflectionMesh(
-      new THREE.SphereGeometry(0.085, 10, 8),
+      new THREE.SphereGeometry(0.072, 10, 8),
       playerReflectionMaterials.accent
     );
-    shoulderCap.scale.set(1.15, 0.88, 1);
+    shoulderCap.scale.set(1.08, 0.88, 0.96);
     shoulder.add(shoulderCap);
 
     const upperArm = createPlayerReflectionMesh(
-      new THREE.CapsuleGeometry(0.055, 0.28, 6, 10),
+      new THREE.CapsuleGeometry(0.058, 0.22, 6, 10),
       playerReflectionMaterials.suit
     );
-    upperArm.position.y = -0.21;
+    upperArm.position.y = -0.17;
     shoulder.add(upperArm);
 
     const elbow = new THREE.Group();
-    elbow.position.y = -0.39;
+    elbow.position.y = -0.3;
     shoulder.add(elbow);
 
+    const elbowJoint = createPlayerReflectionMesh(
+      new THREE.SphereGeometry(0.045, 10, 8),
+      playerReflectionMaterials.accent
+    );
+    elbowJoint.scale.set(1, 0.95, 0.95);
+    elbow.add(elbowJoint);
+
     const forearm = createPlayerReflectionMesh(
-      new THREE.CapsuleGeometry(0.048, 0.25, 6, 10),
+      new THREE.CapsuleGeometry(0.052, 0.18, 6, 10),
       playerReflectionMaterials.underSuit
     );
-    forearm.position.y = -0.19;
+    forearm.position.y = -0.13;
     elbow.add(forearm);
 
     const hand = createPlayerReflectionMesh(
-      new THREE.SphereGeometry(0.05, 10, 8),
+      new THREE.BoxGeometry(0.075, 0.1, 0.09),
       playerReflectionMaterials.boots
     );
-    hand.position.y = -0.35;
-    hand.scale.set(0.8, 0.95, 1.1);
+    hand.position.set(0, -0.25, 0.01);
+    hand.rotation.z = -0.08 * side;
     elbow.add(hand);
 
-    return { shoulder, elbow, shoulderCap };
+    return { shoulder, elbow, shoulderCap, elbowJoint, hand };
   };
 
   const createReflectionLegRig = (side = 1) => {
     const hip = new THREE.Group();
-    hip.position.set(0.095 * side, 0.84, 0.01);
+    hip.position.set(0.125 * side, 0.835, 0.01);
     playerReflectionAvatar.add(hip);
 
     const upperLeg = createPlayerReflectionMesh(
-      new THREE.CapsuleGeometry(0.068, 0.34, 6, 10),
+      new THREE.CapsuleGeometry(0.076, 0.31, 6, 10),
       playerReflectionMaterials.suit
     );
-    upperLeg.position.y = -0.24;
+    upperLeg.position.y = -0.215;
     hip.add(upperLeg);
 
     const knee = new THREE.Group();
-    knee.position.y = -0.43;
+    knee.position.y = -0.37;
     hip.add(knee);
 
+    const kneeJoint = createPlayerReflectionMesh(
+      new THREE.SphereGeometry(0.052, 10, 8),
+      playerReflectionMaterials.accent
+    );
+    kneeJoint.scale.set(0.96, 1, 0.96);
+    knee.add(kneeJoint);
+
     const lowerLeg = createPlayerReflectionMesh(
-      new THREE.CapsuleGeometry(0.058, 0.32, 6, 10),
+      new THREE.CapsuleGeometry(0.068, 0.27, 6, 10),
       playerReflectionMaterials.underSuit
     );
-    lowerLeg.position.y = -0.22;
+    lowerLeg.position.y = -0.17;
     knee.add(lowerLeg);
 
     const foot = createPlayerReflectionMesh(
-      new THREE.BoxGeometry(0.115, 0.085, 0.22),
+      new THREE.BoxGeometry(0.145, 0.095, 0.27),
       playerReflectionMaterials.boots
     );
-    foot.position.set(0, -0.405, 0.07);
+    foot.position.set(0, -0.305, 0.095);
+    foot.rotation.set(0.02, side * 0.08, 0);
     knee.add(foot);
 
-    return { hip, knee };
+    return { hip, knee, kneeJoint, foot };
   };
 
   const leftReflectionArm = createReflectionArmRig(-1);
@@ -12864,7 +12916,9 @@ export const initScene = (
     playerReflectionAvatar.rotation.y = Math.PI + torsoTwist * 0.18;
     playerReflectionAvatar.rotation.z = walkSin * 0.035 * moveBlend;
 
-    reflectionHips.position.y = 0.9 + bodyBob * 0.14;
+    reflectionPelvisShell.position.y = 0.82 + bodyBob * 0.08;
+    reflectionPelvisShell.rotation.x = 0.08 - moveBlend * 0.03;
+    reflectionHips.position.y = 0.9 + bodyBob * 0.12;
     reflectionTorsoRoot.position.y = 1.01 + idleBreath + bodyBob * 0.72;
     reflectionTorsoRoot.rotation.x =
       -0.025 - moveBlend * (movementState.running ? 0.17 : 0.1) + idleBreath * 0.8;
@@ -12877,25 +12931,31 @@ export const initScene = (
     reflectionHeadPivot.rotation.y = walkSin * 0.04 * moveBlend;
     reflectionHeadPivot.rotation.z = walkCos * 0.05 * moveBlend;
 
-    leftReflectionArm.shoulder.rotation.set(armSwing - 0.1, -0.05, -0.3);
-    rightReflectionArm.shoulder.rotation.set(-armSwing - 0.1, 0.05, 0.3);
-    leftReflectionArm.elbow.rotation.x = 0.22 + Math.max(0, -armSwing) * 0.46;
-    rightReflectionArm.elbow.rotation.x = 0.22 + Math.max(0, armSwing) * 0.46;
+    leftReflectionArm.shoulder.rotation.set(armSwing - 0.08, -0.08, -0.22);
+    rightReflectionArm.shoulder.rotation.set(-armSwing - 0.08, 0.08, 0.22);
+    leftReflectionArm.elbow.rotation.x = 0.28 + Math.max(0, -armSwing) * 0.42;
+    rightReflectionArm.elbow.rotation.x = 0.28 + Math.max(0, armSwing) * 0.42;
+    leftReflectionArm.elbow.rotation.z = -0.05;
+    rightReflectionArm.elbow.rotation.z = 0.05;
 
     if (airborne) {
       leftReflectionLeg.hip.rotation.x = -0.18;
       rightReflectionLeg.hip.rotation.x = 0.18;
-      leftReflectionLeg.hip.rotation.z = 0.05;
-      rightReflectionLeg.hip.rotation.z = -0.05;
+      leftReflectionLeg.hip.rotation.z = 0.06;
+      rightReflectionLeg.hip.rotation.z = -0.06;
       leftReflectionLeg.knee.rotation.x = 0.38;
       rightReflectionLeg.knee.rotation.x = 0.22;
+      leftReflectionLeg.foot.rotation.x = -0.02;
+      rightReflectionLeg.foot.rotation.x = -0.02;
     } else {
       leftReflectionLeg.hip.rotation.x = legSwing;
       rightReflectionLeg.hip.rotation.x = -legSwing;
-      leftReflectionLeg.hip.rotation.z = 0.035;
-      rightReflectionLeg.hip.rotation.z = -0.035;
+      leftReflectionLeg.hip.rotation.z = 0.045;
+      rightReflectionLeg.hip.rotation.z = -0.045;
       leftReflectionLeg.knee.rotation.x = Math.max(0, -legSwing) * 0.72;
       rightReflectionLeg.knee.rotation.x = Math.max(0, legSwing) * 0.72;
+      leftReflectionLeg.foot.rotation.x = -0.03 + Math.max(0, legSwing) * 0.08;
+      rightReflectionLeg.foot.rotation.x = -0.03 + Math.max(0, -legSwing) * 0.08;
     }
   };
 
