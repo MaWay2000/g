@@ -16034,7 +16034,7 @@ export const initScene = (
     );
     const closeShoulderOffset = Math.max(0.005, resolvedHeight * 0.004);
     const closeVerticalOffset = Math.max(
-      resolvedHeight + 0.5,
+      resolvedHeight + 0.24,
       baseVerticalOffset
     );
     const closeDistanceOffset = Math.max(0.08, resolvedHeight * 0.04);
