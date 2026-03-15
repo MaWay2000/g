@@ -16014,7 +16014,7 @@ export const initScene = (
       THIRD_PERSON_CAMERA_MAX_ZOOM
     );
     const closeZoomBlend = THREE.MathUtils.clamp(
-      (1.05 - resolvedZoom) / (1.05 - THIRD_PERSON_CAMERA_MIN_ZOOM),
+      (1.25 - resolvedZoom) / (1.25 - THIRD_PERSON_CAMERA_MIN_ZOOM),
       0,
       1
     );
@@ -16032,12 +16032,12 @@ export const initScene = (
       THIRD_PERSON_CAMERA_MIN_DISTANCE,
       resolvedHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER * resolvedZoom
     );
-    const closeShoulderOffset = Math.max(0.02, resolvedHeight * 0.015);
+    const closeShoulderOffset = Math.max(0.005, resolvedHeight * 0.004);
     const closeVerticalOffset = Math.max(
-      resolvedHeight + 0.16,
+      resolvedHeight + 0.5,
       baseVerticalOffset
     );
-    const closeDistanceOffset = Math.max(0.18, resolvedHeight * 0.11);
+    const closeDistanceOffset = Math.max(0.08, resolvedHeight * 0.04);
 
     target.set(
       THREE.MathUtils.lerp(
