@@ -12874,7 +12874,7 @@ export const initScene = (
     playerReflectionAvatar.position.set(
       0,
       0,
-      cameraViewSettings.thirdPersonEnabled ? -0.28 : -0.18
+      cameraViewSettings.thirdPersonEnabled ? -0.42 : -0.18
     );
   };
 
@@ -15922,12 +15922,12 @@ export const initScene = (
     firstPersonCameraOffset.set(0, adjustedEyeLevel, 0);
   };
 
-  const THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER = 1.42;
-  const THIRD_PERSON_CAMERA_MIN_DISTANCE = 2.15;
-  const THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER = 1.18;
-  const THIRD_PERSON_CAMERA_MIN_HEIGHT = 1.72;
-  const THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER = 0.28;
-  const THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET = 0.48;
+  const THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER = 0.94;
+  const THIRD_PERSON_CAMERA_MIN_DISTANCE = 1.18;
+  const THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER = 1.02;
+  const THIRD_PERSON_CAMERA_MIN_HEIGHT = 1.58;
+  const THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER = 0.16;
+  const THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET = 0.22;
   const THIRD_PERSON_CAMERA_MIN_ZOOM = 0.65;
   const THIRD_PERSON_CAMERA_MAX_ZOOM = 1.8;
   const THIRD_PERSON_CAMERA_ZOOM_STEP = 0.08;
