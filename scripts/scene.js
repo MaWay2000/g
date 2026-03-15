@@ -274,6 +274,7 @@ export const initScene = (
   };
   const cameraViewSettings = {
     thirdPersonEnabled: settings?.thirdPersonCamera === true,
+    thirdPersonZoom: 1,
   };
   let godModeEnabled = settings?.godMode === true;
   const BASE_SUN_SCALE = 18;
@@ -15927,18 +15928,27 @@ export const initScene = (
   const THIRD_PERSON_CAMERA_MIN_HEIGHT = 1.72;
   const THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER = 0.28;
   const THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET = 0.48;
+  const THIRD_PERSON_CAMERA_MIN_ZOOM = 0.65;
+  const THIRD_PERSON_CAMERA_MAX_ZOOM = 1.8;
+  const THIRD_PERSON_CAMERA_ZOOM_STEP = 0.08;
   const thirdPersonCameraOffset = new THREE.Vector3(
     Math.max(
       THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET,
-      playerHeight * THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER
+      playerHeight *
+        THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER *
+        cameraViewSettings.thirdPersonZoom
     ),
     Math.max(
       THIRD_PERSON_CAMERA_MIN_HEIGHT,
-      playerHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER
+      playerHeight *
+        THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER *
+        cameraViewSettings.thirdPersonZoom
     ),
     Math.max(
       THIRD_PERSON_CAMERA_MIN_DISTANCE,
-      playerHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER
+      playerHeight *
+        THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER *
+        cameraViewSettings.thirdPersonZoom
     )
   );
 
@@ -15946,19 +15956,24 @@ export const initScene = (
     const baseHeight = Number.isFinite(playerHeight)
       ? Math.max(playerHeight, MIN_PLAYER_HEIGHT)
       : MIN_PLAYER_HEIGHT;
+    const zoom = THREE.MathUtils.clamp(
+      cameraViewSettings.thirdPersonZoom,
+      THIRD_PERSON_CAMERA_MIN_ZOOM,
+      THIRD_PERSON_CAMERA_MAX_ZOOM
+    );
 
     thirdPersonCameraOffset.set(
       Math.max(
         THIRD_PERSON_CAMERA_MIN_SHOULDER_OFFSET,
-        baseHeight * THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER
+        baseHeight * THIRD_PERSON_CAMERA_SHOULDER_OFFSET_MULTIPLIER * zoom
       ),
       Math.max(
         THIRD_PERSON_CAMERA_MIN_HEIGHT,
-        baseHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER
+        baseHeight * THIRD_PERSON_CAMERA_HEIGHT_MULTIPLIER * zoom
       ),
       Math.max(
         THIRD_PERSON_CAMERA_MIN_DISTANCE,
-        baseHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER
+        baseHeight * THIRD_PERSON_CAMERA_DISTANCE_MULTIPLIER * zoom
       )
     );
   };
@@ -15995,6 +16010,24 @@ export const initScene = (
     }
 
     return applyCameraViewMode();
+  };
+
+  const setThirdPersonZoom = (nextZoom) => {
+    const normalizedZoom = THREE.MathUtils.clamp(
+      Number.isFinite(nextZoom)
+        ? nextZoom
+        : cameraViewSettings.thirdPersonZoom,
+      THIRD_PERSON_CAMERA_MIN_ZOOM,
+      THIRD_PERSON_CAMERA_MAX_ZOOM
+    );
+
+    if (Math.abs(normalizedZoom - cameraViewSettings.thirdPersonZoom) < 0.0001) {
+      return cameraViewSettings.thirdPersonZoom;
+    }
+
+    cameraViewSettings.thirdPersonZoom = normalizedZoom;
+    applyCameraViewMode();
+    return cameraViewSettings.thirdPersonZoom;
   };
 
   const defaultPlayerPosition = new THREE.Vector3(
@@ -18280,8 +18313,32 @@ export const initScene = (
     updateMovementState(event.code, false);
   };
 
+  const handleThirdPersonZoomWheel = (event) => {
+    if (!(event instanceof WheelEvent)) {
+      return;
+    }
+
+    if (!controls.isLocked || !cameraViewSettings.thirdPersonEnabled) {
+      return;
+    }
+
+    const deltaDirection = Math.sign(event.deltaY);
+    if (deltaDirection === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    setThirdPersonZoom(
+      cameraViewSettings.thirdPersonZoom +
+        deltaDirection * THIRD_PERSON_CAMERA_ZOOM_STEP
+    );
+  };
+
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("keyup", onKeyUp);
+  document.addEventListener("wheel", handleThirdPersonZoomWheel, {
+    passive: false,
+  });
 
   function clampWithinActiveFloor(
     delta = 0,
@@ -19037,6 +19094,7 @@ export const initScene = (
       document.removeEventListener("mouseup", handlePrimaryActionUp);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
+      document.removeEventListener("wheel", handleThirdPersonZoomWheel);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       cancelScheduledResourceToolResume();
