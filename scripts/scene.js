@@ -16015,20 +16015,18 @@ export const initScene = (
   const thirdPersonCameraSampleDirection = new THREE.Vector3();
   const thirdPersonCameraSideWorld = new THREE.Vector3();
   const thirdPersonCameraCeilingProbeOrigin = new THREE.Vector3();
-  const thirdPersonCameraReverseRayDirection = new THREE.Vector3();
   const thirdPersonCameraInverseYaw = new THREE.Quaternion();
   const thirdPersonCameraOcclusionRaycaster = new THREE.Raycaster();
   const thirdPersonCameraOcclusionIntersections = [];
+  const thirdPersonCameraCeilingIntersections = [];
   const thirdPersonCameraOccluderMeshes = [];
   const thirdPersonCameraOccluderSeen = new Set();
   const THIRD_PERSON_CAMERA_OCCLUSION_SAMPLE_PROFILE = [
     [0, 0],
-    [0, 1.55],
-    [-1.12, 1.16],
-    [1.12, 1.16],
-    [-0.82, 0.62],
-    [0.82, 0.62],
-    [0, 0.7],
+    [0, 1],
+    [-0.72, 0.76],
+    [0.72, 0.76],
+    [0, 0.42],
   ];
   const THIRD_PERSON_CAMERA_OCCLUSION_PADDING = 0.08;
   const THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE = 0.04;
@@ -16190,90 +16188,9 @@ export const initScene = (
     return thirdPersonCameraOccluderMeshes;
   };
 
-  const getNearestThirdPersonCameraOcclusionDistance = (
-    originWorld,
-    targetWorld,
-    occluderMeshes
-  ) => {
-    if (
-      !(originWorld instanceof THREE.Vector3) ||
-      !(targetWorld instanceof THREE.Vector3) ||
-      !Array.isArray(occluderMeshes) ||
-      occluderMeshes.length === 0
-    ) {
-      return null;
-    }
-
-    thirdPersonCameraSampleDirection
-      .copy(targetWorld)
-      .sub(originWorld);
-    const sampleDistance = thirdPersonCameraSampleDirection.length();
-    if (sampleDistance <= 1e-4) {
-      return null;
-    }
-
-    thirdPersonCameraSampleDirection.divideScalar(sampleDistance);
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    thirdPersonCameraOcclusionRaycaster.ray.origin.copy(originWorld);
-    thirdPersonCameraOcclusionRaycaster.ray.direction.copy(
-      thirdPersonCameraSampleDirection
-    );
-    thirdPersonCameraOcclusionRaycaster.near =
-      THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE;
-    thirdPersonCameraOcclusionRaycaster.far = sampleDistance;
-
-    thirdPersonCameraOcclusionIntersections.length = 0;
-    thirdPersonCameraOcclusionRaycaster.intersectObjects(
-      occluderMeshes,
-      false,
-      thirdPersonCameraOcclusionIntersections
-    );
-
-    const forwardHit = thirdPersonCameraOcclusionIntersections.find(
-      (intersection) =>
-        Number.isFinite(intersection?.distance) &&
-        intersection.distance > THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE &&
-        intersection.distance < bestDistance
-    );
-    if (forwardHit) {
-      bestDistance = forwardHit.distance;
-    }
-
-    thirdPersonCameraReverseRayDirection
-      .copy(thirdPersonCameraSampleDirection)
-      .multiplyScalar(-1);
-    thirdPersonCameraOcclusionRaycaster.ray.origin.copy(targetWorld);
-    thirdPersonCameraOcclusionRaycaster.ray.direction.copy(
-      thirdPersonCameraReverseRayDirection
-    );
-    thirdPersonCameraOcclusionRaycaster.near =
-      THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE;
-    thirdPersonCameraOcclusionRaycaster.far = sampleDistance;
-
-    thirdPersonCameraOcclusionIntersections.length = 0;
-    thirdPersonCameraOcclusionRaycaster.intersectObjects(
-      occluderMeshes,
-      false,
-      thirdPersonCameraOcclusionIntersections
-    );
-
-    const reverseHit = thirdPersonCameraOcclusionIntersections.find(
-      (intersection) =>
-        Number.isFinite(intersection?.distance) &&
-        intersection.distance > THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE &&
-        intersection.distance < sampleDistance
-    );
-    if (reverseHit) {
-      bestDistance = Math.min(bestDistance, sampleDistance - reverseHit.distance);
-    }
-
-    return Number.isFinite(bestDistance) ? bestDistance : null;
-  };
-
   const getThirdPersonCameraCeilingY = (anchorWorld, occluderMeshes) => {
     if (
-      !(anchorWorld instanceof THREE.Vector3) ||
+      !anchorWorld ||
       !Array.isArray(occluderMeshes) ||
       occluderMeshes.length === 0
     ) {
@@ -16293,15 +16210,33 @@ export const initScene = (
       probeHeight,
       anchorWorld.z
     );
-
-    const hitDistance = getNearestThirdPersonCameraOcclusionDistance(
-      anchorWorld,
-      thirdPersonCameraCeilingProbeOrigin,
-      occluderMeshes
+    thirdPersonCameraOcclusionRaycaster.ray.origin.copy(
+      thirdPersonCameraCeilingProbeOrigin
+    );
+    thirdPersonCameraOcclusionRaycaster.ray.direction.set(0, -1, 0);
+    thirdPersonCameraOcclusionRaycaster.near = 0;
+    thirdPersonCameraOcclusionRaycaster.far = Math.max(
+      0.5,
+      probeHeight - anchorWorld.y + 1
     );
 
-    return Number.isFinite(hitDistance)
-      ? anchorWorld.y + hitDistance
+    thirdPersonCameraCeilingIntersections.length = 0;
+    thirdPersonCameraOcclusionRaycaster.intersectObjects(
+      occluderMeshes,
+      false,
+      thirdPersonCameraCeilingIntersections
+    );
+
+    const ceilingIntersection = thirdPersonCameraCeilingIntersections.find(
+      (intersection) =>
+        intersection?.point instanceof THREE.Vector3 &&
+        Number.isFinite(intersection.point.y) &&
+        intersection.point.y >
+          anchorWorld.y + THIRD_PERSON_CAMERA_CEILING_CLEARANCE
+    );
+
+    return Number.isFinite(ceilingIntersection?.point?.y)
+      ? ceilingIntersection.point.y
       : null;
   };
 
@@ -16352,18 +16287,17 @@ export const initScene = (
     if (desiredDistance > 1e-4) {
       thirdPersonCameraRayDirection.divideScalar(desiredDistance);
       if (occluderMeshes.length > 0) {
-        const cameraHalfFovTan = Math.tan(
-          THREE.MathUtils.degToRad(camera.fov * 0.5)
+        const sampleHorizontal = Math.max(
+          0.12,
+          Number.isFinite(thirdPersonCameraOffset.z)
+            ? thirdPersonCameraOffset.z * 0.12
+            : 0.12
         );
         const sampleVertical = Math.max(
-          0.44,
-          desiredDistance * cameraHalfFovTan * 0.9
-        );
-        const sampleHorizontal = Math.max(
-          0.26,
-          sampleVertical *
-            Math.max(1, Number.isFinite(camera.aspect) ? camera.aspect : 1) *
-            0.78
+          0.2,
+          Number.isFinite(thirdPersonCameraOffset.z)
+            ? thirdPersonCameraOffset.z * 0.24
+            : 0.2
         );
         thirdPersonCameraSideWorld
           .set(1, 0, 0)
@@ -16386,6 +16320,12 @@ export const initScene = (
           if (verticalFactor !== 0) {
             thirdPersonCameraSampleWorld.y += sampleVertical * verticalFactor;
           }
+          if (Number.isFinite(maxCameraY)) {
+            thirdPersonCameraSampleWorld.y = Math.min(
+              thirdPersonCameraSampleWorld.y,
+              maxCameraY
+            );
+          }
 
           thirdPersonCameraSampleDirection
             .copy(thirdPersonCameraSampleWorld)
@@ -16395,19 +16335,40 @@ export const initScene = (
             continue;
           }
 
-          const blockingDistance = getNearestThirdPersonCameraOcclusionDistance(
-            thirdPersonCameraAnchorWorld,
-            thirdPersonCameraSampleWorld,
-            occluderMeshes
+          thirdPersonCameraSampleDirection.divideScalar(sampleDistance);
+          thirdPersonCameraOcclusionRaycaster.ray.origin.copy(
+            thirdPersonCameraAnchorWorld
+          );
+          thirdPersonCameraOcclusionRaycaster.ray.direction.copy(
+            thirdPersonCameraSampleDirection
+          );
+          thirdPersonCameraOcclusionRaycaster.near =
+            THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE;
+          thirdPersonCameraOcclusionRaycaster.far = sampleDistance;
+
+          thirdPersonCameraOcclusionIntersections.length = 0;
+          thirdPersonCameraOcclusionRaycaster.intersectObjects(
+            occluderMeshes,
+            false,
+            thirdPersonCameraOcclusionIntersections
           );
 
-          if (!Number.isFinite(blockingDistance)) {
+          const blockingIntersection =
+            thirdPersonCameraOcclusionIntersections.find(
+              (intersection) =>
+                Number.isFinite(intersection?.distance) &&
+                intersection.distance >
+                  THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE &&
+                intersection.distance < sampleDistance
+            );
+
+          if (!blockingIntersection) {
             continue;
           }
 
           const sampleClearDistance = Math.max(
             THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE,
-            blockingDistance - THIRD_PERSON_CAMERA_OCCLUSION_PADDING
+            blockingIntersection.distance - THIRD_PERSON_CAMERA_OCCLUSION_PADDING
           );
           const sampleDistanceRatio = THREE.MathUtils.clamp(
             sampleClearDistance / sampleDistance,
