@@ -16011,11 +16011,21 @@ export const initScene = (
   const thirdPersonCameraAdjustedWorld = new THREE.Vector3();
   const thirdPersonCameraWorldOffset = new THREE.Vector3();
   const thirdPersonCameraRayDirection = new THREE.Vector3();
+  const thirdPersonCameraSampleWorld = new THREE.Vector3();
+  const thirdPersonCameraSampleDirection = new THREE.Vector3();
+  const thirdPersonCameraSideWorld = new THREE.Vector3();
   const thirdPersonCameraInverseYaw = new THREE.Quaternion();
   const thirdPersonCameraOcclusionRaycaster = new THREE.Raycaster();
   const thirdPersonCameraOcclusionIntersections = [];
   const thirdPersonCameraOccluderMeshes = [];
   const thirdPersonCameraOccluderSeen = new Set();
+  const THIRD_PERSON_CAMERA_OCCLUSION_SAMPLE_PROFILE = [
+    [0, 0],
+    [0, 1],
+    [-0.72, 0.76],
+    [0.72, 0.76],
+    [0, 0.42],
+  ];
   const THIRD_PERSON_CAMERA_OCCLUSION_PADDING = 0.08;
   const THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE = 0.04;
   const THIRD_PERSON_CAMERA_OCCLUSION_PULL_IN_SPEED = 18;
@@ -16204,32 +16214,103 @@ export const initScene = (
 
     if (desiredDistance > 1e-4) {
       thirdPersonCameraRayDirection.divideScalar(desiredDistance);
-      thirdPersonCameraOcclusionRaycaster.ray.origin.copy(
-        thirdPersonCameraAnchorWorld
-      );
-      thirdPersonCameraOcclusionRaycaster.ray.direction.copy(
-        thirdPersonCameraRayDirection
-      );
-      thirdPersonCameraOcclusionRaycaster.near =
-        THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE;
-      thirdPersonCameraOcclusionRaycaster.far = desiredDistance;
+      const occluderMeshes = collectThirdPersonCameraOccluderMeshes();
+      if (occluderMeshes.length > 0) {
+        const sampleHorizontal = Math.max(
+          0.12,
+          Number.isFinite(thirdPersonCameraOffset.z)
+            ? thirdPersonCameraOffset.z * 0.12
+            : 0.12
+        );
+        const sampleVertical = Math.max(
+          0.2,
+          Number.isFinite(thirdPersonCameraOffset.z)
+            ? thirdPersonCameraOffset.z * 0.24
+            : 0.2
+        );
+        thirdPersonCameraSideWorld
+          .set(1, 0, 0)
+          .applyQuaternion(playerObject.quaternion)
+          .normalize();
 
-      thirdPersonCameraOcclusionIntersections.length = 0;
-      thirdPersonCameraOcclusionRaycaster.intersectObjects(
-        collectThirdPersonCameraOccluderMeshes(),
-        false,
-        thirdPersonCameraOcclusionIntersections
-      );
+        let allowedDistanceRatio = 1;
 
-      const blockingIntersection = thirdPersonCameraOcclusionIntersections.find(
-        (intersection) =>
-          Number.isFinite(intersection?.distance) &&
-          intersection.distance > THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE &&
-          intersection.distance < blockedDistance
-      );
+        for (let index = 0; index < THIRD_PERSON_CAMERA_OCCLUSION_SAMPLE_PROFILE.length; index += 1) {
+          const [horizontalFactor, verticalFactor] =
+            THIRD_PERSON_CAMERA_OCCLUSION_SAMPLE_PROFILE[index];
 
-      if (blockingIntersection) {
-        blockedDistance = blockingIntersection.distance;
+          thirdPersonCameraSampleWorld.copy(thirdPersonCameraDesiredWorld);
+          if (horizontalFactor !== 0) {
+            thirdPersonCameraSampleWorld.addScaledVector(
+              thirdPersonCameraSideWorld,
+              sampleHorizontal * horizontalFactor
+            );
+          }
+          if (verticalFactor !== 0) {
+            thirdPersonCameraSampleWorld.y += sampleVertical * verticalFactor;
+          }
+
+          thirdPersonCameraSampleDirection
+            .copy(thirdPersonCameraSampleWorld)
+            .sub(thirdPersonCameraAnchorWorld);
+          const sampleDistance = thirdPersonCameraSampleDirection.length();
+          if (sampleDistance <= 1e-4) {
+            continue;
+          }
+
+          thirdPersonCameraSampleDirection.divideScalar(sampleDistance);
+          thirdPersonCameraOcclusionRaycaster.ray.origin.copy(
+            thirdPersonCameraAnchorWorld
+          );
+          thirdPersonCameraOcclusionRaycaster.ray.direction.copy(
+            thirdPersonCameraSampleDirection
+          );
+          thirdPersonCameraOcclusionRaycaster.near =
+            THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE;
+          thirdPersonCameraOcclusionRaycaster.far = sampleDistance;
+
+          thirdPersonCameraOcclusionIntersections.length = 0;
+          thirdPersonCameraOcclusionRaycaster.intersectObjects(
+            occluderMeshes,
+            false,
+            thirdPersonCameraOcclusionIntersections
+          );
+
+          const blockingIntersection =
+            thirdPersonCameraOcclusionIntersections.find(
+              (intersection) =>
+                Number.isFinite(intersection?.distance) &&
+                intersection.distance >
+                  THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE &&
+                intersection.distance < sampleDistance
+            );
+
+          if (!blockingIntersection) {
+            continue;
+          }
+
+          const sampleClearDistance = Math.max(
+            THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE,
+            blockingIntersection.distance - THIRD_PERSON_CAMERA_OCCLUSION_PADDING
+          );
+          const sampleDistanceRatio = THREE.MathUtils.clamp(
+            sampleClearDistance / sampleDistance,
+            0,
+            1
+          );
+          allowedDistanceRatio = Math.min(
+            allowedDistanceRatio,
+            sampleDistanceRatio
+          );
+
+          if (allowedDistanceRatio <= 0.02) {
+            break;
+          }
+        }
+
+        if (allowedDistanceRatio < 1) {
+          blockedDistance = desiredDistance * allowedDistanceRatio;
+        }
       }
     }
 
