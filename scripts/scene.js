@@ -12841,7 +12841,7 @@ export const initScene = (
 
     playerReflectionAvatar.position.y = 0;
     playerReflectionAvatar.rotation.x = 0;
-    playerReflectionAvatar.rotation.y = torsoTwist * 0.18;
+    playerReflectionAvatar.rotation.y = Math.PI + torsoTwist * 0.18;
     playerReflectionAvatar.rotation.z = walkSin * 0.035 * moveBlend;
 
     reflectionHips.position.y = 0.88 + bodyBob * 0.14;
