@@ -12428,12 +12428,30 @@ export const initScene = (
   const MAX_CRAFTING_TABLE_INTERACTION_DISTANCE = 2.5;
   const interactionReachOrigin = new THREE.Vector3();
   const interactionReachTarget = new THREE.Vector3();
+  const getEffectiveInteractionDistance = (maxDistance = Infinity) => {
+    if (!Number.isFinite(maxDistance) || maxDistance <= 0) {
+      return Infinity;
+    }
+
+    if (!cameraViewSettings.thirdPersonEnabled) {
+      return maxDistance;
+    }
+
+    const thirdPersonReachPadding = Math.max(
+      0,
+      Number.isFinite(thirdPersonCameraOffset.z) ? thirdPersonCameraOffset.z : 0
+    );
+    return maxDistance + thirdPersonReachPadding;
+  };
 
   const configureInteractionRaycaster = (maxDistance = Infinity) => {
+    const effectiveDistance = getEffectiveInteractionDistance(maxDistance);
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     raycaster.near = 0;
     raycaster.far =
-      Number.isFinite(maxDistance) && maxDistance > 0 ? maxDistance : Infinity;
+      Number.isFinite(effectiveDistance) && effectiveDistance > 0
+        ? effectiveDistance
+        : Infinity;
     return raycaster;
   };
 
@@ -12441,7 +12459,13 @@ export const initScene = (
     intersection,
     maxDistance = Infinity
   ) => {
-    if (!intersection || !Number.isFinite(maxDistance) || maxDistance <= 0) {
+    const effectiveDistance = getEffectiveInteractionDistance(maxDistance);
+
+    if (
+      !intersection ||
+      !Number.isFinite(effectiveDistance) ||
+      effectiveDistance <= 0
+    ) {
       return false;
     }
 
@@ -12468,7 +12492,7 @@ export const initScene = (
       );
     }
 
-    return bestDistance <= maxDistance;
+    return bestDistance <= effectiveDistance;
   };
 
   let liftInteractable = false;
