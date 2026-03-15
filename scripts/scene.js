@@ -2935,6 +2935,7 @@ export const initScene = (
   hangarDeckEnvironmentGroup.add(roomMesh);
 
   const hangarDeckRoofShellThickness = 0.18;
+  const hangarDeckRoofShellLift = 0.03;
   const hangarDeckRoofShell = new THREE.Mesh(
     new THREE.BoxGeometry(
       scaledRoomWidth + 0.18,
@@ -2951,7 +2952,10 @@ export const initScene = (
   );
   hangarDeckRoofShell.position.set(
     0,
-    roomFloorY + roomHeight + hangarDeckRoofShellThickness / 2,
+    roomFloorY +
+      roomHeight +
+      hangarDeckRoofShellThickness / 2 +
+      hangarDeckRoofShellLift,
     0
   );
   hangarDeckEnvironmentGroup.add(hangarDeckRoofShell);
@@ -12348,7 +12352,10 @@ export const initScene = (
 
     roomMesh.scale.set(1, heightScale, 1);
     hangarDeckRoofShell.position.y =
-      roomFloorY + roomHeight + hangarDeckRoofShellThickness / 2;
+      roomFloorY +
+      roomHeight +
+      hangarDeckRoofShellThickness / 2 +
+      hangarDeckRoofShellLift;
 
     liftState.floors.forEach((floor) => {
       if (floor?.position instanceof THREE.Vector3) {
