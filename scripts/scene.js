@@ -12426,6 +12426,47 @@ export const initScene = (
   const MAX_OXYGEN_REFILL_INTERACTION_DISTANCE = 2.5;
   const MAX_STORAGE_BOX_INTERACTION_DISTANCE = 2.5;
   const MAX_CRAFTING_TABLE_INTERACTION_DISTANCE = 2.5;
+  const INTERACTION_RAY_CAMERA_TARGET_DISTANCE = 24;
+  const interactionRayOrigin = new THREE.Vector3();
+  const interactionRayDirection = new THREE.Vector3();
+  const interactionCameraOrigin = new THREE.Vector3();
+  const interactionCameraDirection = new THREE.Vector3();
+  const interactionCameraTarget = new THREE.Vector3();
+
+  const configureInteractionRaycaster = (maxDistance = Infinity) => {
+    if (cameraViewSettings.thirdPersonEnabled) {
+      camera.updateMatrixWorld(true);
+      playerObject.updateMatrixWorld(true);
+      camera.getWorldPosition(interactionCameraOrigin);
+      camera.getWorldDirection(interactionCameraDirection);
+      interactionRayOrigin.copy(playerObject.position);
+      interactionRayOrigin.y += Math.max(MIN_PLAYER_HEIGHT, firstPersonCameraOffset.y);
+      interactionCameraTarget
+        .copy(interactionCameraOrigin)
+        .addScaledVector(
+          interactionCameraDirection,
+          INTERACTION_RAY_CAMERA_TARGET_DISTANCE
+        );
+      interactionRayDirection
+        .copy(interactionCameraTarget)
+        .sub(interactionRayOrigin);
+
+      if (interactionRayDirection.lengthSq() <= 1e-8) {
+        interactionRayDirection.copy(interactionCameraDirection);
+      } else {
+        interactionRayDirection.normalize();
+      }
+
+      raycaster.set(interactionRayOrigin, interactionRayDirection);
+    } else {
+      raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    }
+
+    raycaster.near = 0;
+    raycaster.far =
+      Number.isFinite(maxDistance) && maxDistance > 0 ? maxDistance : Infinity;
+    return raycaster;
+  };
 
   let liftInteractable = false;
   let liftInteractionsEnabled = true;
@@ -17432,7 +17473,7 @@ export const initScene = (
       return null;
     }
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    configureInteractionRaycaster(MAX_LIFT_INTERACTION_DISTANCE);
     const intersections = raycaster.intersectObjects(
       liftInteractables,
       false
@@ -17462,7 +17503,7 @@ export const initScene = (
       return null;
     }
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    configureInteractionRaycaster(MAX_OXYGEN_REFILL_INTERACTION_DISTANCE);
     const intersections = raycaster.intersectObjects(oxygenRefillControls, false);
 
     if (intersections.length === 0) {
@@ -17489,7 +17530,7 @@ export const initScene = (
       return null;
     }
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    configureInteractionRaycaster(MAX_STORAGE_BOX_INTERACTION_DISTANCE);
     const intersections = raycaster.intersectObjects(storageBoxControls, false);
 
     if (intersections.length === 0) {
@@ -17516,7 +17557,7 @@ export const initScene = (
       return null;
     }
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    configureInteractionRaycaster(MAX_CRAFTING_TABLE_INTERACTION_DISTANCE);
     const intersections = raycaster.intersectObjects(craftingTableControls, false);
 
     if (intersections.length === 0) {
@@ -17641,7 +17682,7 @@ export const initScene = (
       return null;
     }
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    configureInteractionRaycaster(MAX_TERMINAL_INTERACTION_DISTANCE);
     const intersections = raycaster.intersectObjects(
       quickAccessTargets,
       false
