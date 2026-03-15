@@ -2959,7 +2959,7 @@ export const initScene = (
     0
   );
   hangarDeckEnvironmentGroup.add(hangarDeckRoofShell);
-  registerColliderDescriptors([{ object: hangarDeckRoofShell }]);
+  registerColliderDescriptors([{ object: hangarDeckRoofShell, ceilingOnly: true }]);
 
   const createHangarDoor = (themeOverrides = {}, options = {}) => {
     const theme = { ...DEFAULT_DOOR_THEME, ...themeOverrides };
@@ -17541,6 +17541,10 @@ export const initScene = (
         return;
       }
 
+      if (descriptor?.ceilingOnly === true) {
+        return;
+      }
+
       const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
       if (
         Number.isFinite(terrainHeight) &&
@@ -18446,6 +18450,10 @@ export const initScene = (
 
     colliderDescriptors.forEach((descriptor) => {
       if (!isMapMakerDescriptorCollisionEnabled(descriptor)) {
+        return;
+      }
+
+      if (descriptor?.ceilingOnly === true) {
         return;
       }
 

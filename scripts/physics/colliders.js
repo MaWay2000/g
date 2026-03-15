@@ -38,6 +38,10 @@ export const registerColliderDescriptors = (descriptors) => {
       registeredDescriptor.mapMakerCollisionEnabled = false;
     }
 
+    if (descriptor.ceilingOnly === true) {
+      registeredDescriptor.ceilingOnly = true;
+    }
+
     if (descriptor.root) {
       registeredDescriptor.root = descriptor.root;
     }
