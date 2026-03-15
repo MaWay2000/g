@@ -16004,6 +16004,20 @@ export const initScene = (
     THREE.MathUtils.degToRad(90 - THIRD_PERSON_CAMERA_ZOOM_OUT_ANGLE_DEGREES)
   );
   const thirdPersonCameraOffset = new THREE.Vector3();
+  const thirdPersonTargetCameraOffset = new THREE.Vector3();
+  const thirdPersonResolvedCameraOffset = new THREE.Vector3();
+  const thirdPersonCameraAnchorWorld = new THREE.Vector3();
+  const thirdPersonCameraDesiredWorld = new THREE.Vector3();
+  const thirdPersonCameraAdjustedWorld = new THREE.Vector3();
+  const thirdPersonCameraWorldOffset = new THREE.Vector3();
+  const thirdPersonCameraRayDirection = new THREE.Vector3();
+  const thirdPersonCameraCollisionPoint = new THREE.Vector3();
+  const thirdPersonCameraInverseYaw = new THREE.Quaternion();
+  const thirdPersonCameraOcclusionRay = new THREE.Ray();
+  const THIRD_PERSON_CAMERA_OCCLUSION_PADDING = 0.08;
+  const THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE = 0.04;
+  const THIRD_PERSON_CAMERA_OCCLUSION_PULL_IN_SPEED = 18;
+  const THIRD_PERSON_CAMERA_OCCLUSION_RELEASE_SPEED = 7;
   const resolveThirdPersonCameraOffset = (
     baseHeight = MIN_PLAYER_HEIGHT,
     zoom = 1,
@@ -16070,6 +16084,8 @@ export const initScene = (
     cameraViewSettings.thirdPersonZoom,
     thirdPersonCameraOffset
   );
+  thirdPersonTargetCameraOffset.copy(thirdPersonCameraOffset);
+  thirdPersonResolvedCameraOffset.copy(thirdPersonCameraOffset);
 
   const updateThirdPersonCameraOffset = () => {
     const baseHeight = Number.isFinite(playerHeight)
@@ -16081,6 +16097,109 @@ export const initScene = (
       THIRD_PERSON_CAMERA_MAX_ZOOM
     );
     resolveThirdPersonCameraOffset(baseHeight, zoom, thirdPersonCameraOffset);
+  };
+
+  const updateThirdPersonCameraCollisionOffset = (delta = 0) => {
+    if (!cameraViewSettings.thirdPersonEnabled) {
+      thirdPersonTargetCameraOffset.copy(thirdPersonCameraOffset);
+      thirdPersonResolvedCameraOffset.copy(thirdPersonCameraOffset);
+      return thirdPersonResolvedCameraOffset;
+    }
+
+    playerObject.updateMatrixWorld(true);
+    thirdPersonCameraAnchorWorld.copy(playerObject.position);
+    thirdPersonCameraAnchorWorld.y += Math.max(
+      MIN_PLAYER_HEIGHT,
+      firstPersonCameraOffset.y
+    );
+
+    thirdPersonCameraWorldOffset
+      .copy(thirdPersonCameraOffset)
+      .applyQuaternion(playerObject.quaternion);
+    thirdPersonCameraDesiredWorld
+      .copy(playerObject.position)
+      .add(thirdPersonCameraWorldOffset);
+    thirdPersonCameraRayDirection
+      .copy(thirdPersonCameraDesiredWorld)
+      .sub(thirdPersonCameraAnchorWorld);
+
+    const desiredDistance = thirdPersonCameraRayDirection.length();
+    let blockedDistance = desiredDistance;
+
+    if (desiredDistance > 1e-4) {
+      thirdPersonCameraRayDirection.divideScalar(desiredDistance);
+      thirdPersonCameraOcclusionRay.set(
+        thirdPersonCameraAnchorWorld,
+        thirdPersonCameraRayDirection
+      );
+
+      colliderDescriptors.forEach((descriptor) => {
+        if (!isMapMakerDescriptorCollisionEnabled(descriptor)) {
+          return;
+        }
+
+        const box = descriptor?.box;
+        if (!box || box.isEmpty()) {
+          return;
+        }
+
+        const hitPoint = thirdPersonCameraOcclusionRay.intersectBox(
+          box,
+          thirdPersonCameraCollisionPoint
+        );
+        if (!(hitPoint instanceof THREE.Vector3)) {
+          return;
+        }
+
+        const distance = thirdPersonCameraAnchorWorld.distanceTo(hitPoint);
+        if (
+          !Number.isFinite(distance) ||
+          distance <= THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE ||
+          distance >= blockedDistance
+        ) {
+          return;
+        }
+
+        blockedDistance = distance;
+      });
+    }
+
+    if (blockedDistance < desiredDistance) {
+      blockedDistance = Math.max(
+        THIRD_PERSON_CAMERA_OCCLUSION_MIN_CLEARANCE,
+        blockedDistance - THIRD_PERSON_CAMERA_OCCLUSION_PADDING
+      );
+      thirdPersonCameraAdjustedWorld
+        .copy(thirdPersonCameraAnchorWorld)
+        .addScaledVector(thirdPersonCameraRayDirection, blockedDistance);
+      thirdPersonTargetCameraOffset
+        .copy(thirdPersonCameraAdjustedWorld)
+        .sub(playerObject.position);
+      thirdPersonCameraInverseYaw.copy(playerObject.quaternion).invert();
+      thirdPersonTargetCameraOffset.applyQuaternion(thirdPersonCameraInverseYaw);
+    } else {
+      thirdPersonTargetCameraOffset.copy(thirdPersonCameraOffset);
+    }
+
+    if (!Number.isFinite(delta) || delta <= 0) {
+      thirdPersonResolvedCameraOffset.copy(thirdPersonTargetCameraOffset);
+      return thirdPersonResolvedCameraOffset;
+    }
+
+    const targetIsCloser =
+      thirdPersonTargetCameraOffset.z <
+      thirdPersonResolvedCameraOffset.z - 1e-4;
+    const smoothingSpeed = targetIsCloser
+      ? THIRD_PERSON_CAMERA_OCCLUSION_PULL_IN_SPEED
+      : THIRD_PERSON_CAMERA_OCCLUSION_RELEASE_SPEED;
+    const smoothingAlpha = 1 - Math.exp(-Math.max(0, delta) * smoothingSpeed);
+
+    thirdPersonResolvedCameraOffset.lerp(
+      thirdPersonTargetCameraOffset,
+      smoothingAlpha
+    );
+
+    return thirdPersonResolvedCameraOffset;
   };
 
   const updatePlayerReflectionProxyVisibility = () => {
@@ -16097,11 +16216,14 @@ export const initScene = (
   const applyCameraViewMode = () => {
     updateFirstPersonCameraOffset();
     updateThirdPersonCameraOffset();
+    updateThirdPersonCameraCollisionOffset(0);
     controls.setCameraOffset(
       cameraViewSettings.thirdPersonEnabled
-        ? thirdPersonCameraOffset
+        ? thirdPersonResolvedCameraOffset
         : firstPersonCameraOffset
     );
+    playerObject.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
     updatePlayerReflectionProxyVisibility();
     updateResourceToolVisibility();
     return cameraViewSettings.thirdPersonEnabled;
@@ -18857,6 +18979,14 @@ export const initScene = (
     syncPlayerReflectionProxyTransform();
     updatePlayerReflectionProxyPose(delta, elapsedTime);
 
+    if (cameraViewSettings.thirdPersonEnabled) {
+      updateThirdPersonCameraCollisionOffset(delta);
+      controls.setCameraOffset(thirdPersonResolvedCameraOffset);
+    } else {
+      controls.setCameraOffset(firstPersonCameraOffset);
+    }
+    playerObject.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
 
     let matchedZone = null;
     let matchedLiftControl = null;
