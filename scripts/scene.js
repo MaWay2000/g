@@ -2959,7 +2959,6 @@ export const initScene = (
     0
   );
   hangarDeckEnvironmentGroup.add(hangarDeckRoofShell);
-  registerColliderDescriptors([{ object: hangarDeckRoofShell, ceilingOnly: true }]);
 
   const createHangarDoor = (themeOverrides = {}, options = {}) => {
     const theme = { ...DEFAULT_DOOR_THEME, ...themeOverrides };
