@@ -2959,6 +2959,7 @@ export const initScene = (
     0
   );
   hangarDeckEnvironmentGroup.add(hangarDeckRoofShell);
+  registerColliderDescriptors([{ object: hangarDeckRoofShell }]);
 
   const createHangarDoor = (themeOverrides = {}, options = {}) => {
     const theme = { ...DEFAULT_DOOR_THEME, ...themeOverrides };
@@ -18430,6 +18431,56 @@ export const initScene = (
     return bestSupportHeight;
   };
 
+  const getColliderCeilingHeight = (position) => {
+    if (!position || !Array.isArray(colliderDescriptors) || colliderDescriptors.length === 0) {
+      return null;
+    }
+
+    const probeX = Number.isFinite(position.x) ? position.x : 0;
+    const probeY = Number.isFinite(position.y) ? position.y : roomFloorY;
+    const probeZ = Number.isFinite(position.z) ? position.z : 0;
+    const footprintPadding = 0.02;
+    const minCeilingBottomY =
+      probeY + playerHeight + CEILING_CLEARANCE - STEP_HEIGHT_TOLERANCE;
+    let bestCeilingBottomY = null;
+
+    colliderDescriptors.forEach((descriptor) => {
+      if (!isMapMakerDescriptorCollisionEnabled(descriptor)) {
+        return;
+      }
+
+      const box = descriptor?.box;
+      if (!box || box.isEmpty()) {
+        return;
+      }
+
+      const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
+      if (Number.isFinite(terrainHeight)) {
+        return;
+      }
+
+      if (
+        probeX < box.min.x - footprintPadding ||
+        probeX > box.max.x + footprintPadding ||
+        probeZ < box.min.z - footprintPadding ||
+        probeZ > box.max.z + footprintPadding
+      ) {
+        return;
+      }
+
+      const bottomY = box.min.y;
+      if (!Number.isFinite(bottomY) || bottomY < minCeilingBottomY) {
+        return;
+      }
+
+      if (!Number.isFinite(bestCeilingBottomY) || bottomY < bestCeilingBottomY) {
+        bestCeilingBottomY = bottomY;
+      }
+    });
+
+    return bestCeilingBottomY;
+  };
+
   const getPlayerGroundHeight = (position) => {
     const terrainHeight = getTerrainGroundHeight(position);
     const colliderGroundHeight = getColliderGroundHeight(position);
@@ -18441,13 +18492,17 @@ export const initScene = (
   };
 
   const getPlayerCeilingHeight = (position) => {
-    const groundedBase = Number.isFinite(playerGroundedHeight)
-      ? playerGroundedHeight
-      : getPlayerGroundHeight(position);
-    const minY = Math.max(roomFloorY, groundedBase);
+    const colliderCeilingHeight = getColliderCeilingHeight(position);
+    if (Number.isFinite(colliderCeilingHeight)) {
+      return Math.max(
+        roomFloorY,
+        colliderCeilingHeight - CEILING_CLEARANCE - playerHeight
+      );
+    }
+
     const ceilingScale = Math.max(1, jumpSettings.playerJumpMultiplier);
-    const maxHeadY = minY + roomHeight * ceilingScale - CEILING_CLEARANCE;
-    return Math.max(minY, maxHeadY - playerHeight);
+    const maxHeadY = roomFloorY + roomHeight * ceilingScale - CEILING_CLEARANCE;
+    return Math.max(roomFloorY, maxHeadY - playerHeight);
   };
 
   const direction = new THREE.Vector3();
