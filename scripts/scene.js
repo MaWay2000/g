@@ -12973,7 +12973,7 @@ export const initScene = (
     playerReflectionAvatar.position.set(
       0,
       0,
-      cameraViewSettings.thirdPersonEnabled ? -0.42 : -0.18
+      cameraViewSettings.thirdPersonEnabled ? 0 : -0.18
     );
   };
 
