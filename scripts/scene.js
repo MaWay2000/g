@@ -17318,6 +17318,7 @@ export const initScene = (
 
     velocity.set(0, 0, 0);
     verticalVelocity = 0;
+    applyCameraViewMode();
 
     updateLiftUi();
     savePlayerState(true);
@@ -18110,6 +18111,7 @@ export const initScene = (
     if (Number.isFinite(forward.x) && Number.isFinite(forward.z)) {
       controls.setYaw(Math.atan2(forward.x, forward.z));
     }
+    applyCameraViewMode();
 
     savePlayerState(true);
     return true;
