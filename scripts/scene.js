@@ -9817,7 +9817,6 @@ export const initScene = (
     });
     const consoleGroups = [leftConsole.group, rightConsole.group];
     const environmentColliderDescriptors = [
-      { object: ceiling, ceilingOnly: true },
       { object: commandTableBase },
       { object: commandTableTop },
       { object: commandTableInset },
