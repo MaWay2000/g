@@ -9015,7 +9015,7 @@ export const initScene = (
 
       return {
         position: spawnPosition,
-        yaw: Math.atan2(doorForward.x, doorForward.z),
+        yaw: Math.atan2(doorForward.x, doorForward.z) + Math.PI,
       };
     };
 
@@ -11916,7 +11916,7 @@ export const initScene = (
       id: "operations-concourse",
       title: "Outside Exit",
       description: "External Hatch",
-      yaw: Math.PI,
+      yaw: 0,
       groupPosition: operationsDeckGroupPosition,
       localFloorBounds: operationsDeckLocalBounds,
       teleportOffset: operationsDeckTeleportOffset,
@@ -16630,7 +16630,7 @@ export const initScene = (
       title: "Outside Exit",
       description: "External Hatch",
       position: resolvedOperationsFloorPosition,
-      yaw: Math.PI,
+      yaw: 0,
       bounds: resolvedOperationsFloorBounds,
     },
     {
