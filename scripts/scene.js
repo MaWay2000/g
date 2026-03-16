@@ -17579,10 +17579,7 @@ export const initScene = (
       }
 
       const terrainHeight = Number(descriptor?.object?.userData?.terrainHeight);
-      if (
-        Number.isFinite(terrainHeight) &&
-        terrainHeight <= getMaxStepHeight() + 0.1
-      ) {
+      if (Number.isFinite(terrainHeight)) {
         return;
       }
 
