@@ -5917,7 +5917,7 @@ export const initScene = (
 
       return {
         position: spawnPosition,
-        yaw: Math.atan2(doorForward.x, doorForward.z),
+        yaw: Math.atan2(doorForward.x, doorForward.z) + Math.PI,
       };
     };
 
