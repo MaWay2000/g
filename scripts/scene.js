@@ -5893,6 +5893,34 @@ export const initScene = (
     portalControl.userData.liftFloorId = "operations-exterior";
     group.add(portalControl);
 
+    group.userData.resolveEntrySpawn = ({ fromFloorId } = {}) => {
+      if (fromFloorId !== "operations-exterior") {
+        return null;
+      }
+
+      exteriorExitDoor.updateMatrixWorld(true);
+
+      const spawnPosition = new THREE.Vector3();
+      const doorQuaternion = new THREE.Quaternion();
+      exteriorExitDoor.getWorldPosition(spawnPosition);
+      exteriorExitDoor.getWorldQuaternion(doorQuaternion);
+
+      const doorForward = new THREE.Vector3(0, 0, 1).applyQuaternion(
+        doorQuaternion
+      );
+      const doorWidth = Number.isFinite(exteriorExitDoor.userData?.width)
+        ? exteriorExitDoor.userData.width
+        : BASE_DOOR_WIDTH;
+      const spawnDistance = Math.max(doorWidth * 0.7, 1.15);
+      spawnPosition.add(doorForward.multiplyScalar(spawnDistance));
+      spawnPosition.y = roomFloorY;
+
+      return {
+        position: spawnPosition,
+        yaw: Math.atan2(doorForward.x, doorForward.z),
+      };
+    };
+
     const oxygenStandGroup = new THREE.Group();
     const oxygenStandWallMountOffsetY = 0.34;
     oxygenStandGroup.position.set(
