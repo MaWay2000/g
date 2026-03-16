@@ -16623,6 +16623,7 @@ export const initScene = (
       title: "Command Center",
       description: "Flight line staging",
       position: hangarDeckFloorPosition,
+      yaw: 0,
       bounds: hangarDeckFloorBounds,
     },
     {
@@ -17244,7 +17245,7 @@ export const initScene = (
 
         return {
           position: doorPosition,
-          yaw: Math.atan2(forward.x, forward.z),
+          yaw: Math.atan2(forward.x, forward.z) + Math.PI,
         };
       };
 
