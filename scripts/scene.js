@@ -18416,6 +18416,12 @@ export const initScene = (
       return sampledSurfaceHeight;
     }
 
+    // Never let a bad downhill ray sample pull the player below the
+    // analytic terrain surface; use the higher of the two.
+    if (Number.isFinite(sampledSurfaceHeight)) {
+      return Math.max(sampledSurfaceHeight, intersectionY);
+    }
+
     // Prefer the actual rendered terrain surface when available.
     return intersectionY;
   };
