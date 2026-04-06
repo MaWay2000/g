@@ -4532,7 +4532,7 @@ const newsModalState = {
 };
 
 const INVENTORY_SLOT_COUNT = 200;
-const DEFAULT_INVENTORY_CAPACITY_KG = 200;
+const DEFAULT_INVENTORY_CAPACITY_KG = 10;
 const STORAGE_BOX_DEFAULT_ID = "operations-concourse-exit";
 const STORAGE_BOX_DEFAULT_LABEL = "Outside exit room";
 const STORAGE_BOX_CAPACITY_KG = 100;
