@@ -5210,6 +5210,32 @@ export const initScene = (
         MAP_MAKER_TILE_THICKNESS
       );
     };
+    const getSurfaceYAtWorldPosition = (worldX, worldZ) => {
+      if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
+        return null;
+      }
+
+      const column = THREE.MathUtils.clamp(
+        Math.floor(worldX / cellSizeX + width / 2),
+        0,
+        width - 1
+      );
+      const row = THREE.MathUtils.clamp(
+        Math.floor(worldZ / cellSizeZ + height / 2),
+        0,
+        height - 1
+      );
+      const index = row * width + column;
+      const cell = normalizedMap.cells?.[index];
+      const terrain = getOutsideTerrainById(cell?.terrainId ?? "void");
+
+      if (terrain.id === "void") {
+        return null;
+      }
+
+      const surfaceY = getCellSurfaceY(index);
+      return Number.isFinite(surfaceY) ? surfaceY : null;
+    };
 
     const resolvePlacementBaseY = (placement, surfaceY) => {
       const position = placement?.position ?? {};
@@ -5592,6 +5618,7 @@ export const initScene = (
       () => undefined
     );
     overlayGroup.userData.whenReady = () => readyPromise;
+    overlayGroup.userData.getSurfaceYAtWorldPosition = getSurfaceYAtWorldPosition;
 
     overlayGroup.userData.dispose = () => {
       if (disposed) {
@@ -18380,7 +18407,7 @@ export const initScene = (
     }
 
     const activeFloorId = getActiveLiftFloor()?.id ?? null;
-    if (activeFloorId !== "operations-exterior") {
+    if (!activeFloorId) {
       return null;
     }
 
