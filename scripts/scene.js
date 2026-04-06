@@ -6997,6 +6997,13 @@ export const initScene = (
       const terrainStyle = OUTSIDE_TERRAIN_TILE_STYLES.get("default") ||
         DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
       const tileHeight = terrainStyle.height ?? DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE.height;
+      const minTerrainSurfaceLocalY =
+        tileHeight + getOutsideTerrainElevation(OUTSIDE_HEIGHT_MIN);
+      const resolveTerrainHeightWithNoise = (baseHeight, worldX, worldZ) => {
+        const noise = getTerrainNoise(worldX, worldZ);
+        const noisyHeight = baseHeight + noise * terrainNoiseAmplitude;
+        return Math.max(minTerrainSurfaceLocalY, noisyHeight);
+      };
 
       const getSurfaceHeight = (index) => {
         const elevation = getOutsideTerrainElevation(
@@ -7025,8 +7032,7 @@ export const initScene = (
       const minTerrainSurfaceY =
         roomFloorY +
         OUTSIDE_TERRAIN_CLEARANCE +
-        tileHeight +
-        getOutsideTerrainElevation(OUTSIDE_HEIGHT_MIN);
+        minTerrainSurfaceLocalY;
       const perimeterTopY =
         roomFloorY +
         OUTSIDE_TERRAIN_CLEARANCE +
@@ -7439,7 +7445,9 @@ export const initScene = (
         const centerX = mapLeftEdge + column * cellSize + cellSize / 2;
         const centerZ = mapNearEdge + row * cellSize + cellSize / 2;
 
-        const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
+        // Never blend below the minimum outside terrain surface; dropping to
+        // room floor causes under-map fall-through at low height amplitudes.
+        const platformLocalY = minTerrainSurfaceLocalY;
         for (let index = 0; index < positions.count; index += 1) {
           const colorIndex = index * 3;
 
@@ -7469,8 +7477,11 @@ export const initScene = (
             tileHeight + getBlendedElevation(column, row, xBlend, zBlend);
           const worldX = centerX + localX;
           const worldZ = centerZ + localZ;
-          const noise = getTerrainNoise(worldX, worldZ);
-          const terrainY = baseHeight + noise * terrainNoiseAmplitude;
+          const terrainY = resolveTerrainHeightWithNoise(
+            baseHeight,
+            worldX,
+            worldZ
+          );
           let blendedY = terrainY;
 
           const distanceFromPlatform = Math.abs(worldZ - mapNearEdge);
@@ -7488,6 +7499,7 @@ export const initScene = (
             platformLocalY,
             blendWeight
           );
+          blendedY = Math.max(minTerrainSurfaceLocalY, blendedY);
 
           positions.setY(index, blendedY);
           getCircularKernelTerrainColor(
@@ -7776,8 +7788,11 @@ export const initScene = (
         );
         const baseHeight =
           tileHeight + getBlendedElevation(clampedColumn, clampedRow, xBlend, zBlend);
-        const noise = getTerrainNoise(worldX, worldZ);
-        const terrainY = baseHeight + noise * terrainNoiseAmplitude;
+        const terrainY = resolveTerrainHeightWithNoise(
+          baseHeight,
+          worldX,
+          worldZ
+        );
         const distanceFromPlatform = Math.abs(worldZ - mapNearEdge);
         const distanceToPlatform = Math.max(
           0,
@@ -7788,11 +7803,14 @@ export const initScene = (
           0,
           platformBlendDistance
         );
-        const platformLocalY = -OUTSIDE_TERRAIN_CLEARANCE;
-        const blendedY = THREE.MathUtils.lerp(
-          terrainY,
-          platformLocalY,
-          blendWeight
+        const platformLocalY = minTerrainSurfaceLocalY;
+        const blendedY = Math.max(
+          minTerrainSurfaceLocalY,
+          THREE.MathUtils.lerp(
+            terrainY,
+            platformLocalY,
+            blendWeight
+          )
         );
         return roomFloorY + OUTSIDE_TERRAIN_CLEARANCE + blendedY;
       };
