@@ -18683,12 +18683,17 @@ export const initScene = (
   };
 
   const getPlayerCeilingHeight = (position) => {
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
     const colliderCeilingHeight = getColliderCeilingHeight(position);
     if (Number.isFinite(colliderCeilingHeight)) {
       return Math.max(
         roomFloorY,
         colliderCeilingHeight - CEILING_CLEARANCE - playerHeight
       );
+    }
+
+    if (activeFloorId === "operations-exterior") {
+      return Number.POSITIVE_INFINITY;
     }
 
     const ceilingScale = Math.max(1, jumpSettings.playerJumpMultiplier);
