@@ -6343,6 +6343,111 @@ export const initScene = (
     oxygenChamberBaseRing.position.y = roomFloorY + 0.04;
     group.add(oxygenChamberBaseRing);
 
+    const oxygenRefillSignCanvas = document.createElement("canvas");
+    oxygenRefillSignCanvas.width = 1024;
+    oxygenRefillSignCanvas.height = 320;
+    const oxygenRefillSignContext = oxygenRefillSignCanvas.getContext("2d");
+    let oxygenRefillSignTexture = null;
+    if (oxygenRefillSignContext) {
+      oxygenRefillSignContext.clearRect(
+        0,
+        0,
+        oxygenRefillSignCanvas.width,
+        oxygenRefillSignCanvas.height
+      );
+      oxygenRefillSignContext.fillStyle = "rgba(5, 16, 24, 0.82)";
+      oxygenRefillSignContext.fillRect(
+        0,
+        0,
+        oxygenRefillSignCanvas.width,
+        oxygenRefillSignCanvas.height
+      );
+      oxygenRefillSignContext.strokeStyle = "rgba(88, 214, 255, 0.72)";
+      oxygenRefillSignContext.lineWidth = 10;
+      oxygenRefillSignContext.strokeRect(
+        10,
+        10,
+        oxygenRefillSignCanvas.width - 20,
+        oxygenRefillSignCanvas.height - 20
+      );
+      oxygenRefillSignContext.font = "700 108px 'Segoe UI', sans-serif";
+      oxygenRefillSignContext.textAlign = "center";
+      oxygenRefillSignContext.textBaseline = "middle";
+      oxygenRefillSignContext.fillStyle = "rgba(162, 240, 255, 0.98)";
+      oxygenRefillSignContext.shadowColor = "rgba(34, 211, 238, 0.85)";
+      oxygenRefillSignContext.shadowBlur = 24;
+      oxygenRefillSignContext.fillText(
+        "OXYGEN REFILL",
+        oxygenRefillSignCanvas.width / 2,
+        oxygenRefillSignCanvas.height / 2
+      );
+      oxygenRefillSignContext.shadowBlur = 0;
+      oxygenRefillSignTexture = new THREE.CanvasTexture(oxygenRefillSignCanvas);
+      oxygenRefillSignTexture.colorSpace = THREE.SRGBColorSpace;
+      oxygenRefillSignTexture.minFilter = THREE.LinearFilter;
+      oxygenRefillSignTexture.magFilter = THREE.LinearFilter;
+      oxygenRefillSignTexture.anisotropy =
+        renderer.capabilities.getMaxAnisotropy();
+      oxygenRefillSignTexture.needsUpdate = true;
+    }
+
+    const oxygenRefillSignGroup = new THREE.Group();
+    oxygenRefillSignGroup.position.set(
+      oxygenChamberCenterX,
+      roomFloorY + Math.min(wallHeight - 0.46, oxygenChamberHeight * 0.74),
+      oxygenChamberCenterZ + oxygenChamberRadius + 0.08
+    );
+    group.add(oxygenRefillSignGroup);
+
+    const oxygenRefillSignBackplate = new THREE.Mesh(
+      new THREE.BoxGeometry(1.42, 0.46, 0.05),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0b1720),
+        roughness: 0.42,
+        metalness: 0.34,
+        emissive: new THREE.Color(0x07202c),
+        emissiveIntensity: 0.3,
+      })
+    );
+    oxygenRefillSignGroup.add(oxygenRefillSignBackplate);
+
+    const oxygenRefillSignPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.28, 0.34),
+      new THREE.MeshBasicMaterial({
+        map: oxygenRefillSignTexture,
+        transparent: true,
+        opacity: 0.96,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    oxygenRefillSignPanel.position.z = 0.028;
+    oxygenRefillSignGroup.add(oxygenRefillSignPanel);
+
+    const oxygenRefillSignLight = new THREE.PointLight(0x67e8f9, 0.75, 4.2, 2);
+    oxygenRefillSignLight.position.set(0, 0, 0.18);
+    oxygenRefillSignGroup.add(oxygenRefillSignLight);
+
+    const oxygenChamberRefillControl = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.36, 1.58),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    oxygenChamberRefillControl.position.set(
+      oxygenChamberCenterX,
+      roomFloorY + oxygenChamberHeight * 0.5,
+      oxygenChamberCenterZ + oxygenChamberRadius + 0.12
+    );
+    oxygenChamberRefillControl.userData.isOxygenRefillControl = true;
+    oxygenChamberRefillControl.userData.oxygenRefillId =
+      "operations-concourse-main";
+    group.add(oxygenChamberRefillControl);
+
     const oxygenChamberEffectsGroup = new THREE.Group();
     oxygenChamberEffectsGroup.position.set(
       oxygenChamberCenterX,
@@ -6567,6 +6672,14 @@ export const initScene = (
       { object: oxygenChamberShell, offset: oxygenChamberHeight / 2 },
       { object: oxygenChamberTopRing, offset: oxygenChamberHeight - 0.02 },
       { object: oxygenChamberBaseRing, offset: 0.04 },
+      {
+        object: oxygenRefillSignGroup,
+        offset: Math.min(wallHeight - 0.46, oxygenChamberHeight * 0.74),
+      },
+      {
+        object: oxygenChamberRefillControl,
+        offset: oxygenChamberHeight * 0.5,
+      },
       { object: oxygenChamberEffectsGroup, offset: 0 },
     ];
 
