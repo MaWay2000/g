@@ -6393,10 +6393,11 @@ export const initScene = (
 
     const oxygenRefillSignGroup = new THREE.Group();
     oxygenRefillSignGroup.position.set(
-      oxygenChamberCenterX,
+      wallSpanWidth / 2 - wallThickness - 0.06,
       roomFloorY + Math.min(wallHeight - 0.46, oxygenChamberHeight * 0.74),
-      oxygenChamberCenterZ + oxygenChamberRadius + 0.08
+      oxygenChamberCenterZ + oxygenChamberRadius * 0.2
     );
+    oxygenRefillSignGroup.rotation.y = -Math.PI / 2;
     group.add(oxygenRefillSignGroup);
 
     const oxygenRefillSignBackplate = new THREE.Mesh(
