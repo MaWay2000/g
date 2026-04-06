@@ -18401,6 +18401,22 @@ export const initScene = (
   const terrainGroundRaycaster = new THREE.Raycaster();
   const terrainGroundRayDirection = new THREE.Vector3(0, -1, 0);
   const terrainGroundRayOrigin = new THREE.Vector3();
+  const floorSurfaceSampleProbe = new THREE.Vector3();
+  const nestedSurfaceSampleProbe = new THREE.Vector3();
+  const nestedSurfaceSearchStack = [];
+  const floorSurfaceSamplerCache = new Map();
+  const PLAYER_GROUND_SAMPLE_RADIUS = Math.max(0.14, playerColliderRadius * 0.55);
+  const PLAYER_GROUND_SAMPLE_OFFSETS = [
+    [0, 0],
+    [PLAYER_GROUND_SAMPLE_RADIUS, 0],
+    [-PLAYER_GROUND_SAMPLE_RADIUS, 0],
+    [0, PLAYER_GROUND_SAMPLE_RADIUS],
+    [0, -PLAYER_GROUND_SAMPLE_RADIUS],
+    [PLAYER_GROUND_SAMPLE_RADIUS * 0.7071, PLAYER_GROUND_SAMPLE_RADIUS * 0.7071],
+    [PLAYER_GROUND_SAMPLE_RADIUS * 0.7071, -PLAYER_GROUND_SAMPLE_RADIUS * 0.7071],
+    [-PLAYER_GROUND_SAMPLE_RADIUS * 0.7071, PLAYER_GROUND_SAMPLE_RADIUS * 0.7071],
+    [-PLAYER_GROUND_SAMPLE_RADIUS * 0.7071, -PLAYER_GROUND_SAMPLE_RADIUS * 0.7071],
+  ];
   const getActiveFloorSurfaceHeight = (position) => {
     if (!position) {
       return null;
@@ -18413,13 +18429,94 @@ export const initScene = (
 
     const activeEnvironment = deckEnvironmentMap.get(activeFloorId);
     const activeGroup = activeEnvironment?.getGroup?.() ?? null;
-    const surfaceSampler = activeGroup?.userData?.getSurfaceYAtWorldPosition;
-    if (typeof surfaceSampler !== "function") {
+    if (!activeGroup?.isObject3D) {
       return null;
     }
 
-    const sampledSurfaceY = surfaceSampler(position.x, position.z);
-    return Number.isFinite(sampledSurfaceY) ? sampledSurfaceY : null;
+    const cachedSamplerEntry = floorSurfaceSamplerCache.get(activeFloorId);
+    let sampleSurfaceAtWorldPosition =
+      cachedSamplerEntry?.group === activeGroup &&
+      typeof cachedSamplerEntry.sample === "function"
+        ? cachedSamplerEntry.sample
+        : null;
+
+    if (typeof sampleSurfaceAtWorldPosition !== "function") {
+      const directSurfaceSampler = activeGroup?.userData?.getSurfaceYAtWorldPosition;
+      if (typeof directSurfaceSampler === "function") {
+        sampleSurfaceAtWorldPosition = (worldX, worldZ) =>
+          directSurfaceSampler(worldX, worldZ);
+      } else {
+        nestedSurfaceSearchStack.length = 0;
+        if (Array.isArray(activeGroup.children) && activeGroup.children.length > 0) {
+          nestedSurfaceSearchStack.push(...activeGroup.children);
+        }
+
+        while (nestedSurfaceSearchStack.length > 0) {
+          const candidate = nestedSurfaceSearchStack.pop();
+          if (!candidate?.isObject3D) {
+            continue;
+          }
+
+          const nestedSampler = candidate?.userData?.getSurfaceYAtWorldPosition;
+          if (typeof nestedSampler === "function") {
+            sampleSurfaceAtWorldPosition = (worldX, worldZ) => {
+              nestedSurfaceSampleProbe.set(worldX, roomFloorY, worldZ);
+              candidate.updateWorldMatrix(true, false);
+              candidate.worldToLocal(nestedSurfaceSampleProbe);
+              return nestedSampler(
+                nestedSurfaceSampleProbe.x,
+                nestedSurfaceSampleProbe.z
+              );
+            };
+            break;
+          }
+
+          if (Array.isArray(candidate.children) && candidate.children.length > 0) {
+            nestedSurfaceSearchStack.push(...candidate.children);
+          }
+        }
+      }
+
+      if (typeof sampleSurfaceAtWorldPosition === "function") {
+        floorSurfaceSamplerCache.set(activeFloorId, {
+          group: activeGroup,
+          sample: sampleSurfaceAtWorldPosition,
+        });
+      } else {
+        floorSurfaceSamplerCache.delete(activeFloorId);
+      }
+    }
+
+    if (typeof sampleSurfaceAtWorldPosition !== "function") {
+      return null;
+    }
+
+    // Sample a small footprint instead of only the center point. This prevents
+    // transient downhill fall-through when a single center sample dips into a
+    // gap/void while most of the player's body is still supported by terrain.
+    let highestSampledSurfaceY = null;
+    for (const [offsetX, offsetZ] of PLAYER_GROUND_SAMPLE_OFFSETS) {
+      floorSurfaceSampleProbe.set(position.x + offsetX, 0, position.z + offsetZ);
+      const sampledSurfaceY = sampleSurfaceAtWorldPosition(
+        floorSurfaceSampleProbe.x,
+        floorSurfaceSampleProbe.z
+      );
+
+      if (!Number.isFinite(sampledSurfaceY)) {
+        continue;
+      }
+
+      if (
+        !Number.isFinite(highestSampledSurfaceY) ||
+        sampledSurfaceY > highestSampledSurfaceY
+      ) {
+        highestSampledSurfaceY = sampledSurfaceY;
+      }
+    }
+
+    return Number.isFinite(highestSampledSurfaceY)
+      ? highestSampledSurfaceY
+      : null;
   };
 
   const getTerrainGroundHeight = (position) => {
