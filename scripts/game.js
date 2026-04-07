@@ -2300,7 +2300,7 @@ const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
   const GRAMS_PER_KILOGRAM = 1000;
   const DEFAULT_ELEMENT_WEIGHT_GRAMS = 1;
-  const INVENTORY_CAPACITY_GRAMS = 200 * GRAMS_PER_KILOGRAM;
+  const INVENTORY_CAPACITY_GRAMS = 10 * GRAMS_PER_KILOGRAM;
   const DRONE_MINER_MAX_PAYLOAD_KG = 1;
   const DRONE_MINER_MAX_PAYLOAD_GRAMS =
     DRONE_MINER_MAX_PAYLOAD_KG * GRAMS_PER_KILOGRAM;
@@ -4947,6 +4947,70 @@ const COSTUME_RESEARCH_PROJECTS = Object.freeze([
       { element: { symbol: "Be", name: "Beryllium" }, count: 11 },
     ],
   },
+  {
+    id: "cargo-spine-harness-i",
+    label: "Cargo Spine Harness I",
+    description: "Adds a lightweight load spine so the suit can carry more recovered material.",
+    inventoryCapacityBonusKg: 8,
+    researchDurationMinutes: 5,
+    researchRequirements: [
+      { element: { symbol: "Ti", name: "Titanium" }, count: 2 },
+      { element: { symbol: "Ni", name: "Nickel" }, count: 2 },
+      { element: { symbol: "Cr", name: "Chromium" }, count: 1 },
+    ],
+  },
+  {
+    id: "cargo-spine-harness-ii",
+    label: "Cargo Spine Harness II",
+    description: "Reinforces the suit frame with a heavier cargo lattice for longer salvage runs.",
+    inventoryCapacityBonusKg: 8,
+    requiredProjectId: "cargo-spine-harness-i",
+    researchDurationMinutes: 25,
+    researchRequirements: [
+      { element: { symbol: "Ti", name: "Titanium" }, count: 10 },
+      { element: { symbol: "Ni", name: "Nickel" }, count: 10 },
+      { element: { symbol: "Cr", name: "Chromium" }, count: 5 },
+    ],
+  },
+  {
+    id: "cargo-spine-harness-iii",
+    label: "Cargo Spine Harness III",
+    description: "Balances the support struts so extra payload stays stable while moving.",
+    inventoryCapacityBonusKg: 8,
+    requiredProjectId: "cargo-spine-harness-ii",
+    researchDurationMinutes: 35,
+    researchRequirements: [
+      { element: { symbol: "Ti", name: "Titanium" }, count: 14 },
+      { element: { symbol: "Ni", name: "Nickel" }, count: 14 },
+      { element: { symbol: "Cr", name: "Chromium" }, count: 7 },
+    ],
+  },
+  {
+    id: "cargo-spine-harness-iv",
+    label: "Cargo Spine Harness IV",
+    description: "Adds industrial-grade bracing for heavy field inventory loads.",
+    inventoryCapacityBonusKg: 8,
+    requiredProjectId: "cargo-spine-harness-iii",
+    researchDurationMinutes: 45,
+    researchRequirements: [
+      { element: { symbol: "Ti", name: "Titanium" }, count: 18 },
+      { element: { symbol: "Ni", name: "Nickel" }, count: 18 },
+      { element: { symbol: "Cr", name: "Chromium" }, count: 9 },
+    ],
+  },
+  {
+    id: "cargo-spine-harness-v",
+    label: "Cargo Spine Harness V",
+    description: "Completes the suit's full heavy-haul cargo harness package.",
+    inventoryCapacityBonusKg: 8,
+    requiredProjectId: "cargo-spine-harness-iv",
+    researchDurationMinutes: 60,
+    researchRequirements: [
+      { element: { symbol: "Ti", name: "Titanium" }, count: 22 },
+      { element: { symbol: "Ni", name: "Nickel" }, count: 22 },
+      { element: { symbol: "Cr", name: "Chromium" }, count: 11 },
+    ],
+  },
 ]);
 const DRONE_LIGHT_MODEL_ID = "scout";
 const DRONE_MEDIUM_MODEL_ID = "rover";
@@ -5067,6 +5131,9 @@ const getCostumeMoveSpeedMultiplier = () =>
 
 const getCostumeJumpMultiplier = () =>
   Math.min(2, Math.max(1, 1 + getCostumeResearchBonusSum("jumpBonus")));
+
+const getCostumeInventoryCapacityBonusKg = () =>
+  Math.max(0, getCostumeResearchBonusSum("inventoryCapacityBonusKg"));
 
 const getPlayerOxygenMaxPercent = () =>
   Math.max(PLAYER_OXYGEN_BASE_MAX_PERCENT, Math.round(
@@ -8748,13 +8815,21 @@ const formatCostumeResearchEffectLabel = (project) => {
   if (Number.isFinite(project?.jumpBonus) && project.jumpBonus > 0) {
     return `Jump height +${Math.round(project.jumpBonus * 100)}%`;
   }
+  if (
+    Number.isFinite(project?.inventoryCapacityBonusKg) &&
+    project.inventoryCapacityBonusKg > 0
+  ) {
+    return `Inventory capacity +${formatKilograms(project.inventoryCapacityBonusKg)}`;
+  }
   return "Permanent suit upgrade.";
 };
 
 const getCostumeResearchSummaryText = () =>
   `O2 max ${getCostumeMaxOxygenMultiplier().toFixed(2)}x • O2 use ${getCostumeOxygenConsumptionMultiplier().toFixed(
     2
-  )}x • Speed ${getCostumeMoveSpeedMultiplier().toFixed(2)}x • Jump ${getCostumeJumpMultiplier().toFixed(2)}x`;
+  )}x • Speed ${getCostumeMoveSpeedMultiplier().toFixed(2)}x • Jump ${getCostumeJumpMultiplier().toFixed(2)}x • Inventory ${formatKilograms(
+    getInventoryCapacityKg()
+  )}`;
 
 const getCostumeCraftRequirements = (project) =>
   Array.isArray(project?.craftRequirements) && project.craftRequirements.length > 0
@@ -9983,7 +10058,7 @@ const renderCostumeResearchPanel = (panel) => {
   const hint = document.createElement("p");
   hint.className = "crafting-panel__hint";
   hint.textContent =
-    "Research suit blueprints here, move them to Inventory > Items, then load them into the Crafting Table outside. Crafted suit upgrades become active when moved to Inventory. Each family has 5 sequential tiers.";
+    "Research suit blueprints here, move them to Inventory > Items, then load them into the Crafting Table outside. Crafted suit upgrades stay in Inventory > Items until you install them in Costume Setup. Each family has 5 sequential tiers, and inventory capacity can reach 50 kg total.";
   panel.appendChild(hint);
 
   if (COSTUME_RESEARCH_PROJECTS.length === 0) {
@@ -14947,12 +15022,18 @@ const getDroneFuelSlotIndex = (slot) => {
 };
 
 const getInventoryCapacityKg = () => {
-  const capacity = inventoryState.capacityKg;
-  if (Number.isFinite(capacity) && capacity > 0) {
-    return capacity;
+  const baseCapacity = inventoryState.capacityKg;
+  const resolvedBaseCapacity =
+    Number.isFinite(baseCapacity) && baseCapacity > 0
+      ? baseCapacity
+      : DEFAULT_INVENTORY_CAPACITY_KG;
+  const costumeCapacityBonusKg = getCostumeInventoryCapacityBonusKg();
+
+  if (Number.isFinite(resolvedBaseCapacity) && resolvedBaseCapacity > 0) {
+    return resolvedBaseCapacity + costumeCapacityBonusKg;
   }
 
-  return DEFAULT_INVENTORY_CAPACITY_KG;
+  return DEFAULT_INVENTORY_CAPACITY_KG + costumeCapacityBonusKg;
 };
 
 const getInventoryCapacityGrams = () => {
