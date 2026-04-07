@@ -4492,7 +4492,7 @@ const quickAccessModalLayoutState = {
   width: 0,
   height: 0,
 };
-const RESEARCH_MODAL_TAB_IDS = Object.freeze(["costume", "drone"]);
+const RESEARCH_MODAL_TAB_IDS = Object.freeze(["costume", "drone", "digger"]);
 const RESEARCH_MODAL_DEFAULT_TAB_ID = "drone";
 let researchModalActiveTab = RESEARCH_MODAL_DEFAULT_TAB_ID;
 const CRAFTING_TABLE_TAB_IDS = Object.freeze(["costume", "drone"]);
@@ -8014,6 +8014,7 @@ const getResearchModalElements = () => {
       tabButtons: [],
       costumePanel: null,
       dronePanel: null,
+      diggerPanel: null,
       summary: null,
       partList: null,
     };
@@ -8029,6 +8030,9 @@ const getResearchModalElements = () => {
   let dronePanel = quickAccessModalContent.querySelector(
     '[data-research-tab-panel="drone"]'
   );
+  let diggerPanel = quickAccessModalContent.querySelector(
+    '[data-research-tab-panel="digger"]'
+  );
   let summary = quickAccessModalContent.querySelector("[data-research-summary]");
   let partList = quickAccessModalContent.querySelector("[data-research-part-list]");
 
@@ -8037,6 +8041,7 @@ const getResearchModalElements = () => {
     tabButtons.length !== RESEARCH_MODAL_TAB_IDS.length ||
     !(costumePanel instanceof HTMLElement) ||
     !(dronePanel instanceof HTMLElement) ||
+    !(diggerPanel instanceof HTMLElement) ||
     !(summary instanceof HTMLElement) ||
     !(partList instanceof HTMLElement)
   ) {
@@ -8044,7 +8049,7 @@ const getResearchModalElements = () => {
     const subtitle = header?.querySelector(".quick-access-modal__subtitle");
     if (subtitle instanceof HTMLElement) {
       subtitle.textContent =
-        "Unlock suit upgrades and drone blueprints before they can be activated in the field.";
+        "Unlock suit upgrades, digger tech, and drone blueprints before they can be activated in the field.";
     }
 
     panel = document.createElement("section");
@@ -8065,7 +8070,8 @@ const getResearchModalElements = () => {
       button.id = `research-tab-${tabId}`;
       button.setAttribute("role", "tab");
       button.setAttribute("aria-controls", `research-panel-${tabId}`);
-      button.textContent = tabId === "costume" ? "Costume" : "Drone";
+      button.textContent =
+        tabId === "costume" ? "Costume" : tabId === "drone" ? "Drone" : "Digger";
       tabs.appendChild(button);
       return button;
     });
@@ -8117,6 +8123,26 @@ const getResearchModalElements = () => {
     dronePanel.appendChild(partList);
     panel.appendChild(dronePanel);
 
+    diggerPanel = document.createElement("div");
+    diggerPanel.className = "research-panel__tab-content crafting-panel";
+    diggerPanel.dataset.researchTabPanel = "digger";
+    diggerPanel.id = "research-panel-digger";
+    diggerPanel.setAttribute("role", "tabpanel");
+    diggerPanel.setAttribute("aria-labelledby", "research-tab-digger");
+
+    const diggerHint = document.createElement("p");
+    diggerHint.className = "crafting-panel__hint";
+    diggerHint.textContent =
+      "Research digger blueprints here once excavation upgrades are added. This tab is ready for the next tool progression branch.";
+    diggerPanel.appendChild(diggerHint);
+
+    const diggerEmpty = document.createElement("p");
+    diggerEmpty.className = "research-panel__empty";
+    diggerEmpty.dataset.researchDiggerEmpty = "true";
+    diggerEmpty.textContent = "No digger research projects available yet.";
+    diggerPanel.appendChild(diggerEmpty);
+    panel.appendChild(diggerPanel);
+
     if (header instanceof HTMLElement) {
       header.insertAdjacentElement("afterend", panel);
     } else {
@@ -8129,6 +8155,7 @@ const getResearchModalElements = () => {
     tabButtons,
     costumePanel,
     dronePanel,
+    diggerPanel,
     summary,
     partList,
   };
@@ -10100,8 +10127,33 @@ const renderCostumeResearchPanel = (panel) => {
   panel.appendChild(grid);
 };
 
+const renderDiggerResearchPanel = (panel) => {
+  if (!(panel instanceof HTMLElement)) {
+    return;
+  }
+
+  panel.classList.add("crafting-panel");
+  panel.innerHTML = "";
+
+  const summary = document.createElement("p");
+  summary.className = "crafting-panel__summary";
+  summary.textContent = "Loaded 0/0 • Inventory 0 • Ready 0 • Lab idle";
+  panel.appendChild(summary);
+
+  const hint = document.createElement("p");
+  hint.className = "crafting-panel__hint";
+  hint.textContent =
+    "Digger research will live here next. We can use this branch for excavation speed, yield quality, terrain penetration, and rare-node scanning upgrades.";
+  panel.appendChild(hint);
+
+  const empty = document.createElement("p");
+  empty.className = "research-panel__empty";
+  empty.textContent = "No digger research projects available yet.";
+  panel.appendChild(empty);
+};
+
 const syncResearchModalTabState = () => {
-  const { tabButtons, costumePanel, dronePanel } = getResearchModalElements();
+  const { tabButtons, costumePanel, dronePanel, diggerPanel } = getResearchModalElements();
   const activeTab = RESEARCH_MODAL_TAB_IDS.includes(researchModalActiveTab)
     ? researchModalActiveTab
     : RESEARCH_MODAL_DEFAULT_TAB_ID;
@@ -10119,6 +10171,9 @@ const syncResearchModalTabState = () => {
   if (dronePanel instanceof HTMLElement) {
     dronePanel.hidden = activeTab !== "drone";
   }
+  if (diggerPanel instanceof HTMLElement) {
+    diggerPanel.hidden = activeTab !== "digger";
+  }
 };
 
 const renderResearchModal = () => {
@@ -10129,7 +10184,7 @@ const renderResearchModal = () => {
   finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
   finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
 
-  const { costumePanel, summary, partList } = getResearchModalElements();
+  const { costumePanel, diggerPanel, summary, partList } = getResearchModalElements();
   const activeResearchJob = getResearchLabActiveJob();
   const progressState = getResearchLabJobProgressState(activeResearchJob);
   const loadedCount = DRONE_CRAFTING_PARTS.filter((part) =>
@@ -10144,6 +10199,7 @@ const renderResearchModal = () => {
 
   syncResearchModalTabState();
   renderCostumeResearchPanel(costumePanel);
+  renderDiggerResearchPanel(diggerPanel);
 
   if (summary instanceof HTMLElement) {
     const summarySegments = [
