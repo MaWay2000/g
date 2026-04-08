@@ -5448,9 +5448,18 @@ const getCostumeResearchRequiredProject = (project) => {
   return requiredProjectId ? getCostumeResearchProjectById(requiredProjectId) : null;
 };
 
+const hasCostumeProjectResearchProgress = (projectId) =>
+  typeof projectId === "string" &&
+  (isCostumeResearchProjectCompleted(projectId) ||
+    isCostumeResearchProjectCrafted(projectId) ||
+    isCostumeCraftingProjectReadyToClaim(projectId) ||
+    isCostumeResearchBlueprintLoaded(projectId) ||
+    isCostumeResearchBlueprintInInventory(projectId) ||
+    isCostumeResearchBlueprintReadyToClaim(projectId));
+
 const isCostumeResearchProjectUnlocked = (project) => {
   const requiredProject = getCostumeResearchRequiredProject(project);
-  return !requiredProject || isCostumeResearchProjectCompleted(requiredProject.id);
+  return !requiredProject || hasCostumeProjectResearchProgress(requiredProject.id);
 };
 
 const isCostumeResearchProjectCompleted = (projectId) =>
