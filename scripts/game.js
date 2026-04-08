@@ -5080,13 +5080,129 @@ const costumeResearchState = {
   activeCraftJob: null,
 };
 const COSTUME_RESEARCH_PROGRESS_UPDATE_MS = 1000;
-const COSTUME_MODULE_BASE_MIN_MULTIPLIER = 0.8;
-const COSTUME_MODULE_BASE_MAX_MULTIPLIER = 1.2;
-const COSTUME_MODULE_LUCKY_CHANCE = 0.18;
-const COSTUME_MODULE_LUCKY_EXTRA_MIN_MULTIPLIER = 0.15;
-const COSTUME_MODULE_LUCKY_EXTRA_MAX_MULTIPLIER = 0.35;
 const COSTUME_MODULE_PERCENT_STEP = 0.01;
 const COSTUME_MODULE_CAPACITY_STEP_KG = 0.5;
+const COSTUME_MODULE_RARITY_TIERS = [
+  {
+    id: "normal",
+    label: "Standard",
+    badgeLabel: "",
+    starsText: "",
+    chance: 0,
+    rank: 0,
+    minMultiplier: 0.8,
+    maxMultiplier: 1.2,
+  },
+  {
+    id: "lucky",
+    label: "Lucky",
+    badgeLabel: "Lucky",
+    starsText: "★",
+    chance: 0.18,
+    rank: 1,
+    minMultiplier: 1.22,
+    maxMultiplier: 1.45,
+  },
+  {
+    id: "super-lucky",
+    label: "Super Lucky",
+    badgeLabel: "Super Lucky",
+    starsText: "★★",
+    chance: 0.06,
+    rank: 2,
+    minMultiplier: 1.46,
+    maxMultiplier: 1.72,
+  },
+  {
+    id: "extreme-lucky",
+    label: "Extreme Lucky",
+    badgeLabel: "Extreme Lucky",
+    starsText: "★★★",
+    chance: 0.02,
+    rank: 3,
+    minMultiplier: 1.73,
+    maxMultiplier: 2.02,
+  },
+  {
+    id: "mega-lucky",
+    label: "Mega Lucky",
+    badgeLabel: "Mega Lucky",
+    starsText: "★★★★",
+    chance: 0.006,
+    rank: 4,
+    minMultiplier: 2.03,
+    maxMultiplier: 2.36,
+  },
+  {
+    id: "insane",
+    label: "Insane",
+    badgeLabel: "Insane",
+    starsText: "★★★★★",
+    chance: 0.0015,
+    rank: 5,
+    minMultiplier: 2.37,
+    maxMultiplier: 2.8,
+  },
+];
+const COSTUME_MODULE_RARITY_BY_ID = new Map(
+  COSTUME_MODULE_RARITY_TIERS.map((tier) => [tier.id, tier])
+);
+const COSTUME_MODULE_SPECIAL_RARITY_TIERS = COSTUME_MODULE_RARITY_TIERS.filter(
+  (tier) => Number(tier?.chance) > 0
+);
+
+const normalizeCostumeModuleRarityId = (value, fallbackLucky = false) => {
+  if (
+    typeof value === "string" &&
+    COSTUME_MODULE_RARITY_BY_ID.has(value.trim().toLowerCase())
+  ) {
+    return value.trim().toLowerCase();
+  }
+
+  return fallbackLucky ? "lucky" : "normal";
+};
+
+const getCostumeModuleRarityDefinition = (value, fallbackLucky = false) =>
+  COSTUME_MODULE_RARITY_BY_ID.get(
+    normalizeCostumeModuleRarityId(value, fallbackLucky)
+  ) ?? COSTUME_MODULE_RARITY_BY_ID.get("normal");
+
+const getCostumeModuleRarityDisplayLabel = (value, fallbackLucky = false) => {
+  const tier = getCostumeModuleRarityDefinition(value, fallbackLucky);
+  return tier?.starsText
+    ? `${tier.badgeLabel} ${tier.starsText}`
+    : tier?.badgeLabel || "";
+};
+
+const createCostumeModuleRarityBadge = (module) => {
+  const tier = getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true);
+  if (!tier || tier.id === "normal") {
+    return null;
+  }
+
+  const badge = document.createElement("span");
+  badge.className = "costume-rarity-badge";
+  badge.dataset.rarity = tier.id;
+  badge.textContent = `${tier.badgeLabel} ${tier.starsText}`;
+  return badge;
+};
+
+const applyCostumeModuleTitleContent = (element, project, module) => {
+  if (!(element instanceof HTMLElement) || !project) {
+    return;
+  }
+
+  element.textContent = "";
+
+  const label = document.createElement("span");
+  label.textContent = project.label;
+  element.appendChild(label);
+
+  const badge = createCostumeModuleRarityBadge(module);
+  if (badge) {
+    element.appendChild(badge);
+  }
+};
 
 const getCostumeResearchProjectById = (projectId) =>
   COSTUME_RESEARCH_PROJECTS.find((project) => project.id === projectId) ?? null;
@@ -5184,6 +5300,16 @@ const formatCostumeEffectLabelFromBonus = (bonusKey, value) => {
   }
 };
 
+const formatCostumeEffectRangeShort = (bonusKey, minValue, maxValue) => {
+  const formattedMinValue = formatCostumeEffectValue(bonusKey, minValue);
+  const formattedMaxValue = formatCostumeEffectValue(bonusKey, maxValue);
+  const prefix =
+    bonusKey === "oxygenConsumptionReduction"
+      ? "-"
+      : "+";
+  return `${prefix}${formattedMinValue} to ${prefix}${formattedMaxValue}`;
+};
+
 const getCostumeProjectBonusRollRange = (project) => {
   const bonusKey = getCostumeProjectBonusKey(project);
   const baseValue = getCostumeProjectBonusBaseValue(project, bonusKey);
@@ -5191,29 +5317,40 @@ const getCostumeProjectBonusRollRange = (project) => {
     return null;
   }
 
-  const minValue = roundCostumeModuleBonusValue(
-    bonusKey,
-    baseValue * COSTUME_MODULE_BASE_MIN_MULTIPLIER
-  );
-  const maxValue = roundCostumeModuleBonusValue(
-    bonusKey,
-    baseValue * COSTUME_MODULE_BASE_MAX_MULTIPLIER
-  );
-  const luckyMaxValue = roundCostumeModuleBonusValue(
-    bonusKey,
-    baseValue *
-      (COSTUME_MODULE_BASE_MAX_MULTIPLIER + COSTUME_MODULE_LUCKY_EXTRA_MAX_MULTIPLIER)
-  );
+  const tierRanges = COSTUME_MODULE_RARITY_TIERS.map((tier) => {
+    const minValue = roundCostumeModuleBonusValue(
+      bonusKey,
+      baseValue * tier.minMultiplier
+    );
+    const maxValue = roundCostumeModuleBonusValue(
+      bonusKey,
+      baseValue * tier.maxMultiplier
+    );
+
+    return {
+      tier,
+      minValue:
+        minValue > 0 ? minValue : roundCostumeModuleBonusValue(bonusKey, baseValue),
+      maxValue:
+        maxValue > 0
+          ? maxValue
+          : roundCostumeModuleBonusValue(bonusKey, baseValue),
+    };
+  });
+  const standardRange =
+    tierRanges.find((entry) => entry?.tier?.id === "normal") ?? null;
+  const specialRanges = tierRanges.filter((entry) => entry?.tier?.id !== "normal");
+  const highestRange = specialRanges[specialRanges.length - 1] ?? standardRange;
 
   return {
     bonusKey,
-    minValue:
-      minValue > 0 ? minValue : roundCostumeModuleBonusValue(bonusKey, baseValue),
-    maxValue: Math.max(maxValue, minValue > 0 ? minValue : baseValue),
-    luckyMaxValue: Math.max(
-      luckyMaxValue,
-      maxValue > 0 ? maxValue : roundCostumeModuleBonusValue(bonusKey, baseValue)
-    ),
+    minValue: standardRange?.minValue ?? roundCostumeModuleBonusValue(bonusKey, baseValue),
+    maxValue:
+      standardRange?.maxValue ?? roundCostumeModuleBonusValue(bonusKey, baseValue),
+    highestSpecialMaxValue:
+      highestRange?.maxValue ?? roundCostumeModuleBonusValue(bonusKey, baseValue),
+    tierRanges,
+    specialRanges,
   };
 };
 
@@ -5255,21 +5392,21 @@ const rollCostumeProjectBonus = (project) => {
     return null;
   }
 
-  const lucky = Math.random() < COSTUME_MODULE_LUCKY_CHANCE;
-  let bonusValue =
-    baseValue *
-    (COSTUME_MODULE_BASE_MIN_MULTIPLIER +
-      Math.random() *
-        (COSTUME_MODULE_BASE_MAX_MULTIPLIER - COSTUME_MODULE_BASE_MIN_MULTIPLIER));
-
-  if (lucky) {
-    bonusValue +=
-      baseValue *
-      (COSTUME_MODULE_LUCKY_EXTRA_MIN_MULTIPLIER +
-        Math.random() *
-          (COSTUME_MODULE_LUCKY_EXTRA_MAX_MULTIPLIER -
-            COSTUME_MODULE_LUCKY_EXTRA_MIN_MULTIPLIER));
+  let resolvedRarityTier = COSTUME_MODULE_RARITY_BY_ID.get("normal");
+  let rarityRoll = Math.random();
+  for (const tier of COSTUME_MODULE_SPECIAL_RARITY_TIERS) {
+    rarityRoll -= Number(tier?.chance) || 0;
+    if (rarityRoll < 0) {
+      resolvedRarityTier = tier;
+      break;
+    }
   }
+
+  const bonusValue =
+    baseValue *
+    (resolvedRarityTier.minMultiplier +
+      Math.random() *
+        (resolvedRarityTier.maxMultiplier - resolvedRarityTier.minMultiplier));
 
   const roundedValue = roundCostumeModuleBonusValue(bonusKey, bonusValue);
   return {
@@ -5278,7 +5415,8 @@ const rollCostumeProjectBonus = (project) => {
       roundedValue > 0
         ? roundedValue
         : roundCostumeModuleBonusValue(bonusKey, baseValue),
-    lucky,
+    rarityId: resolvedRarityTier.id,
+    lucky: resolvedRarityTier.id !== "normal",
   };
 };
 
@@ -5313,8 +5451,17 @@ const createCostumeModuleInstance = (project, options = {}) => {
     projectId: resolvedProject.id,
     bonusKey,
     bonusValue,
+    rarityId: normalizeCostumeModuleRarityId(
+      options?.rarityId ?? options?.rarity,
+      typeof options?.lucky === "boolean" ? options.lucky : rolledBonus?.lucky === true
+    ),
     lucky:
-      typeof options?.lucky === "boolean" ? options.lucky : Boolean(rolledBonus?.lucky),
+      typeof options?.lucky === "boolean"
+        ? options.lucky
+        : normalizeCostumeModuleRarityId(
+            options?.rarityId ?? options?.rarity,
+            rolledBonus?.lucky === true
+          ) !== "normal",
     createdAtMs:
       Number.isFinite(options?.createdAtMs) && options.createdAtMs > 0
         ? Math.floor(options.createdAtMs)
@@ -5362,7 +5509,10 @@ const normalizeCostumeModuleInstance = (rawModule, fallbackProjectId = null) => 
     projectId: project.id,
     bonusKey,
     bonusValue,
-    lucky: rawModule.lucky === true,
+    rarityId: normalizeCostumeModuleRarityId(rawModule.rarityId, rawModule.lucky === true),
+    lucky:
+      normalizeCostumeModuleRarityId(rawModule.rarityId, rawModule.lucky === true) !==
+      "normal",
     createdAtMs:
       Number.isFinite(rawModule.createdAtMs) && rawModule.createdAtMs > 0
         ? Math.floor(rawModule.createdAtMs)
@@ -5417,7 +5567,9 @@ const getCostumeModuleSortScore = (module) => {
     return 0;
   }
   const bonusValue = Number(module.bonusValue) || 0;
-  return bonusValue + (module.lucky ? 0.0001 : 0);
+  const rarityRank =
+    getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
+  return bonusValue + rarityRank * 0.0001;
 };
 
 const compareCostumeModules = (left, right) => {
@@ -8464,7 +8616,7 @@ const getResearchModalElements = () => {
     const costumeHint = document.createElement("p");
     costumeHint.className = "crafting-panel__hint";
     costumeHint.textContent =
-      "Research suit blueprints here, then move them to Inventory > Items before loading them into the Crafting Table. Crafted suit modules roll random bonuses, and lucky rolls can come out stronger.";
+      "Research suit blueprints here, then move them to Inventory > Items before loading them into the Crafting Table. Crafted suit modules roll random bonuses, and rarity tiers can come out much stronger.";
     costumePanel.appendChild(costumeHint);
 
     const costumeEmpty = document.createElement("p");
@@ -9209,21 +9361,35 @@ const formatCostumeResearchEffectLabel = (project) => {
     return "Permanent suit upgrade.";
   }
 
-  const minValue = formatCostumeEffectValue(range.bonusKey, range.minValue);
-  const maxValue = formatCostumeEffectValue(range.bonusKey, range.maxValue);
-  const luckyValue = formatCostumeEffectValue(range.bonusKey, range.luckyMaxValue);
+  const baseRangeLabel = formatCostumeEffectRangeShort(
+    range.bonusKey,
+    range.minValue,
+    range.maxValue
+  );
+  const rarityLabels = Array.isArray(range.specialRanges)
+    ? range.specialRanges.map(
+        ({ tier, minValue, maxValue }) =>
+          `${tier.badgeLabel} ${tier.starsText} ${formatCostumeEffectRangeShort(
+            range.bonusKey,
+            minValue,
+            maxValue
+          )}`
+      )
+    : [];
+  const raritySummary =
+    rarityLabels.length > 0 ? ` Rarity tiers: ${rarityLabels.join(" • ")}.` : "";
 
   switch (range.bonusKey) {
     case "maxOxygenBonus":
-      return `Max oxygen +${minValue} to +${maxValue} (lucky up to +${luckyValue})`;
+      return `Max oxygen ${baseRangeLabel}.${raritySummary}`;
     case "oxygenConsumptionReduction":
-      return `Oxygen consumption -${minValue} to -${maxValue} (lucky up to -${luckyValue})`;
+      return `Oxygen consumption ${baseRangeLabel}.${raritySummary}`;
     case "moveSpeedBonus":
-      return `Move speed +${minValue} to +${maxValue} (lucky up to +${luckyValue})`;
+      return `Move speed ${baseRangeLabel}.${raritySummary}`;
     case "jumpBonus":
-      return `Jump height +${minValue} to +${maxValue} (lucky up to +${luckyValue})`;
+      return `Jump height ${baseRangeLabel}.${raritySummary}`;
     case "inventoryCapacityBonusKg":
-      return `Inventory capacity +${minValue} to +${maxValue} (lucky up to +${luckyValue})`;
+      return `Inventory capacity ${baseRangeLabel}.${raritySummary}`;
     default:
       return "Permanent suit upgrade.";
   }
@@ -9235,7 +9401,11 @@ const formatCostumeModuleEffectLabel = (module) => {
   }
 
   const effectLabel = formatCostumeEffectLabelFromBonus(module.bonusKey, module.bonusValue);
-  return module.lucky ? `${effectLabel} • Lucky roll` : effectLabel;
+  const rarityLabel = getCostumeModuleRarityDisplayLabel(
+    module?.rarityId,
+    module?.lucky === true
+  );
+  return rarityLabel ? `${effectLabel} • ${rarityLabel}` : effectLabel;
 };
 
 const getCostumeResearchSummaryText = () => {
@@ -10480,7 +10650,7 @@ const renderCostumeResearchPanel = (panel) => {
   const hint = document.createElement("p");
   hint.className = "crafting-panel__hint";
   hint.textContent =
-    "Research suit blueprints here, move them to Inventory > Items, then load them into the Crafting Table outside. Crafted suit modules stay in Inventory > Items until you install them in Costume Setup. Each craft rolls a random bonus, lucky rolls can push higher, and you can craft the same researched blueprint multiple times to chase better stats.";
+    "Research suit blueprints here, move them to Inventory > Items, then load them into the Crafting Table outside. Crafted suit modules stay in Inventory > Items until you install them in Costume Setup. Each craft rolls a random bonus, rarity tiers can push much higher, and you can craft the same researched blueprint multiple times to chase better stats.";
   panel.appendChild(hint);
 
   if (COSTUME_RESEARCH_PROJECTS.length === 0) {
@@ -11721,7 +11891,7 @@ const renderCraftingTableModal = () => {
   if (hint instanceof HTMLElement) {
     hint.textContent =
       activeTab === "costume"
-        ? "Research blueprints in Command Center first. Craft time = total required material weight (1g = 1s). Each crafted suit module rolls a random bonus, with a lucky chance for extra stats. Finished modules must be installed in Costume Setup."
+        ? "Research blueprints in Command Center first. Craft time = total required material weight (1g = 1s). Each crafted suit module rolls a random bonus, with rarity tiers that can push extra stats. Finished modules must be installed in Costume Setup."
         : "Craft time = total required material weight (1g = 1s). When complete, move the part to Inventory.";
   }
 
@@ -12292,7 +12462,7 @@ const createCostumeSetupPanelItem = ({ module, action, actionLabel }) => {
   const body = document.createElement("div");
   const title = document.createElement("p");
   title.className = "drone-parts-panel__item-title";
-  title.textContent = module?.lucky ? `${project.label} • Lucky` : project.label;
+  applyCostumeModuleTitleContent(title, project, module);
   body.appendChild(title);
 
   const meta = document.createElement("p");
@@ -16308,7 +16478,7 @@ const renderInventoryItemsEntries = () => {
 
     const title = document.createElement("p");
     title.className = "inventory-items-list__title";
-    title.textContent = module?.lucky ? `${project.label} • Lucky` : project.label;
+    applyCostumeModuleTitleContent(title, project, module);
     item.appendChild(title);
 
     const meta = document.createElement("p");
@@ -16332,7 +16502,7 @@ const renderInventoryItemsEntries = () => {
 
     const title = document.createElement("p");
     title.className = "inventory-items-list__title";
-    title.textContent = module?.lucky ? `${project.label} • Lucky` : project.label;
+    applyCostumeModuleTitleContent(title, project, module);
     item.appendChild(title);
 
     const meta = document.createElement("p");
@@ -16949,6 +17119,7 @@ const serializeDroneCraftingStateForPersistence = () => {
       projectId: module.projectId,
       bonusKey: module.bonusKey,
       bonusValue: module.bonusValue,
+      rarityId: module.rarityId,
       lucky: module.lucky,
       createdAtMs: module.createdAtMs,
     }));
@@ -16961,6 +17132,7 @@ const serializeDroneCraftingStateForPersistence = () => {
       projectId: module.projectId,
       bonusKey: module.bonusKey,
       bonusValue: module.bonusValue,
+      rarityId: module.rarityId,
       lucky: module.lucky,
       createdAtMs: module.createdAtMs,
     }));
@@ -16973,6 +17145,7 @@ const serializeDroneCraftingStateForPersistence = () => {
       projectId: module.projectId,
       bonusKey: module.bonusKey,
       bonusValue: module.bonusValue,
+      rarityId: module.rarityId,
       lucky: module.lucky,
       createdAtMs: module.createdAtMs,
     }));
