@@ -16391,6 +16391,10 @@ export const initScene = (
     thirdPersonCameraOccluderMeshes.length = 0;
     thirdPersonCameraOccluderSeen.clear();
 
+    if (hangarDeckEnvironmentGroup?.visible !== false) {
+      collectThirdPersonCameraOccludersFromRoot(hangarDeckEnvironmentGroup);
+    }
+
     deckEnvironmentMap.forEach((environment) => {
       const root = environment?.getGroup?.() ?? null;
       collectThirdPersonCameraOccludersFromRoot(root);
