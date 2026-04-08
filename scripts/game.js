@@ -11404,7 +11404,23 @@ const createCostumeCraftingTableProjectCard = (project) => {
     }
   } else if (readyToClaim) {
     craftButton.dataset.craftingCostumeAction = "claim";
-    craftButton.textContent = "Move to inventory";
+    const readyModuleToClaim = readyModules[0] ?? null;
+    if (readyModuleToClaim) {
+      const buttonLabel = document.createElement("span");
+      buttonLabel.className = "crafting-panel__button-label";
+      buttonLabel.textContent = "Move to inventory";
+
+      const buttonDetail = document.createElement("span");
+      buttonDetail.className = "crafting-panel__button-detail";
+      buttonDetail.textContent = formatCostumeModuleEffectLabel(readyModuleToClaim);
+
+      craftButton.replaceChildren(buttonLabel, buttonDetail);
+      craftButton.title = `Move crafted module to inventory: ${formatCostumeModuleEffectLabel(
+        readyModuleToClaim
+      )}`;
+    } else {
+      craftButton.textContent = "Move to inventory";
+    }
     craftButton.disabled = false;
   } else if (craftingThisProject) {
       craftButton.textContent = "Crafting...";
