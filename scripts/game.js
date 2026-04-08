@@ -9662,7 +9662,10 @@ const startCostumeResearch = (projectId) => {
   }
 
   const requirementStates = getCostumeResearchRequirementStates(project);
-  const missingRequirement = requirementStates.find((state) => !state.ready);
+  const materialCostsBypassed = isResearchAndCraftingCostBypassed();
+  const missingRequirement = materialCostsBypassed
+    ? null
+    : requirementStates.find((state) => !state.ready);
   if (missingRequirement) {
     showTerminalToast({
       title: "Missing research materials",
@@ -9674,18 +9677,20 @@ const startCostumeResearch = (projectId) => {
     return false;
   }
 
-  for (const requirementState of requirementStates) {
-    const spent = spendInventoryResource(
-      requirementState.requirement?.element,
-      requirementState.needed
-    );
-    if (!spent) {
-      showTerminalToast({
-        title: "Research failed",
-        description: "Inventory changed while starting the experiment. Try again.",
-      });
-      refreshResearchModalIfOpen();
-      return false;
+  if (!materialCostsBypassed) {
+    for (const requirementState of requirementStates) {
+      const spent = spendInventoryResource(
+        requirementState.requirement?.element,
+        requirementState.needed
+      );
+      if (!spent) {
+        showTerminalToast({
+          title: "Research failed",
+          description: "Inventory changed while starting the experiment. Try again.",
+        });
+        refreshResearchModalIfOpen();
+        return false;
+      }
     }
   }
 
@@ -9720,7 +9725,7 @@ const startCostumeResearch = (projectId) => {
     title: `${project.label} started`,
     description: `Research time: ${formatDurationSeconds(
       researchDurationSeconds
-    )}. Materials were consumed by the lab.`,
+    )}.${materialCostsBypassed ? " God mode bypassed material costs." : " Materials were consumed by the lab."}`,
   });
   return true;
 };
@@ -9782,7 +9787,10 @@ const craftCostumeUpgradeProject = (projectId) => {
   }
 
   const requirementStates = getCostumeCraftRequirementStates(project);
-  const missingRequirement = requirementStates.find((state) => !state.ready);
+  const materialCostsBypassed = isResearchAndCraftingCostBypassed();
+  const missingRequirement = materialCostsBypassed
+    ? null
+    : requirementStates.find((state) => !state.ready);
   if (missingRequirement) {
     showTerminalToast({
       title: "Missing materials",
@@ -9794,18 +9802,20 @@ const craftCostumeUpgradeProject = (projectId) => {
     return false;
   }
 
-  for (const requirementState of requirementStates) {
-    const spent = spendInventoryResource(
-      requirementState.requirement?.element,
-      requirementState.needed
-    );
-    if (!spent) {
-      showTerminalToast({
-        title: "Crafting failed",
-        description: "Inventory changed while crafting. Try again.",
-      });
-      refreshCraftingTableModalIfOpen();
-      return false;
+  if (!materialCostsBypassed) {
+    for (const requirementState of requirementStates) {
+      const spent = spendInventoryResource(
+        requirementState.requirement?.element,
+        requirementState.needed
+      );
+      if (!spent) {
+        showTerminalToast({
+          title: "Crafting failed",
+          description: "Inventory changed while crafting. Try again.",
+        });
+        refreshCraftingTableModalIfOpen();
+        return false;
+      }
     }
   }
 
@@ -9850,7 +9860,7 @@ const craftCostumeUpgradeProject = (projectId) => {
     title: `${project.label} started`,
     description: `Crafting time: ${formatDurationSeconds(
       craftDurationSeconds
-    )}. Move it to Inventory after completion.`,
+    )}.${materialCostsBypassed ? " God mode bypassed material costs." : " Move it to Inventory after completion."}`,
   });
   return true;
 };
@@ -10010,19 +10020,29 @@ const formatCraftingElementName = (element) => {
   return "Unknown resource";
 };
 
+const isResearchAndCraftingCostBypassed = () => Boolean(currentSettings?.godMode);
+
+const createElementRequirementState = (requirement) => {
+  const needed = Number.isFinite(requirement?.count)
+    ? Math.max(1, Math.floor(requirement.count))
+    : 1;
+  const actualAvailable = getInventoryResourceCount(requirement?.element);
+  const bypassed = isResearchAndCraftingCostBypassed();
+  const available = bypassed ? Math.max(actualAvailable, needed) : actualAvailable;
+
+  return {
+    requirement,
+    needed,
+    available,
+    actualAvailable,
+    ready: bypassed || actualAvailable >= needed,
+  };
+};
+
 const getElementRequirementStates = (requirements) =>
-  (Array.isArray(requirements) ? requirements : []).map((requirement) => {
-    const needed = Number.isFinite(requirement?.count)
-      ? Math.max(1, Math.floor(requirement.count))
-      : 1;
-    const available = getInventoryResourceCount(requirement?.element);
-    return {
-      requirement,
-      needed,
-      available,
-      ready: available >= needed,
-    };
-  });
+  (Array.isArray(requirements) ? requirements : []).map((requirement) =>
+    createElementRequirementState(requirement)
+  );
 
 const getDroneResearchRequirementStates = (part) =>
   getElementRequirementStates(part?.researchRequirements);
@@ -10692,7 +10712,10 @@ const startDronePartResearch = (partId) => {
   }
 
   const requirementStates = getDroneResearchRequirementStates(part);
-  const missingRequirement = requirementStates.find((state) => !state.ready);
+  const materialCostsBypassed = isResearchAndCraftingCostBypassed();
+  const missingRequirement = materialCostsBypassed
+    ? null
+    : requirementStates.find((state) => !state.ready);
   if (missingRequirement) {
     showTerminalToast({
       title: "Missing research materials",
@@ -10704,18 +10727,20 @@ const startDronePartResearch = (partId) => {
     return false;
   }
 
-  for (const requirementState of requirementStates) {
-    const spent = spendInventoryResource(
-      requirementState.requirement?.element,
-      requirementState.needed
-    );
-    if (!spent) {
-      showTerminalToast({
-        title: "Research failed",
-        description: "Inventory changed while starting the experiment. Try again.",
-      });
-      renderResearchModal();
-      return false;
+  if (!materialCostsBypassed) {
+    for (const requirementState of requirementStates) {
+      const spent = spendInventoryResource(
+        requirementState.requirement?.element,
+        requirementState.needed
+      );
+      if (!spent) {
+        showTerminalToast({
+          title: "Research failed",
+          description: "Inventory changed while starting the experiment. Try again.",
+        });
+        renderResearchModal();
+        return false;
+      }
     }
   }
 
@@ -10751,7 +10776,7 @@ const startDronePartResearch = (partId) => {
     title: `${part.label} started`,
     description: `Research time: ${formatDurationSeconds(
       researchDurationSeconds
-    )}. Materials were consumed by the lab.`,
+    )}.${materialCostsBypassed ? " God mode bypassed material costs." : " Materials were consumed by the lab."}`,
   });
   return true;
 };
@@ -10931,18 +10956,7 @@ const getMediumDroneCraftRequirements = () => {
 };
 
 const getMediumDroneCraftRequirementStates = () =>
-  getMediumDroneCraftRequirements().map((requirement) => {
-    const needed = Number.isFinite(requirement?.count)
-      ? Math.max(1, Math.floor(requirement.count))
-      : 1;
-    const available = getInventoryResourceCount(requirement?.element);
-    return {
-      requirement,
-      needed,
-      available,
-      ready: available >= needed,
-    };
-  });
+  getElementRequirementStates(getMediumDroneCraftRequirements());
 
 const formatMediumDroneCraftRequirementProgress = (
   requirementStates,
@@ -11346,21 +11360,7 @@ const createCraftingTablePartCard = (part) => {
 
   const hideCraftingMaterialDetails = crafted || equipped || !researched;
 
-  const requirementStates = (Array.isArray(part.requirements) ? part.requirements : []).map(
-    (requirement) => {
-      const needed = Number.isFinite(requirement?.count)
-        ? Math.max(1, Math.floor(requirement.count))
-        : 1;
-      const available = getInventoryResourceCount(requirement?.element);
-      const ready = available >= needed;
-      return {
-        requirement,
-        needed,
-        available,
-        ready,
-      };
-    }
-  );
+  const requirementStates = getElementRequirementStates(part.requirements);
 
   if (!hideCraftingMaterialDetails) {
     const requirements = document.createElement("ul");
@@ -11867,41 +11867,37 @@ const craftDroneUpgradePart = (partId) => {
   }
 
   const requirements = Array.isArray(part.requirements) ? part.requirements : [];
-  const missingRequirement = requirements.find((requirement) => {
-    const needed = Number.isFinite(requirement?.count)
-      ? Math.max(1, Math.floor(requirement.count))
-      : 1;
-    const available = getInventoryResourceCount(requirement?.element);
-    return available < needed;
-  });
+  const requirementStates = getElementRequirementStates(requirements);
+  const materialCostsBypassed = isResearchAndCraftingCostBypassed();
+  const missingRequirementState = materialCostsBypassed
+    ? null
+    : requirementStates.find((state) => !state.ready);
 
-  if (missingRequirement) {
-    const needed = Number.isFinite(missingRequirement?.count)
-      ? Math.max(1, Math.floor(missingRequirement.count))
-      : 1;
-    const available = getInventoryResourceCount(missingRequirement?.element);
+  if (missingRequirementState) {
     showTerminalToast({
       title: "Missing materials",
       description: `${formatCraftingElementName(
-        missingRequirement.element
-      )}: ${available}/${needed}.`,
+        missingRequirementState.requirement?.element
+      )}: ${missingRequirementState.available}/${missingRequirementState.needed}.`,
     });
     renderCraftingTableModal();
     return false;
   }
 
-  for (const requirement of requirements) {
-    const needed = Number.isFinite(requirement?.count)
-      ? Math.max(1, Math.floor(requirement.count))
-      : 1;
-    const spent = spendInventoryResource(requirement?.element, needed);
-    if (!spent) {
-      showTerminalToast({
-        title: "Crafting failed",
-        description: "Inventory changed while crafting. Try again.",
-      });
-      renderCraftingTableModal();
-      return false;
+  if (!materialCostsBypassed) {
+    for (const requirementState of requirementStates) {
+      const spent = spendInventoryResource(
+        requirementState.requirement?.element,
+        requirementState.needed
+      );
+      if (!spent) {
+        showTerminalToast({
+          title: "Crafting failed",
+          description: "Inventory changed while crafting. Try again.",
+        });
+        renderCraftingTableModal();
+        return false;
+      }
     }
   }
 
@@ -14154,7 +14150,10 @@ const craftMediumDroneModelUnlock = () => {
   }
 
   const requirementStates = getMediumDroneCraftRequirementStates();
-  const missingRequirement = requirementStates.find((state) => !state.ready);
+  const materialCostsBypassed = isResearchAndCraftingCostBypassed();
+  const missingRequirement = materialCostsBypassed
+    ? null
+    : requirementStates.find((state) => !state.ready);
   if (missingRequirement) {
     showTerminalToast({
       title: "Missing materials",
@@ -14165,17 +14164,19 @@ const craftMediumDroneModelUnlock = () => {
     return false;
   }
 
-  for (const requirementState of requirementStates) {
-    const spent = spendInventoryResource(
-      requirementState.requirement?.element,
-      requirementState.needed
-    );
-    if (!spent) {
-      showTerminalToast({
-        title: "Crafting failed",
-        description: "Inventory changed while crafting. Try again.",
-      });
-      return false;
+  if (!materialCostsBypassed) {
+    for (const requirementState of requirementStates) {
+      const spent = spendInventoryResource(
+        requirementState.requirement?.element,
+        requirementState.needed
+      );
+      if (!spent) {
+        showTerminalToast({
+          title: "Crafting failed",
+          description: "Inventory changed while crafting. Try again.",
+        });
+        return false;
+      }
     }
   }
 
@@ -14195,9 +14196,11 @@ const craftMediumDroneModelUnlock = () => {
 
   showTerminalToast({
     title: "Rover unlocked",
-    description: `Medium drone model crafted (${formatGrams(
-      getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
-    )} total materials).`,
+    description: materialCostsBypassed
+      ? "God mode bypassed material costs. Rover is ready in Drone Setup > Model."
+      : `Medium drone model crafted (${formatGrams(
+          getCraftingRequirementsTotalWeightGrams(getMediumDroneCraftRequirements())
+        )} total materials).`,
   });
   showResourceToast({
     title: "Drone upgrade complete",
