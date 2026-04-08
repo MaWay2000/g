@@ -11340,20 +11340,6 @@ const createCostumeCraftingTableProjectCard = (project) => {
     }
   }
 
-  if (readyModules.length > 0) {
-    const readyMeta = document.createElement("p");
-    readyMeta.className = "crafting-panel__meta";
-    const bestReadyModule = getBestCostumeModule(readyModules);
-    readyMeta.textContent = bestReadyModule
-      ? `Ready to collect: ${readyModules.length} crafted module${
-          readyModules.length === 1 ? "" : "s"
-        }. Best roll ${formatCostumeModuleEffectLabel(bestReadyModule)}.`
-      : `Ready to collect: ${readyModules.length} crafted module${
-          readyModules.length === 1 ? "" : "s"
-        }.`;
-    item.appendChild(readyMeta);
-  }
-
   const hideCraftingMaterialDetails = !researched;
   const requirementStates = getCostumeCraftRequirementStates(project);
 
