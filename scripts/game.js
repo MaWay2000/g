@@ -5354,6 +5354,61 @@ const getCostumeProjectBonusRollRange = (project) => {
   };
 };
 
+const inferCostumeModuleRarityIdFromBonusValue = (project, bonusValue, fallbackLucky = false) => {
+  const rollRange = getCostumeProjectBonusRollRange(project);
+  const normalizedBonusValue = Number(bonusValue);
+  if (
+    !rollRange ||
+    !Array.isArray(rollRange.tierRanges) ||
+    !Number.isFinite(normalizedBonusValue) ||
+    normalizedBonusValue <= 0
+  ) {
+    return fallbackLucky ? "lucky" : "normal";
+  }
+
+  const matchingTierEntries = rollRange.tierRanges
+    .filter((entry) => {
+      const minValue = Number(entry?.minValue);
+      const maxValue = Number(entry?.maxValue);
+      return (
+        Number.isFinite(minValue) &&
+        Number.isFinite(maxValue) &&
+        normalizedBonusValue >= minValue &&
+        normalizedBonusValue <= maxValue
+      );
+    })
+    .sort((left, right) => (right?.tier?.rank ?? 0) - (left?.tier?.rank ?? 0));
+
+  if (matchingTierEntries.length > 0) {
+    return matchingTierEntries[0]?.tier?.id ?? (fallbackLucky ? "lucky" : "normal");
+  }
+
+  const closestTierEntry = rollRange.tierRanges
+    .map((entry) => {
+      const minValue = Number(entry?.minValue);
+      const maxValue = Number(entry?.maxValue);
+      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+        return null;
+      }
+      const distance =
+        normalizedBonusValue < minValue
+          ? minValue - normalizedBonusValue
+          : normalizedBonusValue > maxValue
+            ? normalizedBonusValue - maxValue
+            : 0;
+      return { entry, distance };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (Math.abs((left?.distance ?? 0) - (right?.distance ?? 0)) > 1e-6) {
+        return (left?.distance ?? 0) - (right?.distance ?? 0);
+      }
+      return (right?.entry?.tier?.rank ?? 0) - (left?.entry?.tier?.rank ?? 0);
+    })[0];
+
+  return closestTierEntry?.entry?.tier?.id ?? (fallbackLucky ? "lucky" : "normal");
+};
+
 const createCostumeModuleId = () => {
   const numericId = Math.max(
     1,
@@ -5452,14 +5507,14 @@ const createCostumeModuleInstance = (project, options = {}) => {
     bonusKey,
     bonusValue,
     rarityId: normalizeCostumeModuleRarityId(
-      options?.rarityId ?? options?.rarity,
+      options?.rarityId ?? options?.rarity ?? rolledBonus?.rarityId,
       typeof options?.lucky === "boolean" ? options.lucky : rolledBonus?.lucky === true
     ),
     lucky:
       typeof options?.lucky === "boolean"
         ? options.lucky
         : normalizeCostumeModuleRarityId(
-            options?.rarityId ?? options?.rarity,
+            options?.rarityId ?? options?.rarity ?? rolledBonus?.rarityId,
             rolledBonus?.lucky === true
           ) !== "normal",
     createdAtMs:
@@ -5501,6 +5556,25 @@ const normalizeCostumeModuleInstance = (rawModule, fallbackProjectId = null) => 
     return null;
   }
 
+  const explicitRarityId = normalizeCostumeModuleRarityId(
+    rawModule.rarityId,
+    rawModule.lucky === true
+  );
+  const explicitTierRange = getCostumeProjectBonusRollRange(project)?.tierRanges?.find(
+    (entry) => entry?.tier?.id === explicitRarityId
+  );
+  const explicitRarityFitsBonus = Boolean(
+    explicitTierRange &&
+      Number.isFinite(Number(explicitTierRange.minValue)) &&
+      Number.isFinite(Number(explicitTierRange.maxValue)) &&
+      bonusValue >= Number(explicitTierRange.minValue) &&
+      bonusValue <= Number(explicitTierRange.maxValue)
+  );
+  const resolvedRarityId =
+    rawModule.rarityId == null || !explicitRarityFitsBonus
+      ? inferCostumeModuleRarityIdFromBonusValue(project, bonusValue, rawModule.lucky === true)
+      : explicitRarityId;
+
   return {
     id:
       typeof rawModule.id === "string" && rawModule.id.trim() !== ""
@@ -5509,10 +5583,8 @@ const normalizeCostumeModuleInstance = (rawModule, fallbackProjectId = null) => 
     projectId: project.id,
     bonusKey,
     bonusValue,
-    rarityId: normalizeCostumeModuleRarityId(rawModule.rarityId, rawModule.lucky === true),
-    lucky:
-      normalizeCostumeModuleRarityId(rawModule.rarityId, rawModule.lucky === true) !==
-      "normal",
+    rarityId: resolvedRarityId,
+    lucky: resolvedRarityId !== "normal",
     createdAtMs:
       Number.isFinite(rawModule.createdAtMs) && rawModule.createdAtMs > 0
         ? Math.floor(rawModule.createdAtMs)
