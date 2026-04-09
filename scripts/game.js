@@ -5170,9 +5170,7 @@ const getCostumeModuleRarityDefinition = (value, fallbackLucky = false) =>
 
 const getCostumeModuleRarityDisplayLabel = (value, fallbackLucky = false) => {
   const tier = getCostumeModuleRarityDefinition(value, fallbackLucky);
-  return tier?.starsText
-    ? `${tier.badgeLabel} ${tier.starsText}`
-    : tier?.badgeLabel || "";
+  return tier?.badgeLabel || "";
 };
 
 const createCostumeModuleRarityBadge = (module, options = {}) => {
@@ -5181,11 +5179,15 @@ const createCostumeModuleRarityBadge = (module, options = {}) => {
     return null;
   }
 
-  const { starsOnly = false } = options;
+  const { starsOnly = false, starsFirst = false } = options;
   const badge = document.createElement("span");
   badge.className = "costume-rarity-badge";
   badge.dataset.rarity = tier.id;
-  badge.textContent = starsOnly ? tier.starsText : `${tier.badgeLabel} ${tier.starsText}`;
+  badge.textContent = starsOnly
+    ? tier.starsText
+    : starsFirst
+      ? `${tier.starsText} ${tier.badgeLabel}`
+      : `${tier.badgeLabel} ${tier.starsText}`;
   return badge;
 };
 
@@ -12597,7 +12599,7 @@ const createCostumeSetupPanelItem = ({
   const body = document.createElement("div");
   const title = document.createElement("p");
   title.className = "drone-parts-panel__item-title";
-  applyCostumeModuleTitleContent(title, project, module, { starsOnly: true });
+  applyCostumeModuleTitleContent(title, project, module, { starsFirst: true });
   body.appendChild(title);
 
   const meta = document.createElement("p");
