@@ -5175,20 +5175,21 @@ const getCostumeModuleRarityDisplayLabel = (value, fallbackLucky = false) => {
     : tier?.badgeLabel || "";
 };
 
-const createCostumeModuleRarityBadge = (module) => {
+const createCostumeModuleRarityBadge = (module, options = {}) => {
   const tier = getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true);
   if (!tier || tier.id === "normal") {
     return null;
   }
 
+  const { starsOnly = false } = options;
   const badge = document.createElement("span");
   badge.className = "costume-rarity-badge";
   badge.dataset.rarity = tier.id;
-  badge.textContent = `${tier.badgeLabel} ${tier.starsText}`;
+  badge.textContent = starsOnly ? tier.starsText : `${tier.badgeLabel} ${tier.starsText}`;
   return badge;
 };
 
-const applyCostumeModuleTitleContent = (element, project, module) => {
+const applyCostumeModuleTitleContent = (element, project, module, options = {}) => {
   if (!(element instanceof HTMLElement) || !project) {
     return;
   }
@@ -5199,7 +5200,7 @@ const applyCostumeModuleTitleContent = (element, project, module) => {
   label.textContent = project.label;
   element.appendChild(label);
 
-  const badge = createCostumeModuleRarityBadge(module);
+  const badge = createCostumeModuleRarityBadge(module, options);
   if (badge) {
     element.appendChild(badge);
   }
@@ -12596,27 +12597,19 @@ const createCostumeSetupPanelItem = ({
   const body = document.createElement("div");
   const title = document.createElement("p");
   title.className = "drone-parts-panel__item-title";
-  applyCostumeModuleTitleContent(title, project, module);
+  applyCostumeModuleTitleContent(title, project, module, { starsOnly: true });
   body.appendChild(title);
 
   const meta = document.createElement("p");
   meta.className = "drone-parts-panel__item-meta";
-  meta.textContent = `${project.description} • ${formatCostumeModuleEffectLabel(module)}`;
+  meta.textContent = formatCostumeModuleEffectLabel(module);
   body.appendChild(meta);
 
   const scrapValue = getCostumeModuleScrapValue(module);
   if (action === "install" && scrapValue > 0) {
-    const scrapMultiplier = getCostumeModuleScrapMultiplier(module);
-    const scrapRarityLabel = getCostumeModuleRarityDisplayLabel(
-      module?.rarityId,
-      module?.lucky === true
-    );
     const scrapMeta = document.createElement("p");
     scrapMeta.className = "drone-parts-panel__item-meta";
-    scrapMeta.textContent =
-      scrapMultiplier > 1 && scrapRarityLabel
-        ? `Scrap value: ${formatMarsMoney(scrapValue)} Mars money (${scrapRarityLabel} x${scrapMultiplier}).`
-        : `Scrap value: ${formatMarsMoney(scrapValue)} Mars money.`;
+    scrapMeta.textContent = `Scrap value: ${formatMarsMoney(scrapValue)} Mars money.`;
     body.appendChild(scrapMeta);
   }
   item.appendChild(body);
