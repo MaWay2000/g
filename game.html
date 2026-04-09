@@ -3137,9 +3137,14 @@
         color: #e2e8f0;
         font-weight: 700;
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         align-items: center;
         gap: 0.42rem;
+        white-space: nowrap;
+      }
+
+      .drone-parts-panel__item-title > span:first-child {
+        white-space: nowrap;
       }
 
       .drone-parts-panel__item-meta {
