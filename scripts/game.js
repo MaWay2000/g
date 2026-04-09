@@ -5668,6 +5668,34 @@ const compareCostumeModules = (left, right) => {
 const getBestCostumeModule = (modules) =>
   (Array.isArray(modules) ? modules.slice() : []).sort(compareCostumeModules)[0] ?? null;
 
+const getBestOwnedCostumeModulesByProjectId = (modules) => {
+  const bestByProjectId = new Map();
+  (Array.isArray(modules) ? modules : []).forEach((module) => {
+    const projectId = typeof module?.projectId === "string" ? module.projectId : "";
+    if (!projectId) {
+      return;
+    }
+    const currentBest = bestByProjectId.get(projectId) ?? null;
+    if (!currentBest || compareCostumeModules(module, currentBest) < 0) {
+      bestByProjectId.set(projectId, module);
+    }
+  });
+  return bestByProjectId;
+};
+
+const isCostumeModuleScrapProtected = (module, bestOwnedModulesByProjectId = null) => {
+  const projectId = typeof module?.projectId === "string" ? module.projectId : "";
+  const moduleId = typeof module?.id === "string" ? module.id : "";
+  if (!projectId || !moduleId) {
+    return false;
+  }
+  const bestModule =
+    bestOwnedModulesByProjectId instanceof Map
+      ? bestOwnedModulesByProjectId.get(projectId)
+      : null;
+  return Boolean(bestModule && bestModule.id === moduleId);
+};
+
 const getCostumeModuleRarityRank = (module) =>
   getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
 
@@ -12581,6 +12609,7 @@ const createCostumeSetupPanelItem = ({
   action,
   actionLabel,
   installedModuleForComparison = null,
+  scrapProtected = false,
 }) => {
   const project = getCostumeResearchProjectById(module?.projectId);
   if (!project) {
@@ -12649,7 +12678,13 @@ const createCostumeSetupPanelItem = ({
     scrapButton.className = "drone-parts-panel__action drone-parts-panel__action--danger";
     scrapButton.dataset.costumeProjectAction = "scrap";
     scrapButton.dataset.costumeModuleId = module.id;
-    scrapButton.textContent = `Scrap for ${formatMarsMoney(scrapValue)}`;
+    scrapButton.textContent = scrapProtected
+      ? "Keep best"
+      : `Scrap for ${formatMarsMoney(scrapValue)}`;
+    scrapButton.disabled = scrapProtected;
+    if (scrapProtected) {
+      scrapButton.title = "Best owned module cannot be scrapped.";
+    }
     secondaryActions.appendChild(scrapButton);
     item.appendChild(secondaryActions);
   }
@@ -12745,13 +12780,27 @@ const scrapCostumeProject = (moduleId) => {
     return false;
   }
 
-  const [selectedModule] = costumeResearchState.inventoryModules.splice(moduleIndex, 1);
+  const bestOwnedModulesByProjectId = getBestOwnedCostumeModulesByProjectId([
+    ...getCostumeInventoryModules(),
+    ...getCostumeEquippedModules(),
+  ]);
+  const selectedModule = costumeResearchState.inventoryModules[moduleIndex] ?? null;
   const project = getCostumeResearchProjectById(selectedModule?.projectId);
   if (!selectedModule || !project) {
     return false;
   }
 
-  const scrapValue = getCostumeModuleScrapValue(selectedModule);
+  if (isCostumeModuleScrapProtected(selectedModule, bestOwnedModulesByProjectId)) {
+    showTerminalToast({
+      title: `${project.label} protected`,
+      description: "Best owned module cannot be scrapped.",
+    });
+    return false;
+  }
+
+  const [scrappedModule] = costumeResearchState.inventoryModules.splice(moduleIndex, 1);
+
+  const scrapValue = getCostumeModuleScrapValue(scrappedModule);
   if (scrapValue > 0) {
     addMarsMoney(scrapValue);
   }
@@ -12768,10 +12817,10 @@ const scrapCostumeProject = (moduleId) => {
     title: `${project.label} scrapped`,
     description:
       scrapValue > 0
-        ? `${formatCostumeModuleEffectLabel(selectedModule)} converted into ${formatMarsMoney(
+        ? `${formatCostumeModuleEffectLabel(scrappedModule)} converted into ${formatMarsMoney(
             scrapValue
           )} Mars money.`
-        : `${formatCostumeModuleEffectLabel(selectedModule)} scrapped.`,
+        : `${formatCostumeModuleEffectLabel(scrappedModule)} scrapped.`,
   });
   return true;
 };
@@ -12791,13 +12840,29 @@ const scrapCostumeProjects = (moduleIds) => {
     return false;
   }
 
-  const totalScrapValue = selectedModules.reduce(
+  const bestOwnedModulesByProjectId = getBestOwnedCostumeModulesByProjectId([
+    ...getCostumeInventoryModules(),
+    ...getCostumeEquippedModules(),
+  ]);
+  const scrapableModules = selectedModules.filter(
+    (module) => !isCostumeModuleScrapProtected(module, bestOwnedModulesByProjectId)
+  );
+  if (scrapableModules.length === 0) {
+    showTerminalToast({
+      title: "Best modules protected",
+      description: "Listed best modules cannot be scrapped.",
+    });
+    return false;
+  }
+
+  const scrapableIds = new Set(scrapableModules.map((module) => module?.id));
+  const totalScrapValue = scrapableModules.reduce(
     (sum, module) => sum + getCostumeModuleScrapValue(module),
     0
   );
 
   costumeResearchState.inventoryModules = costumeResearchState.inventoryModules.filter(
-    (module) => !targetIds.has(module?.id)
+    (module) => !scrapableIds.has(module?.id)
   );
   costumeResearchState.inventoryModules.sort(compareCostumeModules);
   syncLegacyCostumeProjectSetsFromModules();
@@ -12811,7 +12876,7 @@ const scrapCostumeProjects = (moduleIds) => {
   renderCostumeCustomizationModal();
 
   showTerminalToast({
-    title: `${selectedModules.length} module${selectedModules.length === 1 ? "" : "s"} scrapped`,
+    title: `${scrapableModules.length} module${scrapableModules.length === 1 ? "" : "s"} scrapped`,
     description:
       totalScrapValue > 0
         ? `${formatMarsMoney(totalScrapValue)} Mars money returned from listed costume modules.`
@@ -12906,6 +12971,10 @@ const renderCostumeCustomizationModal = () => {
 
   const inventoryProjects = getCostumeCraftingInventoryProjects();
   const installedProjects = getCostumeCraftingInstalledProjects();
+  const bestOwnedModulesByProjectId = getBestOwnedCostumeModulesByProjectId([
+    ...inventoryProjects,
+    ...installedProjects,
+  ]);
   const bestInstalledModulesByProjectId = new Map();
   installedProjects.forEach((module) => {
     const projectId = typeof module?.projectId === "string" ? module.projectId : "";
@@ -12922,7 +12991,10 @@ const renderCostumeCustomizationModal = () => {
     filteredInventoryProjects,
     bestInstalledModulesByProjectId
   );
-  const listedScrapValue = sortedInventoryProjects.reduce(
+  const scrapableListedProjects = sortedInventoryProjects.filter(
+    (module) => !isCostumeModuleScrapProtected(module, bestOwnedModulesByProjectId)
+  );
+  const listedScrapValue = scrapableListedProjects.reduce(
     (sum, module) => sum + getCostumeModuleScrapValue(module),
     0
   );
@@ -12943,15 +13015,17 @@ const renderCostumeCustomizationModal = () => {
   });
 
   if (scrapListedButton instanceof HTMLButtonElement) {
-    scrapListedButton.disabled = sortedInventoryProjects.length === 0;
-    scrapListedButton.dataset.costumeSetupScrapListedIds = sortedInventoryProjects
+    scrapListedButton.disabled = scrapableListedProjects.length === 0;
+    scrapListedButton.dataset.costumeSetupScrapListedIds = scrapableListedProjects
       .map((module) => module?.id)
       .filter((value) => typeof value === "string")
       .join(",");
     scrapListedButton.textContent =
-      sortedInventoryProjects.length > 0
+      sortedInventoryProjects.length === 0
+        ? "Scrap listed"
+        : scrapableListedProjects.length > 0
         ? `Scrap listed for ${formatMarsMoney(listedScrapValue)}`
-        : "Scrap listed";
+        : "Best items protected";
   }
 
   availableList.innerHTML = "";
@@ -12962,6 +13036,7 @@ const renderCostumeCustomizationModal = () => {
         actionLabel: "Install",
         installedModuleForComparison:
           bestInstalledModulesByProjectId.get(module?.projectId) ?? null,
+        scrapProtected: isCostumeModuleScrapProtected(module, bestOwnedModulesByProjectId),
       });
     if (item) {
       availableList.appendChild(item);
