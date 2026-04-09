@@ -9519,6 +9519,13 @@ const formatCostumeModuleEffectLabel = (module) => {
   return rarityLabel ? `${effectLabel} • ${rarityLabel}` : effectLabel;
 };
 
+const formatCostumeModuleStatLabel = (module) => {
+  if (!module || typeof module !== "object") {
+    return "Permanent suit upgrade.";
+  }
+  return formatCostumeEffectLabelFromBonus(module.bonusKey, module.bonusValue);
+};
+
 const getCostumeResearchSummaryText = () => {
   return `O2 max ${getCostumeMaxOxygenMultiplier().toFixed(
     2
@@ -12599,12 +12606,12 @@ const createCostumeSetupPanelItem = ({
   const body = document.createElement("div");
   const title = document.createElement("p");
   title.className = "drone-parts-panel__item-title";
-  applyCostumeModuleTitleContent(title, project, module, { starsFirst: true });
+  applyCostumeModuleTitleContent(title, project, module);
   body.appendChild(title);
 
   const meta = document.createElement("p");
   meta.className = "drone-parts-panel__item-meta";
-  meta.textContent = formatCostumeModuleEffectLabel(module);
+  meta.textContent = formatCostumeModuleStatLabel(module);
   body.appendChild(meta);
 
   const scrapValue = getCostumeModuleScrapValue(module);
