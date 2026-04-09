@@ -5060,6 +5060,10 @@ const droneCraftingState = {
   craftedPartIds: new Set(),
   equippedPartIds: new Set(),
   readyPartIds: new Set(),
+  inventoryModules: [],
+  equippedModules: [],
+  readyModules: [],
+  nextModuleInstanceId: 1,
   activeResearchJob: null,
   activeJob: null,
   unlockedModelIds: new Set([DRONE_LIGHT_MODEL_ID]),
@@ -5855,6 +5859,32 @@ const clearCostumeResearchState = () => {
   costumeResearchState.nextModuleInstanceId = 1;
   costumeResearchState.activeJob = null;
   costumeResearchState.activeCraftJob = null;
+};
+
+const syncDroneUnlockedModelsToDefaults = () => {
+  ensureDroneUnlockedModelState().clear();
+  ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
+  const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
+  if (legacyModelId) {
+    ensureDroneUnlockedModelState().add(legacyModelId);
+  }
+};
+
+const clearDroneCraftingProgressState = () => {
+  droneCraftingState.researchedPartIds.clear();
+  droneCraftingState.inventoryResearchPartIds.clear();
+  droneCraftingState.readyResearchPartIds.clear();
+  droneCraftingState.craftedPartIds.clear();
+  droneCraftingState.equippedPartIds.clear();
+  droneCraftingState.readyPartIds.clear();
+  droneCraftingState.inventoryModules.length = 0;
+  droneCraftingState.equippedModules.length = 0;
+  droneCraftingState.readyModules.length = 0;
+  droneCraftingState.nextModuleInstanceId = 1;
+  droneCraftingState.activeResearchJob = null;
+  droneCraftingState.activeJob = null;
+  syncDroneUnlockedModelsToDefaults();
+  droneCraftingState.mediumModelRequirements = [];
 };
 
 updatePlayerOxygenUi();
@@ -8850,12 +8880,489 @@ const getResearchModalElements = () => {
   };
 };
 
+const getDroneCraftingPartById = (partId) =>
+  DRONE_CRAFTING_PARTS.find((part) => part.id === partId) ?? null;
+
+const getDronePartBonusKey = (part) => {
+  if (!part || typeof part !== "object") {
+    return null;
+  }
+
+  if (Number.isFinite(part.speedBonus) && part.speedBonus > 0) {
+    return "speedBonus";
+  }
+  if (Number.isFinite(part.successChanceBonus) && part.successChanceBonus > 0) {
+    return "successChanceBonus";
+  }
+  if (Number.isFinite(part.doubleYieldChance) && part.doubleYieldChance > 0) {
+    return "doubleYieldChance";
+  }
+
+  return null;
+};
+
+const getDronePartBonusBaseValue = (
+  part,
+  bonusKey = getDronePartBonusKey(part)
+) => {
+  if (!bonusKey) {
+    return 0;
+  }
+
+  const rawValue = Number(part?.[bonusKey] ?? 0);
+  return Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 0;
+};
+
+const roundDroneModuleBonusValue = (value) => {
+  const normalizedValue = Number(value);
+  if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+    return 0;
+  }
+
+  return Math.round(normalizedValue / COSTUME_MODULE_PERCENT_STEP) * COSTUME_MODULE_PERCENT_STEP;
+};
+
+const formatDroneEffectValue = (value) => {
+  const normalizedValue = Number(value);
+  if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+    return "0%";
+  }
+
+  return `${Math.round(normalizedValue * 100)}%`;
+};
+
+const formatDroneEffectLabelFromBonus = (bonusKey, value) => {
+  const formattedValue = formatDroneEffectValue(value);
+
+  switch (bonusKey) {
+    case "speedBonus":
+      return `Mining speed +${formattedValue}`;
+    case "successChanceBonus":
+      return `Success chance +${formattedValue}`;
+    case "doubleYieldChance":
+      return `Double mine chance +${formattedValue}`;
+    default:
+      return "No bonus effect.";
+  }
+};
+
+const formatDroneEffectRangeShort = (minValue, maxValue) =>
+  `+${formatDroneEffectValue(minValue)} to +${formatDroneEffectValue(maxValue)}`;
+
+const getDronePartBonusRollRange = (part) => {
+  const bonusKey = getDronePartBonusKey(part);
+  const baseValue = getDronePartBonusBaseValue(part, bonusKey);
+  if (!bonusKey || baseValue <= 0) {
+    return null;
+  }
+
+  const tierRanges = COSTUME_MODULE_RARITY_TIERS.map((tier) => {
+    const minValue = roundDroneModuleBonusValue(baseValue * tier.minMultiplier);
+    const maxValue = roundDroneModuleBonusValue(baseValue * tier.maxMultiplier);
+
+    return {
+      tier,
+      minValue: minValue > 0 ? minValue : roundDroneModuleBonusValue(baseValue),
+      maxValue: maxValue > 0 ? maxValue : roundDroneModuleBonusValue(baseValue),
+    };
+  });
+  const standardRange =
+    tierRanges.find((entry) => entry?.tier?.id === "normal") ?? null;
+  const specialRanges = tierRanges.filter((entry) => entry?.tier?.id !== "normal");
+  const highestRange = specialRanges[specialRanges.length - 1] ?? standardRange;
+
+  return {
+    bonusKey,
+    minValue: standardRange?.minValue ?? roundDroneModuleBonusValue(baseValue),
+    maxValue: standardRange?.maxValue ?? roundDroneModuleBonusValue(baseValue),
+    highestSpecialMaxValue:
+      highestRange?.maxValue ?? roundDroneModuleBonusValue(baseValue),
+    tierRanges,
+    specialRanges,
+  };
+};
+
+const inferDroneModuleRarityIdFromBonusValue = (part, bonusValue, fallbackLucky = false) => {
+  const rollRange = getDronePartBonusRollRange(part);
+  const normalizedBonusValue = Number(bonusValue);
+  if (
+    !rollRange ||
+    !Array.isArray(rollRange.tierRanges) ||
+    !Number.isFinite(normalizedBonusValue) ||
+    normalizedBonusValue <= 0
+  ) {
+    return fallbackLucky ? "lucky" : "normal";
+  }
+
+  const matchingTierEntries = rollRange.tierRanges
+    .filter((entry) => {
+      const minValue = Number(entry?.minValue);
+      const maxValue = Number(entry?.maxValue);
+      return (
+        Number.isFinite(minValue) &&
+        Number.isFinite(maxValue) &&
+        normalizedBonusValue >= minValue &&
+        normalizedBonusValue <= maxValue
+      );
+    })
+    .sort((left, right) => (right?.tier?.rank ?? 0) - (left?.tier?.rank ?? 0));
+
+  if (matchingTierEntries.length > 0) {
+    return matchingTierEntries[0]?.tier?.id ?? (fallbackLucky ? "lucky" : "normal");
+  }
+
+  const closestTierEntry = rollRange.tierRanges
+    .map((entry) => {
+      const minValue = Number(entry?.minValue);
+      const maxValue = Number(entry?.maxValue);
+      if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+        return null;
+      }
+      const distance =
+        normalizedBonusValue < minValue
+          ? minValue - normalizedBonusValue
+          : normalizedBonusValue > maxValue
+            ? normalizedBonusValue - maxValue
+            : 0;
+      return { entry, distance };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (Math.abs((left?.distance ?? 0) - (right?.distance ?? 0)) > 1e-6) {
+        return (left?.distance ?? 0) - (right?.distance ?? 0);
+      }
+      return (right?.entry?.tier?.rank ?? 0) - (left?.entry?.tier?.rank ?? 0);
+    })[0];
+
+  return closestTierEntry?.entry?.tier?.id ?? (fallbackLucky ? "lucky" : "normal");
+};
+
+const createDroneModuleId = () => {
+  const numericId = Math.max(
+    1,
+    Math.floor(Number(droneCraftingState.nextModuleInstanceId) || 1)
+  );
+  droneCraftingState.nextModuleInstanceId = numericId + 1;
+  return `drone-module-${numericId}`;
+};
+
+const syncDroneNextModuleInstanceId = () => {
+  const activeJobModule = normalizeDroneModuleInstance(
+    droneCraftingState.activeJob?.module,
+    droneCraftingState.activeJob?.partId ?? null
+  );
+  const allModules = [
+    ...droneCraftingState.inventoryModules,
+    ...droneCraftingState.equippedModules,
+    ...droneCraftingState.readyModules,
+    ...(activeJobModule ? [activeJobModule] : []),
+  ];
+  let maxId = 0;
+  allModules.forEach((module) => {
+    const match = typeof module?.id === "string" ? module.id.match(/(\d+)$/) : null;
+    const numericId = Number(match?.[1]);
+    if (Number.isFinite(numericId) && numericId > maxId) {
+      maxId = numericId;
+    }
+  });
+  droneCraftingState.nextModuleInstanceId = Math.max(
+    1,
+    maxId + 1,
+    Math.floor(Number(droneCraftingState.nextModuleInstanceId) || 1)
+  );
+};
+
+const rollDronePartBonus = (part) => {
+  const bonusKey = getDronePartBonusKey(part);
+  const baseValue = getDronePartBonusBaseValue(part, bonusKey);
+  if (!bonusKey || baseValue <= 0) {
+    return null;
+  }
+
+  let resolvedRarityTier = COSTUME_MODULE_RARITY_BY_ID.get("normal");
+  let rarityRoll = Math.random();
+  for (const tier of COSTUME_MODULE_SPECIAL_RARITY_TIERS) {
+    rarityRoll -= Number(tier?.chance) || 0;
+    if (rarityRoll < 0) {
+      resolvedRarityTier = tier;
+      break;
+    }
+  }
+
+  const bonusValue =
+    baseValue *
+    (resolvedRarityTier.minMultiplier +
+      Math.random() *
+        (resolvedRarityTier.maxMultiplier - resolvedRarityTier.minMultiplier));
+
+  const roundedValue = roundDroneModuleBonusValue(bonusValue);
+  return {
+    bonusKey,
+    bonusValue: roundedValue > 0 ? roundedValue : roundDroneModuleBonusValue(baseValue),
+    rarityId: resolvedRarityTier.id,
+    lucky: resolvedRarityTier.id !== "normal",
+  };
+};
+
+const createDroneModuleInstance = (part, options = {}) => {
+  const resolvedPart =
+    typeof part === "string" ? getDroneCraftingPartById(part) : part;
+  if (!resolvedPart) {
+    return null;
+  }
+
+  const bonusKey = getDronePartBonusKey(resolvedPart);
+  if (!bonusKey) {
+    return null;
+  }
+
+  const rolledBonus = rollDronePartBonus(resolvedPart);
+  const bonusValue = roundDroneModuleBonusValue(
+    Number.isFinite(options?.bonusValue) && options.bonusValue > 0
+      ? options.bonusValue
+      : rolledBonus?.bonusValue
+  );
+  if (!(bonusValue > 0)) {
+    return null;
+  }
+
+  return {
+    id:
+      typeof options?.id === "string" && options.id.trim() !== ""
+        ? options.id.trim()
+        : createDroneModuleId(),
+    partId: resolvedPart.id,
+    bonusKey,
+    bonusValue,
+    rarityId: normalizeCostumeModuleRarityId(
+      options?.rarityId ?? options?.rarity ?? rolledBonus?.rarityId,
+      typeof options?.lucky === "boolean" ? options.lucky : rolledBonus?.lucky === true
+    ),
+    lucky:
+      typeof options?.lucky === "boolean"
+        ? options.lucky
+        : normalizeCostumeModuleRarityId(
+            options?.rarityId ?? options?.rarity ?? rolledBonus?.rarityId,
+            rolledBonus?.lucky === true
+          ) !== "normal",
+    createdAtMs:
+      Number.isFinite(options?.createdAtMs) && options.createdAtMs > 0
+        ? Math.floor(options.createdAtMs)
+        : Date.now(),
+  };
+};
+
+const normalizeDroneModuleInstance = (rawModule, fallbackPartId = null) => {
+  if (!rawModule || typeof rawModule !== "object") {
+    return null;
+  }
+
+  const partId =
+    typeof rawModule.partId === "string" && rawModule.partId.trim() !== ""
+      ? rawModule.partId.trim()
+      : typeof fallbackPartId === "string" && fallbackPartId.trim() !== ""
+        ? fallbackPartId.trim()
+        : "";
+  const part = getDroneCraftingPartById(partId);
+  if (!part) {
+    return null;
+  }
+
+  const bonusKey = getDronePartBonusKey(part);
+  if (!bonusKey) {
+    return null;
+  }
+
+  const baseValue = getDronePartBonusBaseValue(part, bonusKey);
+  const bonusValue = roundDroneModuleBonusValue(
+    Number.isFinite(rawModule.bonusValue) && rawModule.bonusValue > 0
+      ? rawModule.bonusValue
+      : baseValue
+  );
+  if (!(bonusValue > 0)) {
+    return null;
+  }
+
+  const explicitRarityId = normalizeCostumeModuleRarityId(
+    rawModule.rarityId ?? rawModule.rarity,
+    rawModule.lucky === true
+  );
+  const explicitRarityRange = getDronePartBonusRollRange(part)?.tierRanges?.find(
+    (entry) => entry?.tier?.id === explicitRarityId
+  );
+  const explicitRarityFitsBonus = Boolean(
+    explicitRarityRange &&
+      Number.isFinite(explicitRarityRange.minValue) &&
+      Number.isFinite(explicitRarityRange.maxValue) &&
+      bonusValue >= explicitRarityRange.minValue &&
+      bonusValue <= explicitRarityRange.maxValue
+  );
+  const resolvedRarityId =
+    rawModule.rarityId == null || !explicitRarityFitsBonus
+      ? inferDroneModuleRarityIdFromBonusValue(part, bonusValue, rawModule.lucky === true)
+      : explicitRarityId;
+
+  return {
+    id:
+      typeof rawModule.id === "string" && rawModule.id.trim() !== ""
+        ? rawModule.id.trim()
+        : createDroneModuleId(),
+    partId: part.id,
+    bonusKey,
+    bonusValue,
+    rarityId: resolvedRarityId,
+    lucky: resolvedRarityId !== "normal",
+    createdAtMs:
+      Number.isFinite(rawModule.createdAtMs) && rawModule.createdAtMs > 0
+        ? Math.floor(rawModule.createdAtMs)
+        : Date.now(),
+  };
+};
+
+const syncLegacyDronePartSetsFromModules = () => {
+  droneCraftingState.craftedPartIds.clear();
+  droneCraftingState.equippedPartIds.clear();
+  droneCraftingState.readyPartIds.clear();
+
+  droneCraftingState.inventoryModules.forEach((module) => {
+    if (typeof module?.partId === "string") {
+      droneCraftingState.craftedPartIds.add(module.partId);
+    }
+  });
+  droneCraftingState.equippedModules.forEach((module) => {
+    if (typeof module?.partId === "string") {
+      droneCraftingState.craftedPartIds.add(module.partId);
+      droneCraftingState.equippedPartIds.add(module.partId);
+    }
+  });
+  droneCraftingState.readyModules.forEach((module) => {
+    if (typeof module?.partId === "string") {
+      droneCraftingState.readyPartIds.add(module.partId);
+    }
+  });
+};
+
+const getDroneModulesForCollection = (collection, partId = null) =>
+  (Array.isArray(collection) ? collection : []).filter(
+    (module) =>
+      module &&
+      typeof module.partId === "string" &&
+      (typeof partId !== "string" || module.partId === partId)
+  );
+
+const getDroneInventoryModules = (partId = null) =>
+  getDroneModulesForCollection(droneCraftingState.inventoryModules, partId);
+
+const getDroneEquippedModules = (partId = null) =>
+  getDroneModulesForCollection(droneCraftingState.equippedModules, partId);
+
+const getDroneReadyModules = (partId = null) =>
+  getDroneModulesForCollection(droneCraftingState.readyModules, partId);
+
+const getDroneModuleSortScore = (module) => {
+  if (!module || typeof module !== "object") {
+    return 0;
+  }
+  const bonusValue = Number(module.bonusValue) || 0;
+  const rarityRank =
+    getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
+  return bonusValue + rarityRank * 0.0001;
+};
+
+const compareDroneModules = (left, right) => {
+  const leftPart = getDroneCraftingPartById(left?.partId);
+  const rightPart = getDroneCraftingPartById(right?.partId);
+  const leftIndex = DRONE_CRAFTING_PARTS.indexOf(leftPart);
+  const rightIndex = DRONE_CRAFTING_PARTS.indexOf(rightPart);
+  if (leftIndex !== rightIndex) {
+    return leftIndex - rightIndex;
+  }
+
+  const scoreDelta = getDroneModuleSortScore(right) - getDroneModuleSortScore(left);
+  if (Math.abs(scoreDelta) > 1e-6) {
+    return scoreDelta;
+  }
+
+  return (Number(left?.createdAtMs) || 0) - (Number(right?.createdAtMs) || 0);
+};
+
+const getBestDroneModule = (modules) =>
+  (Array.isArray(modules) ? modules.slice() : []).sort(compareDroneModules)[0] ?? null;
+
+const formatDroneModuleEffectLabel = (module) => {
+  if (!module || typeof module !== "object") {
+    return "No bonus effect.";
+  }
+
+  const effectLabel = formatDroneEffectLabelFromBonus(module.bonusKey, module.bonusValue);
+  const rarityLabel = getCostumeModuleRarityDisplayLabel(
+    module?.rarityId,
+    module?.lucky === true
+  );
+  return rarityLabel ? `${effectLabel} • ${rarityLabel}` : effectLabel;
+};
+
+const formatDroneModuleStatLabel = (module) => {
+  if (!module || typeof module !== "object") {
+    return "No bonus effect.";
+  }
+
+  return formatDroneEffectLabelFromBonus(module.bonusKey, module.bonusValue);
+};
+
+const applyDroneModuleTitleContent = (element, part, module, options = {}) => {
+  if (!(element instanceof HTMLElement) || !part) {
+    return;
+  }
+
+  element.textContent = "";
+
+  const label = document.createElement("span");
+  label.textContent = part.label;
+  element.appendChild(label);
+
+  const badge = createCostumeModuleRarityBadge(module, options);
+  if (badge) {
+    element.appendChild(badge);
+  }
+};
+
+const formatDronePartResearchEffectLabel = (part) => {
+  const rollRange = getDronePartBonusRollRange(part);
+  if (!rollRange) {
+    return formatDronePartEffectLabel(part);
+  }
+
+  const baseLabel = formatDroneEffectLabelFromBonus(
+    rollRange.bonusKey,
+    rollRange.minValue
+  ).replace(
+    formatDroneEffectValue(rollRange.minValue),
+    formatDroneEffectRangeShort(rollRange.minValue, rollRange.maxValue)
+  );
+  const raritySummary = (rollRange.specialRanges ?? [])
+    .map((entry) => {
+      const tier = entry?.tier;
+      if (!tier) {
+        return null;
+      }
+      return `${tier.badgeLabel} ${tier.starsText} ${formatDroneEffectRangeShort(
+        entry.minValue,
+        entry.maxValue
+      )}`;
+    })
+    .filter(Boolean)
+    .join(" • ");
+
+  return raritySummary ? `${baseLabel}. Rarity tiers: ${raritySummary}` : baseLabel;
+};
+
 const isDroneCraftingPartResearched = (partId) =>
   typeof partId === "string" &&
   (droneCraftingState.researchedPartIds.has(partId) ||
-    droneCraftingState.craftedPartIds.has(partId) ||
-    droneCraftingState.equippedPartIds.has(partId) ||
-    droneCraftingState.readyPartIds.has(partId));
+    getDroneInventoryModules(partId).length > 0 ||
+    getDroneEquippedModules(partId).length > 0 ||
+    getDroneReadyModules(partId).length > 0);
 
 const isDroneResearchBlueprintInInventory = (partId) =>
   typeof partId === "string" && droneCraftingState.inventoryResearchPartIds.has(partId);
@@ -8864,13 +9371,11 @@ const isDroneResearchBlueprintReadyToClaim = (partId) =>
   typeof partId === "string" && droneCraftingState.readyResearchPartIds.has(partId);
 
 const isDroneCraftingPartCrafted = (partId) =>
-  typeof partId === "string" && droneCraftingState.craftedPartIds.has(partId);
+  typeof partId === "string" &&
+  (getDroneInventoryModules(partId).length > 0 || getDroneEquippedModules(partId).length > 0);
 
 const isDroneCraftingPartEquipped = (partId) =>
-  typeof partId === "string" && droneCraftingState.equippedPartIds.has(partId);
-
-const getDroneCraftingPartById = (partId) =>
-  DRONE_CRAFTING_PARTS.find((part) => part.id === partId) ?? null;
+  typeof partId === "string" && getDroneEquippedModules(partId).length > 0;
 
 const ensureDroneUnlockedModelState = () => {
   if (!(droneCraftingState.unlockedModelIds instanceof Set)) {
@@ -8905,7 +9410,7 @@ const DRONE_CRAFTING_PROGRESS_UPDATE_MS = 200;
 const DRONE_RESEARCH_PROGRESS_UPDATE_MS = 1000;
 
 const isDroneCraftingPartReadyToClaim = (partId) =>
-  typeof partId === "string" && droneCraftingState.readyPartIds.has(partId);
+  typeof partId === "string" && getDroneReadyModules(partId).length > 0;
 
 const isInstantDroneCraftingEnabled = () => Boolean(currentSettings?.godMode);
 const isInstantDroneResearchEnabled = () => Boolean(currentSettings?.godMode);
@@ -8971,11 +9476,14 @@ const normalizeDroneCraftingActiveJob = (rawJob) => {
   }
   completedAtMs = Math.floor(completedAtMs);
 
+  const normalizedModule = normalizeDroneModuleInstance(rawJob.module, partId);
+
   return {
     partId,
     startedAtMs,
     durationMs,
     completedAtMs,
+    ...(normalizedModule ? { module: normalizedModule } : {}),
   };
 };
 
@@ -9108,13 +9616,17 @@ const finalizeDroneCraftingActiveJob = ({
 
   const part = getDroneCraftingPartById(activeJob.partId);
   droneCraftingState.activeJob = null;
+  const craftedModule =
+    normalizeDroneModuleInstance(activeJob.module, activeJob.partId) ??
+    createDroneModuleInstance(part);
 
-  if (
-    part &&
-    !isDroneCraftingPartCrafted(part.id) &&
-    !isDroneCraftingPartReadyToClaim(part.id)
-  ) {
-    droneCraftingState.readyPartIds.add(part.id);
+  if (craftedModule) {
+    droneCraftingState.researchedPartIds.add(craftedModule.partId);
+    droneCraftingState.inventoryResearchPartIds.delete(craftedModule.partId);
+    droneCraftingState.readyResearchPartIds.delete(craftedModule.partId);
+    droneCraftingState.readyModules.push(craftedModule);
+    droneCraftingState.readyModules.sort(compareDroneModules);
+    syncLegacyDronePartSetsFromModules();
   }
 
   persistDroneCraftingState();
@@ -9130,7 +9642,11 @@ const finalizeDroneCraftingActiveJob = ({
   if (notify && part) {
     showTerminalToast({
       title: `${part.label} complete`,
-      description: "Crafting done. Move the part to Inventory > Items.",
+      description: craftedModule
+        ? `${formatDroneModuleEffectLabel(
+            craftedModule
+          )}. Move the part to Inventory > Items.`
+        : "Crafting done. Move the part to Inventory > Items.",
     });
   }
 
@@ -10265,23 +10781,23 @@ const moveCraftedCostumeProjectToInventory = (projectId) => {
 };
 
 const getDroneCraftingSpeedMultiplier = () =>
-  DRONE_CRAFTING_PARTS.reduce((multiplier, part) => {
-    if (!isDroneCraftingPartEquipped(part.id)) {
+  getDroneEquippedModules().reduce((multiplier, module) => {
+    if (module?.bonusKey !== "speedBonus") {
       return multiplier;
     }
 
-    const bonus = Number.isFinite(part?.speedBonus) ? Math.max(0, part.speedBonus) : 0;
+    const bonus = Number.isFinite(module?.bonusValue) ? Math.max(0, module.bonusValue) : 0;
     return multiplier + bonus;
   }, 1);
 
 const getDroneCraftingMiningSuccessChanceBonus = () => {
-  const bonus = DRONE_CRAFTING_PARTS.reduce((chance, part) => {
-    if (!isDroneCraftingPartEquipped(part.id)) {
+  const bonus = getDroneEquippedModules().reduce((chance, module) => {
+    if (module?.bonusKey !== "successChanceBonus") {
       return chance;
     }
 
-    const partBonus = Number.isFinite(part?.successChanceBonus)
-      ? Math.max(0, part.successChanceBonus)
+    const partBonus = Number.isFinite(module?.bonusValue)
+      ? Math.max(0, module.bonusValue)
       : 0;
     return chance + partBonus;
   }, 0);
@@ -10290,13 +10806,13 @@ const getDroneCraftingMiningSuccessChanceBonus = () => {
 };
 
 const getDroneCraftingDoubleYieldChance = () => {
-  const bonus = DRONE_CRAFTING_PARTS.reduce((chance, part) => {
-    if (!isDroneCraftingPartEquipped(part.id)) {
+  const bonus = getDroneEquippedModules().reduce((chance, module) => {
+    if (module?.bonusKey !== "doubleYieldChance") {
       return chance;
     }
 
-    const partBonus = Number.isFinite(part?.doubleYieldChance)
-      ? Math.max(0, part.doubleYieldChance)
+    const partBonus = Number.isFinite(module?.bonusValue)
+      ? Math.max(0, module.bonusValue)
       : 0;
     return chance + partBonus;
   }, 0);
@@ -10525,7 +11041,7 @@ const createResearchNexusPartCard = (part) => {
 
   const effect = document.createElement("p");
   effect.className = "crafting-panel__effect";
-  effect.textContent = formatDronePartEffectLabel(part);
+  effect.textContent = formatDronePartResearchEffectLabel(part);
   item.appendChild(effect);
 
   if (loadedToCraftingTable) {
@@ -11634,9 +12150,14 @@ const createCraftingTablePartCard = (part) => {
   const researched = isDroneCraftingPartResearched(part.id);
   const researchInInventory = isDroneResearchBlueprintInInventory(part.id);
   const researchReadyToClaim = isDroneResearchBlueprintReadyToClaim(part.id);
-  const crafted = isDroneCraftingPartCrafted(part.id);
-  const equipped = isDroneCraftingPartEquipped(part.id);
-  const readyToClaim = isDroneCraftingPartReadyToClaim(part.id);
+  const inventoryModules = getDroneInventoryModules(part.id).sort(compareDroneModules);
+  const installedModules = getDroneEquippedModules(part.id).sort(compareDroneModules);
+  const readyModules = getDroneReadyModules(part.id).sort(compareDroneModules);
+  const bestInventoryModule = getBestDroneModule(inventoryModules);
+  const installedModule = getBestDroneModule(installedModules);
+  const crafted = inventoryModules.length > 0;
+  const equipped = installedModules.length > 0;
+  const readyToClaim = readyModules.length > 0;
   const activeResearchJob = getDroneResearchActiveJob();
   const researchingThisPart = Boolean(
     activeResearchJob && activeResearchJob.partId === part.id
@@ -11664,8 +12185,28 @@ const createCraftingTablePartCard = (part) => {
 
   const effect = document.createElement("p");
   effect.className = "crafting-panel__effect";
-  effect.textContent = formatDronePartEffectLabel(part);
+  effect.textContent = formatDronePartResearchEffectLabel(part);
   item.appendChild(effect);
+
+  if (installedModule) {
+    const installedMeta = document.createElement("p");
+    installedMeta.className = "crafting-panel__meta";
+    installedMeta.textContent = `Installed on the drone: ${formatDroneModuleEffectLabel(
+      installedModule
+    )}.`;
+    item.appendChild(installedMeta);
+  }
+
+  if (crafted) {
+    const craftedMeta = document.createElement("p");
+    craftedMeta.className = "crafting-panel__meta";
+    craftedMeta.textContent = bestInventoryModule
+      ? `Inventory modules: ${inventoryModules.length}. Best roll ${formatDroneModuleEffectLabel(
+          bestInventoryModule
+        )}.`
+      : `Inventory modules: ${inventoryModules.length}. Install them in Drone Setup > Parts.`;
+    item.appendChild(craftedMeta);
+  }
 
   if (!researched) {
     const researchStatus = document.createElement("p");
@@ -11706,11 +12247,9 @@ const createCraftingTablePartCard = (part) => {
     }
   }
 
-  const hideCraftingMaterialDetails = crafted || equipped || !researched;
-
   const requirementStates = getElementRequirementStates(part.requirements);
 
-  if (!hideCraftingMaterialDetails) {
+  if (researched) {
     const requirements = document.createElement("ul");
     requirements.className = "crafting-panel__requirements";
 
@@ -11782,15 +12321,25 @@ const createCraftingTablePartCard = (part) => {
           : "Research in Command Center";
       craftButton.disabled = true;
     }
-  } else if (equipped) {
-    craftButton.textContent = "Installed";
-    craftButton.disabled = true;
-  } else if (crafted) {
-    craftButton.textContent = "In inventory";
-    craftButton.disabled = true;
   } else if (readyToClaim) {
     craftButton.dataset.craftingPartAction = "claim";
-    craftButton.textContent = "Move to inventory";
+    const readyModuleToClaim = readyModules[0] ?? null;
+    if (readyModuleToClaim) {
+      const buttonLabel = document.createElement("span");
+      buttonLabel.className = "crafting-panel__button-label";
+      buttonLabel.textContent = "Move to inventory";
+
+      const buttonDetail = document.createElement("span");
+      buttonDetail.className = "crafting-panel__button-detail";
+      buttonDetail.textContent = formatDroneModuleEffectLabel(readyModuleToClaim);
+
+      craftButton.replaceChildren(buttonLabel, buttonDetail);
+      craftButton.title = `Move crafted module to inventory: ${formatDroneModuleEffectLabel(
+        readyModuleToClaim
+      )}`;
+    } else {
+      craftButton.textContent = "Move to inventory";
+    }
     craftButton.disabled = false;
   } else if (craftingThisPart) {
     craftButton.textContent = "Crafting...";
@@ -11798,7 +12347,8 @@ const createCraftingTablePartCard = (part) => {
   } else {
     const canCraft = requirementStates.every((state) => state.ready);
     craftButton.dataset.craftingPartAction = "craft";
-    craftButton.textContent = craftingOtherPart ? "Busy" : "Craft";
+    craftButton.textContent =
+      craftingOtherPart ? "Busy" : crafted || equipped ? "Craft again" : "Craft";
     craftButton.disabled = craftingOtherPart || !canCraft;
   }
   item.appendChild(craftButton);
@@ -12061,7 +12611,7 @@ const renderCraftingTableModal = () => {
     hint.textContent =
       activeTab === "costume"
         ? "Research blueprints in Command Center first. Craft time = total required material weight (1g = 1s). Each crafted suit module rolls a random bonus, with rarity tiers that can push extra stats. Finished modules must be installed in Costume Setup."
-        : "Craft time = total required material weight (1g = 1s). When complete, move the part to Inventory.";
+        : "Research blueprints in Command Center first. Craft time = total required material weight (1g = 1s). Each crafted drone module rolls a random bonus, with rarity tiers that can push extra stats. Finished modules can be installed in Drone Setup > Parts.";
   }
 
   if (speedSummary instanceof HTMLElement) {
@@ -12184,14 +12734,6 @@ const craftDroneUpgradePart = (partId) => {
     return false;
   }
 
-  if (isDroneCraftingPartCrafted(part.id)) {
-    showTerminalToast({
-      title: "Already crafted",
-      description: `${part.label} is already built. Install it in Drone Setup > Parts.`,
-    });
-    return false;
-  }
-
   finalizeCostumeCraftingActiveJob({ notify: true, refreshUi: false });
   finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
   const activeJob = getCraftingTableActiveJob();
@@ -12249,10 +12791,19 @@ const craftDroneUpgradePart = (partId) => {
     }
   }
 
+  const craftedModule = createDroneModuleInstance(part);
+
   const craftDurationSeconds = getDroneCraftingPartCraftDurationSeconds(part);
   if (craftDurationSeconds <= 0) {
     droneCraftingState.activeJob = null;
-    droneCraftingState.readyPartIds.add(part.id);
+    if (craftedModule) {
+      droneCraftingState.researchedPartIds.add(part.id);
+      droneCraftingState.inventoryResearchPartIds.delete(part.id);
+      droneCraftingState.readyResearchPartIds.delete(part.id);
+      droneCraftingState.readyModules.push(craftedModule);
+      droneCraftingState.readyModules.sort(compareDroneModules);
+      syncLegacyDronePartSetsFromModules();
+    }
     persistDroneCraftingState();
     syncDroneCraftingProgressInterval();
     refreshInventoryUi();
@@ -12263,7 +12814,11 @@ const craftDroneUpgradePart = (partId) => {
 
     showTerminalToast({
       title: `${part.label} complete`,
-      description: "God mode instant craft. Move it to Inventory > Items.",
+      description: craftedModule
+        ? `${formatDroneModuleEffectLabel(
+            craftedModule
+          )}. Move it to Inventory > Items.`
+        : "God mode instant craft. Move it to Inventory > Items.",
     });
     return true;
   }
@@ -12275,6 +12830,7 @@ const craftDroneUpgradePart = (partId) => {
     startedAtMs,
     durationMs,
     completedAtMs: startedAtMs + durationMs,
+    ...(craftedModule ? { module: craftedModule } : {}),
   };
   persistDroneCraftingState();
   syncDroneCraftingProgressInterval();
@@ -12288,7 +12844,7 @@ const craftDroneUpgradePart = (partId) => {
     title: `${part.label} started`,
     description: `Crafting time: ${formatDurationSeconds(
       craftDurationSeconds
-    )}. Move it to Inventory after completion.`,
+    )}.${craftedModule ? ` Roll locked: ${formatDroneModuleEffectLabel(craftedModule)}.` : " Move it to Inventory after completion."}`,
   });
   return true;
 };
@@ -12301,15 +12857,8 @@ const moveCraftedPartToInventory = (partId) => {
 
   finalizeDroneCraftingActiveJob({ notify: true, refreshUi: false });
 
-  if (isDroneCraftingPartCrafted(part.id)) {
-    showTerminalToast({
-      title: "Already in inventory",
-      description: `${part.label} can be installed in Drone Setup > Parts.`,
-    });
-    return false;
-  }
-
-  if (!isDroneCraftingPartReadyToClaim(part.id)) {
+  const readyModules = getDroneReadyModules(part.id).sort(compareDroneModules);
+  if (readyModules.length === 0) {
     const activeJob = getDroneCraftingActiveJob();
     if (activeJob && activeJob.partId === part.id) {
       const progressState = getDroneCraftingJobProgressState(activeJob);
@@ -12322,11 +12871,31 @@ const moveCraftedPartToInventory = (partId) => {
       return false;
     }
 
+    if (getDroneInventoryModules(part.id).length > 0 || getDroneEquippedModules(part.id).length > 0) {
+      showTerminalToast({
+        title: "Already in inventory",
+        description: `${part.label} can be installed in Drone Setup > Parts.`,
+      });
+    }
     return false;
   }
 
-  droneCraftingState.readyPartIds.delete(part.id);
-  droneCraftingState.craftedPartIds.add(part.id);
+  const readyModuleIndex = droneCraftingState.readyModules.findIndex(
+    (module) => module?.id === readyModules[0]?.id
+  );
+  if (readyModuleIndex < 0) {
+    return false;
+  }
+
+  const [craftedModule] = droneCraftingState.readyModules.splice(readyModuleIndex, 1);
+  if (!craftedModule) {
+    return false;
+  }
+
+  droneCraftingState.researchedPartIds.add(part.id);
+  droneCraftingState.inventoryModules.push(craftedModule);
+  droneCraftingState.inventoryModules.sort(compareDroneModules);
+  syncLegacyDronePartSetsFromModules();
   persistDroneCraftingState();
   refreshInventoryUi();
   renderCraftingTableModal();
@@ -12336,7 +12905,9 @@ const moveCraftedPartToInventory = (partId) => {
 
   showTerminalToast({
     title: `${part.label} added`,
-    description: "Now available in Inventory > Items and Drone Setup > Parts.",
+    description: `${formatDroneModuleEffectLabel(
+      craftedModule
+    )}. Now available in Inventory > Items and Drone Setup > Parts.`,
   });
   return true;
 };
@@ -14892,6 +15463,7 @@ const handleDroneModelOptionClick = (event) => {
 
 const createDronePartsPanelItem = ({
   part,
+  module,
   action,
   actionLabel,
 }) => {
@@ -14901,12 +15473,18 @@ const createDronePartsPanelItem = ({
   const body = document.createElement("div");
   const title = document.createElement("p");
   title.className = "drone-parts-panel__item-title";
-  title.textContent = part.label;
+  if (module) {
+    applyDroneModuleTitleContent(title, part, module);
+  } else {
+    title.textContent = part.label;
+  }
   body.appendChild(title);
 
   const meta = document.createElement("p");
   meta.className = "drone-parts-panel__item-meta";
-  meta.textContent = `${part.description} • ${formatDronePartEffectLabel(part)}`;
+  meta.textContent = module
+    ? formatDroneModuleEffectLabel(module)
+    : `${part.description} • ${formatDronePartResearchEffectLabel(part)}`;
   body.appendChild(meta);
   item.appendChild(body);
 
@@ -14914,49 +15492,94 @@ const createDronePartsPanelItem = ({
   actionButton.type = "button";
   actionButton.className = "drone-parts-panel__action";
   actionButton.dataset.dronePartAction = action;
-  actionButton.dataset.dronePartId = part.id;
+  if (module?.id) {
+    actionButton.dataset.droneModuleId = module.id;
+  }
   actionButton.textContent = actionLabel;
   item.appendChild(actionButton);
 
   return item;
 };
 
-const installDronePart = (partId) => {
-  const part = getDroneCraftingPartById(partId);
-  if (!part) {
+const installDronePart = (moduleId) => {
+  if (typeof moduleId !== "string" || moduleId.trim() === "") {
     return false;
   }
 
-  if (!isDroneCraftingPartCrafted(partId) || isDroneCraftingPartEquipped(partId)) {
+  const normalizedModuleId = moduleId.trim();
+  const inventoryIndex = droneCraftingState.inventoryModules.findIndex(
+    (module) => module?.id === normalizedModuleId
+  );
+  if (inventoryIndex < 0) {
     return false;
   }
 
-  droneCraftingState.equippedPartIds.add(partId);
+  const [selectedModule] = droneCraftingState.inventoryModules.splice(inventoryIndex, 1);
+  const part = getDroneCraftingPartById(selectedModule?.partId);
+  if (!part || !selectedModule) {
+    return false;
+  }
+
+  const equippedIndex = droneCraftingState.equippedModules.findIndex(
+    (module) => module?.partId === selectedModule.partId
+  );
+  if (equippedIndex >= 0) {
+    const [equippedModule] = droneCraftingState.equippedModules.splice(equippedIndex, 1);
+    if (equippedModule) {
+      droneCraftingState.inventoryModules.push(equippedModule);
+    }
+  }
+
+  droneCraftingState.equippedModules.push(selectedModule);
+  droneCraftingState.inventoryModules.sort(compareDroneModules);
+  droneCraftingState.equippedModules.sort(compareDroneModules);
+  syncLegacyDronePartSetsFromModules();
   persistDroneCraftingState();
   refreshInventoryUi();
   renderDroneCustomizationModal();
+  refreshCraftingTableModalIfOpen();
   syncDroneMiningSpeedBonusWithScene();
   showTerminalToast({
     title: `${part.label} installed`,
-    description: getInstalledDroneBonusSummaryText(),
+    description: `${formatDroneModuleEffectLabel(
+      selectedModule
+    )}. ${getInstalledDroneBonusSummaryText()}`,
   });
   return true;
 };
 
-const removeDronePart = (partId) => {
-  const part = getDroneCraftingPartById(partId);
-  if (!part || !isDroneCraftingPartEquipped(partId)) {
+const removeDronePart = (moduleId) => {
+  if (typeof moduleId !== "string" || moduleId.trim() === "") {
     return false;
   }
 
-  droneCraftingState.equippedPartIds.delete(partId);
+  const normalizedModuleId = moduleId.trim();
+  const equippedIndex = droneCraftingState.equippedModules.findIndex(
+    (module) => module?.id === normalizedModuleId
+  );
+  if (equippedIndex < 0) {
+    return false;
+  }
+
+  const [equippedModule] = droneCraftingState.equippedModules.splice(equippedIndex, 1);
+  const part = getDroneCraftingPartById(equippedModule?.partId);
+  if (!part || !equippedModule) {
+    return false;
+  }
+
+  droneCraftingState.inventoryModules.push(equippedModule);
+  droneCraftingState.inventoryModules.sort(compareDroneModules);
+  syncLegacyDronePartSetsFromModules();
   persistDroneCraftingState();
   refreshInventoryUi();
   renderDroneCustomizationModal();
+  refreshCraftingTableModalIfOpen();
   syncDroneMiningSpeedBonusWithScene();
   showTerminalToast({
     title: `${part.label} removed`,
-    description: getInstalledDroneBonusSummaryText(),
+    description: `${formatDroneModuleEffectLabel(
+      equippedModule
+    )}. ${getInstalledDroneBonusSummaryText()}`,
   });
   return true;
 };
@@ -14973,19 +15596,19 @@ const handleDronePartActionClick = (event) => {
 
   event.preventDefault();
 
-  const partId = button.dataset.dronePartId;
+  const moduleId = button.dataset.droneModuleId;
   const action = button.dataset.dronePartAction;
-  if (!partId || !action) {
+  if (!moduleId || !action) {
     return;
   }
 
   if (action === "install") {
-    installDronePart(partId);
+    installDronePart(moduleId);
     return;
   }
 
   if (action === "remove") {
-    removeDronePart(partId);
+    removeDronePart(moduleId);
   }
 };
 
@@ -15005,18 +15628,23 @@ const renderDronePartsPanel = () => {
     return;
   }
 
-  const availableParts = getDroneCraftingInventoryParts();
-  const installedParts = getDroneCraftingInstalledParts();
+  const availableModules = getDroneInventoryModules().sort(compareDroneModules);
+  const installedModules = getDroneEquippedModules().sort(compareDroneModules);
 
   if (partsSummary instanceof HTMLElement) {
-    partsSummary.textContent = `Installed ${installedParts.length}/${DRONE_CRAFTING_PARTS.length} • ${getInstalledDroneBonusSummaryText()}`;
+    partsSummary.textContent = `Installed ${installedModules.length}/${DRONE_CRAFTING_PARTS.length} • ${getInstalledDroneBonusSummaryText()}`;
   }
 
   partsAvailableList.innerHTML = "";
-  availableParts.forEach((part) => {
+  availableModules.forEach((module) => {
+    const part = getDroneCraftingPartById(module?.partId);
+    if (!part) {
+      return;
+    }
     partsAvailableList.appendChild(
       createDronePartsPanelItem({
         part,
+        module,
         action: "install",
         actionLabel: "Install",
       })
@@ -15024,10 +15652,15 @@ const renderDronePartsPanel = () => {
   });
 
   partsInstalledList.innerHTML = "";
-  installedParts.forEach((part) => {
+  installedModules.forEach((module) => {
+    const part = getDroneCraftingPartById(module?.partId);
+    if (!part) {
+      return;
+    }
     partsInstalledList.appendChild(
       createDronePartsPanelItem({
         part,
+        module,
         action: "remove",
         actionLabel: "Remove",
       })
@@ -15035,10 +15668,10 @@ const renderDronePartsPanel = () => {
   });
 
   if (partsAvailableEmpty instanceof HTMLElement) {
-    partsAvailableEmpty.hidden = availableParts.length > 0;
+    partsAvailableEmpty.hidden = availableModules.length > 0;
   }
   if (partsInstalledEmpty instanceof HTMLElement) {
-    partsInstalledEmpty.hidden = installedParts.length > 0;
+    partsInstalledEmpty.hidden = installedModules.length > 0;
   }
 
   if (!partsAvailableList.dataset.boundPartsActions) {
@@ -16890,15 +17523,15 @@ const renderInventoryItemsEntries = () => {
   const costumeBlueprints = COSTUME_RESEARCH_PROJECTS.filter((project) =>
     isCostumeResearchBlueprintInInventory(project.id)
   );
-  const craftedParts = DRONE_CRAFTING_PARTS.filter((part) =>
-    isDroneCraftingPartCrafted(part.id)
-  );
+  const craftedDroneModules = getDroneInventoryModules().sort(compareDroneModules);
+  const installedDroneModules = getDroneEquippedModules().sort(compareDroneModules);
   const craftedCostumeProjects = getCostumeInventoryModules().sort(compareCostumeModules);
   const installedCostumeProjects = getCostumeEquippedModules().sort(compareCostumeModules);
   const totalItems =
     researchBlueprints.length +
     costumeBlueprints.length +
-    craftedParts.length +
+    craftedDroneModules.length +
+    installedDroneModules.length +
     craftedCostumeProjects.length +
     installedCostumeProjects.length;
 
@@ -16947,21 +17580,47 @@ const renderInventoryItemsEntries = () => {
     fragment.appendChild(item);
   });
 
-  craftedParts.forEach((part) => {
+  craftedDroneModules.forEach((module) => {
+    const part = getDroneCraftingPartById(module?.partId);
+    if (!part) {
+      return;
+    }
+
     const item = document.createElement("li");
     item.className = "inventory-items-list__entry";
 
     const title = document.createElement("p");
     title.className = "inventory-items-list__title";
-    title.textContent = part.label;
+    applyDroneModuleTitleContent(title, part, module);
     item.appendChild(title);
 
     const meta = document.createElement("p");
     meta.className = "inventory-items-list__meta";
-    const effectLabel = formatDronePartEffectLabel(part);
-    meta.textContent = isDroneCraftingPartEquipped(part.id)
-      ? `Installed on drone. ${effectLabel}`
-      : `Available to install in Drone Setup > Parts. ${effectLabel}`;
+    meta.textContent = `Available to install in Drone Setup > Parts. ${formatDroneModuleEffectLabel(
+      module
+    )}`;
+    item.appendChild(meta);
+
+    fragment.appendChild(item);
+  });
+
+  installedDroneModules.forEach((module) => {
+    const part = getDroneCraftingPartById(module?.partId);
+    if (!part) {
+      return;
+    }
+
+    const item = document.createElement("li");
+    item.className = "inventory-items-list__entry";
+
+    const title = document.createElement("p");
+    title.className = "inventory-items-list__title";
+    applyDroneModuleTitleContent(title, part, module);
+    item.appendChild(title);
+
+    const meta = document.createElement("p");
+    meta.className = "inventory-items-list__meta";
+    meta.textContent = `Installed on drone. ${formatDroneModuleEffectLabel(module)}`;
     item.appendChild(meta);
 
     fragment.appendChild(item);
@@ -17529,56 +18188,77 @@ const serializeDroneCraftingStateForPersistence = () => {
   const knownCostumeProjectIds = new Set(
     COSTUME_RESEARCH_PROJECTS.map((project) => project.id)
   );
-  const researchedPartIds = Array.from(droneCraftingState.researchedPartIds).filter(
-    (partId) => typeof partId === "string" && knownPartIds.has(partId)
-  );
-  const researchedPartSet = new Set(researchedPartIds);
+  const serializeDroneModule = (module) => ({
+    id: module.id,
+    partId: module.partId,
+    bonusKey: module.bonusKey,
+    bonusValue: module.bonusValue,
+    rarityId: module.rarityId,
+    lucky: module.lucky,
+    createdAtMs: module.createdAtMs,
+  });
+  const droneInventoryModules = getDroneInventoryModules()
+    .map((module) => normalizeDroneModuleInstance(module))
+    .filter(Boolean)
+    .sort(compareDroneModules)
+    .map(serializeDroneModule);
+  const droneEquippedModules = getDroneEquippedModules()
+    .map((module) => normalizeDroneModuleInstance(module))
+    .filter(Boolean)
+    .sort(compareDroneModules)
+    .map(serializeDroneModule);
+  const droneReadyModules = getDroneReadyModules()
+    .map((module) => normalizeDroneModuleInstance(module))
+    .filter(Boolean)
+    .sort(compareDroneModules)
+    .map(serializeDroneModule);
+
   const inventoryResearchPartIds = Array.from(droneCraftingState.inventoryResearchPartIds).filter(
     (partId) =>
       typeof partId === "string" &&
-      knownPartIds.has(partId) &&
-      !researchedPartSet.has(partId)
+      knownPartIds.has(partId)
   );
-  const inventoryResearchPartSet = new Set(inventoryResearchPartIds);
   const readyResearchPartIds = Array.from(droneCraftingState.readyResearchPartIds).filter(
     (partId) =>
       typeof partId === "string" &&
-      knownPartIds.has(partId) &&
-      !researchedPartSet.has(partId) &&
-      !inventoryResearchPartSet.has(partId)
-  );
-  const readyResearchPartSet = new Set(readyResearchPartIds);
-  const craftedPartIds = Array.from(droneCraftingState.craftedPartIds).filter(
-    (partId) => typeof partId === "string" && knownPartIds.has(partId)
-  );
-  const craftedPartSet = new Set(craftedPartIds);
-
-  const equippedPartIds = Array.from(droneCraftingState.equippedPartIds).filter(
-    (partId) =>
-      typeof partId === "string" &&
-      craftedPartSet.has(partId) &&
       knownPartIds.has(partId)
   );
 
-  const readyPartIds = Array.from(droneCraftingState.readyPartIds).filter(
-    (partId) =>
-      typeof partId === "string" &&
-      knownPartIds.has(partId) &&
-      !craftedPartSet.has(partId)
-  );
-  const readyPartSet = new Set(readyPartIds);
-
   const activeJob = getDroneCraftingActiveJob();
+  const activeJobModule = normalizeDroneModuleInstance(activeJob?.module, activeJob?.partId);
+  const researchedPartIds = Array.from(
+    new Set([
+      ...Array.from(droneCraftingState.researchedPartIds),
+      ...droneInventoryModules.map((module) => module.partId),
+      ...droneEquippedModules.map((module) => module.partId),
+      ...droneReadyModules.map((module) => module.partId),
+      ...(activeJob && knownPartIds.has(activeJob.partId) ? [activeJob.partId] : []),
+    ])
+  ).filter((partId) => typeof partId === "string" && knownPartIds.has(partId));
+  const researchedPartSet = new Set(researchedPartIds);
+  const filteredInventoryResearchPartIds = inventoryResearchPartIds.filter(
+    (partId) => !researchedPartSet.has(partId)
+  );
+  const filteredInventoryResearchPartSet = new Set(filteredInventoryResearchPartIds);
+  const filteredReadyResearchPartIds = readyResearchPartIds.filter(
+    (partId) =>
+      !researchedPartSet.has(partId) && !filteredInventoryResearchPartSet.has(partId)
+  );
+  const craftedPartIds = Array.from(
+    new Set([...droneInventoryModules, ...droneEquippedModules].map((module) => module.partId))
+  );
+  const equippedPartIds = Array.from(
+    new Set(droneEquippedModules.map((module) => module.partId))
+  );
+  const readyPartIds = Array.from(new Set(droneReadyModules.map((module) => module.partId)));
   const activeJobForPersistence =
-    activeJob &&
-    knownPartIds.has(activeJob.partId) &&
-    !craftedPartSet.has(activeJob.partId) &&
-    !readyPartSet.has(activeJob.partId)
+    activeJob && knownPartIds.has(activeJob.partId)
       ? {
           partId: activeJob.partId,
           startedAtMs: Math.floor(activeJob.startedAtMs),
           durationMs: Math.floor(activeJob.durationMs),
           completedAtMs: Math.floor(activeJob.completedAtMs),
+          ...(activeJobModule ? { module: serializeDroneModule(activeJobModule) } : {}),
         }
       : null;
 
@@ -17587,8 +18267,8 @@ const serializeDroneCraftingStateForPersistence = () => {
     activeResearchJob &&
     knownPartIds.has(activeResearchJob.partId) &&
     !researchedPartSet.has(activeResearchJob.partId) &&
-    !inventoryResearchPartSet.has(activeResearchJob.partId) &&
-    !readyResearchPartSet.has(activeResearchJob.partId)
+    !filteredInventoryResearchPartSet.has(activeResearchJob.partId) &&
+    !filteredReadyResearchPartIds.includes(activeResearchJob.partId)
       ? {
           partId: activeResearchJob.partId,
           startedAtMs: Math.floor(activeResearchJob.startedAtMs),
@@ -17733,11 +18413,18 @@ const serializeDroneCraftingStateForPersistence = () => {
 
   return {
     researchedPartIds,
-    inventoryResearchPartIds,
-    readyResearchPartIds,
+    inventoryResearchPartIds: filteredInventoryResearchPartIds,
+    readyResearchPartIds: filteredReadyResearchPartIds,
     craftedPartIds,
     equippedPartIds,
     readyPartIds,
+    droneInventoryModules,
+    droneEquippedModules,
+    droneReadyModules,
+    droneNextModuleInstanceId: Math.max(
+      1,
+      Math.floor(Number(droneCraftingState.nextModuleInstanceId) || 1)
+    ),
     activeResearchJob: activeResearchJobForPersistence,
     activeJob: activeJobForPersistence,
     unlockedModelIds,
@@ -17934,23 +18621,9 @@ const restoreStorageBoxStateFromStorage = () => {
 
 const restoreDroneCraftingStateFromStorage = () => {
   const storage = getInventoryStorage();
-  if (!storage) {
+  const resetDroneCraftingRestoreState = () => {
     clearCostumeResearchState();
-    droneCraftingState.researchedPartIds.clear();
-    droneCraftingState.inventoryResearchPartIds.clear();
-    droneCraftingState.readyResearchPartIds.clear();
-    droneCraftingState.craftedPartIds.clear();
-    droneCraftingState.equippedPartIds.clear();
-    droneCraftingState.readyPartIds.clear();
-    droneCraftingState.activeResearchJob = null;
-    droneCraftingState.activeJob = null;
-    ensureDroneUnlockedModelState().clear();
-    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
-    const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
-    if (legacyModelId) {
-      ensureDroneUnlockedModelState().add(legacyModelId);
-    }
-    droneCraftingState.mediumModelRequirements = [];
+    clearDroneCraftingProgressState();
     syncCostumeResearchProgressInterval();
     syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
@@ -17965,6 +18638,9 @@ const restoreDroneCraftingStateFromStorage = () => {
     refreshCraftingTableModalIfOpen();
     refreshResearchModalIfOpen();
     return false;
+  };
+  if (!storage) {
+    return resetDroneCraftingRestoreState();
   }
 
   let serialized = null;
@@ -17972,73 +18648,14 @@ const restoreDroneCraftingStateFromStorage = () => {
     serialized = storage.getItem(DRONE_CRAFTING_STORAGE_KEY);
   } catch (error) {
     console.warn("Unable to read stored drone crafting state", error);
-    clearCostumeResearchState();
-    droneCraftingState.researchedPartIds.clear();
-    droneCraftingState.inventoryResearchPartIds.clear();
-    droneCraftingState.readyResearchPartIds.clear();
-    droneCraftingState.craftedPartIds.clear();
-    droneCraftingState.equippedPartIds.clear();
-    droneCraftingState.readyPartIds.clear();
-    droneCraftingState.activeResearchJob = null;
-    droneCraftingState.activeJob = null;
-    ensureDroneUnlockedModelState().clear();
-    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
-    const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
-    if (legacyModelId) {
-      ensureDroneUnlockedModelState().add(legacyModelId);
-    }
-    droneCraftingState.mediumModelRequirements = [];
-    syncCostumeResearchProgressInterval();
-    syncCostumeCraftingProgressInterval();
-    syncDroneResearchProgressInterval();
-    syncDroneCraftingProgressInterval();
-    applyCostumeResearchBonuses({
-      refreshResearch: false,
-      persistOxygen: false,
-      silentPressure: true,
-    });
-    syncDroneMiningSpeedBonusWithScene();
-    refreshInventoryUi();
-    refreshCraftingTableModalIfOpen();
-    refreshResearchModalIfOpen();
-    return false;
+    return resetDroneCraftingRestoreState();
   }
 
   clearCostumeResearchState();
-  droneCraftingState.researchedPartIds.clear();
-  droneCraftingState.inventoryResearchPartIds.clear();
-  droneCraftingState.readyResearchPartIds.clear();
-  droneCraftingState.craftedPartIds.clear();
-  droneCraftingState.equippedPartIds.clear();
-  droneCraftingState.readyPartIds.clear();
-  droneCraftingState.activeResearchJob = null;
-  droneCraftingState.activeJob = null;
-  ensureDroneUnlockedModelState().clear();
-  ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
-  droneCraftingState.mediumModelRequirements = [];
+  clearDroneCraftingProgressState();
 
   if (typeof serialized !== "string" || serialized.trim() === "") {
-    ensureDroneUnlockedModelState().clear();
-    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
-    const legacyModelId = normalizeDroneUnlockModelId(currentSettings?.droneModelId);
-    if (legacyModelId) {
-      ensureDroneUnlockedModelState().add(legacyModelId);
-    }
-    droneCraftingState.mediumModelRequirements = [];
-    syncCostumeResearchProgressInterval();
-    syncCostumeCraftingProgressInterval();
-    syncDroneResearchProgressInterval();
-    syncDroneCraftingProgressInterval();
-    applyCostumeResearchBonuses({
-      refreshResearch: false,
-      persistOxygen: false,
-      silentPressure: true,
-    });
-    syncDroneMiningSpeedBonusWithScene();
-    refreshInventoryUi();
-    refreshCraftingTableModalIfOpen();
-    refreshResearchModalIfOpen();
-    return false;
+    return resetDroneCraftingRestoreState();
   }
 
   let restored = false;
@@ -18086,47 +18703,111 @@ const restoreDroneCraftingStateFromStorage = () => {
       }
     });
 
-    const storedCraftedPartIds = Array.isArray(data?.craftedPartIds)
-      ? data.craftedPartIds
+    const storedDroneInventoryModules = Array.isArray(data?.droneInventoryModules)
+      ? data.droneInventoryModules
       : [];
-    storedCraftedPartIds.forEach((partId) => {
-      if (
-        typeof partId === "string" &&
-        knownPartIds.has(partId)
-      ) {
-        droneCraftingState.inventoryResearchPartIds.delete(partId);
-        droneCraftingState.readyResearchPartIds.delete(partId);
-        droneCraftingState.researchedPartIds.add(partId);
-        droneCraftingState.craftedPartIds.add(partId);
+    storedDroneInventoryModules.forEach((rawModule) => {
+      const normalizedModule = normalizeDroneModuleInstance(rawModule);
+      if (normalizedModule) {
+        droneCraftingState.inventoryModules.push(normalizedModule);
       }
     });
 
-    const storedEquippedPartIds = Array.isArray(data?.equippedPartIds)
-      ? data.equippedPartIds
+    const storedDroneEquippedModules = Array.isArray(data?.droneEquippedModules)
+      ? data.droneEquippedModules
       : [];
-    storedEquippedPartIds.forEach((partId) => {
-      if (
-        typeof partId === "string" &&
-        knownPartIds.has(partId) &&
-        droneCraftingState.craftedPartIds.has(partId)
-      ) {
-        droneCraftingState.equippedPartIds.add(partId);
+    storedDroneEquippedModules.forEach((rawModule) => {
+      const normalizedModule = normalizeDroneModuleInstance(rawModule);
+      if (normalizedModule) {
+        const alreadyEquipped = droneCraftingState.equippedModules.some(
+          (module) => module?.partId === normalizedModule.partId
+        );
+        if (!alreadyEquipped) {
+          droneCraftingState.equippedModules.push(normalizedModule);
+        } else {
+          droneCraftingState.inventoryModules.push(normalizedModule);
+        }
       }
     });
 
-    const storedReadyPartIds = Array.isArray(data?.readyPartIds) ? data.readyPartIds : [];
-    storedReadyPartIds.forEach((partId) => {
-      if (
-        typeof partId === "string" &&
-        knownPartIds.has(partId) &&
-        !droneCraftingState.craftedPartIds.has(partId)
-      ) {
-        droneCraftingState.inventoryResearchPartIds.delete(partId);
-        droneCraftingState.readyResearchPartIds.delete(partId);
-        droneCraftingState.researchedPartIds.add(partId);
-        droneCraftingState.readyPartIds.add(partId);
+    const storedDroneReadyModules = Array.isArray(data?.droneReadyModules)
+      ? data.droneReadyModules
+      : [];
+    storedDroneReadyModules.forEach((rawModule) => {
+      const normalizedModule = normalizeDroneModuleInstance(rawModule);
+      if (normalizedModule) {
+        droneCraftingState.readyModules.push(normalizedModule);
       }
     });
+
+    if (
+      droneCraftingState.inventoryModules.length === 0 &&
+      droneCraftingState.equippedModules.length === 0 &&
+      droneCraftingState.readyModules.length === 0
+    ) {
+      const legacyEquippedPartIds = new Set();
+      const storedEquippedPartIds = Array.isArray(data?.equippedPartIds) ? data.equippedPartIds : [];
+      storedEquippedPartIds.forEach((partId) => {
+        if (typeof partId === "string" && knownPartIds.has(partId)) {
+          legacyEquippedPartIds.add(partId);
+        }
+      });
+
+      const legacyReadyPartIds = new Set();
+      const storedReadyPartIds = Array.isArray(data?.readyPartIds) ? data.readyPartIds : [];
+      storedReadyPartIds.forEach((partId) => {
+        if (typeof partId === "string" && knownPartIds.has(partId)) {
+          legacyReadyPartIds.add(partId);
+        }
+      });
+
+      const storedCraftedPartIds = Array.isArray(data?.craftedPartIds)
+        ? data.craftedPartIds
+        : [];
+      storedCraftedPartIds.forEach((partId) => {
+        if (typeof partId !== "string" || !knownPartIds.has(partId)) {
+          return;
+        }
+
+        if (legacyEquippedPartIds.has(partId) || legacyReadyPartIds.has(partId)) {
+          return;
+        }
+
+        const part = getDroneCraftingPartById(partId);
+        const legacyModule = createDroneModuleInstance(partId, {
+          bonusValue: getDronePartBonusBaseValue(part),
+          rarityId: "normal",
+          lucky: false,
+        });
+        if (legacyModule) {
+          droneCraftingState.inventoryModules.push(legacyModule);
+        }
+      });
+
+      legacyEquippedPartIds.forEach((partId) => {
+        const part = getDroneCraftingPartById(partId);
+        const legacyModule = createDroneModuleInstance(partId, {
+          bonusValue: getDronePartBonusBaseValue(part),
+          rarityId: "normal",
+          lucky: false,
+        });
+        if (legacyModule) {
+          droneCraftingState.equippedModules.push(legacyModule);
+        }
+      });
+
+      legacyReadyPartIds.forEach((partId) => {
+        const part = getDroneCraftingPartById(partId);
+        const legacyModule = createDroneModuleInstance(partId, {
+          bonusValue: getDronePartBonusBaseValue(part),
+          rarityId: "normal",
+          lucky: false,
+        });
+        if (legacyModule) {
+          droneCraftingState.readyModules.push(legacyModule);
+        }
+      });
+    }
 
     const restoredActiveResearchJob = normalizeDroneResearchActiveJob(
       data?.activeResearchJob
@@ -18141,11 +18822,7 @@ const restoreDroneCraftingStateFromStorage = () => {
     }
 
     const restoredActiveJob = normalizeDroneCraftingActiveJob(data?.activeJob);
-    if (
-      restoredActiveJob &&
-      !droneCraftingState.craftedPartIds.has(restoredActiveJob.partId) &&
-      !droneCraftingState.readyPartIds.has(restoredActiveJob.partId)
-    ) {
+    if (restoredActiveJob) {
       droneCraftingState.inventoryResearchPartIds.delete(restoredActiveJob.partId);
       droneCraftingState.readyResearchPartIds.delete(restoredActiveJob.partId);
       droneCraftingState.researchedPartIds.add(restoredActiveJob.partId);
@@ -18174,6 +18851,35 @@ const restoreDroneCraftingStateFromStorage = () => {
     if (storedMediumModelRequirements.length > 0) {
       droneCraftingState.mediumModelRequirements = storedMediumModelRequirements;
     }
+
+    const droneLoadedPartIds = new Set(
+      [
+        ...droneCraftingState.inventoryModules,
+        ...droneCraftingState.equippedModules,
+        ...droneCraftingState.readyModules,
+      ]
+        .map((module) => module?.partId)
+        .filter((partId) => typeof partId === "string" && knownPartIds.has(partId))
+    );
+    if (droneCraftingState.activeJob && knownPartIds.has(droneCraftingState.activeJob.partId)) {
+      droneLoadedPartIds.add(droneCraftingState.activeJob.partId);
+    }
+    droneLoadedPartIds.forEach((partId) => {
+      droneCraftingState.researchedPartIds.add(partId);
+      droneCraftingState.inventoryResearchPartIds.delete(partId);
+      droneCraftingState.readyResearchPartIds.delete(partId);
+    });
+    droneCraftingState.inventoryModules.sort(compareDroneModules);
+    droneCraftingState.equippedModules.sort(compareDroneModules);
+    droneCraftingState.readyModules.sort(compareDroneModules);
+    syncLegacyDronePartSetsFromModules();
+    if (Number.isFinite(data?.droneNextModuleInstanceId)) {
+      droneCraftingState.nextModuleInstanceId = Math.max(
+        1,
+        Math.floor(data.droneNextModuleInstanceId)
+      );
+    }
+    syncDroneNextModuleInstanceId();
 
     const storedCostumeInventoryModules = Array.isArray(data?.costumeInventoryModules)
       ? data.costumeInventoryModules
@@ -18416,9 +19122,9 @@ const restoreDroneCraftingStateFromStorage = () => {
       droneCraftingState.researchedPartIds.size > 0 ||
       droneCraftingState.inventoryResearchPartIds.size > 0 ||
       droneCraftingState.readyResearchPartIds.size > 0 ||
-      droneCraftingState.craftedPartIds.size > 0 ||
-      droneCraftingState.equippedPartIds.size > 0 ||
-      droneCraftingState.readyPartIds.size > 0 ||
+      droneCraftingState.inventoryModules.length > 0 ||
+      droneCraftingState.equippedModules.length > 0 ||
+      droneCraftingState.readyModules.length > 0 ||
       Boolean(costumeResearchState.activeJob) ||
       Boolean(costumeResearchState.activeCraftJob) ||
       Boolean(droneCraftingState.activeResearchJob) ||
@@ -22408,17 +23114,7 @@ function handleReset(event) {
     storageBoxState.activeBoxId = STORAGE_BOX_DEFAULT_ID;
     ensureStorageBoxRecord(STORAGE_BOX_DEFAULT_ID);
     clearCostumeResearchState();
-    droneCraftingState.researchedPartIds.clear();
-    droneCraftingState.inventoryResearchPartIds.clear();
-    droneCraftingState.readyResearchPartIds.clear();
-    droneCraftingState.craftedPartIds.clear();
-    droneCraftingState.equippedPartIds.clear();
-    droneCraftingState.readyPartIds.clear();
-    droneCraftingState.activeResearchJob = null;
-    droneCraftingState.activeJob = null;
-    ensureDroneUnlockedModelState().clear();
-    ensureDroneUnlockedModelState().add(DRONE_LIGHT_MODEL_ID);
-    droneCraftingState.mediumModelRequirements = [];
+    clearDroneCraftingProgressState();
     syncCostumeResearchProgressInterval();
     syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
