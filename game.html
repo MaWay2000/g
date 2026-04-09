@@ -3113,10 +3113,10 @@
         border: 1px solid rgba(59, 130, 246, 0.26);
         background: rgba(15, 23, 42, 0.82);
         padding: 0.58rem 0.68rem;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 0.62rem;
-        align-items: stretch;
+        align-items: start;
       }
 
       .drone-parts-panel__item--upgrade {
@@ -3221,7 +3221,7 @@
         flex-wrap: wrap;
         justify-content: flex-end;
         gap: 0.45rem;
-        width: 100%;
+        align-self: start;
       }
 
       .drone-parts-panel__action:hover,
@@ -3301,6 +3301,15 @@
       @media (max-width: 980px) {
         .drone-customization-shell {
           grid-template-columns: 1fr;
+        }
+
+        .drone-parts-panel__item {
+          grid-template-columns: 1fr;
+          align-items: stretch;
+        }
+
+        .drone-parts-panel__actions {
+          width: 100%;
         }
       }
 
