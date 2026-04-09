@@ -12546,9 +12546,17 @@ const createCostumeSetupPanelItem = ({ module, action, actionLabel }) => {
 
   const scrapValue = getCostumeModuleScrapValue(module);
   if (action === "install" && scrapValue > 0) {
+    const scrapMultiplier = getCostumeModuleScrapMultiplier(module);
+    const scrapRarityLabel = getCostumeModuleRarityDisplayLabel(
+      module?.rarityId,
+      module?.lucky === true
+    );
     const scrapMeta = document.createElement("p");
     scrapMeta.className = "drone-parts-panel__item-meta";
-    scrapMeta.textContent = `Scrap value: ${formatMarsMoney(scrapValue)} Mars money.`;
+    scrapMeta.textContent =
+      scrapMultiplier > 1 && scrapRarityLabel
+        ? `Scrap value: ${formatMarsMoney(scrapValue)} Mars money (${scrapRarityLabel} x${scrapMultiplier}).`
+        : `Scrap value: ${formatMarsMoney(scrapValue)} Mars money.`;
     body.appendChild(scrapMeta);
   }
   item.appendChild(body);
@@ -15124,6 +15132,12 @@ const getMarketItemForElement = (element) => {
 
 const COSTUME_MODULE_SCRAP_RETURN_FACTOR = 0.5;
 
+const getCostumeModuleScrapMultiplier = (module) => {
+  const rarityRank =
+    getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
+  return Math.max(1, 2 ** Math.max(0, rarityRank));
+};
+
 const getCostumeModuleScrapValue = (module) => {
   const project = getCostumeResearchProjectById(module?.projectId);
   const requirements = getCostumeCraftRequirements(project);
@@ -15148,7 +15162,14 @@ const getCostumeModuleScrapValue = (module) => {
     return 0;
   }
 
-  return Math.max(1, Math.round(recipeMarketValue * COSTUME_MODULE_SCRAP_RETURN_FACTOR));
+  return Math.max(
+    1,
+    Math.round(
+      recipeMarketValue *
+        COSTUME_MODULE_SCRAP_RETURN_FACTOR *
+        getCostumeModuleScrapMultiplier(module)
+    )
+  );
 };
 
 const getMissionRewardMarsMoney = (mission) => {
