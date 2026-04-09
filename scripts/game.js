@@ -4473,6 +4473,7 @@ let droneCustomizationModalActive = false;
 let costumeCustomizationModalActive = false;
 let storageBoxModalActive = false;
 let craftingTableModalActive = false;
+let costumeSetupRarityFilterRank = 0;
 let teardownResearchModalActionBinding = null;
 let teardownStorageBoxActionBinding = null;
 let teardownCraftingTableActionBinding = null;
@@ -5663,6 +5664,41 @@ const compareCostumeModules = (left, right) => {
 
 const getBestCostumeModule = (modules) =>
   (Array.isArray(modules) ? modules.slice() : []).sort(compareCostumeModules)[0] ?? null;
+
+const getCostumeModuleRarityRank = (module) =>
+  getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
+
+const getCostumeSetupInventoryModulePriority = (module, installedModuleForComparison = null) => {
+  if (!installedModuleForComparison) {
+    return 0;
+  }
+  return compareCostumeModules(module, installedModuleForComparison) < 0 ? 1 : 2;
+};
+
+const getFilteredCostumeSetupInventoryModules = (modules, minimumRarityRank = 0) =>
+  (Array.isArray(modules) ? modules : []).filter(
+    (module) => getCostumeModuleRarityRank(module) >= Math.max(0, minimumRarityRank)
+  );
+
+const getSortedCostumeSetupInventoryModules = (
+  modules,
+  bestInstalledModulesByProjectId = new Map()
+) =>
+  (Array.isArray(modules) ? modules.slice() : []).sort((left, right) => {
+    const leftInstalledModule =
+      bestInstalledModulesByProjectId.get(typeof left?.projectId === "string" ? left.projectId : "") ??
+      null;
+    const rightInstalledModule =
+      bestInstalledModulesByProjectId.get(typeof right?.projectId === "string" ? right.projectId : "") ??
+      null;
+    const priorityDelta =
+      getCostumeSetupInventoryModulePriority(left, leftInstalledModule) -
+      getCostumeSetupInventoryModulePriority(right, rightInstalledModule);
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+    return compareCostumeModules(left, right);
+  });
 
 const getCostumeResearchRequiredProject = (project) => {
   const requiredProjectId =
@@ -12504,6 +12540,8 @@ const getCostumeCustomizationModalElements = () => {
   if (!quickAccessModalContent) {
     return {
       summary: null,
+      filterButtons: [],
+      scrapListedButton: null,
       availableList: null,
       availableEmpty: null,
       installedList: null,
@@ -12513,6 +12551,10 @@ const getCostumeCustomizationModalElements = () => {
 
   return {
     summary: quickAccessModalContent.querySelector("[data-costume-setup-summary]"),
+    filterButtons: Array.from(
+      quickAccessModalContent.querySelectorAll("[data-costume-setup-filter-rank]")
+    ),
+    scrapListedButton: quickAccessModalContent.querySelector("[data-costume-setup-scrap-listed]"),
     availableList: quickAccessModalContent.querySelector("[data-costume-setup-available-list]"),
     availableEmpty: quickAccessModalContent.querySelector(
       "[data-costume-setup-available-empty]"
@@ -12724,6 +12766,50 @@ const scrapCostumeProject = (moduleId) => {
   return true;
 };
 
+const scrapCostumeProjects = (moduleIds) => {
+  const targetIds = new Set(
+    (Array.isArray(moduleIds) ? moduleIds : []).filter((moduleId) => typeof moduleId === "string")
+  );
+  if (targetIds.size === 0) {
+    return false;
+  }
+
+  const selectedModules = costumeResearchState.inventoryModules.filter((module) =>
+    targetIds.has(module?.id)
+  );
+  if (selectedModules.length === 0) {
+    return false;
+  }
+
+  const totalScrapValue = selectedModules.reduce(
+    (sum, module) => sum + getCostumeModuleScrapValue(module),
+    0
+  );
+
+  costumeResearchState.inventoryModules = costumeResearchState.inventoryModules.filter(
+    (module) => !targetIds.has(module?.id)
+  );
+  costumeResearchState.inventoryModules.sort(compareCostumeModules);
+  syncLegacyCostumeProjectSetsFromModules();
+  if (totalScrapValue > 0) {
+    addMarsMoney(totalScrapValue);
+  }
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+  renderCostumeCustomizationModal();
+
+  showTerminalToast({
+    title: `${selectedModules.length} module${selectedModules.length === 1 ? "" : "s"} scrapped`,
+    description:
+      totalScrapValue > 0
+        ? `${formatMarsMoney(totalScrapValue)} Mars money returned from listed costume modules.`
+        : `Selected costume modules scrapped.`,
+  });
+  return true;
+};
+
 const handleCostumeProjectActionClick = (event) => {
   const button =
     event.target instanceof HTMLElement
@@ -12757,12 +12843,52 @@ const handleCostumeProjectActionClick = (event) => {
   }
 };
 
+const handleCostumeSetupToolbarClick = (event) => {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (!target) {
+    return;
+  }
+
+  const filterButton = target.closest("[data-costume-setup-filter-rank]");
+  if (filterButton instanceof HTMLButtonElement) {
+    event.preventDefault();
+    const nextRank = Number.parseInt(filterButton.dataset.costumeSetupFilterRank ?? "0", 10);
+    costumeSetupRarityFilterRank = Number.isFinite(nextRank) ? Math.max(0, nextRank) : 0;
+    renderCostumeCustomizationModal();
+    return;
+  }
+
+  const scrapListedButton = target.closest("[data-costume-setup-scrap-listed]");
+  if (!(scrapListedButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (scrapListedButton.disabled) {
+    return;
+  }
+
+  const listedIds = (scrapListedButton.dataset.costumeSetupScrapListedIds ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  scrapCostumeProjects(listedIds);
+};
+
 const renderCostumeCustomizationModal = () => {
   if (!costumeCustomizationModalActive) {
     return;
   }
 
-  const { summary, availableList, availableEmpty, installedList, installedEmpty } =
+  const {
+    summary,
+    filterButtons,
+    scrapListedButton,
+    availableList,
+    availableEmpty,
+    installedList,
+    installedEmpty,
+  } =
     getCostumeCustomizationModalElements();
   if (!(availableList instanceof HTMLElement) || !(installedList instanceof HTMLElement)) {
     return;
@@ -12778,13 +12904,48 @@ const renderCostumeCustomizationModal = () => {
     }
     bestInstalledModulesByProjectId.set(projectId, module);
   });
+  const filteredInventoryProjects = getFilteredCostumeSetupInventoryModules(
+    inventoryProjects,
+    costumeSetupRarityFilterRank
+  );
+  const sortedInventoryProjects = getSortedCostumeSetupInventoryModules(
+    filteredInventoryProjects,
+    bestInstalledModulesByProjectId
+  );
+  const listedScrapValue = sortedInventoryProjects.reduce(
+    (sum, module) => sum + getCostumeModuleScrapValue(module),
+    0
+  );
 
   if (summary instanceof HTMLElement) {
     summary.textContent = `Installed ${installedProjects.length}/${COSTUME_RESEARCH_PROJECTS.length} • ${getCostumeResearchSummaryText()}`;
   }
 
+  filterButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const buttonRank = Number.parseInt(button.dataset.costumeSetupFilterRank ?? "0", 10);
+    button.classList.toggle(
+      "drone-parts-panel__filter--active",
+      (Number.isFinite(buttonRank) ? Math.max(0, buttonRank) : 0) === costumeSetupRarityFilterRank
+    );
+  });
+
+  if (scrapListedButton instanceof HTMLButtonElement) {
+    scrapListedButton.disabled = sortedInventoryProjects.length === 0;
+    scrapListedButton.dataset.costumeSetupScrapListedIds = sortedInventoryProjects
+      .map((module) => module?.id)
+      .filter((value) => typeof value === "string")
+      .join(",");
+    scrapListedButton.textContent =
+      sortedInventoryProjects.length > 0
+        ? `Scrap listed for ${formatMarsMoney(listedScrapValue)}`
+        : "Scrap listed";
+  }
+
   availableList.innerHTML = "";
-  inventoryProjects.forEach((module) => {
+  sortedInventoryProjects.forEach((module) => {
     const item = createCostumeSetupPanelItem({
         module,
         action: "install",
@@ -12810,7 +12971,11 @@ const renderCostumeCustomizationModal = () => {
   });
 
   if (availableEmpty instanceof HTMLElement) {
-    availableEmpty.hidden = inventoryProjects.length > 0;
+    availableEmpty.hidden = sortedInventoryProjects.length > 0;
+    availableEmpty.textContent =
+      inventoryProjects.length > 0 && sortedInventoryProjects.length === 0
+        ? "No inventory modules match the current star filter."
+        : "No crafted suit modules in inventory. Build them at the Crafting Table first.";
   }
 
   if (installedEmpty instanceof HTMLElement) {
@@ -12825,6 +12990,14 @@ const renderCostumeCustomizationModal = () => {
   if (!installedList.dataset.boundCostumeActions) {
     installedList.dataset.boundCostumeActions = "true";
     installedList.addEventListener("click", handleCostumeProjectActionClick);
+  }
+
+  if (
+    quickAccessModalContent instanceof HTMLElement &&
+    !quickAccessModalContent.dataset.boundCostumeSetupToolbar
+  ) {
+    quickAccessModalContent.dataset.boundCostumeSetupToolbar = "true";
+    quickAccessModalContent.addEventListener("click", handleCostumeSetupToolbarClick);
   }
 };
 
@@ -15749,6 +15922,7 @@ subscribeToMissionState(handleMissionStateChanged);
 const teardownQuickAccessModalContent = () => {
   droneCustomizationModalActive = false;
   costumeCustomizationModalActive = false;
+  costumeSetupRarityFilterRank = 0;
   droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
   droneSkinPreviewState.renderToken += 1;
   droneSkinPreviewState.pendingSkinId = null;

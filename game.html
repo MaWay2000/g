@@ -3067,6 +3067,47 @@
         gap: 0.55rem;
       }
 
+      .drone-parts-panel__toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.55rem;
+      }
+
+      .drone-parts-panel__filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+
+      .drone-parts-panel__filter {
+        border: 1px solid rgba(59, 130, 246, 0.34);
+        background: rgba(15, 23, 42, 0.7);
+        color: rgba(191, 219, 254, 0.96);
+        border-radius: 999px;
+        padding: 0.28rem 0.56rem;
+        font: inherit;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+      }
+
+      .drone-parts-panel__filter:hover,
+      .drone-parts-panel__filter:focus-visible {
+        outline: none;
+        border-color: rgba(96, 165, 250, 0.8);
+        background: rgba(30, 64, 175, 0.28);
+      }
+
+      .drone-parts-panel__filter--active {
+        border-color: rgba(74, 222, 128, 0.7);
+        background: rgba(20, 83, 45, 0.42);
+        color: #dcfce7;
+        box-shadow: 0 0 0.8rem rgba(34, 197, 94, 0.16);
+      }
+
       .drone-parts-panel__item {
         border-radius: 0.78rem;
         border: 1px solid rgba(59, 130, 246, 0.26);
@@ -3182,6 +3223,11 @@
         outline: none;
         border-color: rgba(96, 165, 250, 0.82);
         background: rgba(59, 130, 246, 0.34);
+      }
+
+      .drone-parts-panel__action:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
       }
 
       .drone-parts-panel__action--danger {
@@ -7122,6 +7168,23 @@
         <div class="drone-parts-panel__layout">
           <article class="drone-parts-panel__column">
             <h3 class="quick-access-modal__section-title">Inventory modules</h3>
+            <div class="drone-parts-panel__toolbar">
+              <div class="drone-parts-panel__filters">
+                <button type="button" class="drone-parts-panel__filter" data-costume-setup-filter-rank="0">All</button>
+                <button type="button" class="drone-parts-panel__filter" data-costume-setup-filter-rank="1">★+</button>
+                <button type="button" class="drone-parts-panel__filter" data-costume-setup-filter-rank="2">★★+</button>
+                <button type="button" class="drone-parts-panel__filter" data-costume-setup-filter-rank="3">★★★+</button>
+                <button type="button" class="drone-parts-panel__filter" data-costume-setup-filter-rank="4">★★★★+</button>
+                <button type="button" class="drone-parts-panel__filter" data-costume-setup-filter-rank="5">★★★★★</button>
+              </div>
+              <button
+                type="button"
+                class="drone-parts-panel__action drone-parts-panel__action--danger"
+                data-costume-setup-scrap-listed
+              >
+                Scrap listed
+              </button>
+            </div>
             <ul class="drone-parts-panel__list" data-costume-setup-available-list></ul>
             <p class="drone-parts-panel__empty" data-costume-setup-available-empty hidden>
               No crafted suit modules in inventory. Build them at the Crafting Table first.
