@@ -3113,10 +3113,10 @@
         border: 1px solid rgba(59, 130, 246, 0.26);
         background: rgba(15, 23, 42, 0.82);
         padding: 0.58rem 0.68rem;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        display: flex;
+        flex-direction: column;
         gap: 0.62rem;
-        align-items: center;
+        align-items: stretch;
       }
 
       .drone-parts-panel__item--upgrade {
@@ -3221,6 +3221,7 @@
         flex-wrap: wrap;
         justify-content: flex-end;
         gap: 0.45rem;
+        width: 100%;
       }
 
       .drone-parts-panel__action:hover,
