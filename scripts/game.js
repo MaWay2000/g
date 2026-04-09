@@ -13682,6 +13682,8 @@ const renderCostumeCustomizationModal = () => {
 const getDroneCustomizationModalElements = () => {
   if (!quickAccessModalContent) {
     return {
+      shell: null,
+      previewSection: null,
       tabButtons: [],
       tabPanels: [],
       partsSummary: null,
@@ -13732,6 +13734,8 @@ const getDroneCustomizationModalElements = () => {
     quickAccessModalContent.querySelector("[data-drone-skin-preview-description]");
 
   return {
+    shell: quickAccessModalContent.querySelector("[data-drone-customization-shell]"),
+    previewSection: quickAccessModalContent.querySelector("[data-drone-setup-preview]"),
     tabButtons: Array.from(
       quickAccessModalContent.querySelectorAll("[data-drone-setup-tab]")
     ).filter((button) => button instanceof HTMLButtonElement),
@@ -13778,7 +13782,8 @@ const isDroneCustomization3dPreviewTabActive = () =>
 const syncDroneCustomizationTabState = (
   requestedTabId = droneCustomizationActiveTab
 ) => {
-  const { tabButtons, tabPanels } = getDroneCustomizationModalElements();
+  const { shell, previewSection, tabButtons, tabPanels } =
+    getDroneCustomizationModalElements();
   const nextTabId = normalizeDroneCustomizationTabId(requestedTabId);
   droneCustomizationActiveTab = nextTabId;
 
@@ -13802,6 +13807,15 @@ const syncDroneCustomizationTabState = (
     panel.hidden = !isActive;
     panel.setAttribute("aria-hidden", isActive ? "false" : "true");
   });
+
+  const previewVisible = isDroneCustomization3dPreviewTabActive();
+  if (shell instanceof HTMLElement) {
+    shell.dataset.previewHidden = previewVisible ? "false" : "true";
+  }
+  if (previewSection instanceof HTMLElement) {
+    previewSection.hidden = !previewVisible;
+    previewSection.setAttribute("aria-hidden", previewVisible ? "false" : "true");
+  }
 
   if (!isDroneCustomization3dPreviewTabActive()) {
     stopDroneModelPreviewRuntimeLoop();

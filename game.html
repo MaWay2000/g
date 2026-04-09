@@ -2986,12 +2986,20 @@
         align-items: start;
       }
 
+      .drone-customization-shell[data-preview-hidden="true"] {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
       .drone-customization-shell__panels {
         min-width: 0;
       }
 
       .drone-customization-shell__preview {
         margin-top: 0;
+      }
+
+      .drone-customization-shell__preview[hidden] {
+        display: none !important;
       }
 
       .drone-customization-panel {
@@ -7107,7 +7115,7 @@
         </button>
       </nav>
 
-      <div class="drone-customization-shell">
+      <div class="drone-customization-shell" data-drone-customization-shell>
         <div class="drone-customization-shell__panels">
           <section
             class="drone-customization-panel"
@@ -7174,7 +7182,10 @@
           </section>
         </div>
 
-        <section class="quick-access-modal__section drone-customization-shell__preview">
+        <section
+          class="quick-access-modal__section drone-customization-shell__preview"
+          data-drone-setup-preview
+        >
           <h3 class="quick-access-modal__section-title">Preview</h3>
           <div class="drone-skin-preview">
             <canvas
