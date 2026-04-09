@@ -12604,27 +12604,32 @@ const createCostumeSetupPanelItem = ({
   }
 
   const body = document.createElement("div");
+  body.className = "drone-parts-panel__item-content";
   const title = document.createElement("p");
   title.className = "drone-parts-panel__item-title";
   applyCostumeModuleTitleContent(title, project, module);
   body.appendChild(title);
 
+  const details = document.createElement("div");
+  details.className = "drone-parts-panel__item-details";
   const meta = document.createElement("p");
   meta.className = "drone-parts-panel__item-meta";
   meta.textContent = formatCostumeModuleStatLabel(module);
-  body.appendChild(meta);
+  details.appendChild(meta);
 
   const scrapValue = getCostumeModuleScrapValue(module);
   if (action === "install" && scrapValue > 0) {
     const scrapMeta = document.createElement("p");
     scrapMeta.className = "drone-parts-panel__item-meta";
     scrapMeta.textContent = `Scrap value: ${formatMarsMoney(scrapValue)} Mars money.`;
-    body.appendChild(scrapMeta);
+    details.appendChild(scrapMeta);
   }
+  body.appendChild(details);
   item.appendChild(body);
 
-  const actions = document.createElement("div");
-  actions.className = "drone-parts-panel__actions";
+  const primaryActions = document.createElement("div");
+  primaryActions.className =
+    "drone-parts-panel__actions drone-parts-panel__actions--primary";
 
   const actionButton = document.createElement("button");
   actionButton.type = "button";
@@ -12632,19 +12637,22 @@ const createCostumeSetupPanelItem = ({
   actionButton.dataset.costumeProjectAction = action;
   actionButton.dataset.costumeModuleId = module.id;
   actionButton.textContent = actionLabel;
-  actions.appendChild(actionButton);
+  primaryActions.appendChild(actionButton);
+  item.appendChild(primaryActions);
 
   if (action === "install" && scrapValue > 0) {
+    const secondaryActions = document.createElement("div");
+    secondaryActions.className =
+      "drone-parts-panel__actions drone-parts-panel__actions--secondary";
     const scrapButton = document.createElement("button");
     scrapButton.type = "button";
     scrapButton.className = "drone-parts-panel__action drone-parts-panel__action--danger";
     scrapButton.dataset.costumeProjectAction = "scrap";
     scrapButton.dataset.costumeModuleId = module.id;
     scrapButton.textContent = `Scrap for ${formatMarsMoney(scrapValue)}`;
-    actions.appendChild(scrapButton);
+    secondaryActions.appendChild(scrapButton);
+    item.appendChild(secondaryActions);
   }
-
-  item.appendChild(actions);
 
   return item;
 };
