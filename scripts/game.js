@@ -5713,10 +5713,15 @@ const getCostumeSetupInventoryModulePriority = (
   return compareCostumeModules(module, installedModuleForComparison) < 0 ? 1 : 2;
 };
 
-const getFilteredCostumeSetupInventoryModules = (modules, minimumRarityRank = 0) =>
-  (Array.isArray(modules) ? modules : []).filter(
-    (module) => getCostumeModuleRarityRank(module) >= Math.max(0, minimumRarityRank)
-  );
+const getFilteredCostumeSetupInventoryModules = (modules, selectedRarityRank = 0) => {
+  const normalizedRank = Math.max(0, Number(selectedRarityRank) || 0);
+  return (Array.isArray(modules) ? modules : []).filter((module) => {
+    if (normalizedRank === 0) {
+      return true;
+    }
+    return getCostumeModuleRarityRank(module) === normalizedRank;
+  });
+};
 
 const getSortedCostumeSetupInventoryModules = (
   modules,
