@@ -12543,7 +12543,18 @@ const createCostumeSetupPanelItem = ({ module, action, actionLabel }) => {
   meta.className = "drone-parts-panel__item-meta";
   meta.textContent = `${project.description} • ${formatCostumeModuleEffectLabel(module)}`;
   body.appendChild(meta);
+
+  const scrapValue = getCostumeModuleScrapValue(module);
+  if (action === "install" && scrapValue > 0) {
+    const scrapMeta = document.createElement("p");
+    scrapMeta.className = "drone-parts-panel__item-meta";
+    scrapMeta.textContent = `Scrap value: ${formatMarsMoney(scrapValue)} Mars money.`;
+    body.appendChild(scrapMeta);
+  }
   item.appendChild(body);
+
+  const actions = document.createElement("div");
+  actions.className = "drone-parts-panel__actions";
 
   const actionButton = document.createElement("button");
   actionButton.type = "button";
@@ -12551,7 +12562,19 @@ const createCostumeSetupPanelItem = ({ module, action, actionLabel }) => {
   actionButton.dataset.costumeProjectAction = action;
   actionButton.dataset.costumeModuleId = module.id;
   actionButton.textContent = actionLabel;
-  item.appendChild(actionButton);
+  actions.appendChild(actionButton);
+
+  if (action === "install" && scrapValue > 0) {
+    const scrapButton = document.createElement("button");
+    scrapButton.type = "button";
+    scrapButton.className = "drone-parts-panel__action drone-parts-panel__action--danger";
+    scrapButton.dataset.costumeProjectAction = "scrap";
+    scrapButton.dataset.costumeModuleId = module.id;
+    scrapButton.textContent = `Scrap for ${formatMarsMoney(scrapValue)}`;
+    actions.appendChild(scrapButton);
+  }
+
+  item.appendChild(actions);
 
   return item;
 };
@@ -12636,6 +12659,45 @@ const removeCostumeProject = (projectId) => {
   return true;
 };
 
+const scrapCostumeProject = (moduleId) => {
+  const moduleIndex = costumeResearchState.inventoryModules.findIndex(
+    (module) => module?.id === moduleId
+  );
+  if (moduleIndex < 0) {
+    return false;
+  }
+
+  const [selectedModule] = costumeResearchState.inventoryModules.splice(moduleIndex, 1);
+  const project = getCostumeResearchProjectById(selectedModule?.projectId);
+  if (!selectedModule || !project) {
+    return false;
+  }
+
+  const scrapValue = getCostumeModuleScrapValue(selectedModule);
+  if (scrapValue > 0) {
+    addMarsMoney(scrapValue);
+  }
+
+  costumeResearchState.inventoryModules.sort(compareCostumeModules);
+  syncLegacyCostumeProjectSetsFromModules();
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshResearchModalIfOpen();
+  refreshCraftingTableModalIfOpen();
+  renderCostumeCustomizationModal();
+
+  showTerminalToast({
+    title: `${project.label} scrapped`,
+    description:
+      scrapValue > 0
+        ? `${formatCostumeModuleEffectLabel(selectedModule)} converted into ${formatMarsMoney(
+            scrapValue
+          )} Mars money.`
+        : `${formatCostumeModuleEffectLabel(selectedModule)} scrapped.`,
+  });
+  return true;
+};
+
 const handleCostumeProjectActionClick = (event) => {
   const button =
     event.target instanceof HTMLElement
@@ -12656,6 +12718,11 @@ const handleCostumeProjectActionClick = (event) => {
 
   if (action === "install") {
     installCostumeProject(projectId);
+    return;
+  }
+
+  if (action === "scrap") {
+    scrapCostumeProject(projectId);
     return;
   }
 
@@ -15053,6 +15120,35 @@ const getMarketItemForElement = (element) => {
     : null;
 
   return liveItem ?? defaultMarketItemsById.get(symbol) ?? null;
+};
+
+const COSTUME_MODULE_SCRAP_RETURN_FACTOR = 0.5;
+
+const getCostumeModuleScrapValue = (module) => {
+  const project = getCostumeResearchProjectById(module?.projectId);
+  const requirements = getCostumeCraftRequirements(project);
+  if (!project || requirements.length === 0) {
+    return 0;
+  }
+
+  const recipeMarketValue = requirements.reduce((totalValue, requirement) => {
+    const normalizedCount = Number.isFinite(requirement?.count)
+      ? Math.max(0, Math.floor(requirement.count))
+      : 0;
+    if (!requirement?.element || normalizedCount <= 0) {
+      return totalValue;
+    }
+
+    const marketItem = getMarketItemForElement(requirement.element);
+    const currentPrice = Number.isFinite(marketItem?.price) ? Math.max(0, marketItem.price) : 0;
+    return totalValue + currentPrice * normalizedCount;
+  }, 0);
+
+  if (!(recipeMarketValue > 0)) {
+    return 0;
+  }
+
+  return Math.max(1, Math.round(recipeMarketValue * COSTUME_MODULE_SCRAP_RETURN_FACTOR));
 };
 
 const getMissionRewardMarsMoney = (mission) => {

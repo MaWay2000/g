@@ -3158,11 +3158,30 @@
         cursor: pointer;
       }
 
+      .drone-parts-panel__actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.45rem;
+      }
+
       .drone-parts-panel__action:hover,
       .drone-parts-panel__action:focus-visible {
         outline: none;
         border-color: rgba(96, 165, 250, 0.82);
         background: rgba(59, 130, 246, 0.34);
+      }
+
+      .drone-parts-panel__action--danger {
+        border-color: rgba(248, 113, 113, 0.48);
+        background: rgba(127, 29, 29, 0.24);
+        color: #fecaca;
+      }
+
+      .drone-parts-panel__action--danger:hover,
+      .drone-parts-panel__action--danger:focus-visible {
+        border-color: rgba(252, 165, 165, 0.82);
+        background: rgba(153, 27, 27, 0.34);
       }
 
       .drone-parts-panel__empty {
