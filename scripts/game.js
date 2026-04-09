@@ -5699,7 +5699,14 @@ const isCostumeModuleScrapProtected = (module, bestOwnedModulesByProjectId = nul
 const getCostumeModuleRarityRank = (module) =>
   getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
 
-const getCostumeSetupInventoryModulePriority = (module, installedModuleForComparison = null) => {
+const getCostumeSetupInventoryModulePriority = (
+  module,
+  installedModuleForComparison = null,
+  bestOwnedModulesByProjectId = null
+) => {
+  if (isCostumeModuleScrapProtected(module, bestOwnedModulesByProjectId)) {
+    return -1;
+  }
   if (!installedModuleForComparison) {
     return 0;
   }
@@ -5713,7 +5720,8 @@ const getFilteredCostumeSetupInventoryModules = (modules, minimumRarityRank = 0)
 
 const getSortedCostumeSetupInventoryModules = (
   modules,
-  bestInstalledModulesByProjectId = new Map()
+  bestInstalledModulesByProjectId = new Map(),
+  bestOwnedModulesByProjectId = new Map()
 ) =>
   (Array.isArray(modules) ? modules.slice() : []).sort((left, right) => {
     const leftInstalledModule =
@@ -5723,8 +5731,16 @@ const getSortedCostumeSetupInventoryModules = (
       bestInstalledModulesByProjectId.get(typeof right?.projectId === "string" ? right.projectId : "") ??
       null;
     const priorityDelta =
-      getCostumeSetupInventoryModulePriority(left, leftInstalledModule) -
-      getCostumeSetupInventoryModulePriority(right, rightInstalledModule);
+      getCostumeSetupInventoryModulePriority(
+        left,
+        leftInstalledModule,
+        bestOwnedModulesByProjectId
+      ) -
+      getCostumeSetupInventoryModulePriority(
+        right,
+        rightInstalledModule,
+        bestOwnedModulesByProjectId
+      );
     if (priorityDelta !== 0) {
       return priorityDelta;
     }
@@ -12989,7 +13005,8 @@ const renderCostumeCustomizationModal = () => {
   );
   const sortedInventoryProjects = getSortedCostumeSetupInventoryModules(
     filteredInventoryProjects,
-    bestInstalledModulesByProjectId
+    bestInstalledModulesByProjectId,
+    bestOwnedModulesByProjectId
   );
   const scrapableListedProjects = sortedInventoryProjects.filter(
     (module) => !isCostumeModuleScrapProtected(module, bestOwnedModulesByProjectId)
