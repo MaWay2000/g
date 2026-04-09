@@ -12524,7 +12524,12 @@ const getCostumeCustomizationModalElements = () => {
   };
 };
 
-const createCostumeSetupPanelItem = ({ module, action, actionLabel }) => {
+const createCostumeSetupPanelItem = ({
+  module,
+  action,
+  actionLabel,
+  installedModuleForComparison = null,
+}) => {
   const project = getCostumeResearchProjectById(module?.projectId);
   if (!project) {
     return null;
@@ -12532,6 +12537,19 @@ const createCostumeSetupPanelItem = ({ module, action, actionLabel }) => {
 
   const item = document.createElement("li");
   item.className = "drone-parts-panel__item";
+  if (action === "install") {
+    if (installedModuleForComparison) {
+      const isBetterThanInstalled =
+        compareCostumeModules(module, installedModuleForComparison) < 0;
+      item.classList.add(
+        isBetterThanInstalled
+          ? "drone-parts-panel__item--upgrade"
+          : "drone-parts-panel__item--downgrade"
+      );
+    } else {
+      item.classList.add("drone-parts-panel__item--upgrade");
+    }
+  }
 
   const body = document.createElement("div");
   const title = document.createElement("p");
@@ -12752,6 +12770,14 @@ const renderCostumeCustomizationModal = () => {
 
   const inventoryProjects = getCostumeCraftingInventoryProjects();
   const installedProjects = getCostumeCraftingInstalledProjects();
+  const bestInstalledModulesByProjectId = new Map();
+  installedProjects.forEach((module) => {
+    const projectId = typeof module?.projectId === "string" ? module.projectId : "";
+    if (!projectId || bestInstalledModulesByProjectId.has(projectId)) {
+      return;
+    }
+    bestInstalledModulesByProjectId.set(projectId, module);
+  });
 
   if (summary instanceof HTMLElement) {
     summary.textContent = `Installed ${installedProjects.length}/${COSTUME_RESEARCH_PROJECTS.length} • ${getCostumeResearchSummaryText()}`;
@@ -12763,6 +12789,8 @@ const renderCostumeCustomizationModal = () => {
         module,
         action: "install",
         actionLabel: "Install",
+        installedModuleForComparison:
+          bestInstalledModulesByProjectId.get(module?.projectId) ?? null,
       });
     if (item) {
       availableList.appendChild(item);
