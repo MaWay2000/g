@@ -136,19 +136,26 @@ const resolveManifestModelPath = (rawPath) => {
     return null;
   }
 
+  const normalizedPath = trimmed.replace(/\\/g, "/");
+
   if (/^(https?:)?\/\//i.test(trimmed)) {
     return trimmed;
   }
 
-  if (trimmed.startsWith("./") || trimmed.startsWith("../")) {
-    return trimmed;
+  if (
+    normalizedPath.startsWith("./") ||
+    normalizedPath.startsWith("../") ||
+    normalizedPath.startsWith("/")
+  ) {
+    return normalizedPath;
   }
 
-  if (trimmed.startsWith("/")) {
-    return trimmed;
+  // Accept manifest entries that already include a "models/" prefix.
+  if (/^models\//i.test(normalizedPath)) {
+    return `./${normalizedPath}`;
   }
 
-  return `./models/${trimmed}`;
+  return `./models/${normalizedPath}`;
 };
 
 export const loadModelFromManifestEntry = async (entry) => {
@@ -158,7 +165,8 @@ export const loadModelFromManifestEntry = async (entry) => {
     throw new Error("Invalid model manifest entry path");
   }
 
-  const extensionMatch = resolvedPath.match(/\.([a-z0-9]+)$/i);
+  const extensionTarget = resolvedPath.split(/[?#]/)[0] ?? resolvedPath;
+  const extensionMatch = extensionTarget.match(/\.([a-z0-9]+)$/i);
   const extension = extensionMatch?.[1]?.toLowerCase() ?? "";
 
   if (extension === "gltf" || extension === "glb") {
