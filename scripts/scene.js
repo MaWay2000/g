@@ -9275,7 +9275,7 @@ export const initScene = (
         metalness: 0.12,
       });
       const lens = new THREE.Mesh(
-        new THREE.SphereGeometry(0.1, 14, 14),
+        new THREE.SphereGeometry(0.2, 18, 18),
         lensMaterial
       );
       lens.position.set(offsetX, antennaBeaconY, 0);
@@ -9290,10 +9290,10 @@ export const initScene = (
       });
       const glow = new THREE.Sprite(glowMaterial);
       glow.position.copy(lens.position);
-      glow.scale.setScalar(0.88);
+      glow.scale.setScalar(1.76);
       antennaTowerGroup.add(glow);
 
-      const warningLight = new THREE.PointLight(0xff3f3f, 1.8, 38, 2.25);
+      const warningLight = new THREE.PointLight(0xff3f3f, 4.8, 76, 2.1);
       warningLight.position.copy(lens.position);
       antennaTowerGroup.add(warningLight);
 
@@ -9320,11 +9320,15 @@ export const initScene = (
         const shimmer = 0.86 + Math.sin(elapsed * 13.2 + state.phase * 1.7) * 0.14;
         const brightness = THREE.MathUtils.clamp(blinkGate * shimmer, 0.08, 1);
 
-        state.lensMaterial.emissiveIntensity = 0.2 + brightness * 2.9;
-        state.glowMaterial.opacity = 0.05 + brightness * 0.85;
-        state.warningLight.intensity = 0.12 + brightness * 2.6;
+        state.lensMaterial.emissiveIntensity = 0.65 + brightness * 6.4;
+        state.glowMaterial.opacity = THREE.MathUtils.clamp(
+          0.18 + brightness * 1.25,
+          0.18,
+          1
+        );
+        state.warningLight.intensity = 0.8 + brightness * 8.9;
 
-        const glowScale = 0.68 + brightness * 0.82;
+        const glowScale = 1.36 + brightness * 1.64;
         state.glow.scale.setScalar(glowScale);
       });
     };
