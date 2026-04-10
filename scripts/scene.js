@@ -13385,12 +13385,58 @@ export const initScene = (
     }
   };
 
+  const resetObjectViewDistanceCullingState = (
+    object,
+    { restoreVisible = false } = {}
+  ) => {
+    if (!object?.isObject3D || !object.userData) {
+      return;
+    }
+
+    const baseMaterial = object.userData.viewDistanceBaseMaterial;
+    const fadeMaterial = object.userData.viewDistanceFadeMaterial;
+    const baseOpacity = Number.isFinite(object.userData.viewDistanceBaseOpacity)
+      ? object.userData.viewDistanceBaseOpacity
+      : 1;
+
+    if (
+      baseMaterial &&
+      fadeMaterial &&
+      object.material === fadeMaterial
+    ) {
+      object.material = baseMaterial;
+    }
+
+    if (fadeMaterial?.isMaterial) {
+      fadeMaterial.opacity = baseOpacity;
+    }
+
+    if (
+      restoreVisible &&
+      Object.prototype.hasOwnProperty.call(
+        object.userData,
+        "viewDistanceBaseVisible"
+      )
+    ) {
+      object.visible = object.userData.viewDistanceBaseVisible !== false;
+    }
+
+    object.userData.viewDistanceCulled = false;
+    delete object.userData.viewDistanceBaseVisible;
+  };
+
   const updateObjectViewDistance = (
     object,
     playerPosition,
     baseViewDistance
   ) => {
     if (!object?.isObject3D) {
+      return;
+    }
+
+    const isCulled = object.userData?.viewDistanceCulled === true;
+    if (object.visible === false && !isCulled) {
+      resetObjectViewDistanceCullingState(object, { restoreVisible: false });
       return;
     }
 
@@ -13413,7 +13459,6 @@ export const initScene = (
       playerPosition
     );
     const shouldBeVisible = distanceSquared <= maxDistanceSquared;
-    const isCulled = object.userData?.viewDistanceCulled === true;
 
     if (!shouldBeVisible && !isCulled) {
       if (object.userData) {
@@ -13491,9 +13536,26 @@ export const initScene = (
       typeof getManifestPlacements === "function"
         ? getManifestPlacements()
         : [];
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
 
     if (Array.isArray(manifestPlacementTargets)) {
       manifestPlacementTargets.forEach((target) => {
+        const placementFloorId =
+          typeof target?.userData?.manifestFloorId === "string"
+            ? target.userData.manifestFloorId.trim()
+            : "";
+
+        if (
+          activeFloorId &&
+          placementFloorId &&
+          placementFloorId !== activeFloorId
+        ) {
+          resetObjectViewDistanceCullingState(target, {
+            restoreVisible: false,
+          });
+          return;
+        }
+
         updateObjectViewDistance(
           target,
           playerPosition,
