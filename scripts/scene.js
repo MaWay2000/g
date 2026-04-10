@@ -9263,6 +9263,72 @@ export const initScene = (
     antennaCrossbar.position.y = antennaHeight * 0.75;
     antennaTowerGroup.add(antennaCrossbar);
 
+    const antennaBeaconStates = [];
+    const antennaBeaconY = Math.max(antennaHeight * 0.97, antennaHeight - 0.2);
+    const antennaBeaconOffsetX = 0.34;
+    const createAntennaWarningBeacon = (offsetX = 0, phase = 0) => {
+      const lensMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x2f0c0c),
+        emissive: new THREE.Color(0xff3f3f),
+        emissiveIntensity: 0.45,
+        roughness: 0.34,
+        metalness: 0.12,
+      });
+      const lens = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 14, 14),
+        lensMaterial
+      );
+      lens.position.set(offsetX, antennaBeaconY, 0);
+      antennaTowerGroup.add(lens);
+
+      const glowMaterial = new THREE.SpriteMaterial({
+        color: new THREE.Color(0xff4a4a),
+        transparent: true,
+        opacity: 0.45,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const glow = new THREE.Sprite(glowMaterial);
+      glow.position.copy(lens.position);
+      glow.scale.setScalar(0.88);
+      antennaTowerGroup.add(glow);
+
+      const warningLight = new THREE.PointLight(0xff3f3f, 1.8, 38, 2.25);
+      warningLight.position.copy(lens.position);
+      antennaTowerGroup.add(warningLight);
+
+      antennaBeaconStates.push({
+        lensMaterial,
+        glow,
+        glowMaterial,
+        warningLight,
+        phase,
+      });
+    };
+
+    createAntennaWarningBeacon(-antennaBeaconOffsetX, 0);
+    createAntennaWarningBeacon(antennaBeaconOffsetX, Math.PI * 0.5);
+
+    const updateAntennaWarningBeacons = ({ elapsedTime = 0 } = {}) => {
+      const elapsed = Number.isFinite(elapsedTime)
+        ? elapsedTime
+        : performance.now() * 0.001;
+
+      antennaBeaconStates.forEach((state) => {
+        const blinkWave = Math.sin(elapsed * 5.8 + state.phase);
+        const blinkGate = blinkWave > 0.14 ? 1 : 0.12;
+        const shimmer = 0.86 + Math.sin(elapsed * 13.2 + state.phase * 1.7) * 0.14;
+        const brightness = THREE.MathUtils.clamp(blinkGate * shimmer, 0.08, 1);
+
+        state.lensMaterial.emissiveIntensity = 0.2 + brightness * 2.9;
+        state.glowMaterial.opacity = 0.05 + brightness * 0.85;
+        state.warningLight.intensity = 0.12 + brightness * 2.6;
+
+        const glowScale = 0.68 + brightness * 0.82;
+        state.glow.scale.setScalar(glowScale);
+      });
+    };
+
     group.add(antennaTowerGroup);
     operationsExteriorRadioTower = antennaTowerGroup;
     const previousEnvironmentDispose = group.userData?.dispose;
@@ -9375,6 +9441,7 @@ export const initScene = (
             force: payload?.force === true,
           });
         }
+        updateAntennaWarningBeacons(payload);
       },
       teleportOffset,
       bounds: resolvedEnvironmentBounds,
