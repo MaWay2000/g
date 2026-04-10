@@ -17106,11 +17106,17 @@ export const initScene = (
 
     const voidTerrain = getOutsideTerrainById("void");
     const tileId = getOutsideTerrainDefaultTileId(voidTerrain.id);
+    const tileVariantIndex = Number.isFinite(tile.userData.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : 0;
     const baseMaterial =
+      getRuntimeTerrainMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
       getRuntimeMinedVoidTerrainMaterial() ??
       tile.userData.geoVisorRevealedMaterial ??
       tile.material;
-    const visorMaterial = baseMaterial;
+    const visorMaterial =
+      getRuntimeGeoVisorMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
+      baseMaterial;
 
     tile.userData.isTerrainDepleted = true;
     tile.userData.terrainId = voidTerrain.id;
@@ -17119,7 +17125,7 @@ export const initScene = (
     tile.userData.tileId = tileId;
     tile.userData.geoVisorRevealedMaterial = baseMaterial;
     tile.userData.geoVisorVisorMaterial = visorMaterial;
-    tile.userData.geoVisorConcealedMaterial = baseMaterial;
+    tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
     tile.userData.isResourceTarget = false;
 
     const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
