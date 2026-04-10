@@ -4949,7 +4949,7 @@ export const initScene = (
 
   const createImportedStorageBoxControl = (
     model,
-    { storageBoxId, storageBoxLabel, storageBoxCapacityKg } = {}
+    { storageBoxId, storageBoxLabel, storageBoxCapacityKg, storageBoxFloorId } = {}
   ) => {
     if (!model?.isObject3D) {
       return null;
@@ -4989,6 +4989,9 @@ export const initScene = (
         : "Storage box";
     if (Number.isFinite(storageBoxCapacityKg) && storageBoxCapacityKg > 0) {
       control.userData.storageBoxCapacityKg = storageBoxCapacityKg;
+    }
+    if (typeof storageBoxFloorId === "string" && storageBoxFloorId.trim()) {
+      control.userData.storageBoxFloorId = storageBoxFloorId.trim();
     }
 
     return control;
@@ -5562,6 +5565,7 @@ export const initScene = (
               storageBoxId: placementId,
               storageBoxLabel: formatImportedStorageBoxLabel(placement),
               storageBoxCapacityKg: storageBoxOptions.maxLoadKg,
+              storageBoxFloorId: areaId,
             });
             if (storageBoxControl) {
               model.add(storageBoxControl);
@@ -6175,6 +6179,7 @@ export const initScene = (
     storageBoxControl.position.set(0, 0.45, 0.04);
     storageBoxControl.userData.isStorageBoxControl = true;
     storageBoxControl.userData.storageBoxId = "operations-concourse-exit";
+    storageBoxControl.userData.storageBoxFloorId = "operations-concourse";
     storageBoxGroup.add(storageBoxControl);
 
     const craftingTableFloorOffset = 0;
@@ -8641,6 +8646,7 @@ export const initScene = (
                         storageBoxId: placementId,
                         storageBoxLabel: formatImportedStorageBoxLabel(placement),
                         storageBoxCapacityKg: storageBoxOptions.maxLoadKg,
+                        storageBoxFloorId: "operations-exterior",
                       }
                     );
                     if (storageBoxControl) {

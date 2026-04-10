@@ -4538,6 +4538,9 @@ const DEFAULT_INVENTORY_CAPACITY_KG = 10;
 const STORAGE_BOX_DEFAULT_ID = "operations-concourse-exit";
 const STORAGE_BOX_DEFAULT_LABEL = "Outside exit room";
 const STORAGE_BOX_CAPACITY_KG = 100;
+const STORAGE_BOX_DEFAULT_FLOOR_ID = "operations-concourse";
+const STORAGE_BOX_SURFACE_AREA_FLOOR_ID = "operations-exterior";
+const STORAGE_BOX_OUTSIDE_ID_PREFIX = "outside-obj-";
 const STORAGE_BOX_STORAGE_KEY = "dustyNova.storage-box";
 const DRONE_CRAFTING_STORAGE_KEY = "dustyNova.drone-crafting";
 const DRONE_CRAFTING_PARTS = Object.freeze([
@@ -10707,7 +10710,7 @@ const startCostumeResearch = (projectId) => {
 
   if (!materialCostsBypassed) {
     for (const requirementState of requirementStates) {
-      const spent = spendInventoryResource(
+      const spent = spendSharedRoomResource(
         requirementState.requirement?.element,
         requirementState.needed
       );
@@ -10832,7 +10835,7 @@ const craftCostumeUpgradeProject = (projectId) => {
 
   if (!materialCostsBypassed) {
     for (const requirementState of requirementStates) {
-      const spent = spendInventoryResource(
+      const spent = spendSharedRoomResource(
         requirementState.requirement?.element,
         requirementState.needed
       );
@@ -11054,7 +11057,7 @@ const createElementRequirementState = (requirement) => {
   const needed = Number.isFinite(requirement?.count)
     ? Math.max(1, Math.floor(requirement.count))
     : 1;
-  const actualAvailable = getInventoryResourceCount(requirement?.element);
+  const actualAvailable = getSharedRoomResourceCount(requirement?.element);
   const bypassed = isResearchAndCraftingCostBypassed();
   const available = bypassed ? Math.max(actualAvailable, needed) : actualAvailable;
 
@@ -11757,7 +11760,7 @@ const startDronePartResearch = (partId) => {
 
   if (!materialCostsBypassed) {
     for (const requirementState of requirementStates) {
-      const spent = spendInventoryResource(
+      const spent = spendSharedRoomResource(
         requirementState.requirement?.element,
         requirementState.needed
       );
@@ -12942,7 +12945,7 @@ const craftDroneUpgradePart = (partId) => {
 
   if (!materialCostsBypassed) {
     for (const requirementState of requirementStates) {
-      const spent = spendInventoryResource(
+      const spent = spendSharedRoomResource(
         requirementState.requirement?.element,
         requirementState.needed
       );
@@ -15585,7 +15588,7 @@ const craftMediumDroneModelUnlock = () => {
 
   if (!materialCostsBypassed) {
     for (const requirementState of requirementStates) {
-      const spent = spendInventoryResource(
+      const spent = spendSharedRoomResource(
         requirementState.requirement?.element,
         requirementState.needed
       );
@@ -16722,21 +16725,24 @@ const executeMarketTrade = (itemId, action) => {
       )}.`,
     });
   } else {
-    const ownedQuantity = getInventoryResourceCount(item);
+    const ownedQuantity = getSharedRoomResourceCount(item);
     if (ownedQuantity <= 0) {
       showTerminalToast({
         title: "Nothing to sell",
-        description: `${formatCraftingElementName(item)} is not in your inventory.`,
+        description: `${formatCraftingElementName(
+          item
+        )} is not available in inventory or room storage.`,
       });
       return false;
     }
 
     const salePrice = getMarketSalePrice(item);
-    const sold = spendInventoryResource(item, 1);
+    const sold = spendSharedRoomResource(item, 1);
     if (!sold) {
       showTerminalToast({
         title: "Trade failed",
-        description: "Inventory changed before the sale completed. Try again.",
+        description:
+          "Resources changed before the sale completed. Try again.",
       });
       return false;
     }
@@ -16878,10 +16884,10 @@ const createMarketRow = (item) => {
   const metrics = document.createElement("div");
   metrics.className = "market-panel__metrics";
 
-  const ownedQuantity = getInventoryResourceCount(item);
+  const ownedQuantity = getSharedRoomResourceCount(item);
   metrics.appendChild(createMarketMetric("Buy", formatMarsMoney(item.price)));
   metrics.appendChild(createMarketMetric("Sell", formatMarsMoney(getMarketSalePrice(item))));
-  metrics.appendChild(createMarketMetric("In Inventory", `${ownedQuantity}`));
+  metrics.appendChild(createMarketMetric("Available", `${ownedQuantity}`));
   row.appendChild(metrics);
 
   const actions = document.createElement("div");
@@ -17425,6 +17431,11 @@ const normalizeStorageBoxLabel = (value) => {
   return normalized || STORAGE_BOX_DEFAULT_LABEL;
 };
 
+const normalizeStorageBoxFloorId = (value) => {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized || null;
+};
+
 const normalizeStorageBoxCapacityKg = (value) => {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) && numericValue > 0
@@ -17432,17 +17443,28 @@ const normalizeStorageBoxCapacityKg = (value) => {
     : STORAGE_BOX_CAPACITY_KG;
 };
 
-const createStorageBoxRecord = (boxId, { label, capacityKg } = {}) => ({
-  id: normalizeStorageBoxId(boxId),
-  label: normalizeStorageBoxLabel(label),
-  capacityKg: normalizeStorageBoxCapacityKg(capacityKg),
-  entries: [],
-  entryMap: new Map(),
-  currentLoadGrams: 0,
-  capacityRejection: null,
-});
+const createStorageBoxRecord = (boxId, { label, capacityKg, floorId } = {}) => {
+  const normalizedId = normalizeStorageBoxId(boxId);
+  const normalizedFloorId =
+    normalizeStorageBoxFloorId(floorId) ??
+    (normalizedId === STORAGE_BOX_DEFAULT_ID ? STORAGE_BOX_DEFAULT_FLOOR_ID : null);
 
-const updateStorageBoxRecordMetadata = (record, { label, capacityKg } = {}) => {
+  return {
+    id: normalizedId,
+    label: normalizeStorageBoxLabel(label),
+    capacityKg: normalizeStorageBoxCapacityKg(capacityKg),
+    floorId: normalizedFloorId,
+    entries: [],
+    entryMap: new Map(),
+    currentLoadGrams: 0,
+    capacityRejection: null,
+  };
+};
+
+const updateStorageBoxRecordMetadata = (
+  record,
+  { label, capacityKg, floorId } = {}
+) => {
   if (!record || typeof record !== "object") {
     return null;
   }
@@ -17453,6 +17475,11 @@ const updateStorageBoxRecordMetadata = (record, { label, capacityKg } = {}) => {
 
   if (Number.isFinite(Number(capacityKg)) && Number(capacityKg) > 0) {
     record.capacityKg = normalizeStorageBoxCapacityKg(capacityKg);
+  }
+
+  const normalizedFloorId = normalizeStorageBoxFloorId(floorId);
+  if (normalizedFloorId) {
+    record.floorId = normalizedFloorId;
   }
 
   return record;
@@ -17477,8 +17504,8 @@ const getStorageBoxRecord = (boxId = STORAGE_BOX_DEFAULT_ID, options = {}) =>
 const getActiveStorageBoxRecord = () =>
   getStorageBoxRecord(storageBoxState.activeBoxId ?? STORAGE_BOX_DEFAULT_ID);
 
-const setActiveStorageBoxRecord = ({ id, label, capacityKg } = {}) => {
-  const record = ensureStorageBoxRecord(id, { label, capacityKg });
+const setActiveStorageBoxRecord = ({ id, label, capacityKg, floorId } = {}) => {
+  const record = ensureStorageBoxRecord(id, { label, capacityKg, floorId });
   storageBoxState.activeBoxId = record.id;
   refreshStorageBoxModalIfOpen();
   schedulePersistStorageBoxState();
@@ -17674,6 +17701,128 @@ const spendStorageBoxResource = (
   }
   schedulePersistStorageBoxState();
   return true;
+};
+
+const inferStorageBoxFloorIdFromRecordId = (boxId) => {
+  const normalizedId = normalizeStorageBoxId(boxId);
+  if (!normalizedId) {
+    return null;
+  }
+
+  if (normalizedId === STORAGE_BOX_DEFAULT_ID) {
+    return STORAGE_BOX_DEFAULT_FLOOR_ID;
+  }
+
+  if (
+    normalizedId.startsWith(STORAGE_BOX_OUTSIDE_ID_PREFIX) ||
+    normalizedId.startsWith(`${STORAGE_BOX_SURFACE_AREA_FLOOR_ID}-`)
+  ) {
+    return STORAGE_BOX_SURFACE_AREA_FLOOR_ID;
+  }
+
+  return null;
+};
+
+const resolveStorageBoxRecordFloorId = (record) =>
+  normalizeStorageBoxFloorId(record?.floorId) ?? inferStorageBoxFloorIdFromRecordId(record?.id);
+
+const isSurfaceAreaStorageBoxFloorId = (floorId) =>
+  normalizeStorageBoxFloorId(floorId) === STORAGE_BOX_SURFACE_AREA_FLOOR_ID;
+
+const isSurfaceAreaStorageBoxRecord = (record) =>
+  isSurfaceAreaStorageBoxFloorId(resolveStorageBoxRecordFloorId(record));
+
+const getSharedIndoorStorageBoxRecords = () =>
+  Array.from(storageBoxState.boxes.values())
+    .filter((record) => record && !isSurfaceAreaStorageBoxRecord(record))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+const getSharedIndoorStorageBoxResourceCount = (element) =>
+  getSharedIndoorStorageBoxRecords().reduce((totalCount, record) => {
+    return totalCount + getStorageBoxResourceCount(element, record.id);
+  }, 0);
+
+const getSharedRoomResourceCount = (element) =>
+  getInventoryResourceCount(element) + getSharedIndoorStorageBoxResourceCount(element);
+
+const spendSharedIndoorStorageBoxResource = (element, count = 1) => {
+  const normalizedCount = Number.isFinite(count)
+    ? Math.max(1, Math.floor(count))
+    : 1;
+  if (normalizedCount <= 0) {
+    return false;
+  }
+
+  if (getSharedIndoorStorageBoxResourceCount(element) < normalizedCount) {
+    return false;
+  }
+
+  const spentChunks = [];
+  let remaining = normalizedCount;
+  const records = getSharedIndoorStorageBoxRecords();
+  for (const record of records) {
+    if (remaining <= 0) {
+      break;
+    }
+
+    const available = getStorageBoxResourceCount(element, record.id);
+    if (available <= 0) {
+      continue;
+    }
+
+    const toSpend = Math.min(available, remaining);
+    if (!spendStorageBoxResource(element, toSpend, record.id)) {
+      spentChunks.forEach(({ boxId: spentBoxId, amount }) => {
+        recordStorageBoxResource(element, amount, spentBoxId);
+      });
+      return false;
+    }
+
+    spentChunks.push({ boxId: record.id, amount: toSpend });
+    remaining -= toSpend;
+  }
+
+  if (remaining > 0) {
+    spentChunks.forEach(({ boxId: spentBoxId, amount }) => {
+      recordStorageBoxResource(element, amount, spentBoxId);
+    });
+    return false;
+  }
+
+  return true;
+};
+
+const spendSharedRoomResource = (element, count = 1) => {
+  const normalizedCount = Number.isFinite(count)
+    ? Math.max(1, Math.floor(count))
+    : 1;
+  if (normalizedCount <= 0) {
+    return false;
+  }
+
+  if (getSharedRoomResourceCount(element) < normalizedCount) {
+    return false;
+  }
+
+  const inventoryAvailable = getInventoryResourceCount(element);
+  const spendFromInventory = Math.min(inventoryAvailable, normalizedCount);
+  if (spendFromInventory > 0 && !spendInventoryResource(element, spendFromInventory)) {
+    return false;
+  }
+
+  const remaining = normalizedCount - spendFromInventory;
+  if (remaining <= 0) {
+    return true;
+  }
+
+  if (spendSharedIndoorStorageBoxResource(element, remaining)) {
+    return true;
+  }
+
+  for (let index = 0; index < spendFromInventory; index += 1) {
+    recordInventoryResource({ element });
+  }
+  return false;
 };
 
 const transferInventoryToStorageBox = (entryKey, count = 1) => {
@@ -18775,11 +18924,12 @@ const createRestoredStorageBoxRecord = ({
   id,
   label,
   capacityKg,
+  floorId,
   entries,
   loadGrams,
   capacityRejection,
 } = {}) => {
-  const record = createStorageBoxRecord(id, { label, capacityKg });
+  const record = createStorageBoxRecord(id, { label, capacityKg, floorId });
   const aggregated = aggregateStoredStorageBoxEntries(entries);
   record.entries.push(...aggregated.entries);
   record.entryMap = aggregated.entryMap;
@@ -18848,6 +18998,7 @@ const serializeStorageBoxStateForPersistence = () => ({
       id: record.id,
       label: record.label,
       capacityKg: record.capacityKg,
+      floorId: normalizeStorageBoxFloorId(record.floorId),
       entries: record.entries.map((entry) => ({
         key: entry.key,
         element: { ...entry.element },
@@ -19259,6 +19410,7 @@ const restoreStorageBoxStateFromStorage = () => {
           id: rawBox.id,
           label: rawBox.label,
           capacityKg: rawBox.capacityKg,
+          floorId: rawBox.floorId,
           entries: rawBox.entries,
           loadGrams: rawBox.loadGrams,
           capacityRejection: rawBox.capacityRejection,
@@ -19274,6 +19426,7 @@ const restoreStorageBoxStateFromStorage = () => {
         id: STORAGE_BOX_DEFAULT_ID,
         label: STORAGE_BOX_DEFAULT_LABEL,
         capacityKg: STORAGE_BOX_CAPACITY_KG,
+        floorId: STORAGE_BOX_DEFAULT_FLOOR_ID,
         entries: data.entries,
         loadGrams: data.loadGrams,
         capacityRejection: data.capacityRejection,
@@ -23251,6 +23404,7 @@ const bootstrapScene = () => {
           id: control?.userData?.storageBoxId,
           label: control?.userData?.storageBoxLabel,
           capacityKg: control?.userData?.storageBoxCapacityKg,
+          floorId: control?.userData?.storageBoxFloorId,
         });
         playTerminalInteractionSound();
         openQuickAccessModal(STORAGE_BOX_MODAL_OPTION);
