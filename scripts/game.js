@@ -4474,6 +4474,7 @@ let costumeCustomizationModalActive = false;
 let storageBoxModalActive = false;
 let craftingTableModalActive = false;
 let costumeSetupRarityFilterRank = 0;
+let dronePartsSetupRarityFilterRank = 0;
 let teardownResearchModalActionBinding = null;
 let teardownStorageBoxActionBinding = null;
 let teardownCraftingTableActionBinding = null;
@@ -9289,6 +9290,86 @@ const compareDroneModules = (left, right) => {
 const getBestDroneModule = (modules) =>
   (Array.isArray(modules) ? modules.slice() : []).sort(compareDroneModules)[0] ?? null;
 
+const getBestOwnedDroneModulesByPartId = (modules) => {
+  const bestByPartId = new Map();
+  (Array.isArray(modules) ? modules : []).forEach((module) => {
+    const partId = typeof module?.partId === "string" ? module.partId : "";
+    if (!partId) {
+      return;
+    }
+    const currentBest = bestByPartId.get(partId) ?? null;
+    if (!currentBest || compareDroneModules(module, currentBest) < 0) {
+      bestByPartId.set(partId, module);
+    }
+  });
+  return bestByPartId;
+};
+
+const isDroneModuleScrapProtected = (module, bestOwnedModulesByPartId = null) => {
+  const partId = typeof module?.partId === "string" ? module.partId : "";
+  const moduleId = typeof module?.id === "string" ? module.id : "";
+  if (!partId || !moduleId) {
+    return false;
+  }
+  const bestModule =
+    bestOwnedModulesByPartId instanceof Map ? bestOwnedModulesByPartId.get(partId) : null;
+  return Boolean(bestModule && bestModule.id === moduleId);
+};
+
+const getDroneModuleRarityRank = (module) =>
+  getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
+
+const getDronePartsInventoryModulePriority = (
+  module,
+  installedModuleForComparison = null,
+  bestOwnedModulesByPartId = null
+) => {
+  if (isDroneModuleScrapProtected(module, bestOwnedModulesByPartId)) {
+    return -1;
+  }
+  if (!installedModuleForComparison) {
+    return 0;
+  }
+  return compareDroneModules(module, installedModuleForComparison) < 0 ? 1 : 2;
+};
+
+const getFilteredDronePartsInventoryModules = (modules, selectedRarityRank = 0) => {
+  const normalizedRank = Math.max(0, Number(selectedRarityRank) || 0);
+  return (Array.isArray(modules) ? modules : []).filter((module) => {
+    if (normalizedRank === 0) {
+      return true;
+    }
+    return getDroneModuleRarityRank(module) === normalizedRank;
+  });
+};
+
+const getSortedDronePartsInventoryModules = (
+  modules,
+  bestInstalledModulesByPartId = new Map(),
+  bestOwnedModulesByPartId = new Map()
+) =>
+  (Array.isArray(modules) ? modules.slice() : []).sort((left, right) => {
+    const leftInstalledModule =
+      bestInstalledModulesByPartId.get(typeof left?.partId === "string" ? left.partId : "") ?? null;
+    const rightInstalledModule =
+      bestInstalledModulesByPartId.get(typeof right?.partId === "string" ? right.partId : "") ?? null;
+    const priorityDelta =
+      getDronePartsInventoryModulePriority(
+        left,
+        leftInstalledModule,
+        bestOwnedModulesByPartId
+      ) -
+      getDronePartsInventoryModulePriority(
+        right,
+        rightInstalledModule,
+        bestOwnedModulesByPartId
+      );
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+    return compareDroneModules(left, right);
+  });
+
 const formatDroneModuleEffectLabel = (module) => {
   if (!module || typeof module !== "object") {
     return "No bonus effect.";
@@ -13196,6 +13277,38 @@ const getCostumeCustomizationModalElements = () => {
   };
 };
 
+const getDronePartsPanelElements = () => {
+  if (!quickAccessModalContent) {
+    return {
+      summary: null,
+      toolbar: null,
+      filterButtons: [],
+      scrapListedButton: null,
+      availableList: null,
+      availableEmpty: null,
+      installedList: null,
+      installedEmpty: null,
+    };
+  }
+
+  return {
+    summary: quickAccessModalContent.querySelector("[data-drone-parts-summary]"),
+    toolbar: quickAccessModalContent.querySelector("[data-drone-parts-toolbar]"),
+    filterButtons: Array.from(
+      quickAccessModalContent.querySelectorAll("[data-drone-parts-filter-rank]")
+    ).filter((button) => button instanceof HTMLButtonElement),
+    scrapListedButton: quickAccessModalContent.querySelector("[data-drone-parts-scrap-listed]"),
+    availableList: quickAccessModalContent.querySelector("[data-drone-parts-available-list]"),
+    availableEmpty: quickAccessModalContent.querySelector(
+      "[data-drone-parts-available-empty]"
+    ),
+    installedList: quickAccessModalContent.querySelector("[data-drone-parts-installed-list]"),
+    installedEmpty: quickAccessModalContent.querySelector(
+      "[data-drone-parts-installed-empty]"
+    ),
+  };
+};
+
 const createCostumeSetupPanelItem = ({
   module,
   action,
@@ -15480,11 +15593,27 @@ const createDronePartsPanelItem = ({
   module,
   action,
   actionLabel,
+  installedModuleForComparison = null,
+  scrapProtected = false,
 }) => {
   const item = document.createElement("li");
   item.className = "drone-parts-panel__item";
+  if (action === "install") {
+    if (installedModuleForComparison) {
+      const isBetterThanInstalled =
+        compareDroneModules(module, installedModuleForComparison) < 0;
+      item.classList.add(
+        isBetterThanInstalled
+          ? "drone-parts-panel__item--upgrade"
+          : "drone-parts-panel__item--downgrade"
+      );
+    } else {
+      item.classList.add("drone-parts-panel__item--upgrade");
+    }
+  }
 
   const body = document.createElement("div");
+  body.className = "drone-parts-panel__item-content";
   const title = document.createElement("p");
   title.className = "drone-parts-panel__item-title";
   if (module) {
@@ -15494,14 +15623,28 @@ const createDronePartsPanelItem = ({
   }
   body.appendChild(title);
 
+  const details = document.createElement("div");
+  details.className = "drone-parts-panel__item-details";
   const meta = document.createElement("p");
   meta.className = "drone-parts-panel__item-meta";
   meta.textContent = module
-    ? formatDroneModuleEffectLabel(module)
+    ? formatDroneModuleStatLabel(module)
     : `${part.description} • ${formatDronePartResearchEffectLabel(part)}`;
-  body.appendChild(meta);
+  details.appendChild(meta);
+
+  const scrapValue = module ? getDroneModuleScrapValue(module) : 0;
+  if (action === "install" && scrapValue > 0) {
+    const scrapMeta = document.createElement("p");
+    scrapMeta.className = "drone-parts-panel__item-meta";
+    scrapMeta.textContent = `Scrap value: ${formatMarsMoney(scrapValue)} Mars money.`;
+    details.appendChild(scrapMeta);
+  }
+  body.appendChild(details);
   item.appendChild(body);
 
+  const primaryActions = document.createElement("div");
+  primaryActions.className =
+    "drone-parts-panel__actions drone-parts-panel__actions--primary";
   const actionButton = document.createElement("button");
   actionButton.type = "button";
   actionButton.className = "drone-parts-panel__action";
@@ -15510,7 +15653,30 @@ const createDronePartsPanelItem = ({
     actionButton.dataset.droneModuleId = module.id;
   }
   actionButton.textContent = actionLabel;
-  item.appendChild(actionButton);
+  primaryActions.appendChild(actionButton);
+  item.appendChild(primaryActions);
+
+  if (action === "install" && scrapValue > 0) {
+    const secondaryActions = document.createElement("div");
+    secondaryActions.className =
+      "drone-parts-panel__actions drone-parts-panel__actions--secondary";
+    const scrapButton = document.createElement("button");
+    scrapButton.type = "button";
+    scrapButton.className = "drone-parts-panel__action drone-parts-panel__action--danger";
+    scrapButton.dataset.dronePartAction = "scrap";
+    if (module?.id) {
+      scrapButton.dataset.droneModuleId = module.id;
+    }
+    scrapButton.textContent = scrapProtected
+      ? "Keep best"
+      : `Scrap for ${formatMarsMoney(scrapValue)}`;
+    scrapButton.disabled = scrapProtected;
+    if (scrapProtected) {
+      scrapButton.title = "Best owned part cannot be scrapped.";
+    }
+    secondaryActions.appendChild(scrapButton);
+    item.appendChild(secondaryActions);
+  }
 
   return item;
 };
@@ -15598,6 +15764,121 @@ const removeDronePart = (moduleId) => {
   return true;
 };
 
+const scrapDronePart = (moduleId) => {
+  if (typeof moduleId !== "string" || moduleId.trim() === "") {
+    return false;
+  }
+
+  const normalizedModuleId = moduleId.trim();
+  const inventoryIndex = droneCraftingState.inventoryModules.findIndex(
+    (module) => module?.id === normalizedModuleId
+  );
+  if (inventoryIndex < 0) {
+    return false;
+  }
+
+  const bestOwnedModulesByPartId = getBestOwnedDroneModulesByPartId([
+    ...getDroneInventoryModules(),
+    ...getDroneEquippedModules(),
+  ]);
+  const selectedModule = droneCraftingState.inventoryModules[inventoryIndex] ?? null;
+  const part = getDroneCraftingPartById(selectedModule?.partId);
+  if (!selectedModule || !part) {
+    return false;
+  }
+
+  if (isDroneModuleScrapProtected(selectedModule, bestOwnedModulesByPartId)) {
+    showTerminalToast({
+      title: `${part.label} protected`,
+      description: "Best owned part cannot be scrapped.",
+    });
+    return false;
+  }
+
+  const [scrappedModule] = droneCraftingState.inventoryModules.splice(inventoryIndex, 1);
+  const scrapValue = getDroneModuleScrapValue(scrappedModule);
+  if (scrapValue > 0) {
+    addMarsMoney(scrapValue);
+  }
+
+  droneCraftingState.inventoryModules.sort(compareDroneModules);
+  syncLegacyDronePartSetsFromModules();
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshCraftingTableModalIfOpen();
+  renderDroneCustomizationModal();
+
+  showTerminalToast({
+    title: `${part.label} scrapped`,
+    description:
+      scrapValue > 0
+        ? `${formatDroneModuleEffectLabel(scrappedModule)} converted into ${formatMarsMoney(
+            scrapValue
+          )} Mars money.`
+        : `${formatDroneModuleEffectLabel(scrappedModule)} scrapped.`,
+  });
+  return true;
+};
+
+const scrapDroneParts = (moduleIds) => {
+  const targetIds = new Set(
+    (Array.isArray(moduleIds) ? moduleIds : []).filter((moduleId) => typeof moduleId === "string")
+  );
+  if (targetIds.size === 0) {
+    return false;
+  }
+
+  const selectedModules = droneCraftingState.inventoryModules.filter((module) =>
+    targetIds.has(module?.id)
+  );
+  if (selectedModules.length === 0) {
+    return false;
+  }
+
+  const bestOwnedModulesByPartId = getBestOwnedDroneModulesByPartId([
+    ...getDroneInventoryModules(),
+    ...getDroneEquippedModules(),
+  ]);
+  const scrapableModules = selectedModules.filter(
+    (module) => !isDroneModuleScrapProtected(module, bestOwnedModulesByPartId)
+  );
+  if (scrapableModules.length === 0) {
+    showTerminalToast({
+      title: "Best parts protected",
+      description: "Listed best parts cannot be scrapped.",
+    });
+    return false;
+  }
+
+  const scrapableIds = new Set(scrapableModules.map((module) => module?.id));
+  const totalScrapValue = scrapableModules.reduce(
+    (sum, module) => sum + getDroneModuleScrapValue(module),
+    0
+  );
+
+  droneCraftingState.inventoryModules = droneCraftingState.inventoryModules.filter(
+    (module) => !scrapableIds.has(module?.id)
+  );
+  droneCraftingState.inventoryModules.sort(compareDroneModules);
+  syncLegacyDronePartSetsFromModules();
+  if (totalScrapValue > 0) {
+    addMarsMoney(totalScrapValue);
+  }
+  persistDroneCraftingState();
+  refreshInventoryUi();
+  refreshCraftingTableModalIfOpen();
+  renderDroneCustomizationModal();
+
+  showTerminalToast({
+    title: `${scrapableModules.length} part${scrapableModules.length === 1 ? "" : "s"} scrapped`,
+    description:
+      totalScrapValue > 0
+        ? `${formatMarsMoney(totalScrapValue)} Mars money returned from listed drone parts.`
+        : "Selected drone parts scrapped.",
+  });
+  return true;
+};
+
 const handleDronePartActionClick = (event) => {
   const button =
     event.target instanceof HTMLElement
@@ -15621,57 +15902,153 @@ const handleDronePartActionClick = (event) => {
     return;
   }
 
+  if (action === "scrap") {
+    scrapDronePart(moduleId);
+    return;
+  }
+
   if (action === "remove") {
     removeDronePart(moduleId);
   }
 };
 
+const handleDronePartsToolbarClick = (event) => {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+  if (!target) {
+    return;
+  }
+
+  const filterButton = target.closest("[data-drone-parts-filter-rank]");
+  if (filterButton instanceof HTMLButtonElement) {
+    event.preventDefault();
+    const nextRank = Number.parseInt(filterButton.dataset.dronePartsFilterRank ?? "0", 10);
+    dronePartsSetupRarityFilterRank = Number.isFinite(nextRank) ? Math.max(0, nextRank) : 0;
+    renderDronePartsPanel();
+    return;
+  }
+
+  const scrapListedButton = target.closest("[data-drone-parts-scrap-listed]");
+  if (!(scrapListedButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (scrapListedButton.disabled) {
+    return;
+  }
+
+  const listedIds = (scrapListedButton.dataset.dronePartsScrapListedIds ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  scrapDroneParts(listedIds);
+};
+
 const renderDronePartsPanel = () => {
   const {
-    partsSummary,
-    partsAvailableList,
-    partsAvailableEmpty,
-    partsInstalledList,
-    partsInstalledEmpty,
-  } = getDroneCustomizationModalElements();
+    summary,
+    toolbar,
+    filterButtons,
+    scrapListedButton,
+    availableList,
+    availableEmpty,
+    installedList,
+    installedEmpty,
+  } = getDronePartsPanelElements();
 
   if (
-    !(partsAvailableList instanceof HTMLElement) ||
-    !(partsInstalledList instanceof HTMLElement)
+    !(availableList instanceof HTMLElement) ||
+    !(installedList instanceof HTMLElement)
   ) {
     return;
   }
 
-  const availableModules = getDroneInventoryModules().sort(compareDroneModules);
+  const inventoryModules = getDroneInventoryModules();
   const installedModules = getDroneEquippedModules().sort(compareDroneModules);
+  const bestOwnedModulesByPartId = getBestOwnedDroneModulesByPartId([
+    ...inventoryModules,
+    ...installedModules,
+  ]);
+  const bestInstalledModulesByPartId = new Map();
+  installedModules.forEach((module) => {
+    const partId = typeof module?.partId === "string" ? module.partId : "";
+    if (!partId || bestInstalledModulesByPartId.has(partId)) {
+      return;
+    }
+    bestInstalledModulesByPartId.set(partId, module);
+  });
+  const filteredInventoryModules = getFilteredDronePartsInventoryModules(
+    inventoryModules,
+    dronePartsSetupRarityFilterRank
+  );
+  const sortedInventoryModules = getSortedDronePartsInventoryModules(
+    filteredInventoryModules,
+    bestInstalledModulesByPartId,
+    bestOwnedModulesByPartId
+  );
+  const scrapableListedModules = sortedInventoryModules.filter(
+    (module) => !isDroneModuleScrapProtected(module, bestOwnedModulesByPartId)
+  );
+  const listedScrapValue = scrapableListedModules.reduce(
+    (sum, module) => sum + getDroneModuleScrapValue(module),
+    0
+  );
 
-  if (partsSummary instanceof HTMLElement) {
-    partsSummary.textContent = `Installed ${installedModules.length}/${DRONE_CRAFTING_PARTS.length} • ${getInstalledDroneBonusSummaryText()}`;
+  if (summary instanceof HTMLElement) {
+    summary.textContent = `Installed ${installedModules.length}/${DRONE_CRAFTING_PARTS.length} • ${getInstalledDroneBonusSummaryText()}`;
   }
 
-  partsAvailableList.innerHTML = "";
-  availableModules.forEach((module) => {
+  filterButtons.forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+    const buttonRank = Number.parseInt(button.dataset.dronePartsFilterRank ?? "0", 10);
+    button.classList.toggle(
+      "drone-parts-panel__filter--active",
+      (Number.isFinite(buttonRank) ? Math.max(0, buttonRank) : 0) === dronePartsSetupRarityFilterRank
+    );
+  });
+
+  if (scrapListedButton instanceof HTMLButtonElement) {
+    scrapListedButton.disabled = scrapableListedModules.length === 0;
+    scrapListedButton.dataset.dronePartsScrapListedIds = scrapableListedModules
+      .map((module) => module?.id)
+      .filter((value) => typeof value === "string")
+      .join(",");
+    scrapListedButton.textContent =
+      sortedInventoryModules.length === 0
+        ? "Scrap listed"
+        : scrapableListedModules.length > 0
+          ? `Scrap listed for ${formatMarsMoney(listedScrapValue)}`
+          : "Best items protected";
+  }
+
+  availableList.innerHTML = "";
+  sortedInventoryModules.forEach((module) => {
     const part = getDroneCraftingPartById(module?.partId);
     if (!part) {
       return;
     }
-    partsAvailableList.appendChild(
+    availableList.appendChild(
       createDronePartsPanelItem({
         part,
         module,
         action: "install",
         actionLabel: "Install",
+        installedModuleForComparison:
+          bestInstalledModulesByPartId.get(module?.partId) ?? null,
+        scrapProtected: isDroneModuleScrapProtected(module, bestOwnedModulesByPartId),
       })
     );
   });
 
-  partsInstalledList.innerHTML = "";
+  installedList.innerHTML = "";
   installedModules.forEach((module) => {
     const part = getDroneCraftingPartById(module?.partId);
     if (!part) {
       return;
     }
-    partsInstalledList.appendChild(
+    installedList.appendChild(
       createDronePartsPanelItem({
         part,
         module,
@@ -15681,20 +16058,28 @@ const renderDronePartsPanel = () => {
     );
   });
 
-  if (partsAvailableEmpty instanceof HTMLElement) {
-    partsAvailableEmpty.hidden = availableModules.length > 0;
+  if (availableEmpty instanceof HTMLElement) {
+    availableEmpty.hidden = sortedInventoryModules.length > 0;
+    availableEmpty.textContent =
+      inventoryModules.length > 0 && sortedInventoryModules.length === 0
+        ? "No inventory parts match the current star filter."
+        : "No crafted parts in inventory. Build parts at the Crafting Table.";
   }
-  if (partsInstalledEmpty instanceof HTMLElement) {
-    partsInstalledEmpty.hidden = installedModules.length > 0;
+  if (installedEmpty instanceof HTMLElement) {
+    installedEmpty.hidden = installedModules.length > 0;
   }
 
-  if (!partsAvailableList.dataset.boundPartsActions) {
-    partsAvailableList.dataset.boundPartsActions = "true";
-    partsAvailableList.addEventListener("click", handleDronePartActionClick);
+  if (!availableList.dataset.boundPartsActions) {
+    availableList.dataset.boundPartsActions = "true";
+    availableList.addEventListener("click", handleDronePartActionClick);
   }
-  if (!partsInstalledList.dataset.boundPartsActions) {
-    partsInstalledList.dataset.boundPartsActions = "true";
-    partsInstalledList.addEventListener("click", handleDronePartActionClick);
+  if (!installedList.dataset.boundPartsActions) {
+    installedList.dataset.boundPartsActions = "true";
+    installedList.addEventListener("click", handleDronePartActionClick);
+  }
+  if (toolbar instanceof HTMLElement && !toolbar.dataset.boundDronePartsToolbar) {
+    toolbar.dataset.boundDronePartsToolbar = "true";
+    toolbar.addEventListener("click", handleDronePartsToolbarClick);
   }
 };
 
@@ -16123,6 +16508,46 @@ const getCostumeModuleScrapValue = (module) => {
       recipeMarketValue *
         COSTUME_MODULE_SCRAP_RETURN_FACTOR *
         getCostumeModuleScrapMultiplier(module)
+    )
+  );
+};
+
+const getDroneModuleScrapMultiplier = (module) => {
+  const rarityRank =
+    getCostumeModuleRarityDefinition(module?.rarityId, module?.lucky === true)?.rank ?? 0;
+  return Math.max(1, 2 ** Math.max(0, rarityRank));
+};
+
+const getDroneModuleScrapValue = (module) => {
+  const part = getDroneCraftingPartById(module?.partId);
+  const requirements = Array.isArray(part?.requirements) ? part.requirements.filter(Boolean) : [];
+  if (!part || requirements.length === 0) {
+    return 0;
+  }
+
+  const recipeMarketValue = requirements.reduce((totalValue, requirement) => {
+    const normalizedCount = Number.isFinite(requirement?.count)
+      ? Math.max(0, Math.floor(requirement.count))
+      : 0;
+    if (!requirement?.element || normalizedCount <= 0) {
+      return totalValue;
+    }
+
+    const marketItem = getMarketItemForElement(requirement.element);
+    const currentPrice = Number.isFinite(marketItem?.price) ? Math.max(0, marketItem.price) : 0;
+    return totalValue + currentPrice * normalizedCount;
+  }, 0);
+
+  if (!(recipeMarketValue > 0)) {
+    return 0;
+  }
+
+  return Math.max(
+    1,
+    Math.round(
+      recipeMarketValue *
+        COSTUME_MODULE_SCRAP_RETURN_FACTOR *
+        getDroneModuleScrapMultiplier(module)
     )
   );
 };
@@ -16677,6 +17102,7 @@ const teardownQuickAccessModalContent = () => {
   droneCustomizationModalActive = false;
   costumeCustomizationModalActive = false;
   costumeSetupRarityFilterRank = 0;
+  dronePartsSetupRarityFilterRank = 0;
   droneCustomizationActiveTab = DRONE_CUSTOMIZATION_DEFAULT_TAB_ID;
   droneSkinPreviewState.renderToken += 1;
   droneSkinPreviewState.pendingSkinId = null;
