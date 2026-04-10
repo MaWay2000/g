@@ -8459,6 +8459,8 @@ const getStorageBoxModalElements = () => {
       location: null,
       subtitle: null,
       warning: null,
+      inventoryStoreAllButton: null,
+      storedTakeAllButton: null,
       inventoryLoad: null,
       storedLoad: null,
       inventoryList: null,
@@ -8472,6 +8474,12 @@ const getStorageBoxModalElements = () => {
     location: quickAccessModalContent.querySelector("[data-storage-box-location]"),
     subtitle: quickAccessModalContent.querySelector("[data-storage-box-subtitle]"),
     warning: quickAccessModalContent.querySelector("[data-storage-box-warning]"),
+    inventoryStoreAllButton: quickAccessModalContent.querySelector(
+      '[data-storage-box-action="store-all"]'
+    ),
+    storedTakeAllButton: quickAccessModalContent.querySelector(
+      '[data-storage-box-action="take-all"]'
+    ),
     inventoryLoad: quickAccessModalContent.querySelector(
       "[data-storage-box-inventory-load]"
     ),
@@ -8491,6 +8499,55 @@ const getOrderedStorageBoxEntries = () =>
   Array.from(getActiveStorageBoxRecord().entries).sort(
     (left, right) => (right?.lastTransferredAt ?? 0) - (left?.lastTransferredAt ?? 0)
   );
+
+const getMaxInventoryEntryTransferCountToStorageBox = (
+  entry,
+  boxId = STORAGE_BOX_DEFAULT_ID
+) => {
+  if (!entry || !Number.isFinite(entry.count) || entry.count <= 0) {
+    return 0;
+  }
+
+  const unitWeight = getInventoryElementWeight(entry.element);
+  if (!Number.isFinite(unitWeight) || unitWeight <= 0) {
+    return Math.max(0, Math.floor(entry.count));
+  }
+
+  const record = getStorageBoxRecord(boxId);
+  const currentLoad = Number.isFinite(record.currentLoadGrams)
+    ? record.currentLoadGrams
+    : recalculateStorageBoxLoad(record.id);
+  const freeCapacity = Math.max(
+    0,
+    getStorageBoxCapacityGrams(record.id) - currentLoad
+  );
+
+  return Math.max(
+    0,
+    Math.min(Math.floor(entry.count), Math.floor(freeCapacity / unitWeight))
+  );
+};
+
+const getMaxStorageEntryTransferCountToInventory = (entry) => {
+  if (!entry || !Number.isFinite(entry.count) || entry.count <= 0) {
+    return 0;
+  }
+
+  const unitWeight = getInventoryElementWeight(entry.element);
+  if (!Number.isFinite(unitWeight) || unitWeight <= 0) {
+    return Math.max(0, Math.floor(entry.count));
+  }
+
+  const currentLoad = Number.isFinite(inventoryState.currentLoadGrams)
+    ? inventoryState.currentLoadGrams
+    : recalculateInventoryLoad();
+  const freeCapacity = Math.max(0, getInventoryCapacityGrams() - currentLoad);
+
+  return Math.max(
+    0,
+    Math.min(Math.floor(entry.count), Math.floor(freeCapacity / unitWeight))
+  );
+};
 
 const createStorageBoxModalEntryItem = ({
   entry,
@@ -8539,6 +8596,8 @@ const renderStorageBoxModal = () => {
     location,
     subtitle,
     warning,
+    inventoryStoreAllButton,
+    storedTakeAllButton,
     inventoryLoad: inventoryLoadLabel,
     storedLoad: storedLoadLabel,
     inventoryList,
@@ -8593,6 +8652,20 @@ const renderStorageBoxModal = () => {
   const storedEntries = getOrderedStorageBoxEntries().filter(
     (entry) => entry && Number.isFinite(entry.count) && entry.count > 0
   );
+  const canStoreAny = inventoryEntries.some(
+    (entry) => getMaxInventoryEntryTransferCountToStorageBox(entry, activeStorageBox.id) > 0
+  );
+  const canTakeAny = storedEntries.some(
+    (entry) => getMaxStorageEntryTransferCountToInventory(entry) > 0
+  );
+
+  if (inventoryStoreAllButton instanceof HTMLButtonElement) {
+    inventoryStoreAllButton.disabled = !canStoreAny;
+  }
+
+  if (storedTakeAllButton instanceof HTMLButtonElement) {
+    storedTakeAllButton.disabled = !canTakeAny;
+  }
 
   if (inventoryList instanceof HTMLElement) {
     inventoryList.innerHTML = "";
@@ -8651,11 +8724,25 @@ const handleStorageBoxActionClick = (event) => {
 
   const entryKey = actionTarget.dataset.storageBoxEntryKey;
   const actionType = actionTarget.dataset.storageBoxAction;
-  if (!entryKey || !actionType) {
+  if (!actionType) {
     return;
   }
 
   event.preventDefault();
+
+  if (actionType === "store-all") {
+    transferAllInventoryToStorageBox();
+    return;
+  }
+
+  if (actionType === "take-all") {
+    transferAllStorageBoxToInventory();
+    return;
+  }
+
+  if (!entryKey) {
+    return;
+  }
 
   if (actionType === "store") {
     transferInventoryToStorageBox(entryKey, 1);
@@ -8677,21 +8764,19 @@ const teardownStorageBoxModal = () => {
 };
 
 const bindStorageBoxModalEvents = () => {
-  const { inventoryList, storedList } = getStorageBoxModalElements();
+  const modalContent =
+    quickAccessModalContent instanceof HTMLElement ? quickAccessModalContent : null;
 
   if (
-    !(inventoryList instanceof HTMLElement) ||
-    !(storedList instanceof HTMLElement) ||
+    !(modalContent instanceof HTMLElement) ||
     typeof teardownStorageBoxActionBinding === "function"
   ) {
     return;
   }
 
-  inventoryList.addEventListener("click", handleStorageBoxActionClick);
-  storedList.addEventListener("click", handleStorageBoxActionClick);
+  modalContent.addEventListener("click", handleStorageBoxActionClick);
   teardownStorageBoxActionBinding = () => {
-    inventoryList.removeEventListener("click", handleStorageBoxActionClick);
-    storedList.removeEventListener("click", handleStorageBoxActionClick);
+    modalContent.removeEventListener("click", handleStorageBoxActionClick);
   };
 };
 
@@ -17689,6 +17774,158 @@ const transferStorageBoxToInventory = (entryKey, count = 1) => {
     recordStorageBoxResource(storageEntry.element, missingCount, activeBoxId);
   }
   return addedCount > 0;
+};
+
+const transferAllInventoryToStorageBox = () => {
+  const activeBoxId = getActiveStorageBoxRecord().id;
+  const inventoryEntries = getOrderedInventoryEntries().filter(
+    (entry) => entry && Number.isFinite(entry.count) && entry.count > 0
+  );
+
+  if (inventoryEntries.length <= 0) {
+    setStorageBoxCapacityRejection("Inventory is empty.", activeBoxId);
+    showTerminalToast({
+      title: "Nothing to store",
+      description: "Inventory is empty.",
+    });
+    return false;
+  }
+
+  let movedItems = 0;
+  let movedWeight = 0;
+
+  inventoryEntries.forEach((entry) => {
+    const liveEntry = getInventoryEntryByKey(entry?.key);
+    const transferableCount = getMaxInventoryEntryTransferCountToStorageBox(
+      liveEntry,
+      activeBoxId
+    );
+
+    if (transferableCount <= 0 || !liveEntry) {
+      return;
+    }
+
+    const unitWeight = getInventoryElementWeight(liveEntry.element);
+    if (!transferInventoryToStorageBox(liveEntry.key, transferableCount)) {
+      return;
+    }
+
+    movedItems += transferableCount;
+    movedWeight += transferableCount * (Number.isFinite(unitWeight) ? unitWeight : 0);
+  });
+
+  if (movedItems <= 0) {
+    setStorageBoxCapacityRejection("Storage box is full.", activeBoxId);
+    showTerminalToast({
+      title: "Storage full",
+      description: "No inventory elements could be moved into the box.",
+    });
+    return false;
+  }
+
+  const remainingEntries = getOrderedInventoryEntries().filter(
+    (entry) => entry && Number.isFinite(entry.count) && entry.count > 0
+  );
+  const movedText = `${movedItems} item${movedItems === 1 ? "" : "s"} (${formatGrams(
+    movedWeight
+  )})`;
+
+  if (remainingEntries.length > 0) {
+    setStorageBoxCapacityRejection(
+      `Stored ${movedText}. Storage box filled before everything could be moved.`,
+      activeBoxId
+    );
+    showTerminalToast({
+      title: "Storage partially filled",
+      description: `Moved ${movedText}. ${remainingEntries.length} element type${
+        remainingEntries.length === 1 ? "" : "s"
+      } remain in inventory.`,
+    });
+    return true;
+  }
+
+  clearStorageBoxCapacityRejection(activeBoxId);
+  showTerminalToast({
+    title: "Stored all elements",
+    description: `Moved ${movedText} into the storage box.`,
+  });
+  return true;
+};
+
+const transferAllStorageBoxToInventory = () => {
+  const activeBoxId = getActiveStorageBoxRecord().id;
+  const storedEntries = getOrderedStorageBoxEntries().filter(
+    (entry) => entry && Number.isFinite(entry.count) && entry.count > 0
+  );
+
+  if (storedEntries.length <= 0) {
+    setStorageBoxCapacityRejection("Storage box is empty.", activeBoxId);
+    showTerminalToast({
+      title: "Nothing to take",
+      description: "Storage box is empty.",
+    });
+    return false;
+  }
+
+  let movedItems = 0;
+  let movedWeight = 0;
+
+  storedEntries.forEach((entry) => {
+    const liveEntry = getStorageBoxEntryByKey(entry?.key, activeBoxId);
+    const transferableCount = getMaxStorageEntryTransferCountToInventory(liveEntry);
+
+    if (transferableCount <= 0 || !liveEntry) {
+      return;
+    }
+
+    const unitWeight = getInventoryElementWeight(liveEntry.element);
+    if (!transferStorageBoxToInventory(liveEntry.key, transferableCount)) {
+      return;
+    }
+
+    movedItems += transferableCount;
+    movedWeight += transferableCount * (Number.isFinite(unitWeight) ? unitWeight : 0);
+  });
+
+  if (movedItems <= 0) {
+    setStorageBoxCapacityRejection(
+      `Inventory is full (${formatKilograms(getInventoryCapacityKg())} max).`,
+      activeBoxId
+    );
+    showTerminalToast({
+      title: "Inventory full",
+      description: "No stored elements could be moved into inventory.",
+    });
+    return false;
+  }
+
+  const remainingEntries = getOrderedStorageBoxEntries().filter(
+    (entry) => entry && Number.isFinite(entry.count) && entry.count > 0
+  );
+  const movedText = `${movedItems} item${movedItems === 1 ? "" : "s"} (${formatGrams(
+    movedWeight
+  )})`;
+
+  if (remainingEntries.length > 0) {
+    setStorageBoxCapacityRejection(
+      `Took ${movedText}. Inventory filled before the storage box was emptied.`,
+      activeBoxId
+    );
+    showTerminalToast({
+      title: "Inventory partially filled",
+      description: `Moved ${movedText}. ${remainingEntries.length} stored element type${
+        remainingEntries.length === 1 ? "" : "s"
+      } remain in the box.`,
+    });
+    return true;
+  }
+
+  clearStorageBoxCapacityRejection(activeBoxId);
+  showTerminalToast({
+    title: "Took all elements",
+    description: `Moved ${movedText} into inventory.`,
+  });
+  return true;
 };
 
 const updateInventorySummary = () => {

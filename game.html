@@ -2345,6 +2345,14 @@
         gap: 0.7rem;
       }
 
+      .storage-box-panel__column-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
       .storage-box-panel__column-load {
         margin: -0.4rem 0 0.1rem;
         font-size: 0.84rem;
@@ -2420,6 +2428,11 @@
         opacity: 0.55;
         cursor: not-allowed;
         transform: none;
+      }
+
+      .storage-box-panel__button--bulk {
+        padding-inline: 0.78rem;
+        white-space: nowrap;
       }
 
       .storage-box-panel__empty {
@@ -6988,7 +7001,16 @@
         </p>
         <div class="storage-box-panel__layout">
           <article class="storage-box-panel__column">
-            <h3 class="quick-access-modal__section-title">Inventory elements</h3>
+            <div class="storage-box-panel__column-header">
+              <h3 class="quick-access-modal__section-title">Inventory elements</h3>
+              <button
+                class="storage-box-panel__button storage-box-panel__button--bulk"
+                type="button"
+                data-storage-box-action="store-all"
+              >
+                Store all
+              </button>
+            </div>
             <p class="storage-box-panel__column-load" data-storage-box-inventory-load>
               Load: syncing...
             </p>
@@ -6998,7 +7020,16 @@
             </p>
           </article>
           <article class="storage-box-panel__column">
-            <h3 class="quick-access-modal__section-title">Stored elements</h3>
+            <div class="storage-box-panel__column-header">
+              <h3 class="quick-access-modal__section-title">Stored elements</h3>
+              <button
+                class="storage-box-panel__button storage-box-panel__button--bulk"
+                type="button"
+                data-storage-box-action="take-all"
+              >
+                Take all
+              </button>
+            </div>
             <p class="storage-box-panel__column-load" data-storage-box-stored-load>
               Load: syncing...
             </p>
