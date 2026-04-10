@@ -23331,11 +23331,24 @@ const applyTerrainLifeDrain = (detail) => {
     return;
   }
 
+  const markTerrainAsDepleted = () => {
+    const depletedByTileIndex =
+      sceneController?.setTerrainDepletedAtTileIndex?.(tileIndex) ?? false;
+    if (depletedByTileIndex) {
+      return true;
+    }
+
+    return (
+      sceneController?.setTerrainDepletedAtPosition?.(detail?.position ?? null) ??
+      sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null) ??
+      false
+    );
+  };
+
   if (detail?.found === false) {
     const nextLife = decreaseTerrainLife(terrainId, tileIndex, 1);
     if (nextLife <= 0) {
-      sceneController?.setTerrainDepletedAtPosition?.(detail?.position ?? null) ??
-        sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
+      markTerrainAsDepleted();
     }
     return;
   }
@@ -23348,8 +23361,7 @@ const applyTerrainLifeDrain = (detail) => {
   if (Number.isFinite(drainAmount) && drainAmount > 0) {
     const nextLife = decreaseTerrainLife(terrainId, tileIndex, drainAmount);
     if (nextLife <= 0) {
-      sceneController?.setTerrainDepletedAtPosition?.(detail?.position ?? null) ??
-        sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null);
+      markTerrainAsDepleted();
     }
   }
 };

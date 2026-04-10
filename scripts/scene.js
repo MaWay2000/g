@@ -17091,6 +17091,58 @@ export const initScene = (
     }
   };
 
+  const resolveResourceTargetFloorId = (tile) => {
+    if (!tile) {
+      return null;
+    }
+
+    for (const [floorId, targets] of resourceTargetsByEnvironment.entries()) {
+      if (!Array.isArray(targets) || targets.length === 0) {
+        continue;
+      }
+
+      if (targets.includes(tile)) {
+        return floorId;
+      }
+    }
+
+    return getActiveLiftFloor()?.id ?? null;
+  };
+
+  const findTerrainTileByIndex = (tileIndex) => {
+    if (!Number.isInteger(tileIndex) || tileIndex < 0) {
+      return null;
+    }
+
+    if (Array.isArray(activeTerrainTiles) && activeTerrainTiles.length > 0) {
+      const activeMatch = activeTerrainTiles.find(
+        (tile) =>
+          Number.isFinite(tile?.userData?.tileVariantIndex) &&
+          tile.userData.tileVariantIndex === tileIndex
+      );
+      if (activeMatch) {
+        return activeMatch;
+      }
+    }
+
+    for (const tiles of terrainTilesByEnvironment.values()) {
+      if (!Array.isArray(tiles) || tiles.length === 0) {
+        continue;
+      }
+
+      const match = tiles.find(
+        (tile) =>
+          Number.isFinite(tile?.userData?.tileVariantIndex) &&
+          tile.userData.tileVariantIndex === tileIndex
+      );
+      if (match) {
+        return match;
+      }
+    }
+
+    return null;
+  };
+
   const setTerrainTileToDepleted = (tile) => {
     if (!tile?.userData) {
       return false;
@@ -17302,6 +17354,26 @@ export const initScene = (
     const activeFloor = getActiveLiftFloor();
     if (activeFloor?.id) {
       removeResourceTargetFromFloor(tile, activeFloor.id);
+    }
+
+    updateGeoVisorTerrainVisibility({ force: true });
+    return true;
+  };
+
+  const setTerrainDepletedAtTileIndex = (tileIndex) => {
+    const tile = findTerrainTileByIndex(tileIndex);
+    if (!tile) {
+      return false;
+    }
+
+    const updated = setTerrainTileToDepleted(tile);
+    if (!updated) {
+      return false;
+    }
+
+    const floorId = resolveResourceTargetFloorId(tile);
+    if (floorId) {
+      removeResourceTargetFromFloor(tile, floorId);
     }
 
     updateGeoVisorTerrainVisibility({ force: true });
@@ -20011,6 +20083,7 @@ export const initScene = (
       findTerrainIntersection({
         allowRevealedBeyondGeoVisorDistance: true,
       }),
+    setTerrainDepletedAtTileIndex,
     setTerrainDepletedAtPosition,
     setTerrainVoidAtPosition,
     setJumpSettings: (nextSettings = {}) => {
