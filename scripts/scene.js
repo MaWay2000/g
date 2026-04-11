@@ -8195,6 +8195,12 @@ export const initScene = (
           tileGeometry,
           getMaterialForTerrain(terrainForTile.id, tileIdForTile, index)
         );
+        const voidTileId = getOutsideTerrainDefaultTileId("void");
+        const voidRevealedMaterial =
+          getMaterialForTerrain("void", voidTileId, index) ?? null;
+        const voidVisorMaterial =
+          getGeoVisorMaterialForTerrain("void", voidTileId, index) ??
+          voidRevealedMaterial;
         tile.position.set(
           tileCenterX,
           roomFloorY + OUTSIDE_TERRAIN_CLEARANCE,
@@ -8215,6 +8221,8 @@ export const initScene = (
         tile.userData.geoVisorCellSize = cellSize;
         tile.userData.geoVisorMapLeftEdge = mapLeftEdge;
         tile.userData.geoVisorMapNearEdge = mapNearEdge;
+        tile.userData.terrainVoidRevealedMaterial = voidRevealedMaterial;
+        tile.userData.terrainVoidVisorMaterial = voidVisorMaterial;
         tile.userData.geoVisorRevealedMaterial = tile.material;
         tile.userData.geoVisorVisorMaterial = getGeoVisorMaterialForTerrain(
           terrainForTile.id,
@@ -17211,11 +17219,13 @@ export const initScene = (
       ? tile.userData.tileVariantIndex
       : 0;
     const baseMaterial =
+      tile.userData.terrainVoidRevealedMaterial ??
       getRuntimeTerrainMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
       getRuntimeMinedVoidTerrainMaterial() ??
       tile.userData.geoVisorRevealedMaterial ??
       tile.material;
     const visorMaterial =
+      tile.userData.terrainVoidVisorMaterial ??
       getRuntimeGeoVisorMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
       baseMaterial;
 
