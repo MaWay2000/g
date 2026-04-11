@@ -17205,25 +17205,19 @@ export const initScene = (
       return false;
     }
 
-    if (tile.userData.terrainId === "void") {
-      return false;
-    }
-
-    if (tile.userData.isTerrainDepleted) {
-      return false;
-    }
-
     const voidTerrain = getOutsideTerrainById("void");
     const tileId = getOutsideTerrainDefaultTileId(voidTerrain.id);
     const tileVariantIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
       : 0;
     const baseMaterial =
-      getRuntimeMinedVoidTerrainMaterial() ??
       getRuntimeTerrainMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
+      getRuntimeMinedVoidTerrainMaterial() ??
       tile.userData.geoVisorRevealedMaterial ??
       tile.material;
-    const visorMaterial = baseMaterial;
+    const visorMaterial =
+      getRuntimeGeoVisorMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
+      baseMaterial;
 
     tile.userData.isTerrainDepleted = true;
     tile.userData.terrainId = voidTerrain.id;
