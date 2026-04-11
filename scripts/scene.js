@@ -13967,6 +13967,11 @@ export const initScene = (
       return null;
     }
 
+    const blockingTerrain = findTerrainIntersection();
+    if (blockingTerrain?.terrainId === "void") {
+      return null;
+    }
+
     return { intersection, targetObject };
   };
 
@@ -17162,13 +17167,11 @@ export const initScene = (
       ? tile.userData.tileVariantIndex
       : 0;
     const baseMaterial =
-      getRuntimeTerrainMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
       getRuntimeMinedVoidTerrainMaterial() ??
+      getRuntimeTerrainMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
       tile.userData.geoVisorRevealedMaterial ??
       tile.material;
-    const visorMaterial =
-      getRuntimeGeoVisorMaterial(voidTerrain.id, tileId, tileVariantIndex) ??
-      baseMaterial;
+    const visorMaterial = baseMaterial;
 
     tile.userData.isTerrainDepleted = true;
     tile.userData.terrainId = voidTerrain.id;
@@ -17189,7 +17192,17 @@ export const initScene = (
 
     clearGeoVisorRevealFadeState(tile);
     syncViewDistanceBaseMaterial(tile, baseMaterial);
-    applyGeoVisorMaterialToTile(tile, true);
+    if (geoVisorEnabled) {
+      applyGeoVisorMaterialToTile(tile, true);
+    } else {
+      if (Number.isInteger(tileIndex) && tileIndex >= 0) {
+        if (geoVisorRevealedTileIndices.delete(tileIndex)) {
+          schedulePersistGeoVisorRevealState();
+        }
+      }
+      tile.userData.geoVisorRevealed = false;
+      tile.material = baseMaterial;
+    }
 
     return true;
   };
