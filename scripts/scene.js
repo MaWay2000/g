@@ -7354,6 +7354,38 @@ export const initScene = (
       colliderDescriptors.push({ object: eastWall });
       terrainTiles.push(northWall, southWall, westWall, eastWall);
 
+      const getResolvedTerrainStateForCellIndex = (cellIndex) => {
+        const safeIndex = Number.isInteger(cellIndex)
+          ? THREE.MathUtils.clamp(cellIndex, 0, totalCells - 1)
+          : 0;
+        const cellData = rawCells[safeIndex] ?? {};
+        const sourceTerrainId = cellData?.terrainId ?? "void";
+        const sourceTerrain = getOutsideTerrainById(sourceTerrainId);
+        const sourceTerrainKey = sourceTerrain?.id ?? "void";
+        const isDepleted = isTerrainTileDepleted(sourceTerrainKey, safeIndex);
+        const resolvedTerrain = isDepleted
+          ? getOutsideTerrainById("void")
+          : sourceTerrain;
+        const resolvedTerrainId = resolvedTerrain?.id ?? "void";
+        const resolvedTileId = isDepleted
+          ? getOutsideTerrainDefaultTileId("void")
+          : cellData?.tileId ?? getOutsideTerrainDefaultTileId(sourceTerrainKey);
+        return {
+          cellData,
+          terrain: resolvedTerrain,
+          terrainId: resolvedTerrainId,
+          tileId: resolvedTileId,
+          isDepleted,
+        };
+      };
+
+      const getResolvedTerrainStateForCell = (column, row) => {
+        const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
+        const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
+        const index = clampedRow * width + clampedColumn;
+        return getResolvedTerrainStateForCellIndex(index);
+      };
+
       const getCellElevation = (column, row) => {
         const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
         const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
@@ -7369,25 +7401,15 @@ export const initScene = (
       const TERRAIN_EDGE_COLOR_TINT_STRENGTH = 0.36;
       const TERRAIN_EDGE_COLOR_BLEND_STRENGTH = 0.46;
       const TERRAIN_EDGE_COLOR_BLEND_INNER_RADIUS = 0.32;
-      const cellEdgeTintColors = rawCells.map((cell) => {
-        const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
+      const getCellEdgeTintColor = (column, row, targetColor) => {
+        const resolvedTerrain = getResolvedTerrainStateForCell(column, row).terrain;
         const terrainColor = new THREE.Color(
           resolvedTerrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR
         );
-        return new THREE.Color(0xffffff).lerp(
+        return targetColor.setRGB(1, 1, 1).lerp(
           terrainColor,
           TERRAIN_EDGE_COLOR_TINT_STRENGTH
         );
-      });
-      const getCellEdgeTintColor = (column, row, targetColor) => {
-        const clampedColumn = THREE.MathUtils.clamp(column, 0, width - 1);
-        const clampedRow = THREE.MathUtils.clamp(row, 0, height - 1);
-        const index = clampedRow * width + clampedColumn;
-        const color = cellEdgeTintColors[index];
-        if (color && color.isColor) {
-          return targetColor.copy(color);
-        }
-        return targetColor.setRGB(1, 1, 1);
       };
       const getRoundedBlendFactor = (value) => {
         const linearBlend = THREE.MathUtils.clamp(value, 0, 1);
@@ -8158,18 +8180,10 @@ export const initScene = (
 
       const createWindowedTile = (column, row) => {
         const index = getCellIndex(column, row);
-        const cellData = rawCells[index] ?? {};
-        const terrainId = cellData?.terrainId ?? "void";
-        const tileId =
-          cellData?.tileId ?? getOutsideTerrainDefaultTileId(terrainId);
-        const resolvedTerrain = getOutsideTerrainById(terrainId);
-        const tileIsDepleted = isTerrainTileDepleted(resolvedTerrain.id, index);
-        const terrainForTile = tileIsDepleted
-          ? getOutsideTerrainById("void")
-          : resolvedTerrain;
-        const tileIdForTile = tileIsDepleted
-          ? getOutsideTerrainDefaultTileId("void")
-          : tileId;
+        const resolvedCellState = getResolvedTerrainStateForCellIndex(index);
+        const terrainForTile = resolvedCellState.terrain;
+        const tileIdForTile = resolvedCellState.tileId;
+        const tileIsDepleted = resolvedCellState.isDepleted;
         const elevation = getOutsideTerrainElevation(
           normalizedMap.heights?.[index]
         );
@@ -8231,6 +8245,7 @@ export const initScene = (
         );
         tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
         tile.userData.isTerrainDepleted = tileIsDepleted;
+        tile.userData.requiresTerrainRebuild = false;
         if (tileIsDepleted) {
           tile.userData.geoVisorRevealedMaterial =
             getMaterialForTerrain(terrainForTile.id, tileIdForTile, index) ??
@@ -8415,6 +8430,21 @@ export const initScene = (
           for (let column = minColumn; column <= maxColumn; column += 1) {
             const key = `${column},${row}`;
             nextKeys.add(key);
+            const tileIndex = getCellIndex(column, row);
+            const desiredCellState =
+              getResolvedTerrainStateForCellIndex(tileIndex);
+            const existingTile = windowedTileRegistry.get(key);
+            const shouldRebuildExistingTile =
+              Boolean(existingTile?.userData?.requiresTerrainRebuild) ||
+              Boolean(existingTile?.userData?.isTerrainDepleted) !==
+                desiredCellState.isDepleted ||
+              (existingTile?.userData?.terrainId ?? null) !==
+                desiredCellState.terrainId ||
+              (existingTile?.userData?.tileId ?? null) !==
+                desiredCellState.tileId;
+            if (existingTile && shouldRebuildExistingTile) {
+              removeWindowedTile(key);
+            }
             if (!windowedTileRegistry.has(key)) {
               const tile = createWindowedTile(column, row);
               windowedTileRegistry.set(key, tile);
@@ -17095,12 +17125,15 @@ export const initScene = (
       return;
     }
 
-    const nextTargets = resourceTargets.filter((target) => target !== tile);
-    resourceTargetsByEnvironment.set(floorId, nextTargets);
+    for (let index = resourceTargets.length - 1; index >= 0; index -= 1) {
+      if (resourceTargets[index] === tile) {
+        resourceTargets.splice(index, 1);
+      }
+    }
 
     const activeFloor = getActiveLiftFloor();
     if (activeFloor?.id === floorId) {
-      activeResourceTargets = nextTargets;
+      activeResourceTargets = resourceTargets;
     }
   };
 
@@ -17122,25 +17155,28 @@ export const initScene = (
         continue;
       }
 
-      const nextTargets = resourceTargets.filter((target) => {
+      let removedOnFloor = false;
+      for (let index = resourceTargets.length - 1; index >= 0; index -= 1) {
+        const target = resourceTargets[index];
         const targetTileIndex = getTerrainTileVariantIndex(target);
         if (targetTileIndex !== tileIndex) {
-          return true;
+          continue;
         }
 
         if (target?.userData) {
           target.userData.isResourceTarget = false;
         }
 
-        removedCount += 1;
-        return false;
-      });
-
-      if (nextTargets.length !== resourceTargets.length) {
-        resourceTargetsByEnvironment.set(floorId, nextTargets);
+        resourceTargets.splice(index, 1);
         if (activeFloorId && floorId === activeFloorId) {
-          activeResourceTargets = nextTargets;
+          activeResourceTargets = resourceTargets;
         }
+        removedCount += 1;
+        removedOnFloor = true;
+      }
+
+      if (removedOnFloor) {
+        resourceTargetsByEnvironment.set(floorId, resourceTargets);
       }
     }
 
@@ -17238,6 +17274,7 @@ export const initScene = (
     tile.userData.geoVisorVisorMaterial = visorMaterial;
     tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
     tile.userData.isResourceTarget = false;
+    tile.userData.requiresTerrainRebuild = true;
 
     const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
@@ -17433,6 +17470,13 @@ export const initScene = (
       }
     }
 
+    const operationsExteriorEnvironment = deckEnvironmentMap.get(
+      "operations-exterior"
+    );
+    if (typeof operationsExteriorEnvironment?.update === "function") {
+      operationsExteriorEnvironment.update({ force: true });
+    }
+
     updateGeoVisorTerrainVisibility({ force: true });
     return true;
   };
@@ -17459,6 +17503,12 @@ export const initScene = (
     markTerrainTileDepleted(tileIndex);
 
     const removedCount = removeResourceTargetsByTileIndex(tileIndex);
+    const operationsExteriorEnvironment = deckEnvironmentMap.get(
+      "operations-exterior"
+    );
+    if (typeof operationsExteriorEnvironment?.update === "function") {
+      operationsExteriorEnvironment.update({ force: true });
+    }
     const hasLiveTileMatch = matchingTiles.length > 0;
 
     if (!updatedAnyTile && !hasLiveTileMatch && removedCount <= 0) {
