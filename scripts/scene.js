@@ -13938,11 +13938,10 @@ export const initScene = (
       return null;
     }
 
-    const terrainId = targetObject.userData?.terrainId ?? null;
-    const terrainLabel = targetObject.userData?.terrainLabel ?? null;
-    const tileIndex = Number.isFinite(targetObject.userData?.tileVariantIndex)
-      ? targetObject.userData.tileVariantIndex
-      : null;
+    const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
+    const terrainId = effectiveTerrainState.terrainId;
+    const terrainLabel = effectiveTerrainState.terrainLabel;
+    const tileIndex = effectiveTerrainState.tileIndex;
     const geoVisorRevealed = Boolean(targetObject.userData?.geoVisorRevealed);
     const withinGeoVisorDistance =
       intersection.distance <= GEO_VISOR_MAX_DISTANCE;
@@ -14005,6 +14004,11 @@ export const initScene = (
       return null;
     }
 
+    const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
+    if (effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted) {
+      return null;
+    }
+
     const blockingTerrain = findTerrainIntersection();
     if (blockingTerrain?.terrainId === "void") {
       return null;
@@ -14030,6 +14034,11 @@ export const initScene = (
     activeResourceTargets.forEach((candidateTarget) => {
       const targetObject = findResourceTarget(candidateTarget);
       if (!targetObject?.isObject3D) {
+        return;
+      }
+
+      const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
+      if (effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted) {
         return;
       }
 
@@ -15901,11 +15910,16 @@ export const initScene = (
     eventDetail,
     source = RESOURCE_SESSION_PLAYER_SOURCE,
   }) {
-    const terrainId = targetObject.userData?.terrainId ?? null;
-    const terrainLabel = targetObject.userData?.terrainLabel ?? null;
-    const tileIndex = Number.isFinite(targetObject.userData?.tileVariantIndex)
-      ? targetObject.userData.tileVariantIndex
-      : null;
+    const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
+    const terrainId = effectiveTerrainState.terrainId;
+    const terrainLabel = effectiveTerrainState.terrainLabel;
+    const tileIndex = effectiveTerrainState.tileIndex;
+    if (terrainId === "void") {
+      if (eventDetail) {
+        eventDetail.success = false;
+      }
+      return;
+    }
     const sessionSource = source || RESOURCE_SESSION_PLAYER_SOURCE;
     const session = getResourceSession(sessionSource);
 
@@ -17142,6 +17156,47 @@ export const initScene = (
       ? tile.userData.tileVariantIndex
       : null;
 
+  const getEffectiveTerrainStateForTile = (tile) => {
+    const tileIndex = getTerrainTileVariantIndex(tile);
+    const storedTerrainId =
+      typeof tile?.userData?.terrainId === "string" && tile.userData.terrainId
+        ? tile.userData.terrainId
+        : "void";
+    const isDepleted =
+      Number.isInteger(tileIndex) &&
+      tileIndex >= 0 &&
+      depletedTerrainTileIndices.has(tileIndex);
+    const resolvedTerrain = getOutsideTerrainById(isDepleted ? "void" : storedTerrainId);
+    const terrainId = resolvedTerrain?.id ?? "void";
+    const terrainLabel =
+      typeof resolvedTerrain?.label === "string" && resolvedTerrain.label.trim() !== ""
+        ? resolvedTerrain.label.trim()
+        : terrainId;
+    return {
+      terrainId,
+      terrainLabel,
+      tileIndex,
+      isDepleted,
+    };
+  };
+
+  const applyVoidTerrainColorsToTile = (tile) => {
+    const colorAttribute = tile?.geometry?.getAttribute?.("color");
+    const colorArray = colorAttribute?.array;
+    if (!(colorArray instanceof Float32Array) || colorArray.length === 0) {
+      return false;
+    }
+
+    for (let index = 0; index < colorArray.length; index += 3) {
+      colorArray[index] = 1;
+      colorArray[index + 1] = 1;
+      colorArray[index + 2] = 1;
+    }
+
+    colorAttribute.needsUpdate = true;
+    return true;
+  };
+
   const removeResourceTargetsByTileIndex = (tileIndex) => {
     if (!Number.isInteger(tileIndex) || tileIndex < 0) {
       return 0;
@@ -17275,6 +17330,7 @@ export const initScene = (
     tile.userData.geoVisorConcealedMaterial = concealedTerrainMaterial;
     tile.userData.isResourceTarget = false;
     tile.userData.requiresTerrainRebuild = true;
+    applyVoidTerrainColorsToTile(tile);
 
     const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
