@@ -17096,6 +17096,49 @@ export const initScene = (
     }
   };
 
+  const getTerrainTileVariantIndex = (tile) =>
+    Number.isFinite(tile?.userData?.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : null;
+
+  const removeResourceTargetsByTileIndex = (tileIndex) => {
+    if (!Number.isInteger(tileIndex) || tileIndex < 0) {
+      return 0;
+    }
+
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    let removedCount = 0;
+
+    for (const [floorId, resourceTargets] of resourceTargetsByEnvironment.entries()) {
+      if (!Array.isArray(resourceTargets) || resourceTargets.length === 0) {
+        continue;
+      }
+
+      const nextTargets = resourceTargets.filter((target) => {
+        const targetTileIndex = getTerrainTileVariantIndex(target);
+        if (targetTileIndex !== tileIndex) {
+          return true;
+        }
+
+        if (target?.userData) {
+          target.userData.isResourceTarget = false;
+        }
+
+        removedCount += 1;
+        return false;
+      });
+
+      if (nextTargets.length !== resourceTargets.length) {
+        resourceTargetsByEnvironment.set(floorId, nextTargets);
+        if (activeFloorId && floorId === activeFloorId) {
+          activeResourceTargets = nextTargets;
+        }
+      }
+    }
+
+    return removedCount;
+  };
+
   const resolveResourceTargetFloorId = (tile) => {
     if (!tile) {
       return null;
@@ -17114,38 +17157,47 @@ export const initScene = (
     return getActiveLiftFloor()?.id ?? null;
   };
 
+  const findTerrainTilesByIndex = (tileIndex) => {
+    if (!Number.isInteger(tileIndex) || tileIndex < 0) {
+      return [];
+    }
+
+    const matches = [];
+    const seenTiles = new Set();
+    const appendMatchesFromList = (tiles) => {
+      if (!Array.isArray(tiles) || tiles.length === 0) {
+        return;
+      }
+
+      tiles.forEach((tile) => {
+        if (!tile || seenTiles.has(tile)) {
+          return;
+        }
+
+        if (getTerrainTileVariantIndex(tile) !== tileIndex) {
+          return;
+        }
+
+        seenTiles.add(tile);
+        matches.push(tile);
+      });
+    };
+
+    appendMatchesFromList(activeTerrainTiles);
+    for (const tiles of terrainTilesByEnvironment.values()) {
+      appendMatchesFromList(tiles);
+    }
+
+    return matches;
+  };
+
   const findTerrainTileByIndex = (tileIndex) => {
     if (!Number.isInteger(tileIndex) || tileIndex < 0) {
       return null;
     }
 
-    if (Array.isArray(activeTerrainTiles) && activeTerrainTiles.length > 0) {
-      const activeMatch = activeTerrainTiles.find(
-        (tile) =>
-          Number.isFinite(tile?.userData?.tileVariantIndex) &&
-          tile.userData.tileVariantIndex === tileIndex
-      );
-      if (activeMatch) {
-        return activeMatch;
-      }
-    }
-
-    for (const tiles of terrainTilesByEnvironment.values()) {
-      if (!Array.isArray(tiles) || tiles.length === 0) {
-        continue;
-      }
-
-      const match = tiles.find(
-        (tile) =>
-          Number.isFinite(tile?.userData?.tileVariantIndex) &&
-          tile.userData.tileVariantIndex === tileIndex
-      );
-      if (match) {
-        return match;
-      }
-    }
-
-    return null;
+    const matches = findTerrainTilesByIndex(tileIndex);
+    return matches.length > 0 ? matches[0] : null;
   };
 
   const setTerrainTileToDepleted = (tile) => {
@@ -17364,9 +17416,17 @@ export const initScene = (
       return false;
     }
 
-    const activeFloor = getActiveLiftFloor();
-    if (activeFloor?.id) {
-      removeResourceTargetFromFloor(tile, activeFloor.id);
+    const tileIndex = getTerrainTileVariantIndex(tile);
+    const removedByTileIndex =
+      Number.isInteger(tileIndex) && tileIndex >= 0
+        ? removeResourceTargetsByTileIndex(tileIndex)
+        : 0;
+
+    if (removedByTileIndex <= 0) {
+      const activeFloor = getActiveLiftFloor();
+      if (activeFloor?.id) {
+        removeResourceTargetFromFloor(tile, activeFloor.id);
+      }
     }
 
     updateGeoVisorTerrainVisibility({ force: true });
@@ -17374,19 +17434,31 @@ export const initScene = (
   };
 
   const setTerrainDepletedAtTileIndex = (tileIndex) => {
-    const tile = findTerrainTileByIndex(tileIndex);
-    if (!tile) {
+    if (!Number.isInteger(tileIndex) || tileIndex < 0) {
       return false;
     }
 
-    const updated = setTerrainTileToDepleted(tile);
-    if (!updated) {
-      return false;
-    }
+    const matchingTiles = findTerrainTilesByIndex(tileIndex);
+    let updatedAnyTile = false;
 
-    const floorId = resolveResourceTargetFloorId(tile);
-    if (floorId) {
-      removeResourceTargetFromFloor(tile, floorId);
+    matchingTiles.forEach((tile) => {
+      if (setTerrainTileToDepleted(tile)) {
+        updatedAnyTile = true;
+        return;
+      }
+
+      if (tile?.userData?.terrainId === "void") {
+        updatedAnyTile = true;
+      }
+    });
+
+    markTerrainTileDepleted(tileIndex);
+
+    const removedCount = removeResourceTargetsByTileIndex(tileIndex);
+    const hasLiveTileMatch = matchingTiles.length > 0;
+
+    if (!updatedAnyTile && !hasLiveTileMatch && removedCount <= 0) {
+      return true;
     }
 
     updateGeoVisorTerrainVisibility({ force: true });
