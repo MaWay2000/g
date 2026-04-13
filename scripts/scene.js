@@ -14006,31 +14006,12 @@ export const initScene = (
     }
 
     const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
-    const targetLife = getStoredTerrainLifeByTileIndex(effectiveTerrainState.tileIndex);
-    const targetLifeDepleted = Number.isFinite(targetLife) && targetLife <= 0;
-    if (targetLifeDepleted) {
-      if (Number.isInteger(effectiveTerrainState.tileIndex)) {
-        setTerrainDepletedAtTileIndex(effectiveTerrainState.tileIndex);
-      } else {
-        setTerrainTileToDepleted(targetObject);
-      }
-      return null;
-    }
     if (effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted) {
       return null;
     }
 
     const blockingTerrain = findTerrainIntersection();
-    const blockingLife = getStoredTerrainLifeByTileIndex(blockingTerrain?.tileIndex ?? null);
-    const blockingLifeDepleted = Number.isFinite(blockingLife) && blockingLife <= 0;
-    if (blockingLifeDepleted) {
-      if (Number.isInteger(blockingTerrain?.tileIndex)) {
-        setTerrainDepletedAtTileIndex(blockingTerrain.tileIndex);
-      } else if (blockingTerrain?.position) {
-        setTerrainDepletedAtPosition(blockingTerrain.position);
-      }
-    }
-    if (blockingTerrain?.terrainId === "void" || blockingLifeDepleted) {
+    if (blockingTerrain?.terrainId === "void") {
       return null;
     }
 
@@ -14058,16 +14039,6 @@ export const initScene = (
       }
 
       const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
-      const targetLife = getStoredTerrainLifeByTileIndex(effectiveTerrainState.tileIndex);
-      const targetLifeDepleted = Number.isFinite(targetLife) && targetLife <= 0;
-      if (targetLifeDepleted) {
-        if (Number.isInteger(effectiveTerrainState.tileIndex)) {
-          setTerrainDepletedAtTileIndex(effectiveTerrainState.tileIndex);
-        } else {
-          setTerrainTileToDepleted(targetObject);
-        }
-        return;
-      }
       if (effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted) {
         return;
       }
@@ -14173,17 +14144,8 @@ export const initScene = (
 
     if (!preparedSession) {
       const terrainDetail = findTerrainIntersection();
-      const terrainLife = getStoredTerrainLifeByTileIndex(terrainDetail?.tileIndex ?? null);
-      const terrainLifeDepleted = Number.isFinite(terrainLife) && terrainLife <= 0;
-      if (terrainLifeDepleted) {
-        if (Number.isInteger(terrainDetail?.tileIndex)) {
-          setTerrainDepletedAtTileIndex(terrainDetail.tileIndex);
-        } else if (terrainDetail?.position) {
-          setTerrainDepletedAtPosition(terrainDetail.position);
-        }
-      }
 
-      if (terrainDetail?.terrainId === "void" || terrainLifeDepleted) {
+      if (terrainDetail?.terrainId === "void") {
         notifyResourceUnavailable({ terrain: terrainDetail });
       }
 
@@ -17154,40 +17116,26 @@ export const initScene = (
       return null;
     }
 
-    const pointX = position.x;
-    const pointZ = position.z;
-    let nearestTile = null;
-    let nearestDistanceSquared = Number.POSITIVE_INFINITY;
+    const point = new THREE.Vector3(position.x, 0, position.z);
+    const bounds = new THREE.Box3();
 
     for (const tile of activeTerrainTiles) {
       if (!tile || !tile.isObject3D) {
         continue;
       }
 
-      tile.getWorldPosition(geoVisorTileWorldPosition);
-      const tileX = geoVisorTileWorldPosition.x;
-      const tileZ = geoVisorTileWorldPosition.z;
-      const deltaX = pointX - tileX;
-      const deltaZ = pointZ - tileZ;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-
-      if (!Number.isFinite(distanceSquared)) {
-        continue;
-      }
-
-      if (distanceSquared < nearestDistanceSquared) {
-        nearestDistanceSquared = distanceSquared;
-        nearestTile = tile;
+      bounds.setFromObject(tile);
+      if (
+        point.x >= bounds.min.x &&
+        point.x <= bounds.max.x &&
+        point.z >= bounds.min.z &&
+        point.z <= bounds.max.z
+      ) {
+        return tile;
       }
     }
 
-    if (!nearestTile) {
-      return null;
-    }
-
-    const cellSize = Number(nearestTile.userData?.geoVisorCellSize);
-    const maxDistance = Number.isFinite(cellSize) && cellSize > 0 ? cellSize : 1;
-    return nearestDistanceSquared <= maxDistance * maxDistance ? nearestTile : null;
+    return null;
   };
 
   const removeResourceTargetFromFloor = (tile, floorId) => {
@@ -17217,43 +17165,16 @@ export const initScene = (
       ? tile.userData.tileVariantIndex
       : null;
 
-  const getStoredTerrainLifeByTileIndex = (tileIndex) => {
-    if (!Number.isInteger(tileIndex) || tileIndex < 0) {
-      return null;
-    }
-
-    const cellKey = getTerrainLifeKey(tileIndex);
-    if (!cellKey) {
-      return null;
-    }
-
-    const storedTerrainLife = loadStoredTerrainLife();
-    if (!(storedTerrainLife instanceof Map)) {
-      return null;
-    }
-
-    const value = storedTerrainLife.get(cellKey);
-    if (!Number.isFinite(value)) {
-      return null;
-    }
-
-    return Math.max(0, value);
-  };
-
   const getEffectiveTerrainStateForTile = (tile) => {
     const tileIndex = getTerrainTileVariantIndex(tile);
     const storedTerrainId =
       typeof tile?.userData?.terrainId === "string" && tile.userData.terrainId
         ? tile.userData.terrainId
         : "void";
-    const hasTileIndex = Number.isInteger(tileIndex) && tileIndex >= 0;
-    const lifeValue = hasTileIndex ? getStoredTerrainLifeByTileIndex(tileIndex) : null;
-    const isLifeDepleted = Number.isFinite(lifeValue) && lifeValue <= 0;
     const isDepleted =
-      (hasTileIndex && depletedTerrainTileIndices.has(tileIndex)) || isLifeDepleted;
-    if (isLifeDepleted && hasTileIndex && !depletedTerrainTileIndices.has(tileIndex)) {
-      markTerrainTileDepleted(tileIndex);
-    }
+      Number.isInteger(tileIndex) &&
+      tileIndex >= 0 &&
+      depletedTerrainTileIndices.has(tileIndex);
     if (isDepleted && tile?.userData?.terrainId !== "void") {
       setTerrainTileToDepleted(tile);
     }
