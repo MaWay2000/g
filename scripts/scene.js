@@ -17103,8 +17103,11 @@ export const initScene = (
   };
 
   const findTerrainTileAtPosition = (position) => {
-    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) ||
-        !Number.isFinite(position.z)) {
+    if (
+      !position ||
+      !Number.isFinite(position.x) ||
+      !Number.isFinite(position.z)
+    ) {
       return null;
     }
 
@@ -17112,7 +17115,7 @@ export const initScene = (
       return null;
     }
 
-    const point = new THREE.Vector3(position.x, position.y, position.z);
+    const point = new THREE.Vector3(position.x, 0, position.z);
     const bounds = new THREE.Box3();
 
     for (const tile of activeTerrainTiles) {
@@ -17121,7 +17124,12 @@ export const initScene = (
       }
 
       bounds.setFromObject(tile);
-      if (bounds.containsPoint(point)) {
+      if (
+        point.x >= bounds.min.x &&
+        point.x <= bounds.max.x &&
+        point.z >= bounds.min.z &&
+        point.z <= bounds.max.z
+      ) {
         return tile;
       }
     }
