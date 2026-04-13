@@ -2464,6 +2464,8 @@ export const initScene = (
   const DEPLETED_TERRAIN_BASE_COLOR = 0xffffff;
   const DEPLETED_TERRAIN_EMISSIVE_COLOR = 0xdbeafe;
   const DEPLETED_TERRAIN_EMISSIVE_INTENSITY = 0.02;
+  const GEO_VISOR_TERRAIN_OPACITY = 0.72;
+  const GEO_VISOR_DEPLETED_TERRAIN_OPACITY = 0.6;
   const MINED_VOID_TERRAIN_BASE_COLOR = 0xffffff;
   const MINED_VOID_TERRAIN_EMISSIVE_COLOR = 0x1f2937;
   const MINED_VOID_TERRAIN_EMISSIVE_INTENSITY = 0.06;
@@ -2507,7 +2509,10 @@ export const initScene = (
           terrain?.color ??
           DEFAULT_OUTSIDE_TERRAIN_COLOR
         : 0xffffff;
-    const opacity = terrainStyle.opacity ?? 1;
+    const opacity = Math.min(
+      GEO_VISOR_TERRAIN_OPACITY,
+      terrainStyle.opacity ?? GEO_VISOR_TERRAIN_OPACITY
+    );
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
       roughness: terrainStyle.roughness,
@@ -2552,6 +2557,8 @@ export const initScene = (
       vertexColors: true,
       transparent: true,
       opacity,
+      depthWrite: false,
+      depthTest: true,
     });
     runtimeGeoVisorMaterials.set(materialKey, material);
     return material;
@@ -2595,9 +2602,9 @@ export const initScene = (
       emissiveIntensity: 0.04,
       map: null,
       vertexColors: false,
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
+      transparent: true,
+      opacity: GEO_VISOR_DEPLETED_TERRAIN_OPACITY,
+      depthWrite: false,
       depthTest: true,
     });
     return runtimeDepletedGeoVisorMaterial;
@@ -17174,6 +17181,9 @@ export const initScene = (
       Number.isInteger(tileIndex) &&
       tileIndex >= 0 &&
       depletedTerrainTileIndices.has(tileIndex);
+    if (isDepleted && tile?.userData?.terrainId !== "void") {
+      setTerrainTileToDepleted(tile);
+    }
     const resolvedTerrain = getOutsideTerrainById(isDepleted ? "void" : storedTerrainId);
     const terrainId = resolvedTerrain?.id ?? "void";
     const terrainLabel =
@@ -17291,7 +17301,14 @@ export const initScene = (
     };
 
     appendMatchesFromList(activeTerrainTiles);
+    if (matches.length > 0) {
+      return matches;
+    }
+
     for (const tiles of terrainTilesByEnvironment.values()) {
+      if (tiles === activeTerrainTiles) {
+        continue;
+      }
       appendMatchesFromList(tiles);
     }
 
@@ -17574,14 +17591,17 @@ export const initScene = (
     if (typeof operationsExteriorEnvironment?.update === "function") {
       operationsExteriorEnvironment.update({ force: true });
     }
-    const hasLiveTileMatch = matchingTiles.length > 0;
-
-    if (!updatedAnyTile && !hasLiveTileMatch && removedCount <= 0) {
+    if (updatedAnyTile) {
+      updateGeoVisorTerrainVisibility({ force: true });
       return true;
     }
 
-    updateGeoVisorTerrainVisibility({ force: true });
-    return true;
+    const hasLiveTileMatch = matchingTiles.length > 0;
+    if (hasLiveTileMatch || removedCount > 0) {
+      return false;
+    }
+
+    return false;
   };
   const setTerrainVoidAtPosition = (position) =>
     setTerrainDepletedAtPosition(position);
