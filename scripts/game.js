@@ -3544,9 +3544,19 @@ const updateGeoScanPanel = () => {
   }
 
   if (terrainDetail.terrainId === "void") {
+    const voidTileIndex = Number.isInteger(terrainDetail.tileIndex)
+      ? terrainDetail.tileIndex
+      : null;
+    const voidTileChanged =
+      geoScanPanelState.terrainId !== "void" ||
+      geoScanPanelState.tileIndex !== voidTileIndex;
+    if (voidTileChanged) {
+      sceneController?.setTerrainDepletedAtTileIndex?.(voidTileIndex);
+      sceneController?.setTerrainDepletedAtPosition?.(terrainDetail?.position ?? null);
+    }
     geoScanPanel.hidden = false;
     geoScanPanelState.terrainId = "void";
-    geoScanPanelState.tileIndex = null;
+    geoScanPanelState.tileIndex = voidTileIndex;
     if (geoScanTerrainLabel instanceof HTMLElement) {
       geoScanTerrainLabel.textContent = "Terrain: Void";
     }
@@ -3594,6 +3604,33 @@ const updateGeoScanPanel = () => {
   geoScanPanelState.tileIndex = terrainDetail.tileIndex ?? null;
 
   const terrainHp = getTerrainLifeValue(terrain, terrainDetail.tileIndex);
+  if (terrainHp <= 0) {
+    const voidTileIndex = Number.isInteger(terrainDetail.tileIndex)
+      ? terrainDetail.tileIndex
+      : null;
+    sceneController?.setTerrainDepletedAtTileIndex?.(voidTileIndex);
+    sceneController?.setTerrainDepletedAtPosition?.(terrainDetail?.position ?? null);
+    geoScanPanel.hidden = false;
+    geoScanPanelState.terrainId = "void";
+    geoScanPanelState.tileIndex = voidTileIndex;
+    if (geoScanTerrainLabel instanceof HTMLElement) {
+      geoScanTerrainLabel.textContent = "Terrain: Void";
+    }
+    if (geoScanElementsLabel instanceof HTMLElement) {
+      geoScanElementsLabel.textContent = "Area is empty.";
+    }
+    if (geoScanLifeFill instanceof HTMLElement) {
+      geoScanLifeFill.style.width = "0%";
+    }
+    if (geoScanLifeValue instanceof HTMLElement) {
+      geoScanLifeValue.textContent = `0 / ${GEO_SCAN_MAX_HP}`;
+    }
+    if (geoScanLifeBar instanceof HTMLElement) {
+      geoScanLifeBar.setAttribute("aria-valuenow", "0");
+      geoScanLifeBar.setAttribute("aria-valuemax", String(GEO_SCAN_MAX_HP));
+    }
+    return;
+  }
   const clampedPercent = Math.max(
     0,
     Math.min(100, Math.round((terrainHp / GEO_SCAN_MAX_HP) * 100))
@@ -23334,15 +23371,11 @@ const applyTerrainLifeDrain = (detail) => {
   const markTerrainAsDepleted = () => {
     const depletedByTileIndex =
       sceneController?.setTerrainDepletedAtTileIndex?.(tileIndex) ?? false;
-    if (depletedByTileIndex) {
-      return true;
-    }
-
-    return (
+    const depletedByPosition =
       sceneController?.setTerrainDepletedAtPosition?.(detail?.position ?? null) ??
       sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null) ??
-      false
-    );
+      false;
+    return depletedByTileIndex || depletedByPosition;
   };
 
   if (detail?.found === false) {
