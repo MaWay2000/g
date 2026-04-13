@@ -13909,6 +13909,7 @@ export const initScene = (
 
   const findTerrainIntersection = ({
     allowRevealedBeyondGeoVisorDistance = false,
+    ignoreGeoVisorDistance = false,
   } = {}) => {
     if (!controls.isLocked) {
       return null;
@@ -13948,6 +13949,7 @@ export const initScene = (
       intersection.distance <= GEO_VISOR_MAX_DISTANCE;
 
     if (
+      !ignoreGeoVisorDistance &&
       !withinGeoVisorDistance &&
       !(allowRevealedBeyondGeoVisorDistance && geoVisorRevealed)
     ) {
@@ -13972,36 +13974,39 @@ export const initScene = (
       return null;
     }
 
-    if (!Array.isArray(activeResourceTargets) || activeResourceTargets.length === 0) {
-      return null;
+    let intersection = null;
+    let targetObject = null;
+
+    if (Array.isArray(activeResourceTargets) && activeResourceTargets.length > 0) {
+      raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+      const intersections = raycaster.intersectObjects(activeResourceTargets, true);
+      if (intersections.length > 0) {
+        const resourceIntersection = intersections.find((candidate) =>
+          findResourceTarget(candidate.object)
+        );
+        if (resourceIntersection && Number.isFinite(resourceIntersection.distance)) {
+          intersection = resourceIntersection;
+          targetObject = findResourceTarget(resourceIntersection.object);
+        }
+      }
     }
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersections = raycaster.intersectObjects(activeResourceTargets, true);
-
-    if (intersections.length === 0) {
-      return null;
-    }
-
-    const intersection = intersections.find((candidate) =>
-      findResourceTarget(candidate.object)
-    );
-
-    if (!intersection) {
-      return null;
-    }
-
-    if (!Number.isFinite(intersection.distance)) {
-      return null;
+    if (!intersection || !targetObject) {
+      const terrainIntersection = findTerrainIntersection({
+        allowRevealedBeyondGeoVisorDistance: true,
+        ignoreGeoVisorDistance: true,
+      });
+      if (!terrainIntersection || !Number.isFinite(terrainIntersection.distance)) {
+        return null;
+      }
+      intersection = terrainIntersection;
+      targetObject = findTerrainTile(terrainIntersection.object);
+      if (!targetObject) {
+        return null;
+      }
     }
 
     if (Number.isFinite(maxDistance) && intersection.distance > maxDistance) {
-      return null;
-    }
-
-    const targetObject = findResourceTarget(intersection.object);
-
-    if (!targetObject) {
       return null;
     }
 
@@ -14143,7 +14148,10 @@ export const initScene = (
     const preparedSession = prepareResourceCollection();
 
     if (!preparedSession) {
-      const terrainDetail = findTerrainIntersection();
+      const terrainDetail = findTerrainIntersection({
+        allowRevealedBeyondGeoVisorDistance: true,
+        ignoreGeoVisorDistance: true,
+      });
 
       if (terrainDetail?.terrainId === "void") {
         notifyResourceUnavailable({ terrain: terrainDetail });
