@@ -2464,8 +2464,6 @@ export const initScene = (
   const DEPLETED_TERRAIN_BASE_COLOR = 0xffffff;
   const DEPLETED_TERRAIN_EMISSIVE_COLOR = 0xdbeafe;
   const DEPLETED_TERRAIN_EMISSIVE_INTENSITY = 0.02;
-  const GEO_VISOR_TERRAIN_OPACITY = 0.72;
-  const GEO_VISOR_DEPLETED_TERRAIN_OPACITY = 0.6;
   const MINED_VOID_TERRAIN_BASE_COLOR = 0xffffff;
   const MINED_VOID_TERRAIN_EMISSIVE_COLOR = 0x1f2937;
   const MINED_VOID_TERRAIN_EMISSIVE_INTENSITY = 0.06;
@@ -2509,10 +2507,6 @@ export const initScene = (
           terrain?.color ??
           DEFAULT_OUTSIDE_TERRAIN_COLOR
         : 0xffffff;
-    const opacity = Math.min(
-      GEO_VISOR_TERRAIN_OPACITY,
-      terrainStyle.opacity ?? GEO_VISOR_TERRAIN_OPACITY
-    );
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
       roughness: terrainStyle.roughness,
@@ -2521,8 +2515,8 @@ export const initScene = (
       emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
       map: texture ?? null,
       vertexColors: true,
-      transparent: opacity < 1,
-      opacity,
+      transparent: false,
+      opacity: 1,
     });
     runtimeTerrainMaterials.set(materialKey, material);
     return material;
@@ -2602,9 +2596,9 @@ export const initScene = (
       emissiveIntensity: 0.04,
       map: null,
       vertexColors: false,
-      transparent: true,
-      opacity: GEO_VISOR_DEPLETED_TERRAIN_OPACITY,
-      depthWrite: false,
+      transparent: false,
+      opacity: 1,
+      depthWrite: true,
       depthTest: true,
     });
     return runtimeDepletedGeoVisorMaterial;
