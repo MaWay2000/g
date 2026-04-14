@@ -8197,11 +8197,15 @@ export const initScene = (
           true,
           tileSegments
         );
+        const voidTerrainTileId = getOutsideTerrainDefaultTileId("void");
         const depletedRevealedMaterial = tileIsDepleted
-          ? getRuntimeDepletedTerrainMaterial()
+          ? getMaterialForTerrain("void", voidTerrainTileId, index) ??
+            getRuntimeDepletedTerrainMaterial()
           : null;
         const depletedVisorMaterial = tileIsDepleted
-          ? getRuntimeDepletedGeoVisorMaterial() ?? depletedRevealedMaterial
+          ? getGeoVisorMaterialForTerrain("void", voidTerrainTileId, index) ??
+            getRuntimeDepletedGeoVisorMaterial() ??
+            depletedRevealedMaterial
           : null;
         const defaultRevealedMaterial =
           getMaterialForTerrain(terrainForTile.id, tileIdForTile, index) ?? null;
@@ -8214,10 +8218,12 @@ export const initScene = (
         );
         const voidRevealedMaterial =
           depletedRevealedMaterial ??
+          getMaterialForTerrain("void", voidTerrainTileId, index) ??
           getRuntimeDepletedTerrainMaterial() ??
           null;
         const voidVisorMaterial =
           depletedVisorMaterial ??
+          getGeoVisorMaterialForTerrain("void", voidTerrainTileId, index) ??
           getRuntimeDepletedGeoVisorMaterial() ??
           voidRevealedMaterial;
         tile.position.set(
@@ -17358,15 +17364,25 @@ export const initScene = (
 
     const voidTerrain = getOutsideTerrainById("void");
     const tileId = getOutsideTerrainDefaultTileId(voidTerrain.id);
+    const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : 0;
+    const depletedVoidTileId = getOutsideTerrainDefaultTileId(voidTerrain.id);
+    const runtimeVoidRevealedMaterial =
+      getRuntimeTerrainMaterial(voidTerrain.id, depletedVoidTileId, tileIndex) ?? null;
+    const runtimeVoidVisorMaterial =
+      getRuntimeGeoVisorMaterial(voidTerrain.id, depletedVoidTileId, tileIndex) ?? null;
     const depletedBaseMaterial =
+      runtimeVoidRevealedMaterial ??
+      tile.userData.terrainVoidRevealedMaterial ??
       getRuntimeDepletedTerrainMaterial() ??
       getRuntimeMinedVoidTerrainMaterial() ??
-      tile.userData.terrainVoidRevealedMaterial ??
       tile.userData.geoVisorRevealedMaterial ??
       tile.material;
     const depletedVisorMaterial =
-      getRuntimeDepletedGeoVisorMaterial() ??
+      runtimeVoidVisorMaterial ??
       tile.userData.terrainVoidVisorMaterial ??
+      getRuntimeDepletedGeoVisorMaterial() ??
       depletedBaseMaterial;
 
     tile.userData.isTerrainDepleted = true;
@@ -17383,11 +17399,11 @@ export const initScene = (
     tile.userData.requiresTerrainRebuild = true;
     applyVoidTerrainColorsToTile(tile);
 
-    const tileIndex = Number.isFinite(tile.userData.tileVariantIndex)
+    const stableTileIndex = Number.isFinite(tile.userData.tileVariantIndex)
       ? tile.userData.tileVariantIndex
       : null;
-    if (Number.isInteger(tileIndex) && tileIndex >= 0) {
-      markTerrainTileDepleted(tileIndex);
+    if (Number.isInteger(stableTileIndex) && stableTileIndex >= 0) {
+      markTerrainTileDepleted(stableTileIndex);
     }
 
     clearGeoVisorRevealFadeState(tile);
@@ -17397,8 +17413,8 @@ export const initScene = (
       tile.userData.geoVisorRevealed = true;
       applyGeoVisorMaterialToTile(tile, true);
     } else {
-      if (Number.isInteger(tileIndex) && tileIndex >= 0) {
-        if (geoVisorRevealedTileIndices.delete(tileIndex)) {
+      if (Number.isInteger(stableTileIndex) && stableTileIndex >= 0) {
+        if (geoVisorRevealedTileIndices.delete(stableTileIndex)) {
           schedulePersistGeoVisorRevealState();
         }
       }
