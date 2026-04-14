@@ -13907,6 +13907,11 @@ export const initScene = (
     return null;
   };
 
+  const isTerrainSurfaceTile = (tile) =>
+    Boolean(tile?.isObject3D) &&
+    Number.isFinite(tile?.userData?.tileVariantIndex) &&
+    Number.isFinite(tile?.userData?.geoVisorCellSize);
+
   const findTerrainIntersection = ({
     allowRevealedBeyondGeoVisorDistance = false,
     ignoreGeoVisorDistance = false,
@@ -13919,24 +13924,42 @@ export const initScene = (
       return null;
     }
 
+    const scannableTerrainTiles = activeTerrainTiles.filter((tile) =>
+      isTerrainSurfaceTile(tile)
+    );
+
+    if (scannableTerrainTiles.length === 0) {
+      return null;
+    }
+
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersections = raycaster.intersectObjects(activeTerrainTiles, true);
+    const intersections = raycaster.intersectObjects(scannableTerrainTiles, false);
 
     if (intersections.length === 0) {
       return null;
     }
 
-    const intersection = intersections.find((candidate) =>
-      findTerrainTile(candidate.object)
-    );
+    let intersection = null;
+    let targetObject = null;
 
-    if (!intersection || !Number.isFinite(intersection.distance)) {
-      return null;
+    for (const candidate of intersections) {
+      if (!candidate || !Number.isFinite(candidate.distance)) {
+        continue;
+      }
+
+      const resolvedTile =
+        findTerrainTileAtPosition(candidate.point) ?? findTerrainTile(candidate.object);
+
+      if (!isTerrainSurfaceTile(resolvedTile)) {
+        continue;
+      }
+
+      intersection = candidate;
+      targetObject = resolvedTile;
+      break;
     }
 
-    const targetObject = findTerrainTile(intersection.object);
-
-    if (!targetObject) {
+    if (!intersection || !targetObject) {
       return null;
     }
 
@@ -13962,6 +13985,8 @@ export const initScene = (
       tileIndex,
       geoVisorRevealed,
       withinGeoVisorDistance,
+      distance: intersection.distance,
+      object: targetObject,
       position: intersection.point?.clone?.() ?? null,
     };
   };
@@ -17128,7 +17153,7 @@ export const initScene = (
     const bounds = new THREE.Box3();
 
     for (const tile of activeTerrainTiles) {
-      if (!tile || !tile.isObject3D) {
+      if (!isTerrainSurfaceTile(tile)) {
         continue;
       }
 
