@@ -20308,6 +20308,7 @@ export const initScene = (
     getTerrainScanTarget: () =>
       findTerrainIntersection({
         allowRevealedBeyondGeoVisorDistance: true,
+        ignoreGeoVisorDistance: true,
       }),
     setTerrainDepletedAtTileIndex,
     setTerrainDepletedAtPosition,
