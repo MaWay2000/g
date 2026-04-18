@@ -13954,7 +13954,7 @@ export const initScene = (
       }
 
       const resolvedTile =
-        findTerrainTileAtPosition(candidate.point) ?? findTerrainTile(candidate.object);
+        findTerrainTile(candidate.object) ?? findTerrainTileAtPosition(candidate.point);
 
       if (!isTerrainSurfaceTile(resolvedTile)) {
         continue;
@@ -14043,11 +14043,6 @@ export const initScene = (
 
     const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
     if (effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted) {
-      return null;
-    }
-
-    const blockingTerrain = findTerrainIntersection();
-    if (blockingTerrain?.terrainId === "void") {
       return null;
     }
 
