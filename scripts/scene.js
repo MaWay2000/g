@@ -17595,13 +17595,6 @@ export const initScene = (
       }
     }
 
-    const operationsExteriorEnvironment = deckEnvironmentMap.get(
-      "operations-exterior"
-    );
-    if (typeof operationsExteriorEnvironment?.update === "function") {
-      operationsExteriorEnvironment.update({ force: true });
-    }
-
     updateGeoVisorTerrainVisibility({ force: true });
     return true;
   };
@@ -17628,12 +17621,6 @@ export const initScene = (
     markTerrainTileDepleted(tileIndex);
 
     const removedCount = removeResourceTargetsByTileIndex(tileIndex);
-    const operationsExteriorEnvironment = deckEnvironmentMap.get(
-      "operations-exterior"
-    );
-    if (typeof operationsExteriorEnvironment?.update === "function") {
-      operationsExteriorEnvironment.update({ force: true });
-    }
     if (updatedAnyTile) {
       updateGeoVisorTerrainVisibility({ force: true });
       return true;

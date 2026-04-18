@@ -2203,6 +2203,18 @@ const schedulePersistTerrainLife = () => {
     persistTerrainLifeState(terrainLifeByCell);
   }, 100);
 };
+const persistTerrainLifeImmediately = () => {
+  if (progressResetInProgress) {
+    return;
+  }
+
+  if (persistTerrainLifeTimeoutId) {
+    window.clearTimeout(persistTerrainLifeTimeoutId);
+    persistTerrainLifeTimeoutId = 0;
+  }
+
+  persistTerrainLifeState(terrainLifeByCell);
+};
 applyStoredTerrainLife();
 const getTerrainLifeValue = (terrain, tileIndex) => {
   if (!terrain?.id) {
@@ -23369,6 +23381,7 @@ const applyTerrainLifeDrain = (detail) => {
   }
 
   const markTerrainAsDepleted = () => {
+    persistTerrainLifeImmediately();
     const depletedByTileIndex =
       sceneController?.setTerrainDepletedAtTileIndex?.(tileIndex) ?? false;
     const depletedByPosition =
