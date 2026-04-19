@@ -14003,8 +14003,9 @@ export const initScene = (
         continue;
       }
 
+      // Resolve by world position first so border hits don't stick to a neighbor tile.
       const resolvedTile =
-        findTerrainTile(candidate.object) ?? findTerrainTileAtPosition(candidate.point);
+        findTerrainTileAtPosition(candidate.point) ?? findTerrainTile(candidate.object);
 
       if (!isTerrainSurfaceTile(resolvedTile)) {
         continue;
