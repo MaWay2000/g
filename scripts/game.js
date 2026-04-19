@@ -2259,6 +2259,48 @@ const decreaseTerrainLife = (terrainId, tileIndex, amount = 1) => {
   return nextLife;
 };
 
+const setTerrainLifeToVoid = (tileIndex, { persistImmediately = false } = {}) => {
+  if (!Number.isInteger(tileIndex) || tileIndex < 0) {
+    return false;
+  }
+
+  const cellKey = getTerrainLifeKey(tileIndex);
+  if (!cellKey) {
+    return false;
+  }
+
+  const previousLife = terrainLifeByCell.get(cellKey);
+  if (previousLife === 0) {
+    return true;
+  }
+
+  terrainLifeByCell.set(cellKey, 0);
+  if (persistImmediately) {
+    persistTerrainLifeImmediately();
+  } else {
+    schedulePersistTerrainLife();
+  }
+  return true;
+};
+
+const syncSceneTerrainVoidState = ({ tileIndex = null, position = null } = {}) => {
+  const hasTileIndex = Number.isInteger(tileIndex) && tileIndex >= 0;
+  if (hasTileIndex) {
+    sceneController?.setTerrainDepletedAtTileIndex?.(tileIndex);
+    return true;
+  }
+
+  if (position) {
+    return (
+      sceneController?.setTerrainDepletedAtPosition?.(position) ??
+      sceneController?.setTerrainVoidAtPosition?.(position) ??
+      false
+    );
+  }
+
+  return false;
+};
+
 const quickSlotState = {
   slots: quickSlotDefinitions,
   selectedIndex: 0,
@@ -3562,9 +3604,14 @@ const updateGeoScanPanel = () => {
     const voidTileChanged =
       geoScanPanelState.terrainId !== "void" ||
       geoScanPanelState.tileIndex !== voidTileIndex;
+    if (voidTileIndex !== null) {
+      setTerrainLifeToVoid(voidTileIndex);
+    }
     if (voidTileChanged) {
-      sceneController?.setTerrainDepletedAtTileIndex?.(voidTileIndex);
-      sceneController?.setTerrainDepletedAtPosition?.(terrainDetail?.position ?? null);
+      syncSceneTerrainVoidState({
+        tileIndex: voidTileIndex,
+        position: terrainDetail?.position ?? null,
+      });
     }
     geoScanPanel.hidden = false;
     geoScanPanelState.terrainId = "void";
@@ -3620,8 +3667,13 @@ const updateGeoScanPanel = () => {
     const voidTileIndex = Number.isInteger(terrainDetail.tileIndex)
       ? terrainDetail.tileIndex
       : null;
-    sceneController?.setTerrainDepletedAtTileIndex?.(voidTileIndex);
-    sceneController?.setTerrainDepletedAtPosition?.(terrainDetail?.position ?? null);
+    if (voidTileIndex !== null) {
+      setTerrainLifeToVoid(voidTileIndex);
+    }
+    syncSceneTerrainVoidState({
+      tileIndex: voidTileIndex,
+      position: terrainDetail?.position ?? null,
+    });
     geoScanPanel.hidden = false;
     geoScanPanelState.terrainId = "void";
     geoScanPanelState.tileIndex = voidTileIndex;
@@ -23381,14 +23433,13 @@ const applyTerrainLifeDrain = (detail) => {
   }
 
   const markTerrainAsDepleted = () => {
+    setTerrainLifeToVoid(tileIndex, { persistImmediately: false });
+    syncSceneTerrainVoidState({
+      tileIndex,
+      position: detail?.position ?? null,
+    });
     persistTerrainLifeImmediately();
-    const depletedByTileIndex =
-      sceneController?.setTerrainDepletedAtTileIndex?.(tileIndex) ?? false;
-    const depletedByPosition =
-      sceneController?.setTerrainDepletedAtPosition?.(detail?.position ?? null) ??
-      sceneController?.setTerrainVoidAtPosition?.(detail?.position ?? null) ??
-      false;
-    return depletedByTileIndex || depletedByPosition;
+    return true;
   };
 
   if (detail?.found === false) {
@@ -23587,6 +23638,17 @@ const bootstrapScene = () => {
       },
       onResourceUnavailable({ terrain } = {}) {
         const terrainLabel = terrain?.terrainLabel ?? null;
+        const unavailableTileIndex = Number.isInteger(terrain?.tileIndex)
+          ? terrain.tileIndex
+          : null;
+        if (terrain?.terrainId === "void" && unavailableTileIndex !== null) {
+          setTerrainLifeToVoid(unavailableTileIndex, { persistImmediately: true });
+          syncSceneTerrainVoidState({
+            tileIndex: unavailableTileIndex,
+            position: terrain?.position ?? null,
+          });
+          updateGeoScanPanel();
+        }
         const description = "Search other area.";
 
         showResourceToast({
