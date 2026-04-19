@@ -2252,7 +2252,8 @@ const decreaseTerrainLife = (terrainId, tileIndex, amount = 1) => {
   const terrain = getOutsideTerrainById(terrainId);
   const currentLife = getTerrainLifeValue(terrain, tileIndex);
   const drain = Number.isFinite(amount) ? Math.max(0, amount) : 0;
-  const nextLife = Math.max(0, currentLife - drain);
+  const nextLifeRaw = currentLife - drain;
+  const nextLife = nextLifeRaw <= 1e-6 ? 0 : Math.max(0, nextLifeRaw);
 
   terrainLifeByCell.set(cellKey, nextLife);
   schedulePersistTerrainLife();
@@ -2286,8 +2287,11 @@ const setTerrainLifeToVoid = (tileIndex, { persistImmediately = false } = {}) =>
 const syncSceneTerrainVoidState = ({ tileIndex = null, position = null } = {}) => {
   const hasTileIndex = Number.isInteger(tileIndex) && tileIndex >= 0;
   if (hasTileIndex) {
-    sceneController?.setTerrainDepletedAtTileIndex?.(tileIndex);
-    return true;
+    const updatedByTileIndex =
+      sceneController?.setTerrainDepletedAtTileIndex?.(tileIndex) ?? false;
+    if (updatedByTileIndex) {
+      return true;
+    }
   }
 
   if (position) {
@@ -23680,8 +23684,9 @@ const bootstrapScene = () => {
             tileIndex: unavailableTileIndex,
             position: terrain?.position ?? null,
           });
-          updateGeoScanPanel();
         }
+        // Always refresh panel here to avoid stale readouts after depletion edge-cases.
+        updateGeoScanPanel();
         const description = "Search other area.";
 
         showResourceToast({
