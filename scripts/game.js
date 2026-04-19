@@ -23637,11 +23637,24 @@ const bootstrapScene = () => {
         });
       },
       onResourceUnavailable({ terrain } = {}) {
-        const terrainLabel = terrain?.terrainLabel ?? null;
         const unavailableTileIndex = Number.isInteger(terrain?.tileIndex)
           ? terrain.tileIndex
           : null;
-        if (terrain?.terrainId === "void" && unavailableTileIndex !== null) {
+        const reportedTerrainId =
+          typeof terrain?.terrainId === "string" ? terrain.terrainId : null;
+        const terrainForLifeLookup =
+          reportedTerrainId && reportedTerrainId !== "void"
+            ? getOutsideTerrainById(reportedTerrainId)
+            : getOutsideTerrainById("void");
+        const reportedLife =
+          unavailableTileIndex !== null
+            ? getTerrainLifeValue(terrainForLifeLookup, unavailableTileIndex)
+            : null;
+        const shouldForceVoidTerrain =
+          unavailableTileIndex !== null &&
+          (reportedTerrainId === "void" ||
+            (Number.isFinite(reportedLife) && reportedLife <= 0));
+        if (shouldForceVoidTerrain) {
           setTerrainLifeToVoid(unavailableTileIndex, { persistImmediately: true });
           syncSceneTerrainVoidState({
             tileIndex: unavailableTileIndex,
@@ -23676,6 +23689,17 @@ const bootstrapScene = () => {
           });
           showResourceToast({ title: "Digging interrupted" });
         }
+      },
+      getTerrainLifeByTileIndex({ terrainId, tileIndex } = {}) {
+        if (!Number.isInteger(tileIndex) || tileIndex < 0) {
+          return 0;
+        }
+
+        const terrainDefinition =
+          typeof terrainId === "string" && terrainId.trim() !== ""
+            ? getOutsideTerrainById(terrainId)
+            : null;
+        return getTerrainLifeValue(terrainDefinition, tileIndex);
       },
       onDroneReturnComplete: handleDroneReturnComplete,
     });

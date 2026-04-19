@@ -132,6 +132,7 @@ export const initScene = (
     onResourceCollected,
     onResourceSessionCancelled,
     onResourceUnavailable,
+    getTerrainLifeByTileIndex,
     onDroneReturnComplete,
     settings,
   } = {}
@@ -6859,11 +6860,45 @@ export const initScene = (
     return { map: normalizedMap, changed: false };
   };
 
+  const getLiveTerrainLifeValue = (terrainId, tileIndex) => {
+    if (!Number.isInteger(tileIndex) || tileIndex < 0) {
+      return null;
+    }
+
+    if (typeof getTerrainLifeByTileIndex !== "function") {
+      return null;
+    }
+
+    try {
+      const sampledLife = Number(
+        getTerrainLifeByTileIndex({
+          terrainId,
+          tileIndex,
+        })
+      );
+      return Number.isFinite(sampledLife) ? sampledLife : null;
+    } catch (error) {
+      console.warn("Unable to sample terrain life for tile", error);
+      return null;
+    }
+  };
+
+  const hasLiveTerrainLifeDepleted = (terrainId, tileIndex) => {
+    const liveTerrainLife = getLiveTerrainLifeValue(terrainId, tileIndex);
+    if (!Number.isFinite(liveTerrainLife) || liveTerrainLife > 0) {
+      return false;
+    }
+
+    markTerrainTileDepleted(tileIndex);
+    return true;
+  };
+
   const isTerrainTileDepleted = (terrainId, tileIndex) =>
     terrainId !== "void" &&
     Number.isInteger(tileIndex) &&
     tileIndex >= 0 &&
-    depletedTerrainTileIndices.has(tileIndex);
+    (depletedTerrainTileIndices.has(tileIndex) ||
+      hasLiveTerrainLifeDepleted(terrainId, tileIndex));
 
   const markTerrainTileDepleted = (tileIndex) => {
     if (!Number.isInteger(tileIndex) || tileIndex < 0) {
@@ -8422,12 +8457,27 @@ export const initScene = (
           maxRow = minRow;
         }
 
+        const hasPendingRebuildInVisibleWindow = () => {
+          for (let row = minRow; row <= maxRow; row += 1) {
+            for (let column = minColumn; column <= maxColumn; column += 1) {
+              const key = `${column},${row}`;
+              const existingTile = windowedTileRegistry.get(key);
+              if (Boolean(existingTile?.userData?.requiresTerrainRebuild)) {
+                return true;
+              }
+            }
+          }
+
+          return false;
+        };
+
         if (
           !force &&
           terrainWindowState.minColumn === minColumn &&
           terrainWindowState.maxColumn === maxColumn &&
           terrainWindowState.minRow === minRow &&
-          terrainWindowState.maxRow === maxRow
+          terrainWindowState.maxRow === maxRow &&
+          !hasPendingRebuildInVisibleWindow()
         ) {
           return;
         }
@@ -17205,6 +17255,15 @@ export const initScene = (
       typeof tile?.userData?.terrainId === "string" && tile.userData.terrainId
         ? tile.userData.terrainId
         : "void";
+    const liveTerrainLife = getLiveTerrainLifeValue(storedTerrainId, tileIndex);
+    const hasNoLiveTerrainLife = Number.isFinite(liveTerrainLife) && liveTerrainLife <= 0;
+    if (
+      hasNoLiveTerrainLife &&
+      Number.isInteger(tileIndex) &&
+      tileIndex >= 0
+    ) {
+      markTerrainTileDepleted(tileIndex);
+    }
     const isDepleted =
       Number.isInteger(tileIndex) &&
       tileIndex >= 0 &&
