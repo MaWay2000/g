@@ -23442,11 +23442,30 @@ const applyTerrainLifeDrain = (detail) => {
     return true;
   };
 
-  if (detail?.found === false) {
-    const nextLife = decreaseTerrainLife(terrainId, tileIndex, 1);
-    if (nextLife <= 0) {
+  const drainTerrainLife = (amount) => {
+    const terrain = getOutsideTerrainById(terrainId);
+    const currentLife = getTerrainLifeValue(terrain, tileIndex);
+    if (currentLife <= 0) {
       markTerrainAsDepleted();
+      return 0;
     }
+
+    const drain = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+    if (drain <= 0) {
+      return currentLife;
+    }
+
+    const nextLife = decreaseTerrainLife(terrainId, tileIndex, drain);
+    if (nextLife <= 0 || drain >= currentLife) {
+      markTerrainAsDepleted();
+      return 0;
+    }
+
+    return nextLife;
+  };
+
+  if (detail?.found === false) {
+    drainTerrainLife(1);
     return;
   }
 
@@ -23456,10 +23475,7 @@ const applyTerrainLifeDrain = (detail) => {
 
   const drainAmount = getInventoryElementWeight(detail.element);
   if (Number.isFinite(drainAmount) && drainAmount > 0) {
-    const nextLife = decreaseTerrainLife(terrainId, tileIndex, drainAmount);
-    if (nextLife <= 0) {
-      markTerrainAsDepleted();
-    }
+    drainTerrainLife(drainAmount);
   }
 };
 
@@ -23641,7 +23657,11 @@ const bootstrapScene = () => {
           ? terrain.tileIndex
           : null;
         const reportedTerrainId =
-          typeof terrain?.terrainId === "string" ? terrain.terrainId : null;
+          typeof terrain?.terrainId === "string"
+            ? terrain.terrainId
+            : typeof terrain?.id === "string"
+              ? terrain.id
+              : null;
         const terrainForLifeLookup =
           reportedTerrainId && reportedTerrainId !== "void"
             ? getOutsideTerrainById(reportedTerrainId)
