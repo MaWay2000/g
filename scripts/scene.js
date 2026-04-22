@@ -14003,9 +14003,10 @@ export const initScene = (
         continue;
       }
 
-      // Resolve by world position first so border hits don't stick to a neighbor tile.
+      // Trust the exact raycast hit first; world-position fallback can choose
+      // a neighboring tile on blended borders and keep stale geo-visor data.
       const resolvedTile =
-        findTerrainTileAtPosition(candidate.point) ?? findTerrainTile(candidate.object);
+        findTerrainTile(candidate.object) ?? findTerrainTileAtPosition(candidate.point);
 
       if (!isTerrainSurfaceTile(resolvedTile)) {
         continue;
