@@ -14003,10 +14003,10 @@ export const initScene = (
         continue;
       }
 
-      // Trust the exact raycast hit first; world-position fallback can choose
-      // a neighboring tile on blended borders and keep stale geo-visor data.
+      // Resolve by the exact cursor hit position first. Object ancestry can pick
+      // neighboring tiles on border faces, which keeps stale geo-visor readouts.
       const resolvedTile =
-        findTerrainTile(candidate.object) ?? findTerrainTileAtPosition(candidate.point);
+        findTerrainTileAtPosition(candidate.point) ?? findTerrainTile(candidate.object);
 
       if (!isTerrainSurfaceTile(resolvedTile)) {
         continue;
@@ -17245,26 +17245,39 @@ export const initScene = (
       return null;
     }
 
-    const point = new THREE.Vector3(position.x, 0, position.z);
-    const bounds = new THREE.Box3();
+    let bestMatch = null;
+    let bestDistanceSquared = Number.POSITIVE_INFINITY;
 
     for (const tile of activeTerrainTiles) {
       if (!isTerrainSurfaceTile(tile)) {
         continue;
       }
 
-      bounds.setFromObject(tile);
-      if (
-        point.x >= bounds.min.x &&
-        point.x <= bounds.max.x &&
-        point.z >= bounds.min.z &&
-        point.z <= bounds.max.z
-      ) {
-        return tile;
+      const cellSize =
+        Number.isFinite(tile.userData?.geoVisorCellSize) &&
+        tile.userData.geoVisorCellSize > 0
+          ? tile.userData.geoVisorCellSize
+          : 0;
+      if (cellSize <= 0) {
+        continue;
+      }
+
+      const halfCell = cellSize * 0.5;
+      const deltaX = position.x - tile.position.x;
+      const deltaZ = position.z - tile.position.z;
+
+      if (Math.abs(deltaX) > halfCell || Math.abs(deltaZ) > halfCell) {
+        continue;
+      }
+
+      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+      if (distanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = distanceSquared;
+        bestMatch = tile;
       }
     }
 
-    return null;
+    return bestMatch;
   };
 
   const removeResourceTargetFromFloor = (tile, floorId) => {
