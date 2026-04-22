@@ -14083,7 +14083,9 @@ export const initScene = (
         return null;
       }
       intersection = terrainIntersection;
-      targetObject = findTerrainTile(terrainIntersection.object);
+      targetObject =
+        findTerrainTileAtPosition(terrainIntersection.position) ??
+        findTerrainTile(terrainIntersection.object);
       if (!targetObject) {
         return null;
       }
@@ -17232,6 +17234,7 @@ export const initScene = (
     }
   };
 
+  const terrainTileWorldPositionSample = new THREE.Vector3();
   const findTerrainTileAtPosition = (position) => {
     if (
       !position ||
@@ -17263,8 +17266,10 @@ export const initScene = (
       }
 
       const halfCell = cellSize * 0.5;
-      const deltaX = position.x - tile.position.x;
-      const deltaZ = position.z - tile.position.z;
+      tile.updateMatrixWorld(true);
+      tile.getWorldPosition(terrainTileWorldPositionSample);
+      const deltaX = position.x - terrainTileWorldPositionSample.x;
+      const deltaZ = position.z - terrainTileWorldPositionSample.z;
 
       if (Math.abs(deltaX) > halfCell || Math.abs(deltaZ) > halfCell) {
         continue;
