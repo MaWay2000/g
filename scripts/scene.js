@@ -16056,6 +16056,38 @@ export const initScene = (
     }
   }
 
+  function shouldContinueResourceToolAfterSession(baseDetail) {
+    const tileIndex = Number.isInteger(baseDetail?.terrain?.tileIndex)
+      ? baseDetail.terrain.tileIndex
+      : null;
+    if (tileIndex === null) {
+      return true;
+    }
+
+    if (depletedTerrainTileIndices.has(tileIndex)) {
+      return false;
+    }
+
+    const terrainId =
+      typeof baseDetail?.terrain?.id === "string" ? baseDetail.terrain.id : null;
+    if (terrainId) {
+      const liveTerrainLife = getLiveTerrainLifeValue(terrainId, tileIndex);
+      if (Number.isFinite(liveTerrainLife) && liveTerrainLife <= 0) {
+        return false;
+      }
+    }
+
+    const matchingTile = findTerrainTileByIndex(tileIndex);
+    if (!matchingTile) {
+      return true;
+    }
+
+    const effectiveTerrainState = getEffectiveTerrainStateForTile(matchingTile);
+    return !(
+      effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted
+    );
+  }
+
   function finishResourceSession(session) {
     if (!session?.isActive || !session.baseDetail) {
       clearResourceSession(session);
@@ -16093,7 +16125,10 @@ export const initScene = (
         source: sessionSource,
         found: false,
       });
-      if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+      if (
+        sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
+        shouldContinueResourceToolAfterSession(baseDetail)
+      ) {
         continueResourceToolIfHeld();
       }
       return;
@@ -16111,7 +16146,12 @@ export const initScene = (
         ...baseDetail,
         found: false,
       });
-      continueResourceToolIfHeld();
+      if (
+        sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
+        shouldContinueResourceToolAfterSession(baseDetail)
+      ) {
+        continueResourceToolIfHeld();
+      }
       return;
     }
 
@@ -16131,7 +16171,10 @@ export const initScene = (
       element: elementDetail,
       found: true,
     });
-    if (sessionSource === RESOURCE_SESSION_PLAYER_SOURCE) {
+    if (
+      sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
+      shouldContinueResourceToolAfterSession(baseDetail)
+    ) {
       continueResourceToolIfHeld();
     }
   }
