@@ -2236,7 +2236,6 @@ const getTerrainLifeValue = (terrain, tileIndex) => {
     return normalizedLife;
   }
 
-  terrainLifeByCell.set(cellKey, maxLife);
   return maxLife;
 };
 const decreaseTerrainLife = (terrainId, tileIndex, amount = 1) => {
