@@ -6844,6 +6844,8 @@ export const initScene = (
       return { map: normalizedMap, changed: false };
     }
 
+    let changed = false;
+
     normalizedMap.cells.forEach((cell, index) => {
       const resolvedTerrain = getOutsideTerrainById(cell?.terrainId ?? "void");
       if (resolvedTerrain?.id === "void") {
@@ -6854,10 +6856,16 @@ export const initScene = (
       const terrainLife = cellKey ? storedTerrainLife.get(cellKey) : null;
       if (Number.isFinite(terrainLife) && terrainLife <= 0) {
         depletedTerrainTileIndices.add(index);
+        normalizedMap.cells[index] = {
+          ...(cell && typeof cell === "object" ? cell : {}),
+          terrainId: "void",
+          tileId: getOutsideTerrainDefaultTileId("void"),
+        };
+        changed = true;
       }
     });
 
-    return { map: normalizedMap, changed: false };
+    return { map: normalizedMap, changed };
   };
 
   const getLiveTerrainLifeValue = (terrainId, tileIndex) => {
