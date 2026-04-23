@@ -14057,37 +14057,42 @@ export const initScene = (
       return null;
     }
 
-    let intersection = null;
-    let targetObject = null;
+    const terrainIntersection = findTerrainIntersection({
+      allowRevealedBeyondGeoVisorDistance: true,
+      ignoreGeoVisorDistance: true,
+    });
+    if (!terrainIntersection || !Number.isFinite(terrainIntersection.distance)) {
+      return null;
+    }
+
+    let intersection = terrainIntersection;
+    const terrainTile =
+      findTerrainTileAtPosition(terrainIntersection.position) ??
+      findTerrainTile(terrainIntersection.object);
+    if (!terrainTile) {
+      return null;
+    }
+    let targetObject = terrainTile;
+    const terrainState = getEffectiveTerrainStateForTile(terrainTile);
 
     if (Array.isArray(activeResourceTargets) && activeResourceTargets.length > 0) {
       raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-      const intersections = raycaster.intersectObjects(activeResourceTargets, true);
-      if (intersections.length > 0) {
-        const resourceIntersection = intersections.find((candidate) =>
-          findResourceTarget(candidate.object)
-        );
-        if (resourceIntersection && Number.isFinite(resourceIntersection.distance)) {
+      const resourceIntersections = raycaster.intersectObjects(activeResourceTargets, true);
+      const resourceIntersection = resourceIntersections.find((candidate) =>
+        findResourceTarget(candidate.object)
+      );
+      const resourceTarget = resourceIntersection
+        ? findResourceTarget(resourceIntersection.object)
+        : null;
+      if (resourceTarget && Number.isFinite(resourceIntersection.distance)) {
+        const resourceState = getEffectiveTerrainStateForTile(resourceTarget);
+        if (
+          Number.isInteger(terrainState.tileIndex) &&
+          resourceState.tileIndex === terrainState.tileIndex
+        ) {
           intersection = resourceIntersection;
-          targetObject = findResourceTarget(resourceIntersection.object);
+          targetObject = resourceTarget;
         }
-      }
-    }
-
-    if (!intersection || !targetObject) {
-      const terrainIntersection = findTerrainIntersection({
-        allowRevealedBeyondGeoVisorDistance: true,
-        ignoreGeoVisorDistance: true,
-      });
-      if (!terrainIntersection || !Number.isFinite(terrainIntersection.distance)) {
-        return null;
-      }
-      intersection = terrainIntersection;
-      targetObject =
-        findTerrainTileAtPosition(terrainIntersection.position) ??
-        findTerrainTile(terrainIntersection.object);
-      if (!targetObject) {
-        return null;
       }
     }
 
@@ -14095,7 +14100,10 @@ export const initScene = (
       return null;
     }
 
-    const effectiveTerrainState = getEffectiveTerrainStateForTile(targetObject);
+    const effectiveTerrainState =
+      targetObject === terrainTile
+        ? terrainState
+        : getEffectiveTerrainStateForTile(targetObject);
     if (effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted) {
       return null;
     }
@@ -16059,6 +16067,66 @@ export const initScene = (
     }
   }
 
+  function getCurrentPlayerTerrainTargetState() {
+    const terrainIntersection = findTerrainIntersection({
+      allowRevealedBeyondGeoVisorDistance: true,
+      ignoreGeoVisorDistance: true,
+    });
+    if (!terrainIntersection || !Number.isFinite(terrainIntersection.distance)) {
+      return null;
+    }
+
+    const targetObject =
+      findTerrainTileAtPosition(terrainIntersection.position) ??
+      findTerrainTile(terrainIntersection.object);
+    if (!targetObject) {
+      return null;
+    }
+
+    const terrainState = getEffectiveTerrainStateForTile(targetObject);
+    return {
+      intersection: terrainIntersection,
+      targetObject,
+      terrainState,
+    };
+  }
+
+  function isPlayerResourceSessionTargetStillValid(sessionOrBaseDetail) {
+    const baseDetail = sessionOrBaseDetail?.baseDetail ?? sessionOrBaseDetail;
+    const tileIndex = Number.isInteger(baseDetail?.terrain?.tileIndex)
+      ? baseDetail.terrain.tileIndex
+      : null;
+    if (tileIndex === null || depletedTerrainTileIndices.has(tileIndex)) {
+      return false;
+    }
+
+    const terrainId =
+      typeof baseDetail?.terrain?.id === "string" ? baseDetail.terrain.id : null;
+    if (!terrainId || terrainId === "void") {
+      return false;
+    }
+
+    const liveTerrainLife = getLiveTerrainLifeValue(terrainId, tileIndex);
+    if (Number.isFinite(liveTerrainLife) && liveTerrainLife <= 0) {
+      return false;
+    }
+
+    const currentTarget = getCurrentPlayerTerrainTargetState();
+    if (!currentTarget) {
+      return false;
+    }
+
+    const currentTileIndex = currentTarget.terrainState?.tileIndex;
+    if (currentTileIndex !== tileIndex) {
+      return false;
+    }
+
+    return !(
+      currentTarget.terrainState?.terrainId === "void" ||
+      currentTarget.terrainState?.isDepleted
+    );
+  }
+
   function shouldContinueResourceToolAfterSession(baseDetail) {
     const tileIndex = Number.isInteger(baseDetail?.terrain?.tileIndex)
       ? baseDetail.terrain.tileIndex
@@ -16086,9 +16154,14 @@ export const initScene = (
     }
 
     const effectiveTerrainState = getEffectiveTerrainStateForTile(matchingTile);
-    return !(
-      effectiveTerrainState.terrainId === "void" || effectiveTerrainState.isDepleted
-    );
+    if (
+      effectiveTerrainState.terrainId === "void" ||
+      effectiveTerrainState.isDepleted
+    ) {
+      return false;
+    }
+
+    return isPlayerResourceSessionTargetStillValid(baseDetail);
   }
 
   function finishResourceSession(session) {
@@ -16100,6 +16173,14 @@ export const initScene = (
     const baseDetail = session.baseDetail;
     const eventDetail = session.eventDetail;
     const sessionSource = baseDetail?.source ?? session.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
+
+    if (
+      sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
+      !isPlayerResourceSessionTargetStillValid(session)
+    ) {
+      cancelResourceSessionInstance(session, { reason: "target-lost" });
+      return;
+    }
 
     clearResourceSession(session);
 
@@ -16283,6 +16364,11 @@ export const initScene = (
             cancelResourceSessionInstance(session, { reason: "movement" });
             return;
           }
+        }
+
+        if (!isPlayerResourceSessionTargetStillValid(session)) {
+          cancelResourceSessionInstance(session, { reason: "target-lost" });
+          return;
         }
       }
 
