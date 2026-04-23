@@ -14041,6 +14041,7 @@ export const initScene = (
       terrainId,
       terrainLabel,
       tileIndex,
+      isDepleted,
       geoVisorRevealed,
       withinGeoVisorDistance,
       distance: intersection.distance,

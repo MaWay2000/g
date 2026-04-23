@@ -3649,9 +3649,30 @@ const updateGeoScanPanel = () => {
     return;
   }
 
-  if (terrainDetail.terrainId === "void") {
+  const scannedTileIndex = Number.isInteger(terrainDetail.tileIndex)
+    ? terrainDetail.tileIndex
+    : null;
+  const scanTargetMarkedDepleted =
+    terrainDetail?.isDepleted === true ||
+    terrainDetail?.object?.userData?.isTerrainDepleted === true ||
+    terrainDetail?.object?.userData?.terrainId === "void";
+
+  let scannedTerrainLife = null;
+  if (scannedTileIndex !== null && terrainDetail.terrainId && terrainDetail.terrainId !== "void") {
+    const scannedTerrain = getOutsideTerrainById(terrainDetail.terrainId);
+    if (scannedTerrain && scannedTerrain.id !== "void") {
+      scannedTerrainLife = getTerrainLifeValue(scannedTerrain, scannedTileIndex);
+    }
+  }
+
+  const shouldRenderVoidState =
+    terrainDetail.terrainId === "void" ||
+    scanTargetMarkedDepleted ||
+    (Number.isFinite(scannedTerrainLife) && scannedTerrainLife <= 0);
+
+  if (shouldRenderVoidState) {
     const { tileIndex: voidTileIndex } = forceTerrainTileVoidState({
-      tileIndex: terrainDetail.tileIndex,
+      tileIndex: scannedTileIndex,
       position: terrainDetail?.position ?? null,
       persistImmediately: false,
     });
@@ -3684,18 +3705,11 @@ const updateGeoScanPanel = () => {
     }
   }
 
-  geoScanPanelState.tileIndex = terrainDetail.tileIndex ?? null;
+  geoScanPanelState.tileIndex = scannedTileIndex;
 
-  const terrainHp = getTerrainLifeValue(terrain, terrainDetail.tileIndex);
-  if (terrainHp <= 0) {
-    const { tileIndex: voidTileIndex } = forceTerrainTileVoidState({
-      tileIndex: terrainDetail.tileIndex,
-      position: terrainDetail?.position ?? null,
-      persistImmediately: false,
-    });
-    renderGeoScanPanelVoidState(voidTileIndex);
-    return;
-  }
+  const terrainHp = Number.isFinite(scannedTerrainLife)
+    ? scannedTerrainLife
+    : getTerrainLifeValue(terrain, scannedTileIndex);
   const clampedPercent = Math.max(
     0,
     Math.min(100, Math.round((terrainHp / GEO_SCAN_MAX_HP) * 100))
