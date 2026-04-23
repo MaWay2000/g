@@ -2305,6 +2305,54 @@ const syncSceneTerrainVoidState = ({ tileIndex = null, position = null } = {}) =
   return false;
 };
 
+const forceTerrainTileVoidState = ({
+  tileIndex = null,
+  position = null,
+  persistImmediately = false,
+} = {}) => {
+  const hasTileIndex = Number.isInteger(tileIndex) && tileIndex >= 0;
+  if (hasTileIndex) {
+    setTerrainLifeToVoid(tileIndex, { persistImmediately });
+  }
+
+  const sceneUpdated = syncSceneTerrainVoidState({
+    tileIndex: hasTileIndex ? tileIndex : null,
+    position,
+  });
+
+  if (persistImmediately && hasTileIndex) {
+    persistTerrainLifeImmediately();
+  }
+
+  return {
+    tileIndex: hasTileIndex ? tileIndex : null,
+    sceneUpdated,
+  };
+};
+
+const renderGeoScanPanelVoidState = (tileIndex = null) => {
+  geoScanPanel.hidden = false;
+  geoScanPanelState.terrainId = "void";
+  geoScanPanelState.tileIndex = Number.isInteger(tileIndex) ? tileIndex : null;
+
+  if (geoScanTerrainLabel instanceof HTMLElement) {
+    geoScanTerrainLabel.textContent = "Terrain: Void";
+  }
+  if (geoScanElementsLabel instanceof HTMLElement) {
+    geoScanElementsLabel.textContent = "Area is empty.";
+  }
+  if (geoScanLifeFill instanceof HTMLElement) {
+    geoScanLifeFill.style.width = "0%";
+  }
+  if (geoScanLifeValue instanceof HTMLElement) {
+    geoScanLifeValue.textContent = `0 / ${GEO_SCAN_MAX_HP}`;
+  }
+  if (geoScanLifeBar instanceof HTMLElement) {
+    geoScanLifeBar.setAttribute("aria-valuenow", "0");
+    geoScanLifeBar.setAttribute("aria-valuemax", String(GEO_SCAN_MAX_HP));
+  }
+};
+
 const quickSlotState = {
   slots: quickSlotDefinitions,
   selectedIndex: 0,
@@ -3602,40 +3650,12 @@ const updateGeoScanPanel = () => {
   }
 
   if (terrainDetail.terrainId === "void") {
-    const voidTileIndex = Number.isInteger(terrainDetail.tileIndex)
-      ? terrainDetail.tileIndex
-      : null;
-    const voidTileChanged =
-      geoScanPanelState.terrainId !== "void" ||
-      geoScanPanelState.tileIndex !== voidTileIndex;
-    if (voidTileIndex !== null) {
-      setTerrainLifeToVoid(voidTileIndex);
-    }
-    if (voidTileChanged) {
-      syncSceneTerrainVoidState({
-        tileIndex: voidTileIndex,
-        position: terrainDetail?.position ?? null,
-      });
-    }
-    geoScanPanel.hidden = false;
-    geoScanPanelState.terrainId = "void";
-    geoScanPanelState.tileIndex = voidTileIndex;
-    if (geoScanTerrainLabel instanceof HTMLElement) {
-      geoScanTerrainLabel.textContent = "Terrain: Void";
-    }
-    if (geoScanElementsLabel instanceof HTMLElement) {
-      geoScanElementsLabel.textContent = "Area is empty.";
-    }
-    if (geoScanLifeFill instanceof HTMLElement) {
-      geoScanLifeFill.style.width = "0%";
-    }
-    if (geoScanLifeValue instanceof HTMLElement) {
-      geoScanLifeValue.textContent = `0 / ${GEO_SCAN_MAX_HP}`;
-    }
-    if (geoScanLifeBar instanceof HTMLElement) {
-      geoScanLifeBar.setAttribute("aria-valuenow", "0");
-      geoScanLifeBar.setAttribute("aria-valuemax", String(GEO_SCAN_MAX_HP));
-    }
+    const { tileIndex: voidTileIndex } = forceTerrainTileVoidState({
+      tileIndex: terrainDetail.tileIndex,
+      position: terrainDetail?.position ?? null,
+      persistImmediately: false,
+    });
+    renderGeoScanPanelVoidState(voidTileIndex);
     return;
   }
 
@@ -3668,35 +3688,12 @@ const updateGeoScanPanel = () => {
 
   const terrainHp = getTerrainLifeValue(terrain, terrainDetail.tileIndex);
   if (terrainHp <= 0) {
-    const voidTileIndex = Number.isInteger(terrainDetail.tileIndex)
-      ? terrainDetail.tileIndex
-      : null;
-    if (voidTileIndex !== null) {
-      setTerrainLifeToVoid(voidTileIndex);
-    }
-    syncSceneTerrainVoidState({
-      tileIndex: voidTileIndex,
+    const { tileIndex: voidTileIndex } = forceTerrainTileVoidState({
+      tileIndex: terrainDetail.tileIndex,
       position: terrainDetail?.position ?? null,
+      persistImmediately: false,
     });
-    geoScanPanel.hidden = false;
-    geoScanPanelState.terrainId = "void";
-    geoScanPanelState.tileIndex = voidTileIndex;
-    if (geoScanTerrainLabel instanceof HTMLElement) {
-      geoScanTerrainLabel.textContent = "Terrain: Void";
-    }
-    if (geoScanElementsLabel instanceof HTMLElement) {
-      geoScanElementsLabel.textContent = "Area is empty.";
-    }
-    if (geoScanLifeFill instanceof HTMLElement) {
-      geoScanLifeFill.style.width = "0%";
-    }
-    if (geoScanLifeValue instanceof HTMLElement) {
-      geoScanLifeValue.textContent = `0 / ${GEO_SCAN_MAX_HP}`;
-    }
-    if (geoScanLifeBar instanceof HTMLElement) {
-      geoScanLifeBar.setAttribute("aria-valuenow", "0");
-      geoScanLifeBar.setAttribute("aria-valuemax", String(GEO_SCAN_MAX_HP));
-    }
+    renderGeoScanPanelVoidState(voidTileIndex);
     return;
   }
   const clampedPercent = Math.max(
@@ -23437,12 +23434,11 @@ const applyTerrainLifeDrain = (detail) => {
   }
 
   const markTerrainAsDepleted = () => {
-    setTerrainLifeToVoid(tileIndex, { persistImmediately: false });
-    syncSceneTerrainVoidState({
+    forceTerrainTileVoidState({
       tileIndex,
       position: detail?.position ?? null,
+      persistImmediately: true,
     });
-    persistTerrainLifeImmediately();
     return true;
   };
 
