@@ -1864,7 +1864,11 @@ export const initScene = (
     });
   };
 
-  const applyGeoVisorMaterialToTile = (tile, shouldReveal) => {
+  const applyGeoVisorMaterialToTile = (
+    tile,
+    shouldReveal,
+    { useVisorMaterial = geoVisorEnabled } = {}
+  ) => {
     if (!tile?.userData) {
       return;
     }
@@ -1910,13 +1914,12 @@ export const initScene = (
     const fallbackMaterial =
       tile.userData.geoVisorRevealedMaterial ??
       getNonVisorTerrainMaterialForTile(tile) ??
+      tile.material ??
       tile.userData.geoVisorConcealedMaterial;
-    const revealedMaterial = geoVisorEnabled
+    const revealedMaterial = useVisorMaterial
       ? tile.userData.geoVisorVisorMaterial ?? fallbackMaterial
       : tile.userData.geoVisorRevealedMaterial ?? fallbackMaterial;
-    const targetMaterial = shouldReveal
-      ? revealedMaterial
-      : tile.userData.geoVisorConcealedMaterial;
+    const targetMaterial = shouldReveal ? revealedMaterial : fallbackMaterial;
 
     syncViewDistanceBaseMaterial(tile, targetMaterial);
 
@@ -2026,14 +2029,6 @@ export const initScene = (
       return tile.userData.geoVisorPreviousMaterial;
     }
 
-    if (
-      tile.userData.geoVisorConcealedMaterial &&
-      tile.userData.geoVisorConcealedMaterial !==
-        tile.userData.geoVisorVisorMaterial
-    ) {
-      return tile.userData.geoVisorConcealedMaterial;
-    }
-
     return null;
   };
 
@@ -2125,11 +2120,13 @@ export const initScene = (
         playerRow !== null &&
         playerColumn !== null &&
         Math.abs(tileRow - playerRow) + Math.abs(tileColumn - playerColumn) === 1;
+      const isActiveRevealTile = geoVisorEnabled && isAdjacentPlayerTile;
       const shouldReveal =
-        Boolean(tile.userData?.geoVisorRevealed) ||
-        (geoVisorEnabled && isAdjacentPlayerTile);
+        Boolean(tile.userData?.geoVisorRevealed) || isActiveRevealTile;
 
-      applyGeoVisorMaterialToTile(tile, shouldReveal);
+      applyGeoVisorMaterialToTile(tile, shouldReveal, {
+        useVisorMaterial: isActiveRevealTile,
+      });
     });
 
     geoVisorLastRow = playerRow;
@@ -8309,9 +8306,11 @@ export const initScene = (
         tile.userData.geoVisorRevealed = tileWasPreviouslyRevealed;
 
         if (tileWasPreviouslyRevealed) {
-          applyGeoVisorMaterialToTile(tile, true);
+          applyGeoVisorMaterialToTile(tile, true, {
+            useVisorMaterial: false,
+          });
         } else {
-          tile.material = concealedTerrainMaterial;
+          tile.material = tile.userData.geoVisorRevealedMaterial ?? tile.material;
         }
 
         if (tile.userData.terrainId !== "void" && !tileIsDepleted) {
