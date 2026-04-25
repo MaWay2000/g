@@ -2132,11 +2132,11 @@ export const initScene = (
       const clampedDeltaZ = Math.max(0, deltaZ);
       const distanceSquared =
         clampedDeltaX * clampedDeltaX + clampedDeltaZ * clampedDeltaZ;
-      if (distanceSquared > maxDistanceSquared) {
-        return;
-      }
+      const shouldReveal =
+        distanceSquared <= maxDistanceSquared ||
+        Boolean(tile.userData?.geoVisorRevealed);
 
-      applyGeoVisorMaterialToTile(tile, true);
+      applyGeoVisorMaterialToTile(tile, shouldReveal);
     });
 
     geoVisorLastRow = playerRow;
