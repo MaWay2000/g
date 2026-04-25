@@ -8313,7 +8313,7 @@ export const initScene = (
 
         if (tileWasPreviouslyRevealed) {
           applyGeoVisorMaterialToTile(tile, true);
-        } else if (geoVisorEnabled) {
+        } else {
           tile.material = concealedTerrainMaterial;
         }
         if (tileIsDepleted && !geoVisorEnabled && !tileWasPreviouslyRevealed) {
