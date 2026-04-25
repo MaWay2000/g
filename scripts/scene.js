@@ -1910,8 +1910,9 @@ export const initScene = (
     const fallbackMaterial =
       tile.userData.geoVisorRevealedMaterial ??
       tile.userData.geoVisorConcealedMaterial;
-    // Keep revealed terrain tinted even when Geo Visor is toggled off.
-    const revealedMaterial = tile.userData.geoVisorVisorMaterial ?? fallbackMaterial;
+    const revealedMaterial = geoVisorEnabled
+      ? tile.userData.geoVisorVisorMaterial ?? fallbackMaterial
+      : fallbackMaterial;
     const targetMaterial = shouldReveal
       ? revealedMaterial
       : tile.userData.geoVisorConcealedMaterial;
@@ -2044,6 +2045,13 @@ export const initScene = (
     }
 
     if (!geoVisorEnabled) {
+      allTerrainTiles.forEach((tile) => {
+        if (!tile?.isObject3D) {
+          return;
+        }
+
+        applyGeoVisorMaterialToTile(tile, Boolean(tile.userData?.geoVisorRevealed));
+      });
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = false;
