@@ -1908,12 +1908,10 @@ export const initScene = (
     }
 
     const fallbackMaterial =
-      (!geoVisorEnabled && tile.userData.geoVisorPreviousMaterial) ||
-      tile.userData.geoVisorRevealedMaterial ||
+      getNonVisorTerrainMaterialForTile(tile) ??
+      tile.userData.geoVisorRevealedMaterial ??
       tile.userData.geoVisorConcealedMaterial;
-    const revealedMaterial = geoVisorEnabled
-      ? tile.userData.geoVisorVisorMaterial ?? fallbackMaterial
-      : fallbackMaterial;
+    const revealedMaterial = fallbackMaterial;
     const targetMaterial = shouldReveal
       ? revealedMaterial
       : tile.userData.geoVisorConcealedMaterial;
@@ -2012,24 +2010,26 @@ export const initScene = (
       return runtimeMaterial;
     }
 
+    if (tile.material !== tile.userData.geoVisorVisorMaterial) {
+      return tile.material;
+    }
+
+    if (
+      tile.userData.geoVisorPreviousMaterial &&
+      tile.userData.geoVisorPreviousMaterial !==
+        tile.userData.geoVisorVisorMaterial &&
+      tile.userData.geoVisorPreviousMaterial !==
+        tile.userData.geoVisorConcealedMaterial
+    ) {
+      return tile.userData.geoVisorPreviousMaterial;
+    }
+
     if (
       tile.userData.geoVisorConcealedMaterial &&
       tile.userData.geoVisorConcealedMaterial !==
         tile.userData.geoVisorVisorMaterial
     ) {
       return tile.userData.geoVisorConcealedMaterial;
-    }
-
-    if (
-      tile.userData.geoVisorPreviousMaterial &&
-      tile.userData.geoVisorPreviousMaterial !==
-        tile.userData.geoVisorVisorMaterial
-    ) {
-      return tile.userData.geoVisorPreviousMaterial;
-    }
-
-    if (tile.material !== tile.userData.geoVisorVisorMaterial) {
-      return tile.material;
     }
 
     return null;
@@ -2047,11 +2047,11 @@ export const initScene = (
 
     if (!geoVisorEnabled) {
       allTerrainTiles.forEach((tile) => {
-        if (!tile?.isObject3D) {
+        if (!tile?.isObject3D || !tile.userData?.geoVisorRevealed) {
           return;
         }
 
-        applyGeoVisorMaterialToTile(tile, Boolean(tile.userData?.geoVisorRevealed));
+        applyGeoVisorMaterialToTile(tile, true);
       });
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
@@ -2101,10 +2101,6 @@ export const initScene = (
     }
 
     allTerrainTiles.forEach((tile) => {
-      if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
-        tile.userData.geoVisorPreviousMaterial = tile.material;
-      }
-
       if (!tile?.isObject3D) {
         return;
       }
