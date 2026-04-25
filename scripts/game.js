@@ -2161,6 +2161,7 @@ const GEO_VISOR_PANEL_SLOT_ID = "photon-cutter";
 const GEO_VISOR_BATTERY_RECHARGE_MS = 2 * 60 * 1000;
 const GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS = 200;
 const GEO_VISOR_BATTERY_PERSIST_INTERVAL_MS = 1000;
+const GEO_VISOR_PULSE_DURATION_MS = 1500;
 const GEO_SCAN_MAX_HP = Math.max(
   1,
   ...(Array.isArray(OUTSIDE_TERRAIN_TYPES)
@@ -2400,6 +2401,7 @@ const geoVisorBatteryState = {
 
 const quickSlotActivationTimeouts = new Map();
 let persistGeoVisorBatteryTimeoutId = 0;
+let geoVisorPulseTimeoutId = 0;
 let geoVisorBatteryPersistenceEnabled = true;
 const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
@@ -3899,13 +3901,21 @@ const activateGeoVisorPulse = (slotId) => {
     return false;
   }
 
+  if (geoVisorPulseTimeoutId) {
+    window.clearTimeout(geoVisorPulseTimeoutId);
+    geoVisorPulseTimeoutId = 0;
+  }
+
   geoVisorBatteryState.level = 0;
   geoVisorBatteryState.lastUpdate = Date.now();
   updateGeoVisorBatteryIndicator();
   schedulePersistGeoVisorBatteryState({ force: true });
 
   setGeoVisorActiveSlotId(slotId);
-  setGeoVisorActiveSlotId(null);
+  geoVisorPulseTimeoutId = window.setTimeout(() => {
+    geoVisorPulseTimeoutId = 0;
+    setGeoVisorActiveSlotId(null);
+  }, GEO_VISOR_PULSE_DURATION_MS);
   playGeoVisorScanSuccessSound();
   return true;
 };

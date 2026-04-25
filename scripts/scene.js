@@ -13870,7 +13870,7 @@ export const initScene = (
   const resourceToolLight = new THREE.PointLight(0x38bdf8, 0, 2.6, 2);
   resourceToolLight.position.set(0.28, -0.02, -0.24);
   const RESOURCE_TOOL_MAX_DISTANCE = 7;
-  const GEO_VISOR_MAX_DISTANCE = 2;
+  const GEO_VISOR_MAX_DISTANCE = ROOM_SCALE_FACTOR * 180;
   const RESOURCE_TOOL_MIN_ACTION_DURATION = 3;
   const RESOURCE_TOOL_MAX_ACTION_DURATION = 10;
   const RESOURCE_TOOL_ACTION_DURATION_MULTIPLIER_MIN = 0.5;
@@ -14033,6 +14033,7 @@ export const initScene = (
     const terrainId = effectiveTerrainState.terrainId;
     const terrainLabel = effectiveTerrainState.terrainLabel;
     const tileIndex = effectiveTerrainState.tileIndex;
+    const isDepleted = effectiveTerrainState.isDepleted;
     const geoVisorRevealed = Boolean(targetObject.userData?.geoVisorRevealed);
     const withinGeoVisorDistance =
       intersection.distance <= GEO_VISOR_MAX_DISTANCE;
