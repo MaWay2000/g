@@ -2042,6 +2042,13 @@ export const initScene = (
       return;
     }
 
+    const sampleTile = allTerrainTiles.find(
+      (tile) =>
+        tile?.userData &&
+        Number.isFinite(tile.userData.geoVisorCellSize) &&
+        Number.isFinite(tile.userData.geoVisorMapLeftEdge) &&
+        Number.isFinite(tile.userData.geoVisorMapNearEdge)
+    );
     if (playerObject?.isObject3D) {
       playerObject.getWorldPosition(geoVisorPlayerWorldPosition);
     } else if (camera?.isObject3D) {
@@ -2051,14 +2058,11 @@ export const initScene = (
     }
 
     geoVisorRevealOrigin.copy(geoVisorPlayerWorldPosition);
+    if (sampleTile?.parent?.isObject3D) {
+      sampleTile.parent.updateWorldMatrix(true, false);
+      sampleTile.parent.worldToLocal(geoVisorRevealOrigin);
+    }
 
-    const sampleTile = allTerrainTiles.find(
-      (tile) =>
-        tile?.userData &&
-        Number.isFinite(tile.userData.geoVisorCellSize) &&
-        Number.isFinite(tile.userData.geoVisorMapLeftEdge) &&
-        Number.isFinite(tile.userData.geoVisorMapNearEdge)
-    );
     const width = allTerrainTiles.reduce((maxWidth, tile) => {
       const column = Number.isFinite(tile?.userData?.geoVisorColumn)
         ? tile.userData.geoVisorColumn
