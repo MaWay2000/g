@@ -1908,7 +1908,8 @@ export const initScene = (
     }
 
     const fallbackMaterial =
-      tile.userData.geoVisorRevealedMaterial ??
+      (!geoVisorEnabled && tile.userData.geoVisorPreviousMaterial) ||
+      tile.userData.geoVisorRevealedMaterial ||
       tile.userData.geoVisorConcealedMaterial;
     const revealedMaterial = geoVisorEnabled
       ? tile.userData.geoVisorVisorMaterial ?? fallbackMaterial
