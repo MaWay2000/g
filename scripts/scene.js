@@ -2073,7 +2073,7 @@ export const initScene = (
       geoVisorRevealOrigin.copy(geoVisorPlayerWorldPosition);
     }
 
-    const sampleTile = activeTerrainTiles.find(
+    const sampleTile = allTerrainTiles.find(
       (tile) =>
         tile?.userData &&
         Number.isFinite(tile.userData.geoVisorCellSize) &&
@@ -2106,7 +2106,7 @@ export const initScene = (
 
     const maxDistanceSquared = GEO_VISOR_MAX_DISTANCE ** 2;
 
-    activeTerrainTiles.forEach((tile) => {
+    allTerrainTiles.forEach((tile) => {
       if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
       }
