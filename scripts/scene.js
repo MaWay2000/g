@@ -1908,8 +1908,8 @@ export const initScene = (
     }
 
     const fallbackMaterial =
-      getNonVisorTerrainMaterialForTile(tile) ??
       tile.userData.geoVisorRevealedMaterial ??
+      getNonVisorTerrainMaterialForTile(tile) ??
       tile.userData.geoVisorConcealedMaterial;
     const revealedMaterial = fallbackMaterial;
     const targetMaterial = shouldReveal
