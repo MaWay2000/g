@@ -2121,7 +2121,11 @@ export const initScene = (
         isAdjacentPlayerTile ||
         Boolean(tile.userData?.geoVisorRevealed);
 
-      applyGeoVisorMaterialToTile(tile, shouldReveal);
+      if (!shouldReveal) {
+        return;
+      }
+
+      applyGeoVisorMaterialToTile(tile, true);
     });
 
     geoVisorLastRow = playerRow;
