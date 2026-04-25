@@ -2126,14 +2126,10 @@ export const initScene = (
         playerColumn !== null &&
         Math.abs(tileRow - playerRow) + Math.abs(tileColumn - playerColumn) === 1;
       const shouldReveal =
-        isAdjacentPlayerTile ||
-        Boolean(tile.userData?.geoVisorRevealed);
+        Boolean(tile.userData?.geoVisorRevealed) ||
+        (geoVisorEnabled && isAdjacentPlayerTile);
 
-      if (!shouldReveal) {
-        return;
-      }
-
-      applyGeoVisorMaterialToTile(tile, true);
+      applyGeoVisorMaterialToTile(tile, shouldReveal);
     });
 
     geoVisorLastRow = playerRow;
@@ -8314,11 +8310,8 @@ export const initScene = (
 
         if (tileWasPreviouslyRevealed) {
           applyGeoVisorMaterialToTile(tile, true);
-        } else if (geoVisorEnabled) {
+        } else {
           tile.material = concealedTerrainMaterial;
-        }
-        if (tileIsDepleted && !geoVisorEnabled && !tileWasPreviouslyRevealed) {
-          tile.material = tile.userData.geoVisorRevealedMaterial ?? tile.material;
         }
 
         if (tile.userData.terrainId !== "void" && !tileIsDepleted) {
