@@ -1911,7 +1911,9 @@ export const initScene = (
       tile.userData.geoVisorRevealedMaterial ??
       getNonVisorTerrainMaterialForTile(tile) ??
       tile.userData.geoVisorConcealedMaterial;
-    const revealedMaterial = fallbackMaterial;
+    const revealedMaterial = geoVisorEnabled
+      ? tile.userData.geoVisorVisorMaterial ?? fallbackMaterial
+      : fallbackMaterial;
     const targetMaterial = shouldReveal
       ? revealedMaterial
       : tile.userData.geoVisorConcealedMaterial;
