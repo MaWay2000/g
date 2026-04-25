@@ -2125,7 +2125,7 @@ export const initScene = (
         Boolean(tile.userData?.geoVisorRevealed) || isActiveRevealTile;
 
       applyGeoVisorMaterialToTile(tile, shouldReveal, {
-        useVisorMaterial: isActiveRevealTile,
+        useVisorMaterial: shouldReveal,
       });
     });
 
@@ -8307,7 +8307,7 @@ export const initScene = (
 
         if (tileWasPreviouslyRevealed) {
           applyGeoVisorMaterialToTile(tile, true, {
-            useVisorMaterial: false,
+            useVisorMaterial: true,
           });
         } else {
           tile.material = tile.userData.geoVisorRevealedMaterial ?? tile.material;
