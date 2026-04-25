@@ -5857,6 +5857,10 @@ export const initScene = (
       minY: roomFloorY - 0.4,
       maxY: roomFloorY + exteriorDoorHeight + 0.4,
     };
+    floorBounds.minZ = Math.min(
+      floorBounds.minZ,
+      portalTeleportTrigger.localZThreshold
+    );
     group.userData.portalTeleportTrigger = portalTeleportTrigger;
 
     const portalLandingMaterial = new THREE.MeshStandardMaterial({
