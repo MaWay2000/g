@@ -3672,12 +3672,12 @@ const updateGeoScanPanel = () => {
     (Number.isFinite(scannedTerrainLife) && scannedTerrainLife <= 0);
 
   if (shouldRenderVoidState) {
-    const { tileIndex: voidTileIndex } = forceTerrainTileVoidState({
+    forceTerrainTileVoidState({
       tileIndex: scannedTileIndex,
       position: terrainDetail?.position ?? null,
       persistImmediately: false,
     });
-    renderGeoScanPanelVoidState(voidTileIndex);
+    hideGeoScanPanel();
     return;
   }
 
