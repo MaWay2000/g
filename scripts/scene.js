@@ -2058,20 +2058,7 @@ export const initScene = (
       geoVisorPlayerWorldPosition.set(0, 0, 0);
     }
 
-    const terrainIntersection = findTerrainIntersection();
-    const hasIntersectionPoint =
-      Number.isFinite(terrainIntersection?.position?.x) &&
-      Number.isFinite(terrainIntersection?.position?.z);
-
-    if (hasIntersectionPoint) {
-      geoVisorRevealOrigin.set(
-        terrainIntersection.position.x,
-        terrainIntersection.position.y ?? geoVisorPlayerWorldPosition.y,
-        terrainIntersection.position.z
-      );
-    } else {
-      geoVisorRevealOrigin.copy(geoVisorPlayerWorldPosition);
-    }
+    geoVisorRevealOrigin.copy(geoVisorPlayerWorldPosition);
 
     const sampleTile = allTerrainTiles.find(
       (tile) =>
@@ -2104,8 +2091,6 @@ export const initScene = (
       return;
     }
 
-    const maxDistanceSquared = GEO_VISOR_MAX_DISTANCE ** 2;
-
     allTerrainTiles.forEach((tile) => {
       if (tile?.userData && !tile.userData.geoVisorPreviousMaterial) {
         tile.userData.geoVisorPreviousMaterial = tile.material;
@@ -2115,25 +2100,20 @@ export const initScene = (
         return;
       }
 
-      tile.getWorldPosition(geoVisorTileWorldPosition);
-      const tileSize =
-        Number.isFinite(tile.userData?.geoVisorCellSize) &&
-        tile.userData.geoVisorCellSize > 0
-          ? tile.userData.geoVisorCellSize
-          : 0;
-      const halfTileSize = tileSize * 0.5;
-      const deltaX =
-        Math.abs(geoVisorTileWorldPosition.x - geoVisorRevealOrigin.x) -
-        halfTileSize;
-      const deltaZ =
-        Math.abs(geoVisorTileWorldPosition.z - geoVisorRevealOrigin.z) -
-        halfTileSize;
-      const clampedDeltaX = Math.max(0, deltaX);
-      const clampedDeltaZ = Math.max(0, deltaZ);
-      const distanceSquared =
-        clampedDeltaX * clampedDeltaX + clampedDeltaZ * clampedDeltaZ;
+      const tileRow = Number.isFinite(tile.userData?.geoVisorRow)
+        ? tile.userData.geoVisorRow
+        : null;
+      const tileColumn = Number.isFinite(tile.userData?.geoVisorColumn)
+        ? tile.userData.geoVisorColumn
+        : null;
+      const isAdjacentPlayerTile =
+        tileRow !== null &&
+        tileColumn !== null &&
+        playerRow !== null &&
+        playerColumn !== null &&
+        Math.abs(tileRow - playerRow) + Math.abs(tileColumn - playerColumn) === 1;
       const shouldReveal =
-        distanceSquared <= maxDistanceSquared ||
+        isAdjacentPlayerTile ||
         Boolean(tile.userData?.geoVisorRevealed);
 
       applyGeoVisorMaterialToTile(tile, shouldReveal);
