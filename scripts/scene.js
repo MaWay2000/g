@@ -2064,6 +2064,18 @@ export const initScene = (
         Number.isFinite(tile.userData.geoVisorMapLeftEdge) &&
         Number.isFinite(tile.userData.geoVisorMapNearEdge)
     );
+    const width = allTerrainTiles.reduce((maxWidth, tile) => {
+      const column = Number.isFinite(tile?.userData?.geoVisorColumn)
+        ? tile.userData.geoVisorColumn
+        : null;
+      return column === null ? maxWidth : Math.max(maxWidth, column + 1);
+    }, 0);
+    const height = allTerrainTiles.reduce((maxHeight, tile) => {
+      const row = Number.isFinite(tile?.userData?.geoVisorRow)
+        ? tile.userData.geoVisorRow
+        : null;
+      return row === null ? maxHeight : Math.max(maxHeight, row + 1);
+    }, 0);
     const playerColumn = sampleTile
       ? Math.floor(
           (geoVisorRevealOrigin.x -
