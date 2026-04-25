@@ -1913,7 +1913,7 @@ export const initScene = (
       tile.userData.geoVisorConcealedMaterial;
     const revealedMaterial = geoVisorEnabled
       ? tile.userData.geoVisorVisorMaterial ?? fallbackMaterial
-      : fallbackMaterial;
+      : tile.userData.geoVisorRevealedMaterial ?? fallbackMaterial;
     const targetMaterial = shouldReveal
       ? revealedMaterial
       : tile.userData.geoVisorConcealedMaterial;
@@ -2047,20 +2047,6 @@ export const initScene = (
       return;
     }
 
-    if (!geoVisorEnabled) {
-      allTerrainTiles.forEach((tile) => {
-        if (!tile?.isObject3D || !tile.userData?.geoVisorRevealed) {
-          return;
-        }
-
-        applyGeoVisorMaterialToTile(tile, true);
-      });
-      geoVisorLastRow = null;
-      geoVisorLastColumn = null;
-      geoVisorLastEnabled = false;
-      return;
-    }
-
     if (playerObject?.isObject3D) {
       playerObject.getWorldPosition(geoVisorPlayerWorldPosition);
     } else if (camera?.isObject3D) {
@@ -2102,7 +2088,7 @@ export const initScene = (
 
     if (
       !force &&
-      geoVisorLastEnabled === true &&
+      geoVisorLastEnabled === geoVisorEnabled &&
       geoVisorLastRow === playerRow &&
       geoVisorLastColumn === playerColumn
     ) {
