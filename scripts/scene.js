@@ -2092,6 +2092,13 @@ export const initScene = (
             sampleTile.userData.geoVisorCellSize
         )
       : null;
+    const isPlayerInsideMapBounds =
+      Number.isInteger(playerRow) &&
+      Number.isInteger(playerColumn) &&
+      playerRow >= 0 &&
+      playerRow < height &&
+      playerColumn >= 0 &&
+      playerColumn < width;
 
     if (
       !force &&
@@ -2114,6 +2121,7 @@ export const initScene = (
         ? tile.userData.geoVisorColumn
         : null;
       const isAdjacentPlayerTile =
+        isPlayerInsideMapBounds &&
         tileRow !== null &&
         tileColumn !== null &&
         playerRow !== null &&
