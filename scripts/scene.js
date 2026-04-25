@@ -14008,10 +14008,14 @@ export const initScene = (
         continue;
       }
 
-      // Resolve by the exact cursor hit position first. Object ancestry can pick
-      // neighboring tiles on border faces, which keeps stale geo-visor readouts.
+      const objectTile = findTerrainTile(candidate.object);
+      const pointTile = findTerrainTileAtPosition(candidate.point);
+      // Prefer the actual ray-hit tile when it is already geo-revealed so
+      // looking away and back does not hop to a neighboring unrevealed tile.
       const resolvedTile =
-        findTerrainTileAtPosition(candidate.point) ?? findTerrainTile(candidate.object);
+        objectTile?.userData?.geoVisorRevealed === true
+          ? objectTile
+          : pointTile ?? objectTile;
 
       if (!isTerrainSurfaceTile(resolvedTile)) {
         continue;
