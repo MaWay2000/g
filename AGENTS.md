@@ -172,7 +172,6 @@ After coding, respond with:
 3. What was fixed
 4. What was not changed
 5. Tests/checks performed
-6. Known risks
+6. Run a browser playtest
+7. Known risks
 
-If no browser playtest was run, include:
-`Known risks: I did not run a browser playtest here.`
