@@ -2206,10 +2206,7 @@ export const initScene = (
       const isSavedRevealTile = Boolean(tile.userData?.geoVisorRevealed);
       const isActiveRevealTile = geoVisorEnabled && isAdjacentPlayerTile;
       const shouldReveal = isSavedRevealTile || isActiveRevealTile;
-      const shouldUseVisorMaterial =
-        isActiveRevealTile ||
-        (isSavedRevealTile &&
-          isGeoVisorTileVisibleFromCamera(tile, allTerrainTiles));
+      const shouldUseVisorMaterial = shouldReveal;
 
       applyGeoVisorMaterialToTile(tile, shouldReveal, {
         useVisorMaterial: shouldUseVisorMaterial,
