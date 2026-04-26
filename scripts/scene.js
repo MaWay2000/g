@@ -6346,43 +6346,6 @@ export const initScene = (
     craftingTableBlueprint.rotation.set(-0.08, 0.18, 0.02);
     craftingTableGroup.add(craftingTableBlueprint);
 
-    const craftingTableBuilderFrame = new THREE.Mesh(
-      new THREE.BoxGeometry(0.34, 0.06, 0.22),
-      craftingTableAccentMaterial
-    );
-    craftingTableBuilderFrame.position.set(0.26, 0.81, 0.12);
-    craftingTableBuilderFrame.rotation.y = Math.PI / 9;
-    craftingTableGroup.add(craftingTableBuilderFrame);
-
-    const craftingTableBuilderCore = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.05, 0.18, 16),
-      craftingTableBlueprintMaterial
-    );
-    craftingTableBuilderCore.rotation.z = Math.PI / 2;
-    craftingTableBuilderCore.position.set(0.06, 0.84, 0.16);
-    craftingTableGroup.add(craftingTableBuilderCore);
-
-    const craftingTableBuilderCaps = [
-      [-0.03, 0.84, 0.16],
-      [0.15, 0.84, 0.16],
-    ];
-    craftingTableBuilderCaps.forEach(([x, y, z]) => {
-      const cap = new THREE.Mesh(
-        new THREE.BoxGeometry(0.05, 0.08, 0.08),
-        craftingTableLegMaterial
-      );
-      cap.position.set(x, y, z);
-      craftingTableGroup.add(cap);
-    });
-
-    const craftingTableBuilderStrut = new THREE.Mesh(
-      new THREE.BoxGeometry(0.22, 0.04, 0.04),
-      craftingTableLegMaterial
-    );
-    craftingTableBuilderStrut.position.set(0.24, 0.89, -0.02);
-    craftingTableBuilderStrut.rotation.set(0, Math.PI / 7, Math.PI / 5);
-    craftingTableGroup.add(craftingTableBuilderStrut);
-
     const craftingTableIndicator = new THREE.Mesh(
       new THREE.BoxGeometry(0.12, 0.12, 0.03),
       craftingTableAccentMaterial
@@ -6407,6 +6370,101 @@ export const initScene = (
     craftingTableControl.userData.isCraftingTableControl = true;
     craftingTableControl.userData.craftingTableId = "operations-concourse-exit";
     craftingTableGroup.add(craftingTableControl);
+
+    const structureCraftingTableFloorOffset = 0;
+    const structureCraftingTableWallInset = storageBoxWallInset;
+    const structureCraftingTableForwardOffset = storageBoxForwardOffset + 1.18;
+    const structureCraftingTableGroup = new THREE.Group();
+    structureCraftingTableGroup.position.set(
+      wallSpanWidth / 2 - wallThickness - structureCraftingTableWallInset,
+      roomFloorY + structureCraftingTableFloorOffset,
+      -deckDepth * 0.2 + structureCraftingTableForwardOffset
+    );
+    structureCraftingTableGroup.rotation.y = Math.PI / 2;
+    group.add(structureCraftingTableGroup);
+
+    const structureCraftingTableTop = new THREE.Mesh(
+      new THREE.BoxGeometry(1.28, 0.1, 0.88),
+      craftingTableTopMaterial
+    );
+    structureCraftingTableTop.position.set(0, 0.74, 0);
+    structureCraftingTableGroup.add(structureCraftingTableTop);
+
+    craftingTableLegOffsets.forEach(([x, y, z]) => {
+      const leg = new THREE.Mesh(
+        new THREE.BoxGeometry(0.11, 0.68, 0.11),
+        craftingTableLegMaterial
+      );
+      leg.position.set(x, y, z);
+      structureCraftingTableGroup.add(leg);
+    });
+
+    const structureCraftingTableBlueprint = new THREE.Mesh(
+      new THREE.BoxGeometry(0.38, 0.025, 0.26),
+      craftingTableBlueprintMaterial
+    );
+    structureCraftingTableBlueprint.position.set(-0.08, 0.805, -0.12);
+    structureCraftingTableBlueprint.rotation.set(-0.08, 0.26, 0.02);
+    structureCraftingTableGroup.add(structureCraftingTableBlueprint);
+
+    const structureCraftingTableBuilderFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(0.38, 0.07, 0.24),
+      craftingTableAccentMaterial
+    );
+    structureCraftingTableBuilderFrame.position.set(0.22, 0.82, 0.14);
+    structureCraftingTableBuilderFrame.rotation.y = Math.PI / 8;
+    structureCraftingTableGroup.add(structureCraftingTableBuilderFrame);
+
+    const structureCraftingTableBuilderCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.055, 0.22, 16),
+      craftingTableBlueprintMaterial
+    );
+    structureCraftingTableBuilderCore.rotation.z = Math.PI / 2;
+    structureCraftingTableBuilderCore.position.set(0.02, 0.845, 0.16);
+    structureCraftingTableGroup.add(structureCraftingTableBuilderCore);
+
+    [
+      [-0.09, 0.845, 0.16],
+      [0.13, 0.845, 0.16],
+    ].forEach(([x, y, z]) => {
+      const cap = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.09, 0.08),
+        craftingTableLegMaterial
+      );
+      cap.position.set(x, y, z);
+      structureCraftingTableGroup.add(cap);
+    });
+
+    const structureCraftingTableBuilderStrut = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.04, 0.04),
+      craftingTableLegMaterial
+    );
+    structureCraftingTableBuilderStrut.position.set(0.26, 0.9, -0.02);
+    structureCraftingTableBuilderStrut.rotation.set(0, Math.PI / 6, Math.PI / 5);
+    structureCraftingTableGroup.add(structureCraftingTableBuilderStrut);
+
+    const structureCraftingTableCrate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.2, 0.24),
+      craftingTableLegMaterial
+    );
+    structureCraftingTableCrate.position.set(0.33, 0.86, -0.16);
+    structureCraftingTableGroup.add(structureCraftingTableCrate);
+
+    const structureCraftingTableIndicator = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.12, 0.03),
+      craftingTableAccentMaterial
+    );
+    structureCraftingTableIndicator.position.set(-0.18, 0.89, -0.33);
+    structureCraftingTableGroup.add(structureCraftingTableIndicator);
+
+    const structureCraftingTableGlow = new THREE.PointLight(
+      0x34d399,
+      0.46,
+      3,
+      2
+    );
+    structureCraftingTableGlow.position.set(0.08, 0.94, -0.16);
+    structureCraftingTableGroup.add(structureCraftingTableGlow);
 
     const craftingTableSignCanvas = document.createElement("canvas");
     craftingTableSignCanvas.width = 1024;
@@ -6460,7 +6518,7 @@ export const initScene = (
     craftingTableSignGroup.position.set(
       wallSpanWidth / 2 - wallThickness - 0.06,
       roomFloorY + 2.14,
-      -deckDepth * 0.2 + craftingTableForwardOffset
+      -deckDepth * 0.2 + structureCraftingTableForwardOffset
     );
     craftingTableSignGroup.rotation.y = -Math.PI / 2;
     group.add(craftingTableSignGroup);
