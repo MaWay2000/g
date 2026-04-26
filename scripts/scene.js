@@ -14010,10 +14010,20 @@ export const initScene = (
 
       const objectTile = findTerrainTile(candidate.object);
       const pointTile = findTerrainTileAtPosition(candidate.point);
+      const pointTileState =
+        pointTile && pointTile !== objectTile
+          ? getEffectiveTerrainStateForTile(pointTile)
+          : null;
+      const shouldPreferPointTile =
+        Boolean(pointTile) &&
+        (pointTileState?.terrainId === "void" ||
+          pointTileState?.isDepleted === true);
       // Prefer the actual ray-hit tile when it is already geo-revealed so
       // looking away and back does not hop to a neighboring unrevealed tile.
       const resolvedTile =
-        objectTile?.userData?.geoVisorRevealed === true
+        shouldPreferPointTile
+          ? pointTile
+          : objectTile?.userData?.geoVisorRevealed === true
           ? objectTile
           : pointTile ?? objectTile;
 
