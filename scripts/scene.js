@@ -6466,6 +6466,21 @@ export const initScene = (
     structureCraftingTableGlow.position.set(0.08, 0.94, -0.16);
     structureCraftingTableGroup.add(structureCraftingTableGlow);
 
+    const structureCraftingTableControl = new THREE.Mesh(
+      new THREE.BoxGeometry(1.42, 1.16, 1.08),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      })
+    );
+    structureCraftingTableControl.position.set(0, 0.58, 0);
+    structureCraftingTableControl.userData.isCraftingTableControl = true;
+    structureCraftingTableControl.userData.craftingTableId =
+      "operations-concourse-structure-builder";
+    structureCraftingTableGroup.add(structureCraftingTableControl);
+
     const craftingTableSignCanvas = document.createElement("canvas");
     craftingTableSignCanvas.width = 1024;
     craftingTableSignCanvas.height = 320;
@@ -7013,7 +7028,10 @@ export const initScene = (
 
     group.userData.oxygenRefillControls = [oxygenRefillControl];
     group.userData.storageBoxControls = [storageBoxControl];
-    group.userData.craftingTableControls = [craftingTableControl];
+    group.userData.craftingTableControls = [
+      craftingTableControl,
+      structureCraftingTableControl,
+    ];
     group.userData.oxygenChamber = {
       anchor: oxygenChamberAnchor,
       radius: oxygenChamberRadius * 0.82,

@@ -4267,6 +4267,23 @@ const modalFocusableSelectors =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const MODEL_MANIFEST_URL = "models/manifest.json";
+const STRUCTURE_CRAFTING_TABLE_ID = "operations-concourse-structure-builder";
+const MODEL_MANIFEST_PRICE_BY_PATH = Object.freeze({
+  "table1.glb": 120,
+  "table2.glb": 140,
+  "floor1.glb": 180,
+  "wall.glb": 220,
+  "rocks.glb": 90,
+  "storage-box.glb": 160,
+  "body.glb": 260,
+  "box2.glb": 70,
+  "box3.glb": 80,
+  "box4.glb": 90,
+  "box5.glb": 100,
+  "box6.glb": 110,
+  "box7.glb": 120,
+  "box8.glb": 130,
+});
 let cachedModelManifest = null;
 let modelManifestPromise = null;
 let modelPaletteOpening = false;
@@ -17311,6 +17328,10 @@ subscribeToCurrency(() => {
   if (marketModalActive) {
     renderMarketModal();
   }
+
+  if (isModelPaletteOpen() && Array.isArray(cachedModelManifest)) {
+    renderModelPaletteEntries(cachedModelManifest);
+  }
 });
 subscribeToMissionState(handleMissionStateChanged);
 
@@ -21344,11 +21365,21 @@ const loadModelManifest = async () => {
               typeof entry?.label === "string" && entry.label.trim() !== ""
                 ? entry.label.trim()
                 : rawPath;
+            const explicitPrice = Number.isFinite(entry?.price)
+              ? Math.max(0, Math.round(entry.price))
+              : null;
+            const fallbackPrice = MODEL_MANIFEST_PRICE_BY_PATH[rawPath];
+            const price = Number.isFinite(explicitPrice)
+              ? explicitPrice
+              : Number.isFinite(fallbackPrice)
+                ? fallbackPrice
+                : 100;
 
             return {
               id: `${index}:${rawPath}`,
               path: rawPath,
               label,
+              price,
             };
           })
           .filter(Boolean);
@@ -21382,6 +21413,7 @@ const renderModelPaletteEntries = (entries) => {
   const fragment = document.createDocumentFragment();
   const editButton = createModelPaletteEditButton();
   const canEditPlacements = Boolean(sceneController?.hasManifestPlacements?.());
+  const balance = getCurrencyBalance();
   editButton.disabled = !canEditPlacements;
   fragment.appendChild(editButton);
 
@@ -21397,6 +21429,8 @@ const renderModelPaletteEntries = (entries) => {
       button.type = "button";
       button.className = "model-palette__option";
       button.dataset.modelPath = entry.path;
+      const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+      const canAfford = balance >= price;
 
       const labelElement = document.createElement("span");
       labelElement.className = "model-palette__option-label";
@@ -21404,7 +21438,12 @@ const renderModelPaletteEntries = (entries) => {
 
       const pathElement = document.createElement("span");
       pathElement.className = "model-palette__option-path";
-      pathElement.textContent = entry.path;
+      pathElement.textContent = `${entry.path} · ${formatMarsMoney(price)}`;
+
+      if (!canAfford) {
+        button.disabled = true;
+        button.title = `Need ${formatMarsMoney(price)} to deploy this model.`;
+      }
 
       button.append(labelElement, pathElement);
       button.addEventListener("click", () => {
@@ -21596,6 +21635,18 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     selectQuickSlot(stationBuilderIndex);
   }
 
+  const label = entry.label || entry.path;
+  const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+  const balance = getCurrencyBalance();
+
+  if (balance < price) {
+    showTerminalToast({
+      title: "Insufficient funds",
+      description: `${label} costs ${formatMarsMoney(price)}.`,
+    });
+    return;
+  }
+
   modelPalettePlacementInProgress = true;
   setModelPaletteButtonsDisabled(true);
 
@@ -21603,15 +21654,20 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     trigger.dataset.loading = "true";
   }
 
-  const label = entry.label || entry.path;
-
   try {
     const placementPromise = sceneController.placeModelFromManifestEntry(entry);
     showTerminalToast({ title: "Placement ready", description: "Left click to place" });
     closeModelPalette({ preservePlacementState: true, restoreFocus: false });
 
     await placementPromise;
-    showTerminalToast({ title: "Model placed", description: label });
+    addMarsMoney(-price);
+    showTerminalToast({
+      title: "Model placed",
+      description:
+        price > 0
+          ? `${label} for ${formatMarsMoney(price)}.`
+          : label,
+    });
     const editModeEnabled = sceneController?.setManifestEditModeEnabled?.(true);
     if (editModeEnabled) {
       sceneController.requestPointerLock?.();
@@ -23561,7 +23617,13 @@ const bootstrapScene = () => {
       onCraftingTableInteractableChange(value) {
         setCrosshairSourceState("crafting", value);
       },
-      onCraftingTableInteract() {
+      onCraftingTableInteract({ control } = {}) {
+        if (control?.userData?.craftingTableId === STRUCTURE_CRAFTING_TABLE_ID) {
+          playTerminalInteractionSound();
+          void openModelPalette();
+          return true;
+        }
+
         playTerminalInteractionSound();
         openQuickAccessModal(CRAFTING_TABLE_MODAL_OPTION);
         return true;
