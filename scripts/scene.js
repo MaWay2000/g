@@ -6286,6 +6286,13 @@ export const initScene = (
       emissive: new THREE.Color(0x059669),
       emissiveIntensity: 0.48,
     });
+    const craftingTableBlueprintMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x67e8f9),
+      roughness: 0.22,
+      metalness: 0.2,
+      emissive: new THREE.Color(0x0ea5e9),
+      emissiveIntensity: 0.34,
+    });
 
     const craftingTableTop = new THREE.Mesh(
       new THREE.BoxGeometry(1.24, 0.1, 0.84),
@@ -6329,6 +6336,51 @@ export const initScene = (
     );
     craftingTableToolCrate.position.set(-0.24, 0.86, 0.18);
     craftingTableGroup.add(craftingTableToolCrate);
+
+    const craftingTableBlueprint = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.025, 0.24),
+      craftingTableBlueprintMaterial
+    );
+    craftingTableBlueprint.position.set(-0.16, 0.805, -0.14);
+    craftingTableBlueprint.rotation.set(-0.08, 0.18, 0.02);
+    craftingTableGroup.add(craftingTableBlueprint);
+
+    const craftingTableBuilderFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.06, 0.22),
+      craftingTableAccentMaterial
+    );
+    craftingTableBuilderFrame.position.set(0.26, 0.81, 0.12);
+    craftingTableBuilderFrame.rotation.y = Math.PI / 9;
+    craftingTableGroup.add(craftingTableBuilderFrame);
+
+    const craftingTableBuilderCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.18, 16),
+      craftingTableBlueprintMaterial
+    );
+    craftingTableBuilderCore.rotation.z = Math.PI / 2;
+    craftingTableBuilderCore.position.set(0.06, 0.84, 0.16);
+    craftingTableGroup.add(craftingTableBuilderCore);
+
+    const craftingTableBuilderCaps = [
+      [-0.03, 0.84, 0.16],
+      [0.15, 0.84, 0.16],
+    ];
+    craftingTableBuilderCaps.forEach(([x, y, z]) => {
+      const cap = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.08, 0.08),
+        craftingTableLegMaterial
+      );
+      cap.position.set(x, y, z);
+      craftingTableGroup.add(cap);
+    });
+
+    const craftingTableBuilderStrut = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.04, 0.04),
+      craftingTableLegMaterial
+    );
+    craftingTableBuilderStrut.position.set(0.24, 0.89, -0.02);
+    craftingTableBuilderStrut.rotation.set(0, Math.PI / 7, Math.PI / 5);
+    craftingTableGroup.add(craftingTableBuilderStrut);
 
     const craftingTableIndicator = new THREE.Mesh(
       new THREE.BoxGeometry(0.12, 0.12, 0.03),
