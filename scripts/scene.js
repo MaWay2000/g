@@ -2613,6 +2613,7 @@ export const initScene = (
     const texture = getRuntimeTerrainTexture(tileId, variantIndex);
     const baseColor = texture ? 0xffffff : terrainColor;
     const opacity = terrainStyle.opacity ?? 1;
+    const isTransparent = opacity < 1;
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
       roughness: terrainStyle.roughness,
@@ -2624,9 +2625,9 @@ export const initScene = (
       ),
       map: texture ?? null,
       vertexColors: true,
-      transparent: true,
+      transparent: isTransparent,
       opacity,
-      depthWrite: false,
+      depthWrite: !isTransparent,
       depthTest: true,
     });
     runtimeGeoVisorMaterials.set(materialKey, material);
