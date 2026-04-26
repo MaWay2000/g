@@ -1629,6 +1629,9 @@ export const initScene = (
   const geoVisorPlayerWorldPosition = new THREE.Vector3();
   const geoVisorTileWorldPosition = new THREE.Vector3();
   const geoVisorRevealOrigin = new THREE.Vector3();
+  const geoVisorOcclusionOrigin = new THREE.Vector3();
+  const geoVisorOcclusionDirection = new THREE.Vector3();
+  const geoVisorOcclusionRaycaster = new THREE.Raycaster();
 
   const getGeoVisorRevealIndicesSnapshot = () =>
     Array.from(geoVisorRevealedTileIndices).sort((a, b) => a - b);
@@ -2032,6 +2035,61 @@ export const initScene = (
     return null;
   };
 
+  const isGeoVisorTileVisibleFromCamera = (tile, terrainTiles) => {
+    if (!tile?.isObject3D || !Array.isArray(terrainTiles) || terrainTiles.length === 0) {
+      return false;
+    }
+
+    if (camera?.isObject3D) {
+      camera.getWorldPosition(geoVisorOcclusionOrigin);
+    } else if (playerObject?.isObject3D) {
+      playerObject.getWorldPosition(geoVisorOcclusionOrigin);
+    } else {
+      return true;
+    }
+
+    tile.updateWorldMatrix(true, false);
+    tile.getWorldPosition(geoVisorTileWorldPosition);
+    geoVisorOcclusionDirection.subVectors(
+      geoVisorTileWorldPosition,
+      geoVisorOcclusionOrigin
+    );
+
+    const distanceToTile = geoVisorOcclusionDirection.length();
+    if (!Number.isFinite(distanceToTile) || distanceToTile <= 0.001) {
+      return true;
+    }
+
+    geoVisorOcclusionDirection.divideScalar(distanceToTile);
+    geoVisorOcclusionRaycaster.set(
+      geoVisorOcclusionOrigin,
+      geoVisorOcclusionDirection
+    );
+    geoVisorOcclusionRaycaster.far = distanceToTile + 0.05;
+
+    const [closestHit] = geoVisorOcclusionRaycaster.intersectObjects(
+      terrainTiles,
+      false
+    );
+    const hitTile = closestHit ? findTerrainTile(closestHit.object) : null;
+
+    if (!hitTile) {
+      return true;
+    }
+
+    if (hitTile === tile) {
+      return true;
+    }
+
+    const hitTileIndex = Number.isFinite(hitTile.userData?.tileVariantIndex)
+      ? hitTile.userData.tileVariantIndex
+      : null;
+    const tileIndex = Number.isFinite(tile.userData?.tileVariantIndex)
+      ? tile.userData.tileVariantIndex
+      : null;
+    return tileIndex !== null && hitTileIndex === tileIndex;
+  };
+
   const updateGeoVisorTerrainVisibility = ({ force = false } = {}) => {
     const allTerrainTiles = getAllTerrainTilesForGeoVisor();
 
@@ -2124,12 +2182,16 @@ export const initScene = (
         playerRow !== null &&
         playerColumn !== null &&
         Math.abs(tileRow - playerRow) + Math.abs(tileColumn - playerColumn) === 1;
+      const isSavedRevealTile = Boolean(tile.userData?.geoVisorRevealed);
       const isActiveRevealTile = geoVisorEnabled && isAdjacentPlayerTile;
-      const shouldReveal =
-        Boolean(tile.userData?.geoVisorRevealed) || isActiveRevealTile;
+      const shouldReveal = isSavedRevealTile || isActiveRevealTile;
+      const shouldUseVisorMaterial =
+        isActiveRevealTile ||
+        (isSavedRevealTile &&
+          isGeoVisorTileVisibleFromCamera(tile, allTerrainTiles));
 
       applyGeoVisorMaterialToTile(tile, shouldReveal, {
-        useVisorMaterial: shouldReveal,
+        useVisorMaterial: shouldUseVisorMaterial,
       });
     });
 
