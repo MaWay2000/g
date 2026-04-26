@@ -6255,12 +6255,13 @@ export const initScene = (
     storageBoxGroup.add(storageBoxControl);
 
     const craftingTableFloorOffset = 0;
-    const craftingTableDepthOffset = 1.2;
+    const craftingTableWallInset = storageBoxWallInset + 0.74;
+    const craftingTableForwardOffset = storageBoxForwardOffset - 0.92;
     const craftingTableGroup = new THREE.Group();
     craftingTableGroup.position.set(
-      wallSpanWidth / 2 - wallThickness - storageBoxWallInset,
+      wallSpanWidth / 2 - wallThickness - craftingTableWallInset,
       roomFloorY + craftingTableFloorOffset,
-      -deckDepth * 0.2 + storageBoxForwardOffset - craftingTableDepthOffset
+      -deckDepth * 0.2 + craftingTableForwardOffset
     );
     craftingTableGroup.rotation.y = Math.PI / 2;
     group.add(craftingTableGroup);
@@ -6406,6 +6407,97 @@ export const initScene = (
     craftingTableControl.userData.isCraftingTableControl = true;
     craftingTableControl.userData.craftingTableId = "operations-concourse-exit";
     craftingTableGroup.add(craftingTableControl);
+
+    const craftingTableSignCanvas = document.createElement("canvas");
+    craftingTableSignCanvas.width = 1024;
+    craftingTableSignCanvas.height = 320;
+    const craftingTableSignContext = craftingTableSignCanvas.getContext("2d");
+    let craftingTableSignTexture = null;
+    if (craftingTableSignContext) {
+      craftingTableSignContext.clearRect(
+        0,
+        0,
+        craftingTableSignCanvas.width,
+        craftingTableSignCanvas.height
+      );
+      craftingTableSignContext.fillStyle = "rgba(5, 16, 24, 0.82)";
+      craftingTableSignContext.fillRect(
+        0,
+        0,
+        craftingTableSignCanvas.width,
+        craftingTableSignCanvas.height
+      );
+      craftingTableSignContext.strokeStyle = "rgba(110, 255, 184, 0.72)";
+      craftingTableSignContext.lineWidth = 10;
+      craftingTableSignContext.strokeRect(
+        10,
+        10,
+        craftingTableSignCanvas.width - 20,
+        craftingTableSignCanvas.height - 20
+      );
+      craftingTableSignContext.font = "700 100px 'Segoe UI', sans-serif";
+      craftingTableSignContext.textAlign = "center";
+      craftingTableSignContext.textBaseline = "middle";
+      craftingTableSignContext.fillStyle = "rgba(190, 255, 225, 0.98)";
+      craftingTableSignContext.shadowColor = "rgba(52, 211, 153, 0.85)";
+      craftingTableSignContext.shadowBlur = 24;
+      craftingTableSignContext.fillText(
+        "STATION BUILDER",
+        craftingTableSignCanvas.width / 2,
+        craftingTableSignCanvas.height / 2
+      );
+      craftingTableSignContext.shadowBlur = 0;
+      craftingTableSignTexture = new THREE.CanvasTexture(craftingTableSignCanvas);
+      craftingTableSignTexture.colorSpace = THREE.SRGBColorSpace;
+      craftingTableSignTexture.minFilter = THREE.LinearFilter;
+      craftingTableSignTexture.magFilter = THREE.LinearFilter;
+      craftingTableSignTexture.anisotropy =
+        renderer.capabilities.getMaxAnisotropy();
+      craftingTableSignTexture.needsUpdate = true;
+    }
+
+    const craftingTableSignGroup = new THREE.Group();
+    craftingTableSignGroup.position.set(
+      wallSpanWidth / 2 - wallThickness - 0.06,
+      roomFloorY + 2.14,
+      -deckDepth * 0.2 + craftingTableForwardOffset
+    );
+    craftingTableSignGroup.rotation.y = -Math.PI / 2;
+    group.add(craftingTableSignGroup);
+
+    const craftingTableSignBackplate = new THREE.Mesh(
+      new THREE.BoxGeometry(1.56, 0.46, 0.05),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0b1720),
+        roughness: 0.42,
+        metalness: 0.34,
+        emissive: new THREE.Color(0x072417),
+        emissiveIntensity: 0.28,
+      })
+    );
+    craftingTableSignGroup.add(craftingTableSignBackplate);
+
+    const craftingTableSignPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.42, 0.34),
+      new THREE.MeshBasicMaterial({
+        map: craftingTableSignTexture,
+        transparent: true,
+        opacity: 0.96,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    craftingTableSignPanel.position.z = 0.028;
+    craftingTableSignGroup.add(craftingTableSignPanel);
+
+    const craftingTableSignLight = new THREE.PointLight(
+      0x6ee7b7,
+      0.62,
+      3.2,
+      2
+    );
+    craftingTableSignLight.position.set(0, 0, 0.18);
+    craftingTableSignGroup.add(craftingTableSignLight);
 
     const oxygenChamberCenterX = wallSpanWidth / 2 - 1.42;
     const oxygenChamberCenterZ = -deckDepth * 0.2;
