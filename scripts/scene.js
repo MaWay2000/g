@@ -6145,11 +6145,12 @@ export const initScene = (
     // Keep the box clear of the oxygen chamber by moving it farther along the room depth.
     const storageBoxWallInset = 0.26;
     const storageBoxForwardOffset = 3.45;
+    const relocatedStorageBoxForwardOffset = storageBoxForwardOffset + 2.65;
     const storageBoxGroup = new THREE.Group();
     storageBoxGroup.position.set(
       wallSpanWidth / 2 - wallThickness - storageBoxWallInset,
       roomFloorY + storageBoxFloorOffset,
-      -deckDepth * 0.2 + storageBoxForwardOffset
+      -deckDepth * 0.2 + relocatedStorageBoxForwardOffset
     );
     storageBoxGroup.rotation.y = Math.PI / 2;
     group.add(storageBoxGroup);
