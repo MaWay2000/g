@@ -2102,6 +2102,21 @@ const modelPaletteBalance = modelPalette?.querySelector(
 const modelPaletteBalanceValue = modelPalette?.querySelector(
   "[data-model-palette-balance-value]"
 );
+const modelPaletteDetail = modelPalette?.querySelector(
+  "[data-model-palette-detail]"
+);
+const modelPaletteDetailName = modelPalette?.querySelector(
+  "[data-model-palette-detail-name]"
+);
+const modelPaletteDetailPath = modelPalette?.querySelector(
+  "[data-model-palette-detail-path]"
+);
+const modelPaletteDetailPrice = modelPalette?.querySelector(
+  "[data-model-palette-detail-price]"
+);
+const modelPaletteDetailOwned = modelPalette?.querySelector(
+  "[data-model-palette-detail-owned]"
+);
 const modelPaletteClose = modelPalette?.querySelector(
   "[data-model-palette-close]"
 );
@@ -4416,6 +4431,7 @@ let lastModelPaletteFocusedElement = null;
 let modelPaletteWasPointerLocked = false;
 let modelPaletteMode = MODEL_PALETTE_MODE_PLACE;
 let purchasedStructureModelPaths = loadPurchasedStructureModelPaths();
+let highlightedModelPalettePath = null;
 let editModeActive = false;
 
 const terminalInteractionSoundSource = "images/index/button_hower.mp3";
@@ -21530,6 +21546,42 @@ const loadModelManifest = async () => {
   }
 };
 
+const updateModelPaletteDetail = (entry) => {
+  if (!(modelPaletteDetail instanceof HTMLElement)) {
+    return;
+  }
+
+  const isBuyMode = modelPaletteMode === MODEL_PALETTE_MODE_BUY;
+  if (!isBuyMode || !entry) {
+    modelPaletteDetail.hidden = true;
+    highlightedModelPalettePath = null;
+    return;
+  }
+
+  highlightedModelPalettePath = entry.path ?? null;
+  const label = entry.label || entry.path || "Selected model";
+  const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+  const ownedCount = getPurchasedStructureModelCount(entry.path);
+
+  modelPaletteDetail.hidden = false;
+
+  if (modelPaletteDetailName instanceof HTMLElement) {
+    modelPaletteDetailName.textContent = label;
+  }
+
+  if (modelPaletteDetailPath instanceof HTMLElement) {
+    modelPaletteDetailPath.textContent = entry.path || "Manifest model";
+  }
+
+  if (modelPaletteDetailPrice instanceof HTMLElement) {
+    modelPaletteDetailPrice.textContent = formatMarsMoney(price);
+  }
+
+  if (modelPaletteDetailOwned instanceof HTMLElement) {
+    modelPaletteDetailOwned.textContent = `${ownedCount}`;
+  }
+};
+
 const renderModelPaletteEntries = (entries) => {
   if (!(modelPaletteList instanceof HTMLElement)) {
     return;
@@ -21575,6 +21627,11 @@ const renderModelPaletteEntries = (entries) => {
     : [];
   const hasEntries = visibleEntries.length > 0;
 
+  const highlightedEntry = visibleEntries.find(
+    (entry) => entry.path === highlightedModelPalettePath
+  );
+  updateModelPaletteDetail(isBuyMode ? highlightedEntry ?? visibleEntries[0] : null);
+
   if (hasEntries) {
     const divider = document.createElement("div");
     divider.className = "model-palette__divider";
@@ -21589,22 +21646,54 @@ const renderModelPaletteEntries = (entries) => {
       const canAfford = balance >= price;
       const ownedCount = getPurchasedStructureModelCount(entry.path);
 
+      const headerElement = document.createElement("span");
+      headerElement.className = "model-palette__option-header";
+
       const labelElement = document.createElement("span");
       labelElement.className = "model-palette__option-label";
-      labelElement.textContent = isBuyMode ? `Buy ${entry.label}` : entry.label;
+      labelElement.textContent = entry.label;
+
+      const badgesElement = document.createElement("span");
+      badgesElement.className = "model-palette__badges";
+
+      const priceBadge = document.createElement("span");
+      priceBadge.className = "model-palette__badge model-palette__badge--price";
+      priceBadge.textContent = formatMarsMoney(price);
+
+      const ownedBadge = document.createElement("span");
+      ownedBadge.className = "model-palette__badge model-palette__badge--owned";
+      ownedBadge.textContent = `Owned: ${ownedCount}`;
+
+      badgesElement.append(priceBadge, ownedBadge);
+      headerElement.append(labelElement, badgesElement);
 
       const pathElement = document.createElement("span");
       pathElement.className = "model-palette__option-path";
-      pathElement.textContent = isBuyMode
-        ? `${entry.path} · ${formatMarsMoney(price)} · Owned: ${ownedCount}`
-        : `${entry.path} · Owned: ${ownedCount}`;
+      pathElement.textContent = entry.path;
+
+      const buyCueElement = document.createElement("span");
+      buyCueElement.className = "model-palette__buy-cue";
+      buyCueElement.textContent = canAfford
+        ? "Buy model"
+        : `Need ${formatMarsMoney(price - balance)}`;
 
       if (isBuyMode && !canAfford) {
         button.disabled = true;
         button.title = `Need ${formatMarsMoney(price)} to buy this model.`;
       }
 
-      button.append(labelElement, pathElement);
+      if (isBuyMode) {
+        button.append(headerElement, pathElement, buyCueElement);
+        button.addEventListener("mouseenter", () => {
+          updateModelPaletteDetail(entry);
+        });
+        button.addEventListener("focus", () => {
+          updateModelPaletteDetail(entry);
+        });
+      } else {
+        button.append(labelElement, pathElement);
+      }
+
       button.addEventListener("click", () => {
         handleModelPaletteSelection(entry, button);
       });

@@ -5121,6 +5121,109 @@
         color: rgba(148, 163, 184, 0.9);
       }
 
+      .model-palette__detail {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.95rem;
+        align-items: center;
+        padding: 0.95rem;
+        border: 1px solid rgba(74, 222, 128, 0.28);
+        border-radius: 18px;
+        background:
+          radial-gradient(circle at top left, rgba(74, 222, 128, 0.16), transparent 48%),
+          rgba(8, 47, 73, 0.34);
+        box-shadow: inset 0 0 28px rgba(14, 165, 233, 0.08);
+      }
+
+      .model-palette__detail[hidden] {
+        display: none;
+      }
+
+      .model-palette__detail-preview {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        border: 1px solid rgba(56, 189, 248, 0.42);
+        background:
+          linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(74, 222, 128, 0.12)),
+          rgba(15, 23, 42, 0.82);
+        overflow: hidden;
+      }
+
+      .model-palette__detail-preview::before,
+      .model-palette__detail-preview::after {
+        content: "";
+        position: absolute;
+        background: rgba(103, 232, 249, 0.72);
+        box-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
+      }
+
+      .model-palette__detail-preview::before {
+        inset: 18px 14px 26px;
+        transform: skewX(-18deg);
+      }
+
+      .model-palette__detail-preview::after {
+        left: 17px;
+        right: 21px;
+        bottom: 15px;
+        height: 10px;
+        transform: skewX(18deg);
+        opacity: 0.55;
+      }
+
+      .model-palette__detail-copy {
+        min-width: 0;
+      }
+
+      .model-palette__detail-eyebrow {
+        margin: 0 0 0.2rem;
+        color: rgba(125, 211, 252, 0.9);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .model-palette__detail-name {
+        margin: 0;
+        color: rgba(248, 250, 252, 0.98);
+        font-size: 1.05rem;
+        font-weight: 800;
+      }
+
+      .model-palette__detail-path {
+        margin: 0.25rem 0 0;
+        color: rgba(148, 163, 184, 0.9);
+        font-size: 0.82rem;
+      }
+
+      .model-palette__detail-metrics {
+        display: flex;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+        margin-top: 0.7rem;
+      }
+
+      .model-palette__metric {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.28rem 0.55rem;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.58);
+        color: rgba(226, 232, 240, 0.92);
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      .model-palette__metric-label {
+        color: rgba(148, 163, 184, 0.92);
+        font-weight: 600;
+      }
+
       .model-palette__list {
         display: flex;
         flex-direction: column;
@@ -5164,6 +5267,14 @@
         outline: none;
       }
 
+      .model-palette__option-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        width: 100%;
+      }
+
       .model-palette__option:disabled,
       .model-palette__option[data-loading="true"] {
         opacity: 0.65;
@@ -5178,9 +5289,52 @@
         color: inherit;
       }
 
+      .model-palette__badges {
+        display: inline-flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .model-palette__badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.24rem 0.48rem;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.62);
+        border: 1px solid rgba(148, 163, 184, 0.26);
+        color: rgba(226, 232, 240, 0.92);
+        font-size: 0.74rem;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .model-palette__badge--price {
+        border-color: rgba(56, 189, 248, 0.38);
+        color: rgba(186, 230, 253, 0.95);
+      }
+
+      .model-palette__badge--owned {
+        border-color: rgba(74, 222, 128, 0.36);
+        color: rgba(187, 247, 208, 0.95);
+      }
+
       .model-palette__option-path {
         font-size: 0.85rem;
         color: rgba(148, 163, 184, 0.88);
+      }
+
+      .model-palette__buy-cue {
+        margin-top: 0.2rem;
+        color: rgba(74, 222, 128, 0.92);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .model-palette__option:disabled .model-palette__buy-cue {
+        color: rgba(248, 113, 113, 0.92);
       }
 
       .model-palette__divider {
@@ -6625,6 +6779,28 @@
           Select a model from the manifest to place it in front of you, or choose
           Edit to manage placed models.
         </p>
+        <div class="model-palette__detail" data-model-palette-detail hidden>
+          <div class="model-palette__detail-preview" aria-hidden="true"></div>
+          <div class="model-palette__detail-copy">
+            <p class="model-palette__detail-eyebrow">Selected model</p>
+            <p class="model-palette__detail-name" data-model-palette-detail-name>
+              Select a model
+            </p>
+            <p class="model-palette__detail-path" data-model-palette-detail-path>
+              Hover or focus an item to inspect it.
+            </p>
+            <div class="model-palette__detail-metrics">
+              <span class="model-palette__metric">
+                <span class="model-palette__metric-label">Price</span>
+                <span data-model-palette-detail-price>0</span>
+              </span>
+              <span class="model-palette__metric">
+                <span class="model-palette__metric-label">Owned</span>
+                <span data-model-palette-detail-owned>0</span>
+              </span>
+            </div>
+          </div>
+        </div>
         <div class="model-palette__list" data-model-palette-list></div>
         <p
           class="model-palette__status"
