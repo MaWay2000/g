@@ -2092,6 +2092,10 @@ const modelPaletteList = modelPalette?.querySelector(
 const modelPaletteStatus = modelPalette?.querySelector(
   "[data-model-palette-status]"
 );
+const modelPaletteTitle = modelPalette?.querySelector(".model-palette__title");
+const modelPaletteDescription = modelPalette?.querySelector(
+  ".model-palette__description"
+);
 const modelPaletteClose = modelPalette?.querySelector(
   "[data-model-palette-close]"
 );
@@ -4268,6 +4272,10 @@ const modalFocusableSelectors =
 
 const MODEL_MANIFEST_URL = "models/manifest.json";
 const STRUCTURE_CRAFTING_TABLE_ID = "operations-concourse-structure-builder";
+const STRUCTURE_MODEL_PURCHASE_STORAGE_KEY =
+  "dustyNova.structureModelPurchases";
+const MODEL_PALETTE_MODE_BUY = "buy";
+const MODEL_PALETTE_MODE_PLACE = "place";
 const MODEL_MANIFEST_PRICE_BY_PATH = Object.freeze({
   "table1.glb": 120,
   "table2.glb": 140,
@@ -4284,12 +4292,60 @@ const MODEL_MANIFEST_PRICE_BY_PATH = Object.freeze({
   "box7.glb": 120,
   "box8.glb": 130,
 });
+const loadPurchasedStructureModelPaths = () => {
+  if (typeof window === "undefined") {
+    return new Set();
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(
+      STRUCTURE_MODEL_PURCHASE_STORAGE_KEY
+    );
+    const parsedValue = JSON.parse(rawValue);
+    const paths = Array.isArray(parsedValue) ? parsedValue : [];
+    return new Set(paths.filter((path) => typeof path === "string" && path));
+  } catch (error) {
+    console.warn("Unable to load purchased structure models", error);
+    return new Set();
+  }
+};
+const persistPurchasedStructureModelPaths = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      STRUCTURE_MODEL_PURCHASE_STORAGE_KEY,
+      JSON.stringify(Array.from(purchasedStructureModelPaths))
+    );
+  } catch (error) {
+    console.warn("Unable to persist purchased structure models", error);
+  }
+};
+const clearPurchasedStructureModelPaths = () => {
+  purchasedStructureModelPaths = new Set();
+
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  try {
+    window.localStorage.removeItem(STRUCTURE_MODEL_PURCHASE_STORAGE_KEY);
+    return true;
+  } catch (error) {
+    console.warn("Unable to clear purchased structure models", error);
+    return false;
+  }
+};
 let cachedModelManifest = null;
 let modelManifestPromise = null;
 let modelPaletteOpening = false;
 let modelPalettePlacementInProgress = false;
 let lastModelPaletteFocusedElement = null;
 let modelPaletteWasPointerLocked = false;
+let modelPaletteMode = MODEL_PALETTE_MODE_PLACE;
+let purchasedStructureModelPaths = loadPurchasedStructureModelPaths();
 let editModeActive = false;
 
 const terminalInteractionSoundSource = "images/index/button_hower.mp3";
@@ -21409,40 +21465,68 @@ const renderModelPaletteEntries = (entries) => {
     return;
   }
 
+  const isBuyMode = modelPaletteMode === MODEL_PALETTE_MODE_BUY;
+  if (modelPaletteTitle instanceof HTMLElement) {
+    modelPaletteTitle.textContent = isBuyMode
+      ? "Station builder"
+      : "Building station";
+  }
+
+  if (modelPaletteDescription instanceof HTMLElement) {
+    modelPaletteDescription.textContent = isBuyMode
+      ? "Buy structure models for the building station."
+      : "Select a bought model to place it, or edit placed models.";
+  }
+
   modelPaletteList.innerHTML = "";
   const fragment = document.createDocumentFragment();
-  const editButton = createModelPaletteEditButton();
   const canEditPlacements = Boolean(sceneController?.hasManifestPlacements?.());
   const balance = getCurrencyBalance();
-  editButton.disabled = !canEditPlacements;
-  fragment.appendChild(editButton);
+  if (!isBuyMode) {
+    const editButton = createModelPaletteEditButton();
+    editButton.disabled = !canEditPlacements;
+    fragment.appendChild(editButton);
+  }
 
-  const hasEntries = Array.isArray(entries) && entries.length > 0;
+  const visibleEntries = Array.isArray(entries)
+    ? entries.filter(
+        (entry) =>
+          isBuyMode || purchasedStructureModelPaths.has(entry?.path ?? null)
+      )
+    : [];
+  const hasEntries = visibleEntries.length > 0;
 
   if (hasEntries) {
     const divider = document.createElement("div");
     divider.className = "model-palette__divider";
     fragment.appendChild(divider);
 
-    entries.forEach((entry) => {
+    visibleEntries.forEach((entry) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "model-palette__option";
       button.dataset.modelPath = entry.path;
       const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
       const canAfford = balance >= price;
+      const isPurchased = purchasedStructureModelPaths.has(entry.path);
 
       const labelElement = document.createElement("span");
       labelElement.className = "model-palette__option-label";
-      labelElement.textContent = entry.label;
+      labelElement.textContent =
+        isBuyMode && !isPurchased ? `Buy ${entry.label}` : entry.label;
 
       const pathElement = document.createElement("span");
       pathElement.className = "model-palette__option-path";
-      pathElement.textContent = `${entry.path} · ${formatMarsMoney(price)}`;
+      pathElement.textContent = isBuyMode
+        ? `${entry.path} · ${isPurchased ? "Owned" : formatMarsMoney(price)}`
+        : entry.path;
 
-      if (!canAfford) {
+      if (isBuyMode && isPurchased) {
         button.disabled = true;
-        button.title = `Need ${formatMarsMoney(price)} to deploy this model.`;
+        button.title = "Already bought.";
+      } else if (isBuyMode && !canAfford) {
+        button.disabled = true;
+        button.title = `Need ${formatMarsMoney(price)} to buy this model.`;
       }
 
       button.append(labelElement, pathElement);
@@ -21457,19 +21541,26 @@ const renderModelPaletteEntries = (entries) => {
   modelPaletteList.appendChild(fragment);
 
   if (hasEntries) {
-    if (canEditPlacements) {
+    if (isBuyMode) {
+      setModelPaletteStatus("Select a model to buy for Building Station.");
+    } else if (canEditPlacements) {
       setModelPaletteStatus(
-        "Select a model to deploy or edit your placed models."
+        "Select a model to place or edit your placed models."
       );
     } else {
       setModelPaletteStatus(
-        "Select a model to deploy. Edit unlocks after you place a model."
+        "Select a model to place. Edit unlocks after you place a model."
       );
     }
   } else {
-    const noManifestMessage = canEditPlacements
-      ? "No models are currently listed in the manifest. You can still edit placed models."
-      : "No models are currently listed in the manifest yet.";
+    let noManifestMessage = "No models are currently listed in the manifest yet.";
+    if (!isBuyMode && purchasedStructureModelPaths.size === 0) {
+      noManifestMessage =
+        "No bought models yet. Buy models at the Station Builder table.";
+    } else if (!isBuyMode && canEditPlacements) {
+      noManifestMessage =
+        "No models are currently listed in the manifest. You can still edit placed models.";
+    }
 
     setModelPaletteStatus(noManifestMessage, {
       isError: true,
@@ -21553,7 +21644,7 @@ const createModelPaletteEditButton = () => {
   return button;
 };
 
-const openModelPalette = async () => {
+const openModelPalette = async ({ mode = MODEL_PALETTE_MODE_PLACE } = {}) => {
   if (
     !(modelPalette instanceof HTMLElement) ||
     !(modelPaletteDialog instanceof HTMLElement) ||
@@ -21570,6 +21661,10 @@ const openModelPalette = async () => {
     return;
   }
 
+  modelPaletteMode =
+    mode === MODEL_PALETTE_MODE_BUY
+      ? MODEL_PALETTE_MODE_BUY
+      : MODEL_PALETTE_MODE_PLACE;
   modelPaletteOpening = true;
   sceneController?.setManifestEditModeEnabled?.(false);
   modelPaletteWasPointerLocked = Boolean(
@@ -21625,6 +21720,47 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     return;
   }
 
+  const label = entry.label || entry.path;
+  const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+  const balance = getCurrencyBalance();
+  const isBuyMode = modelPaletteMode === MODEL_PALETTE_MODE_BUY;
+
+  if (isBuyMode) {
+    if (purchasedStructureModelPaths.has(entry.path)) {
+      showTerminalToast({
+        title: "Already bought",
+        description: label,
+      });
+      return;
+    }
+
+    if (balance < price) {
+      showTerminalToast({
+        title: "Insufficient funds",
+        description: `${label} costs ${formatMarsMoney(price)}.`,
+      });
+      return;
+    }
+
+    addMarsMoney(-price);
+    purchasedStructureModelPaths.add(entry.path);
+    persistPurchasedStructureModelPaths();
+    renderModelPaletteEntries(cachedModelManifest ?? []);
+    showTerminalToast({
+      title: "Model bought",
+      description: `${label} for ${formatMarsMoney(price)}.`,
+    });
+    return;
+  }
+
+  if (!purchasedStructureModelPaths.has(entry.path)) {
+    showTerminalToast({
+      title: "Model not bought",
+      description: "Buy it at the Station Builder table first.",
+    });
+    return;
+  }
+
   const stationBuilderIndex = quickSlotState.slots.findIndex(
     (slot) => slot?.id === STATION_BUILDER_QUICK_SLOT_ID
   );
@@ -21633,18 +21769,6 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     quickSlotState.selectedIndex !== stationBuilderIndex
   ) {
     selectQuickSlot(stationBuilderIndex);
-  }
-
-  const label = entry.label || entry.path;
-  const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
-  const balance = getCurrencyBalance();
-
-  if (balance < price) {
-    showTerminalToast({
-      title: "Insufficient funds",
-      description: `${label} costs ${formatMarsMoney(price)}.`,
-    });
-    return;
   }
 
   modelPalettePlacementInProgress = true;
@@ -21660,13 +21784,9 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     closeModelPalette({ preservePlacementState: true, restoreFocus: false });
 
     await placementPromise;
-    addMarsMoney(-price);
     showTerminalToast({
       title: "Model placed",
-      description:
-        price > 0
-          ? `${label} for ${formatMarsMoney(price)}.`
-          : label,
+      description: label,
     });
     const editModeEnabled = sceneController?.setManifestEditModeEnabled?.(true);
     if (editModeEnabled) {
@@ -23620,7 +23740,7 @@ const bootstrapScene = () => {
       onCraftingTableInteract({ control } = {}) {
         if (control?.userData?.craftingTableId === STRUCTURE_CRAFTING_TABLE_ID) {
           playTerminalInteractionSound();
-          void openModelPalette();
+          void openModelPalette({ mode: MODEL_PALETTE_MODE_BUY });
           return true;
         }
 
@@ -24190,6 +24310,7 @@ function handleReset(event) {
     const clearedStorageBox = clearStoredStorageBoxState();
     const clearedDroneCrafting = clearStoredDroneCraftingState();
     const clearedPlayerOxygen = clearStoredPlayerOxygenState();
+    const clearedStructureModelPurchases = clearPurchasedStructureModelPaths();
     const resetMarketState = persistMarketState(getDefaultMarketState());
     storageBoxState.boxes.clear();
     storageBoxState.activeBoxId = STORAGE_BOX_DEFAULT_ID;
@@ -24222,6 +24343,7 @@ function handleReset(event) {
       !clearedStorageBox ||
       !clearedDroneCrafting ||
       !clearedPlayerOxygen ||
+      !clearedStructureModelPurchases ||
       !resetMarketState
     ) {
       throw new Error("Unable to access saved data");
