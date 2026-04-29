@@ -4293,8 +4293,27 @@ const MODEL_MANIFEST_PRICE_BY_PATH = Object.freeze({
   "box8.glb": 130,
 });
 const loadPurchasedStructureModelPaths = () => {
+  const purchasedCounts = new Map();
+
+  const addPurchasedCount = (path, count = 1) => {
+    if (typeof path !== "string" || !path) {
+      return;
+    }
+
+    const numericCount = Number(count);
+    const safeCount =
+      Number.isFinite(numericCount) && numericCount > 0
+        ? Math.floor(numericCount)
+        : 0;
+    if (safeCount <= 0) {
+      return;
+    }
+
+    purchasedCounts.set(path, (purchasedCounts.get(path) ?? 0) + safeCount);
+  };
+
   if (typeof window === "undefined") {
-    return new Set();
+    return purchasedCounts;
   }
 
   try {
@@ -4302,12 +4321,56 @@ const loadPurchasedStructureModelPaths = () => {
       STRUCTURE_MODEL_PURCHASE_STORAGE_KEY
     );
     const parsedValue = JSON.parse(rawValue);
-    const paths = Array.isArray(parsedValue) ? parsedValue : [];
-    return new Set(paths.filter((path) => typeof path === "string" && path));
+
+    if (Array.isArray(parsedValue)) {
+      parsedValue.forEach((path) => addPurchasedCount(path));
+      return purchasedCounts;
+    }
+
+    if (parsedValue && typeof parsedValue === "object") {
+      Object.entries(parsedValue).forEach(([path, count]) => {
+        addPurchasedCount(path, count);
+      });
+    }
+
+    return purchasedCounts;
   } catch (error) {
     console.warn("Unable to load purchased structure models", error);
-    return new Set();
+    return purchasedCounts;
   }
+};
+const getPurchasedStructureModelCount = (path) => {
+  if (typeof path !== "string" || !path) {
+    return 0;
+  }
+
+  const count = Number(purchasedStructureModelPaths.get(path));
+  return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+};
+const setPurchasedStructureModelCount = (path, count) => {
+  if (typeof path !== "string" || !path) {
+    return 0;
+  }
+
+  const numericCount = Number(count);
+  const safeCount =
+    Number.isFinite(numericCount) && numericCount > 0
+      ? Math.floor(numericCount)
+      : 0;
+
+  if (safeCount > 0) {
+    purchasedStructureModelPaths.set(path, safeCount);
+  } else {
+    purchasedStructureModelPaths.delete(path);
+  }
+
+  return safeCount;
+};
+const addPurchasedStructureModelCount = (path, delta) => {
+  return setPurchasedStructureModelCount(
+    path,
+    getPurchasedStructureModelCount(path) + delta
+  );
 };
 const persistPurchasedStructureModelPaths = () => {
   if (typeof window === "undefined") {
@@ -4315,16 +4378,17 @@ const persistPurchasedStructureModelPaths = () => {
   }
 
   try {
+    const purchasedCounts = Object.fromEntries(purchasedStructureModelPaths);
     window.localStorage.setItem(
       STRUCTURE_MODEL_PURCHASE_STORAGE_KEY,
-      JSON.stringify(Array.from(purchasedStructureModelPaths))
+      JSON.stringify(purchasedCounts)
     );
   } catch (error) {
     console.warn("Unable to persist purchased structure models", error);
   }
 };
 const clearPurchasedStructureModelPaths = () => {
-  purchasedStructureModelPaths = new Set();
+  purchasedStructureModelPaths = new Map();
 
   if (typeof window === "undefined") {
     return true;
@@ -21491,7 +21555,7 @@ const renderModelPaletteEntries = (entries) => {
   const visibleEntries = Array.isArray(entries)
     ? entries.filter(
         (entry) =>
-          isBuyMode || purchasedStructureModelPaths.has(entry?.path ?? null)
+          isBuyMode || getPurchasedStructureModelCount(entry?.path) > 0
       )
     : [];
   const hasEntries = visibleEntries.length > 0;
@@ -21508,23 +21572,19 @@ const renderModelPaletteEntries = (entries) => {
       button.dataset.modelPath = entry.path;
       const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
       const canAfford = balance >= price;
-      const isPurchased = purchasedStructureModelPaths.has(entry.path);
+      const ownedCount = getPurchasedStructureModelCount(entry.path);
 
       const labelElement = document.createElement("span");
       labelElement.className = "model-palette__option-label";
-      labelElement.textContent =
-        isBuyMode && !isPurchased ? `Buy ${entry.label}` : entry.label;
+      labelElement.textContent = isBuyMode ? `Buy ${entry.label}` : entry.label;
 
       const pathElement = document.createElement("span");
       pathElement.className = "model-palette__option-path";
       pathElement.textContent = isBuyMode
-        ? `${entry.path} · ${isPurchased ? "Owned" : formatMarsMoney(price)}`
-        : entry.path;
+        ? `${entry.path} · ${formatMarsMoney(price)} · Owned: ${ownedCount}`
+        : `${entry.path} · Owned: ${ownedCount}`;
 
-      if (isBuyMode && isPurchased) {
-        button.disabled = true;
-        button.title = "Already bought.";
-      } else if (isBuyMode && !canAfford) {
+      if (isBuyMode && !canAfford) {
         button.disabled = true;
         button.title = `Need ${formatMarsMoney(price)} to buy this model.`;
       }
@@ -21726,14 +21786,6 @@ const handleModelPaletteSelection = async (entry, trigger) => {
   const isBuyMode = modelPaletteMode === MODEL_PALETTE_MODE_BUY;
 
   if (isBuyMode) {
-    if (purchasedStructureModelPaths.has(entry.path)) {
-      showTerminalToast({
-        title: "Already bought",
-        description: label,
-      });
-      return;
-    }
-
     if (balance < price) {
       showTerminalToast({
         title: "Insufficient funds",
@@ -21743,17 +21795,17 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     }
 
     addMarsMoney(-price);
-    purchasedStructureModelPaths.add(entry.path);
+    const ownedCount = addPurchasedStructureModelCount(entry.path, 1);
     persistPurchasedStructureModelPaths();
     renderModelPaletteEntries(cachedModelManifest ?? []);
     showTerminalToast({
       title: "Model bought",
-      description: `${label} for ${formatMarsMoney(price)}.`,
+      description: `${label} for ${formatMarsMoney(price)}. Owned: ${ownedCount}.`,
     });
     return;
   }
 
-  if (!purchasedStructureModelPaths.has(entry.path)) {
+  if (getPurchasedStructureModelCount(entry.path) <= 0) {
     showTerminalToast({
       title: "Model not bought",
       description: "Buy it at the Station Builder table first.",
@@ -21784,9 +21836,11 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     closeModelPalette({ preservePlacementState: true, restoreFocus: false });
 
     await placementPromise;
+    const ownedCount = addPurchasedStructureModelCount(entry.path, -1);
+    persistPurchasedStructureModelPaths();
     showTerminalToast({
       title: "Model placed",
-      description: label,
+      description: `${label}. Owned: ${ownedCount}.`,
     });
     const editModeEnabled = sceneController?.setManifestEditModeEnabled?.(true);
     if (editModeEnabled) {
