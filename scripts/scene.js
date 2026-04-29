@@ -6371,6 +6371,100 @@ export const initScene = (
     craftingTableControl.userData.craftingTableId = "operations-concourse-exit";
     craftingTableGroup.add(craftingTableControl);
 
+    const itemCraftingTableSignCanvas = document.createElement("canvas");
+    itemCraftingTableSignCanvas.width = 1024;
+    itemCraftingTableSignCanvas.height = 320;
+    const itemCraftingTableSignContext =
+      itemCraftingTableSignCanvas.getContext("2d");
+    let itemCraftingTableSignTexture = null;
+    if (itemCraftingTableSignContext) {
+      itemCraftingTableSignContext.clearRect(
+        0,
+        0,
+        itemCraftingTableSignCanvas.width,
+        itemCraftingTableSignCanvas.height
+      );
+      itemCraftingTableSignContext.fillStyle = "rgba(5, 16, 24, 0.82)";
+      itemCraftingTableSignContext.fillRect(
+        0,
+        0,
+        itemCraftingTableSignCanvas.width,
+        itemCraftingTableSignCanvas.height
+      );
+      itemCraftingTableSignContext.strokeStyle = "rgba(103, 232, 249, 0.72)";
+      itemCraftingTableSignContext.lineWidth = 10;
+      itemCraftingTableSignContext.strokeRect(
+        10,
+        10,
+        itemCraftingTableSignCanvas.width - 20,
+        itemCraftingTableSignCanvas.height - 20
+      );
+      itemCraftingTableSignContext.font = "700 100px 'Segoe UI', sans-serif";
+      itemCraftingTableSignContext.textAlign = "center";
+      itemCraftingTableSignContext.textBaseline = "middle";
+      itemCraftingTableSignContext.fillStyle = "rgba(186, 250, 255, 0.98)";
+      itemCraftingTableSignContext.shadowColor = "rgba(34, 211, 238, 0.85)";
+      itemCraftingTableSignContext.shadowBlur = 24;
+      itemCraftingTableSignContext.fillText(
+        "CRAFTING TABLE",
+        itemCraftingTableSignCanvas.width / 2,
+        itemCraftingTableSignCanvas.height / 2
+      );
+      itemCraftingTableSignContext.shadowBlur = 0;
+      itemCraftingTableSignTexture = new THREE.CanvasTexture(
+        itemCraftingTableSignCanvas
+      );
+      itemCraftingTableSignTexture.colorSpace = THREE.SRGBColorSpace;
+      itemCraftingTableSignTexture.minFilter = THREE.LinearFilter;
+      itemCraftingTableSignTexture.magFilter = THREE.LinearFilter;
+      itemCraftingTableSignTexture.anisotropy =
+        renderer.capabilities.getMaxAnisotropy();
+      itemCraftingTableSignTexture.needsUpdate = true;
+    }
+
+    const itemCraftingTableSignGroup = new THREE.Group();
+    itemCraftingTableSignGroup.position.set(
+      wallSpanWidth / 2 - wallThickness - 0.06,
+      roomFloorY + 2.14,
+      -deckDepth * 0.2 + craftingTableForwardOffset
+    );
+    itemCraftingTableSignGroup.rotation.y = -Math.PI / 2;
+    group.add(itemCraftingTableSignGroup);
+
+    const itemCraftingTableSignBackplate = new THREE.Mesh(
+      new THREE.BoxGeometry(1.56, 0.46, 0.05),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x0b1720),
+        roughness: 0.42,
+        metalness: 0.34,
+        emissive: new THREE.Color(0x06212a),
+        emissiveIntensity: 0.28,
+      })
+    );
+    itemCraftingTableSignGroup.add(itemCraftingTableSignBackplate);
+
+    const itemCraftingTableSignPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.42, 0.34),
+      new THREE.MeshBasicMaterial({
+        map: itemCraftingTableSignTexture,
+        transparent: true,
+        opacity: 0.96,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    itemCraftingTableSignPanel.position.z = 0.028;
+    itemCraftingTableSignGroup.add(itemCraftingTableSignPanel);
+
+    const itemCraftingTableSignLight = new THREE.PointLight(
+      0x67e8f9,
+      0.62,
+      3.2,
+      2
+    );
+    itemCraftingTableSignLight.position.set(0, 0, 0.18);
+    itemCraftingTableSignGroup.add(itemCraftingTableSignLight);
+
     const structureCraftingTableFloorOffset = 0;
     const structureCraftingTableWallInset = storageBoxWallInset;
     const structureCraftingTableForwardOffset = storageBoxForwardOffset + 1.18;
