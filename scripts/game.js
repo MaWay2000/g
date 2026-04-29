@@ -21637,6 +21637,7 @@ const closeModelPalette = ({ preservePlacementState = false, restoreFocus = true
   modelPalette.setAttribute("aria-hidden", "true");
   modelPalette.hidden = true;
 
+  document.body.classList.remove("has-station-builder-shop-open");
   updateBodyModalState(false);
   document.removeEventListener("keydown", handleModelPaletteKeydown, true);
 
@@ -21741,6 +21742,10 @@ const openModelPalette = async ({ mode = MODEL_PALETTE_MODE_PLACE } = {}) => {
   modelPalette.dataset.open = "true";
   modelPalette.setAttribute("aria-hidden", "false");
 
+  document.body.classList.toggle(
+    "has-station-builder-shop-open",
+    modelPaletteMode === MODEL_PALETTE_MODE_BUY
+  );
   updateBodyModalState(true);
   document.addEventListener("keydown", handleModelPaletteKeydown, true);
 
