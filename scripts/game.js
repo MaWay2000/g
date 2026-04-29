@@ -2096,6 +2096,12 @@ const modelPaletteTitle = modelPalette?.querySelector(".model-palette__title");
 const modelPaletteDescription = modelPalette?.querySelector(
   ".model-palette__description"
 );
+const modelPaletteBalance = modelPalette?.querySelector(
+  "[data-model-palette-balance]"
+);
+const modelPaletteBalanceValue = modelPalette?.querySelector(
+  "[data-model-palette-balance-value]"
+);
 const modelPaletteClose = modelPalette?.querySelector(
   "[data-model-palette-close]"
 );
@@ -21546,6 +21552,15 @@ const renderModelPaletteEntries = (entries) => {
   const fragment = document.createDocumentFragment();
   const canEditPlacements = Boolean(sceneController?.hasManifestPlacements?.());
   const balance = getCurrencyBalance();
+
+  if (modelPaletteBalance instanceof HTMLElement) {
+    modelPaletteBalance.hidden = !isBuyMode;
+  }
+
+  if (modelPaletteBalanceValue instanceof HTMLElement) {
+    modelPaletteBalanceValue.textContent = formatMarsMoney(balance);
+  }
+
   if (!isBuyMode) {
     const editButton = createModelPaletteEditButton();
     editButton.disabled = !canEditPlacements;

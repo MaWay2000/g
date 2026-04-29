@@ -933,13 +933,7 @@
       }
 
       body.has-station-builder-shop-open .ui-overlay__left-stack {
-        z-index: auto;
-      }
-
-      body.has-station-builder-shop-open .currency-indicator {
-        position: relative;
         z-index: 130;
-        pointer-events: none;
       }
 
       .top-bar {
@@ -5075,6 +5069,32 @@
         color: inherit;
       }
 
+      .model-palette__balance {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-left: auto;
+        padding: 0.38rem 0.75rem;
+        border: 1px solid rgba(74, 222, 128, 0.42);
+        border-radius: 999px;
+        background: rgba(22, 101, 52, 0.2);
+        color: rgba(226, 232, 240, 0.96);
+        font-size: 0.82rem;
+        font-weight: 700;
+        box-shadow: 0 0 18px rgba(74, 222, 128, 0.18);
+        white-space: nowrap;
+      }
+
+      .model-palette__balance[hidden] {
+        display: none;
+      }
+
+      .model-palette__balance-label {
+        color: rgba(134, 239, 172, 0.92);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
       .model-palette__close {
         background: rgba(15, 23, 42, 0.65);
         border: 1px solid rgba(148, 163, 184, 0.45);
@@ -6583,6 +6603,16 @@
           <h2 class="model-palette__title" id="modelPaletteTitle">
             Model manifest
           </h2>
+          <div
+            class="model-palette__balance"
+            data-model-palette-balance
+            role="status"
+            aria-live="polite"
+            hidden
+          >
+            <span class="model-palette__balance-label">Mars money</span>
+            <span data-model-palette-balance-value>0</span>
+          </div>
           <button
             type="button"
             class="model-palette__close"
