@@ -6256,7 +6256,7 @@ export const initScene = (
     storageBoxGroup.add(storageBoxControl);
 
     const craftingTableFloorOffset = 0;
-    const craftingTableWallInset = storageBoxWallInset + 0.74;
+    const craftingTableWallInset = storageBoxWallInset;
     const craftingTableForwardOffset = storageBoxForwardOffset - 0.92;
     const craftingTableGroup = new THREE.Group();
     craftingTableGroup.position.set(
