@@ -4320,6 +4320,7 @@ const MODEL_MANIFEST_PRICE_BY_PATH = Object.freeze({
   "box7.glb": 120,
   "box8.glb": 130,
 });
+const MODEL_MANIFEST_SELL_REFUND_RATE = 0.6;
 const loadPurchasedStructureModelPaths = () => {
   const purchasedCounts = new Map();
 
@@ -21592,6 +21593,14 @@ const getModelPaletteEntryDescription = (entry) => {
   return "Structure model for the Building Station.";
 };
 
+const getModelPaletteEntryPrice = (entry) => {
+  return Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+};
+
+const getModelPaletteEntrySellPrice = (entry) => {
+  return Math.round(getModelPaletteEntryPrice(entry) * MODEL_MANIFEST_SELL_REFUND_RATE);
+};
+
 const setModelPalettePreviewStatus = (message = "", state = "") => {
   if (!(modelPalettePreviewStatus instanceof HTMLElement)) {
     return;
@@ -21935,13 +21944,24 @@ const renderModelPaletteEntries = (entries) => {
     fragment.appendChild(divider);
 
     visibleEntries.forEach((entry) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "model-palette__option";
-      button.dataset.modelPath = entry.path;
-      const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+      const optionElement = isBuyMode
+        ? document.createElement("div")
+        : document.createElement("button");
+      optionElement.className = "model-palette__option";
+      optionElement.dataset.modelPath = entry.path;
+
+      if (isBuyMode) {
+        optionElement.tabIndex = 0;
+        optionElement.setAttribute("role", "group");
+        optionElement.setAttribute("aria-label", `${entry.label} shop controls`);
+      } else {
+        optionElement.type = "button";
+      }
+
+      const price = getModelPaletteEntryPrice(entry);
       const canAfford = balance >= price;
       const ownedCount = getPurchasedStructureModelCount(entry.path);
+      const sellPrice = getModelPaletteEntrySellPrice(entry);
 
       const headerElement = document.createElement("span");
       headerElement.className = "model-palette__option-header";
@@ -21968,34 +21988,57 @@ const renderModelPaletteEntries = (entries) => {
       pathElement.className = "model-palette__option-path";
       pathElement.textContent = getModelPaletteEntryDescription(entry);
 
-      const buyCueElement = document.createElement("span");
-      buyCueElement.className = "model-palette__buy-cue";
+      const actionElement = document.createElement("span");
+      actionElement.className = "model-palette__actions";
+
+      const buyCueElement = document.createElement("button");
+      buyCueElement.type = "button";
+      buyCueElement.className =
+        "model-palette__action model-palette__action--buy";
       buyCueElement.textContent = canAfford
         ? "Buy"
         : `Need ${formatMarsMoney(price - balance)}`;
 
-      if (isBuyMode && !canAfford) {
-        button.disabled = true;
-        button.title = `Need ${formatMarsMoney(price)} to buy this model.`;
-      }
+      buyCueElement.disabled = !canAfford;
+      buyCueElement.title = canAfford
+        ? `Buy ${entry.label} for ${formatMarsMoney(price)}.`
+        : `Need ${formatMarsMoney(price)} to buy this model.`;
+
+      const sellCueElement = document.createElement("button");
+      sellCueElement.type = "button";
+      sellCueElement.className =
+        "model-palette__action model-palette__action--sell";
+      sellCueElement.textContent = `Sell ${formatMarsMoney(sellPrice)}`;
+      sellCueElement.disabled = ownedCount <= 0;
+      sellCueElement.title =
+        ownedCount > 0
+          ? `Sell one ${entry.label} for ${formatMarsMoney(sellPrice)}.`
+          : "No owned models to sell.";
+
+      actionElement.append(sellCueElement, buyCueElement);
 
       if (isBuyMode) {
-        button.append(headerElement, pathElement, buyCueElement);
-        button.addEventListener("mouseenter", () => {
+        optionElement.append(headerElement, pathElement, actionElement);
+        optionElement.addEventListener("mouseenter", () => {
           updateModelPaletteDetail(entry);
         });
-        button.addEventListener("focus", () => {
+        optionElement.addEventListener("focus", () => {
           updateModelPaletteDetail(entry);
+        });
+        buyCueElement.addEventListener("click", () => {
+          handleModelPaletteSelection(entry, buyCueElement);
+        });
+        sellCueElement.addEventListener("click", () => {
+          handleModelPaletteSellSelection(entry, sellCueElement);
         });
       } else {
-        button.append(labelElement, pathElement);
+        optionElement.append(labelElement, pathElement);
+        optionElement.addEventListener("click", () => {
+          handleModelPaletteSelection(entry, optionElement);
+        });
       }
 
-      button.addEventListener("click", () => {
-        handleModelPaletteSelection(entry, button);
-      });
-
-      fragment.appendChild(button);
+      fragment.appendChild(optionElement);
     });
   }
 
@@ -22003,7 +22046,7 @@ const renderModelPaletteEntries = (entries) => {
 
   if (hasEntries) {
     if (isBuyMode) {
-      setModelPaletteStatus("Select a model to buy for Building Station.");
+      setModelPaletteStatus("Hover a model to preview. Use Buy or Sell buttons.");
     } else if (canEditPlacements) {
       setModelPaletteStatus(
         "Select a model to place or edit your placed models."
@@ -22178,6 +22221,36 @@ const openModelPalette = async ({ mode = MODEL_PALETTE_MODE_PLACE } = {}) => {
   });
 };
 
+const handleModelPaletteSellSelection = (entry, trigger) => {
+  if (!entry || modelPaletteMode !== MODEL_PALETTE_MODE_BUY) {
+    return;
+  }
+
+  const ownedCount = getPurchasedStructureModelCount(entry.path);
+  const label = entry.label || entry.path;
+  if (ownedCount <= 0) {
+    showTerminalToast({
+      title: "Nothing to sell",
+      description: `${label} is not owned.`,
+    });
+    return;
+  }
+
+  const sellPrice = getModelPaletteEntrySellPrice(entry);
+  addPurchasedStructureModelCount(entry.path, -1);
+  persistPurchasedStructureModelPaths();
+  addMarsMoney(sellPrice);
+  renderModelPaletteEntries(cachedModelManifest ?? []);
+  showTerminalToast({
+    title: "Model sold",
+    description: `${label} for ${formatMarsMoney(sellPrice)}. Owned: ${ownedCount - 1}.`,
+  });
+
+  if (trigger instanceof HTMLButtonElement) {
+    trigger.focus({ preventScroll: true });
+  }
+};
+
 const handleModelPaletteSelection = async (entry, trigger) => {
   if (!entry || !sceneController?.placeModelFromManifestEntry) {
     return;
@@ -22188,7 +22261,7 @@ const handleModelPaletteSelection = async (entry, trigger) => {
   }
 
   const label = entry.label || entry.path;
-  const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+  const price = getModelPaletteEntryPrice(entry);
   const balance = getCurrencyBalance();
   const isBuyMode = modelPaletteMode === MODEL_PALETTE_MODE_BUY;
 
