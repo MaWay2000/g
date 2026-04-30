@@ -21546,6 +21546,42 @@ const loadModelManifest = async () => {
   }
 };
 
+const getModelPaletteEntryDescription = (entry) => {
+  const label = typeof entry?.label === "string" ? entry.label : "";
+  const path = typeof entry?.path === "string" ? entry.path : "";
+  const descriptor = `${label} ${path}`.toLowerCase();
+
+  if (descriptor.includes("floor")) {
+    return "Buildable floor platform for station layouts.";
+  }
+
+  if (descriptor.includes("wall")) {
+    return "Wall segment for enclosing station areas.";
+  }
+
+  if (descriptor.includes("storage")) {
+    return "Storage container module for base rooms.";
+  }
+
+  if (descriptor.includes("table")) {
+    return "Workshop table prop for station interiors.";
+  }
+
+  if (descriptor.includes("rock")) {
+    return "Decorative rock cluster for terrain scenes.";
+  }
+
+  if (descriptor.includes("body")) {
+    return "Large structural body shell for station builds.";
+  }
+
+  if (descriptor.includes("box")) {
+    return "Cargo box prop for room decoration.";
+  }
+
+  return "Structure model for the Building Station.";
+};
+
 const updateModelPaletteDetail = (entry) => {
   if (!(modelPaletteDetail instanceof HTMLElement)) {
     return;
@@ -21570,7 +21606,7 @@ const updateModelPaletteDetail = (entry) => {
   }
 
   if (modelPaletteDetailPath instanceof HTMLElement) {
-    modelPaletteDetailPath.textContent = entry.path || "Manifest model";
+    modelPaletteDetailPath.textContent = getModelPaletteEntryDescription(entry);
   }
 
   if (modelPaletteDetailPrice instanceof HTMLElement) {
@@ -21669,7 +21705,7 @@ const renderModelPaletteEntries = (entries) => {
 
       const pathElement = document.createElement("span");
       pathElement.className = "model-palette__option-path";
-      pathElement.textContent = entry.path;
+      pathElement.textContent = getModelPaletteEntryDescription(entry);
 
       const buyCueElement = document.createElement("span");
       buyCueElement.className = "model-palette__buy-cue";
