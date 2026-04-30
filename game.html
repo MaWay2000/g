@@ -5127,7 +5127,10 @@
       }
 
       .model-palette__detail {
-        display: block;
+        display: grid;
+        grid-template-columns: minmax(190px, 0.75fr) minmax(0, 1fr);
+        gap: 1rem;
+        align-items: stretch;
         padding: 0.95rem;
         border: 1px solid rgba(74, 222, 128, 0.28);
         border-radius: 18px;
@@ -5141,8 +5144,45 @@
         display: none;
       }
 
+      .model-palette__preview {
+        position: relative;
+        min-height: 180px;
+        border-radius: 16px;
+        border: 1px solid rgba(56, 189, 248, 0.34);
+        background:
+          radial-gradient(circle at 50% 20%, rgba(56, 189, 248, 0.22), transparent 44%),
+          linear-gradient(180deg, rgba(8, 47, 73, 0.88), rgba(2, 6, 23, 0.92));
+        overflow: hidden;
+        box-shadow: inset 0 0 28px rgba(14, 165, 233, 0.12);
+      }
+
+      .model-palette__preview canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        min-height: 180px;
+      }
+
+      .model-palette__preview-status {
+        position: absolute;
+        left: 0.75rem;
+        right: 0.75rem;
+        bottom: 0.65rem;
+        margin: 0;
+        color: rgba(191, 219, 254, 0.86);
+        font-size: 0.76rem;
+        font-weight: 700;
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .model-palette__preview-status[data-state="error"] {
+        color: rgba(252, 165, 165, 0.95);
+      }
+
       .model-palette__detail-copy {
         min-width: 0;
+        align-self: center;
       }
 
       .model-palette__detail-eyebrow {
@@ -5357,6 +5397,15 @@
 
         .quick-access-modal__matrix {
           inset: 0;
+        }
+
+        .model-palette__detail {
+          grid-template-columns: 1fr;
+        }
+
+        .model-palette__preview,
+        .model-palette__preview canvas {
+          min-height: 150px;
         }
 
         .drone-panel {
@@ -6748,6 +6797,15 @@
           Edit to manage placed models.
         </p>
         <div class="model-palette__detail" data-model-palette-detail hidden>
+          <div class="model-palette__preview">
+            <canvas
+              data-model-palette-preview-canvas
+              aria-label="Selected model preview"
+            ></canvas>
+            <p class="model-palette__preview-status" data-model-palette-preview-status>
+              Loading preview...
+            </p>
+          </div>
           <div class="model-palette__detail-copy">
             <p class="model-palette__detail-eyebrow">Selected model</p>
             <p class="model-palette__detail-name" data-model-palette-detail-name>

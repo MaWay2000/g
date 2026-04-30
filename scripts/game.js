@@ -52,6 +52,7 @@ import {
   persistTerrainLifeState,
 } from "./terrain-life-storage.js";
 import { clearStoredManifestPlacements } from "./manifest-placement-storage.js";
+import { loadModelFromManifestEntry } from "./assets/model-loader.js";
 import {
   clearStoredPlayerOxygenState,
   loadStoredPlayerOxygenState,
@@ -2104,6 +2105,12 @@ const modelPaletteBalanceValue = modelPalette?.querySelector(
 );
 const modelPaletteDetail = modelPalette?.querySelector(
   "[data-model-palette-detail]"
+);
+const modelPalettePreviewCanvas = modelPalette?.querySelector(
+  "[data-model-palette-preview-canvas]"
+);
+const modelPalettePreviewStatus = modelPalette?.querySelector(
+  "[data-model-palette-preview-status]"
 );
 const modelPaletteDetailName = modelPalette?.querySelector(
   "[data-model-palette-detail-name]"
@@ -4432,6 +4439,9 @@ let modelPaletteWasPointerLocked = false;
 let modelPaletteMode = MODEL_PALETTE_MODE_PLACE;
 let purchasedStructureModelPaths = loadPurchasedStructureModelPaths();
 let highlightedModelPalettePath = null;
+let modelPalettePreviewRuntime = null;
+let modelPalettePreviewToken = 0;
+let modelPalettePreviewWebglUnavailable = false;
 let editModeActive = false;
 
 const terminalInteractionSoundSource = "images/index/button_hower.mp3";
@@ -21582,6 +21592,254 @@ const getModelPaletteEntryDescription = (entry) => {
   return "Structure model for the Building Station.";
 };
 
+const setModelPalettePreviewStatus = (message = "", state = "") => {
+  if (!(modelPalettePreviewStatus instanceof HTMLElement)) {
+    return;
+  }
+
+  modelPalettePreviewStatus.textContent = message;
+  if (state) {
+    modelPalettePreviewStatus.dataset.state = state;
+  } else {
+    delete modelPalettePreviewStatus.dataset.state;
+  }
+};
+
+const disposeModelPalettePreviewObject = (object) => {
+  if (!(object instanceof THREE.Object3D)) {
+    return;
+  }
+
+  object.traverse((child) => {
+    if (!child?.isMesh) {
+      return;
+    }
+
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+    materials.forEach((material) => {
+      if (material instanceof THREE.Material) {
+        material.dispose();
+      }
+    });
+  });
+};
+
+const clearModelPalettePreviewModel = (runtime) => {
+  if (!runtime?.previewRoot) {
+    return;
+  }
+
+  runtime.previewRoot.children.forEach((child) => {
+    disposeModelPalettePreviewObject(child);
+  });
+  runtime.previewRoot.clear();
+  runtime.activePath = null;
+};
+
+const syncModelPalettePreviewRendererSize = (runtime) => {
+  if (!runtime?.canvas || !runtime.renderer || !runtime.camera) {
+    return;
+  }
+
+  const width = Math.max(1, Math.round(runtime.canvas.clientWidth || 320));
+  const height = Math.max(1, Math.round(runtime.canvas.clientHeight || 180));
+
+  if (runtime.renderWidth === width && runtime.renderHeight === height) {
+    return;
+  }
+
+  runtime.renderWidth = width;
+  runtime.renderHeight = height;
+  runtime.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  runtime.renderer.setSize(width, height, false);
+  runtime.camera.aspect = width / height;
+  runtime.camera.updateProjectionMatrix();
+};
+
+const startModelPalettePreviewLoop = (runtime) => {
+  if (!runtime || runtime.running) {
+    return;
+  }
+
+  runtime.running = true;
+  const renderFrame = (frameTime = 0) => {
+    if (modelPalettePreviewRuntime !== runtime || !runtime.running) {
+      return;
+    }
+
+    syncModelPalettePreviewRendererSize(runtime);
+    const deltaSeconds = runtime.lastFrameAt
+      ? Math.min(0.06, (frameTime - runtime.lastFrameAt) / 1000)
+      : 0;
+    runtime.lastFrameAt = frameTime;
+
+    runtime.previewRoot.rotation.y += deltaSeconds * 0.65;
+    runtime.renderer.render(runtime.scene, runtime.camera);
+    runtime.frameId = window.requestAnimationFrame(renderFrame);
+  };
+
+  runtime.frameId = window.requestAnimationFrame(renderFrame);
+};
+
+const ensureModelPalettePreviewRuntime = () => {
+  if (
+    !(modelPalettePreviewCanvas instanceof HTMLCanvasElement) ||
+    modelPalettePreviewWebglUnavailable
+  ) {
+    return null;
+  }
+
+  if (modelPalettePreviewRuntime?.canvas === modelPalettePreviewCanvas) {
+    syncModelPalettePreviewRendererSize(modelPalettePreviewRuntime);
+    startModelPalettePreviewLoop(modelPalettePreviewRuntime);
+    return modelPalettePreviewRuntime;
+  }
+
+  try {
+    const renderer = new THREE.WebGLRenderer({
+      canvas: modelPalettePreviewCanvas,
+      antialias: true,
+      alpha: false,
+      powerPreference: "low-power",
+    });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    renderer.setClearColor(0x061525, 1);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 16 / 9, 0.05, 80);
+    camera.position.set(1.8, 1.25, 2.6);
+    camera.lookAt(0, 0, 0);
+
+    const ambientLight = new THREE.HemisphereLight(0xdbeafe, 0x020617, 1.35);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.85);
+    keyLight.position.set(2.8, 3.2, 2.4);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 1.1);
+    rimLight.position.set(-2.2, 1.4, -2.6);
+    scene.add(ambientLight, keyLight, rimLight);
+
+    const platformMaterial = new THREE.MeshStandardMaterial({
+      color: 0x082f49,
+      metalness: 0.08,
+      roughness: 0.86,
+    });
+    const platform = new THREE.Mesh(
+      new THREE.CircleGeometry(1.18, 48),
+      platformMaterial
+    );
+    platform.rotation.x = -Math.PI / 2;
+    platform.position.y = -0.62;
+    scene.add(platform);
+
+    const previewRoot = new THREE.Group();
+    previewRoot.rotation.set(0.08, -0.55, 0);
+    scene.add(previewRoot);
+
+    modelPalettePreviewRuntime = {
+      canvas: modelPalettePreviewCanvas,
+      renderer,
+      scene,
+      camera,
+      previewRoot,
+      platform,
+      platformMaterial,
+      frameId: 0,
+      running: false,
+      lastFrameAt: 0,
+      renderWidth: 0,
+      renderHeight: 0,
+      activePath: null,
+    };
+    syncModelPalettePreviewRendererSize(modelPalettePreviewRuntime);
+    startModelPalettePreviewLoop(modelPalettePreviewRuntime);
+    return modelPalettePreviewRuntime;
+  } catch (error) {
+    console.warn("Unable to initialize Station Builder model preview", error);
+    modelPalettePreviewWebglUnavailable = true;
+    setModelPalettePreviewStatus("Preview unavailable", "error");
+    return null;
+  }
+};
+
+const teardownModelPalettePreviewRuntime = () => {
+  modelPalettePreviewToken += 1;
+  const runtime = modelPalettePreviewRuntime;
+  if (!runtime) {
+    return;
+  }
+
+  runtime.running = false;
+  if (runtime.frameId) {
+    window.cancelAnimationFrame(runtime.frameId);
+  }
+
+  clearModelPalettePreviewModel(runtime);
+  runtime.platform?.geometry?.dispose?.();
+  runtime.platformMaterial?.dispose?.();
+  runtime.renderer.dispose();
+  modelPalettePreviewRuntime = null;
+  setModelPalettePreviewStatus("");
+};
+
+const fitModelPalettePreviewModel = (model, runtime) => {
+  if (!(model instanceof THREE.Object3D) || !runtime?.camera) {
+    return;
+  }
+
+  const bounds = new THREE.Box3().setFromObject(model);
+  if (!bounds.isEmpty()) {
+    const center = bounds.getCenter(new THREE.Vector3());
+    const size = bounds.getSize(new THREE.Vector3());
+    const maxSize = Math.max(size.x, size.y, size.z, 0.001);
+    const scale = 1.45 / maxSize;
+    model.position.sub(center);
+    model.scale.setScalar(scale);
+  }
+
+  runtime.previewRoot.rotation.set(0.08, -0.55, 0);
+  runtime.camera.position.set(1.8, 1.25, 2.6);
+  runtime.camera.lookAt(0, 0, 0);
+};
+
+const updateModelPalettePreview = async (entry) => {
+  const runtime = ensureModelPalettePreviewRuntime();
+  if (!runtime || !entry?.path) {
+    return;
+  }
+
+  if (runtime.activePath === entry.path && runtime.previewRoot.children.length > 0) {
+    setModelPalettePreviewStatus("");
+    return;
+  }
+
+  const previewToken = (modelPalettePreviewToken += 1);
+  clearModelPalettePreviewModel(runtime);
+  setModelPalettePreviewStatus("Loading preview...");
+
+  try {
+    const model = await loadModelFromManifestEntry(entry);
+    if (previewToken !== modelPalettePreviewToken) {
+      disposeModelPalettePreviewObject(model);
+      return;
+    }
+
+    fitModelPalettePreviewModel(model, runtime);
+    runtime.previewRoot.add(model);
+    runtime.activePath = entry.path;
+    setModelPalettePreviewStatus("");
+  } catch (error) {
+    if (previewToken !== modelPalettePreviewToken) {
+      return;
+    }
+
+    console.warn("Unable to load Station Builder model preview", error);
+    setModelPalettePreviewStatus("Preview failed to load", "error");
+  }
+};
+
 const updateModelPaletteDetail = (entry) => {
   if (!(modelPaletteDetail instanceof HTMLElement)) {
     return;
@@ -21591,6 +21849,7 @@ const updateModelPaletteDetail = (entry) => {
   if (!isBuyMode || !entry) {
     modelPaletteDetail.hidden = true;
     highlightedModelPalettePath = null;
+    teardownModelPalettePreviewRuntime();
     return;
   }
 
@@ -21616,6 +21875,8 @@ const updateModelPaletteDetail = (entry) => {
   if (modelPaletteDetailOwned instanceof HTMLElement) {
     modelPaletteDetailOwned.textContent = `${ownedCount}`;
   }
+
+  void updateModelPalettePreview(entry);
 };
 
 const renderModelPaletteEntries = (entries) => {
@@ -21777,6 +22038,7 @@ const closeModelPalette = ({ preservePlacementState = false, restoreFocus = true
   modelPalette.setAttribute("aria-hidden", "true");
   modelPalette.hidden = true;
 
+  teardownModelPalettePreviewRuntime();
   document.body.classList.remove("has-station-builder-shop-open");
   updateBodyModalState(false);
   document.removeEventListener("keydown", handleModelPaletteKeydown, true);
