@@ -21971,7 +21971,7 @@ const renderModelPaletteEntries = (entries) => {
       const buyCueElement = document.createElement("span");
       buyCueElement.className = "model-palette__buy-cue";
       buyCueElement.textContent = canAfford
-        ? "Buy model"
+        ? "Buy"
         : `Need ${formatMarsMoney(price - balance)}`;
 
       if (isBuyMode && !canAfford) {
