@@ -21888,11 +21888,13 @@ const updateModelPaletteDetail = (entry) => {
   void updateModelPalettePreview(entry);
 };
 
-const renderModelPaletteEntries = (entries) => {
+const renderModelPaletteEntries = (entries, options = {}) => {
   if (!(modelPaletteList instanceof HTMLElement)) {
     return;
   }
 
+  const shouldRestoreScroll = Boolean(options.preserveScroll);
+  const previousScrollTop = shouldRestoreScroll ? modelPaletteList.scrollTop : 0;
   const isBuyMode = modelPaletteMode === MODEL_PALETTE_MODE_BUY;
   if (modelPaletteTitle instanceof HTMLElement) {
     modelPaletteTitle.textContent = isBuyMode
@@ -22039,6 +22041,9 @@ const renderModelPaletteEntries = (entries) => {
   }
 
   modelPaletteList.appendChild(fragment);
+  if (shouldRestoreScroll) {
+    modelPaletteList.scrollTop = previousScrollTop;
+  }
 
   if (hasEntries) {
     if (isBuyMode) {
@@ -22236,7 +22241,7 @@ const handleModelPaletteSellSelection = (entry, trigger) => {
   addPurchasedStructureModelCount(entry.path, -1);
   persistPurchasedStructureModelPaths();
   addMarsMoney(sellPrice);
-  renderModelPaletteEntries(cachedModelManifest ?? []);
+  renderModelPaletteEntries(cachedModelManifest ?? [], { preserveScroll: true });
   showTerminalToast({
     title: "Model sold",
     description: `${label} for ${formatMarsMoney(sellPrice)}. Owned: ${ownedCount - 1}.`,
@@ -22273,7 +22278,7 @@ const handleModelPaletteSelection = async (entry, trigger) => {
     addMarsMoney(-price);
     const ownedCount = addPurchasedStructureModelCount(entry.path, 1);
     persistPurchasedStructureModelPaths();
-    renderModelPaletteEntries(cachedModelManifest ?? []);
+    renderModelPaletteEntries(cachedModelManifest ?? [], { preserveScroll: true });
     showTerminalToast({
       title: "Model bought",
       description: `${label} for ${formatMarsMoney(price)}. Owned: ${ownedCount}.`,
