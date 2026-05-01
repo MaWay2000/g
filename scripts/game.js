@@ -17483,7 +17483,7 @@ subscribeToCurrency(() => {
   }
 
   if (isModelPaletteOpen() && Array.isArray(cachedModelManifest)) {
-    renderModelPaletteEntries(cachedModelManifest);
+    renderModelPaletteEntries(cachedModelManifest, { preserveScroll: true });
   }
 });
 subscribeToMissionState(handleMissionStateChanged);
@@ -22238,6 +22238,9 @@ const handleModelPaletteSellSelection = (entry, trigger) => {
   }
 
   const sellPrice = getModelPaletteEntrySellPrice(entry);
+  if (entry.path) {
+    highlightedModelPalettePath = entry.path;
+  }
   addPurchasedStructureModelCount(entry.path, -1);
   persistPurchasedStructureModelPaths();
   addMarsMoney(sellPrice);
@@ -22275,6 +22278,9 @@ const handleModelPaletteSelection = async (entry, trigger) => {
       return;
     }
 
+    if (entry.path) {
+      highlightedModelPalettePath = entry.path;
+    }
     addMarsMoney(-price);
     const ownedCount = addPurchasedStructureModelCount(entry.path, 1);
     persistPurchasedStructureModelPaths();
