@@ -4320,6 +4320,12 @@ const MODEL_MANIFEST_PRICE_BY_PATH = Object.freeze({
   "box7.glb": 120,
   "box8.glb": 130,
 });
+const MODEL_MANIFEST_STORAGE_BY_PATH = Object.freeze({
+  "box3.glb": 100,
+  "box4.glb": 15,
+  "box6.glb": 5,
+  "box8.glb": 8,
+});
 const MODEL_MANIFEST_SELL_REFUND_RATE = 0.6;
 const loadPurchasedStructureModelPaths = () => {
   const purchasedCounts = new Map();
@@ -21601,6 +21607,19 @@ const getModelPaletteEntrySellPrice = (entry) => {
   return Math.round(getModelPaletteEntryPrice(entry) * MODEL_MANIFEST_SELL_REFUND_RATE);
 };
 
+const getModelPaletteEntryStorageCapacityKg = (entry) => {
+  const manifestStorageBox = entry?.storageBox;
+  if (manifestStorageBox?.enabled === true) {
+    const manifestCapacityKg = Number(manifestStorageBox.maxLoadKg);
+    return Number.isFinite(manifestCapacityKg) && manifestCapacityKg > 0
+      ? Math.round(manifestCapacityKg)
+      : null;
+  }
+
+  const capacityKg = MODEL_MANIFEST_STORAGE_BY_PATH[entry?.path];
+  return Number.isFinite(capacityKg) && capacityKg > 0 ? capacityKg : null;
+};
+
 const setModelPalettePreviewStatus = (message = "", state = "") => {
   if (!(modelPalettePreviewStatus instanceof HTMLElement)) {
     return;
@@ -21964,6 +21983,7 @@ const renderModelPaletteEntries = (entries, options = {}) => {
       const canAfford = balance >= price;
       const ownedCount = getPurchasedStructureModelCount(entry.path);
       const sellPrice = getModelPaletteEntrySellPrice(entry);
+      const storageCapacityKg = getModelPaletteEntryStorageCapacityKg(entry);
 
       const headerElement = document.createElement("span");
       headerElement.className = "model-palette__option-header";
@@ -21974,6 +21994,13 @@ const renderModelPaletteEntries = (entries, options = {}) => {
 
       const badgesElement = document.createElement("span");
       badgesElement.className = "model-palette__badges";
+
+      if (storageCapacityKg) {
+        const storageBadge = document.createElement("span");
+        storageBadge.className = "model-palette__badge model-palette__badge--storage";
+        storageBadge.textContent = `Storage ${storageCapacityKg} kg`;
+        badgesElement.append(storageBadge);
+      }
 
       const ownedBadge = document.createElement("span");
       ownedBadge.className = "model-palette__badge model-palette__badge--owned";
