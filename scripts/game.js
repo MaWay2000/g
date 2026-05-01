@@ -21973,15 +21973,11 @@ const renderModelPaletteEntries = (entries) => {
       const badgesElement = document.createElement("span");
       badgesElement.className = "model-palette__badges";
 
-      const priceBadge = document.createElement("span");
-      priceBadge.className = "model-palette__badge model-palette__badge--price";
-      priceBadge.textContent = formatMarsMoney(price);
-
       const ownedBadge = document.createElement("span");
       ownedBadge.className = "model-palette__badge model-palette__badge--owned";
       ownedBadge.textContent = `Owned: ${ownedCount}`;
 
-      badgesElement.append(priceBadge, ownedBadge);
+      badgesElement.append(ownedBadge);
       headerElement.append(labelElement, badgesElement);
 
       const pathElement = document.createElement("span");
@@ -21996,7 +21992,7 @@ const renderModelPaletteEntries = (entries) => {
       buyCueElement.className =
         "model-palette__action model-palette__action--buy";
       buyCueElement.textContent = canAfford
-        ? "Buy"
+        ? `Buy ${formatMarsMoney(price)}`
         : `Need ${formatMarsMoney(price - balance)}`;
 
       buyCueElement.disabled = !canAfford;
