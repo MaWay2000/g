@@ -21666,6 +21666,36 @@ const clearModelPalettePreviewModel = (runtime) => {
   runtime.activePath = null;
 };
 
+const enhanceModelPalettePreviewVisibility = (model) => {
+  if (!(model instanceof THREE.Object3D)) {
+    return;
+  }
+
+  model.traverse((child) => {
+    if (!child?.isMesh) {
+      return;
+    }
+
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+    materials.forEach((material) => {
+      if (!(material instanceof THREE.Material)) {
+        return;
+      }
+
+      material.side = THREE.DoubleSide;
+      if (material.emissive?.isColor) {
+        material.emissive.lerp(new THREE.Color(0x38bdf8), 0.16);
+      }
+      if ("emissiveIntensity" in material) {
+        material.emissiveIntensity = Math.max(material.emissiveIntensity ?? 0, 0.22);
+      }
+      material.needsUpdate = true;
+    });
+  });
+};
+
 const syncModelPalettePreviewRendererSize = (runtime) => {
   if (!runtime?.canvas || !runtime.renderer || !runtime.camera) {
     return;
@@ -21822,11 +21852,16 @@ const fitModelPalettePreviewModel = (model, runtime) => {
     const center = bounds.getCenter(new THREE.Vector3());
     const size = bounds.getSize(new THREE.Vector3());
     const maxSize = Math.max(size.x, size.y, size.z, 0.001);
-    const scale = 1.45 / maxSize;
+    const scale = 1.32 / maxSize;
     model.position.sub(center);
     model.scale.setScalar(scale);
+
+    if (runtime.platform) {
+      runtime.platform.position.y = -Math.max(0.72, size.y * scale * 0.5 + 0.06);
+    }
   }
 
+  enhanceModelPalettePreviewVisibility(model);
   runtime.previewRoot.rotation.set(0.08, -0.55, 0);
   runtime.camera.position.set(1.8, 1.25, 2.6);
   runtime.camera.lookAt(0, 0, 0);
