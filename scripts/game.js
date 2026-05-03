@@ -4327,6 +4327,46 @@ const MODEL_MANIFEST_STORAGE_BY_PATH = Object.freeze({
   "box8.glb": 8,
 });
 const MODEL_MANIFEST_SELL_REFUND_RATE = 0.6;
+const STATION_BUILDER_RESEARCH_MAX_DISCOUNT = 0.25;
+const STATION_BUILDER_RESEARCH_PROGRESS_UPDATE_MS = 1000;
+const STATION_BUILDER_RESEARCH_PROJECTS = Object.freeze([
+  {
+    id: "builder-material-audit-i",
+    label: "Builder Material Audit I",
+    description: "Reworks basic prefab estimates so every station model costs less.",
+    priceDiscount: 0.06,
+    researchDurationMinutes: 5,
+    researchRequirements: [
+      { element: { symbol: "H", name: "Hydrogen" }, count: 2 },
+      { element: { symbol: "C", name: "Carbon" }, count: 1 },
+    ],
+  },
+  {
+    id: "builder-material-audit-ii",
+    label: "Builder Material Audit II",
+    description: "Tunes structure cuts and cargo packing for deeper model discounts.",
+    priceDiscount: 0.07,
+    requiredProjectId: "builder-material-audit-i",
+    researchDurationMinutes: 12,
+    researchRequirements: [
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+      { element: { symbol: "Mg", name: "Magnesium" }, count: 1 },
+    ],
+  },
+  {
+    id: "builder-material-audit-iii",
+    label: "Builder Material Audit III",
+    description: "Finalizes efficient station logistics for the best shop pricing.",
+    priceDiscount: 0.07,
+    requiredProjectId: "builder-material-audit-ii",
+    researchDurationMinutes: 20,
+    researchRequirements: [
+      { element: { symbol: "Al", name: "Aluminum" }, count: 2 },
+      { element: { symbol: "Ca", name: "Calcium" }, count: 1 },
+      { element: { symbol: "Si", name: "Silicon" }, count: 2 },
+    ],
+  },
+]);
 const loadPurchasedStructureModelPaths = () => {
   const purchasedCounts = new Map();
 
@@ -4795,7 +4835,12 @@ const quickAccessModalLayoutState = {
   width: 0,
   height: 0,
 };
-const RESEARCH_MODAL_TAB_IDS = Object.freeze(["costume", "drone", "digger"]);
+const RESEARCH_MODAL_TAB_IDS = Object.freeze([
+  "costume",
+  "drone",
+  "station-builder",
+  "digger",
+]);
 const RESEARCH_MODAL_DEFAULT_TAB_ID = "drone";
 let researchModalActiveTab = RESEARCH_MODAL_DEFAULT_TAB_ID;
 const CRAFTING_TABLE_TAB_IDS = Object.freeze(["costume", "drone"]);
@@ -5389,6 +5434,11 @@ const costumeResearchState = {
   activeJob: null,
   activeCraftJob: null,
 };
+const stationBuilderResearchState = {
+  researchedProjectIds: new Set(),
+  readyResearchProjectIds: new Set(),
+  activeJob: null,
+};
 const COSTUME_RESEARCH_PROGRESS_UPDATE_MS = 1000;
 const COSTUME_MODULE_PERCENT_STEP = 0.01;
 const COSTUME_MODULE_CAPACITY_STEP_KG = 0.5;
@@ -5519,6 +5569,68 @@ const applyCostumeModuleTitleContent = (element, project, module, options = {}) 
 
 const getCostumeResearchProjectById = (projectId) =>
   COSTUME_RESEARCH_PROJECTS.find((project) => project.id === projectId) ?? null;
+
+const getStationBuilderResearchProjectById = (projectId) =>
+  STATION_BUILDER_RESEARCH_PROJECTS.find((project) => project.id === projectId) ??
+  null;
+
+const getStationBuilderResearchRequiredProject = (project) => {
+  const requiredProjectId =
+    typeof project?.requiredProjectId === "string"
+      ? project.requiredProjectId.trim()
+      : "";
+  return requiredProjectId
+    ? getStationBuilderResearchProjectById(requiredProjectId)
+    : null;
+};
+
+const isStationBuilderResearchProjectInstalled = (projectId) =>
+  typeof projectId === "string" &&
+  stationBuilderResearchState.researchedProjectIds.has(projectId);
+
+const isStationBuilderResearchProjectReadyToClaim = (projectId) =>
+  typeof projectId === "string" &&
+  stationBuilderResearchState.readyResearchProjectIds.has(projectId);
+
+const hasStationBuilderResearchProgress = (projectId) =>
+  typeof projectId === "string" &&
+  (isStationBuilderResearchProjectInstalled(projectId) ||
+    isStationBuilderResearchProjectReadyToClaim(projectId) ||
+    stationBuilderResearchState.activeJob?.projectId === projectId);
+
+const isStationBuilderResearchProjectUnlocked = (project) => {
+  const requiredProject = getStationBuilderResearchRequiredProject(project);
+  return !requiredProject || hasStationBuilderResearchProgress(requiredProject.id);
+};
+
+const getStationBuilderResearchDiscount = () => {
+  const discount = STATION_BUILDER_RESEARCH_PROJECTS.reduce((total, project) => {
+    if (!isStationBuilderResearchProjectInstalled(project.id)) {
+      return total;
+    }
+
+    const projectDiscount = Number(project.priceDiscount);
+    return total + (Number.isFinite(projectDiscount) ? Math.max(0, projectDiscount) : 0);
+  }, 0);
+
+  return Math.max(
+    0,
+    Math.min(STATION_BUILDER_RESEARCH_MAX_DISCOUNT, discount)
+  );
+};
+
+const formatStationBuilderResearchDiscount = (discount) =>
+  `${Math.round(Math.max(0, Number(discount) || 0) * 100)}%`;
+
+const getStationBuilderResearchSummaryText = () =>
+  `Builder shop discount ${formatStationBuilderResearchDiscount(
+    getStationBuilderResearchDiscount()
+  )}`;
+
+const formatStationBuilderResearchEffectLabel = (project) =>
+  `Station Builder model prices -${formatStationBuilderResearchDiscount(
+    project?.priceDiscount
+  )}.`;
 
 const getCostumeProjectBonusKey = (project) => {
   if (!project || typeof project !== "object") {
@@ -6164,6 +6276,12 @@ const clearCostumeResearchState = () => {
   costumeResearchState.nextModuleInstanceId = 1;
   costumeResearchState.activeJob = null;
   costumeResearchState.activeCraftJob = null;
+};
+
+const clearStationBuilderResearchState = () => {
+  stationBuilderResearchState.researchedProjectIds.clear();
+  stationBuilderResearchState.readyResearchProjectIds.clear();
+  stationBuilderResearchState.activeJob = null;
 };
 
 const syncDroneUnlockedModelsToDefaults = () => {
@@ -7601,6 +7719,7 @@ let costumeResearchProgressIntervalId = 0;
 let costumeCraftingProgressIntervalId = 0;
 let droneCraftingProgressIntervalId = 0;
 let droneResearchProgressIntervalId = 0;
+let stationBuilderResearchProgressIntervalId = 0;
 let inventoryWasPointerLocked = false;
 let lastInventoryFocusedElement = null;
 let inventoryCloseFallbackId = 0;
@@ -9123,6 +9242,7 @@ const getResearchModalElements = () => {
       tabButtons: [],
       costumePanel: null,
       dronePanel: null,
+      stationBuilderPanel: null,
       diggerPanel: null,
       summary: null,
       partList: null,
@@ -9139,6 +9259,9 @@ const getResearchModalElements = () => {
   let dronePanel = quickAccessModalContent.querySelector(
     '[data-research-tab-panel="drone"]'
   );
+  let stationBuilderPanel = quickAccessModalContent.querySelector(
+    '[data-research-tab-panel="station-builder"]'
+  );
   let diggerPanel = quickAccessModalContent.querySelector(
     '[data-research-tab-panel="digger"]'
   );
@@ -9150,6 +9273,7 @@ const getResearchModalElements = () => {
     tabButtons.length !== RESEARCH_MODAL_TAB_IDS.length ||
     !(costumePanel instanceof HTMLElement) ||
     !(dronePanel instanceof HTMLElement) ||
+    !(stationBuilderPanel instanceof HTMLElement) ||
     !(diggerPanel instanceof HTMLElement) ||
     !(summary instanceof HTMLElement) ||
     !(partList instanceof HTMLElement)
@@ -9180,7 +9304,13 @@ const getResearchModalElements = () => {
       button.setAttribute("role", "tab");
       button.setAttribute("aria-controls", `research-panel-${tabId}`);
       button.textContent =
-        tabId === "costume" ? "Costume" : tabId === "drone" ? "Drone" : "Digger";
+        tabId === "costume"
+          ? "Costume"
+          : tabId === "drone"
+            ? "Drone"
+            : tabId === "station-builder"
+              ? "Station Builder"
+              : "Digger";
       tabs.appendChild(button);
       return button;
     });
@@ -9232,6 +9362,23 @@ const getResearchModalElements = () => {
     dronePanel.appendChild(partList);
     panel.appendChild(dronePanel);
 
+    stationBuilderPanel = document.createElement("div");
+    stationBuilderPanel.className = "research-panel__tab-content crafting-panel";
+    stationBuilderPanel.dataset.researchTabPanel = "station-builder";
+    stationBuilderPanel.id = "research-panel-station-builder";
+    stationBuilderPanel.setAttribute("role", "tabpanel");
+    stationBuilderPanel.setAttribute(
+      "aria-labelledby",
+      "research-tab-station-builder"
+    );
+
+    const stationBuilderHint = document.createElement("p");
+    stationBuilderHint.className = "crafting-panel__hint";
+    stationBuilderHint.textContent =
+      "Research Station Builder upgrades here to improve structure model buying.";
+    stationBuilderPanel.appendChild(stationBuilderHint);
+    panel.appendChild(stationBuilderPanel);
+
     diggerPanel = document.createElement("div");
     diggerPanel.className = "research-panel__tab-content crafting-panel";
     diggerPanel.dataset.researchTabPanel = "digger";
@@ -9264,6 +9411,7 @@ const getResearchModalElements = () => {
     tabButtons,
     costumePanel,
     dronePanel,
+    stationBuilderPanel,
     diggerPanel,
     summary,
     partList,
@@ -10213,6 +10361,90 @@ const syncDroneResearchProgressInterval = () => {
   }, DRONE_RESEARCH_PROGRESS_UPDATE_MS);
 };
 
+const finalizeStationBuilderResearchActiveJob = ({
+  notify = true,
+  refreshUi = true,
+} = {}) => {
+  const activeJob = getStationBuilderResearchActiveJob();
+  if (!activeJob || Date.now() < activeJob.completedAtMs) {
+    return false;
+  }
+
+  const project = getStationBuilderResearchProjectById(activeJob.projectId);
+  stationBuilderResearchState.activeJob = null;
+
+  if (
+    project &&
+    !isStationBuilderResearchProjectInstalled(project.id) &&
+    !isStationBuilderResearchProjectReadyToClaim(project.id)
+  ) {
+    stationBuilderResearchState.readyResearchProjectIds.add(project.id);
+  }
+
+  persistDroneCraftingState();
+  syncStationBuilderResearchProgressInterval();
+
+  if (refreshUi) {
+    refreshResearchModalIfOpen();
+  }
+
+  if (notify && project) {
+    showTerminalToast({
+      title: `${project.label} researched`,
+      description: "Research complete. Activate it in the Station Builder tab.",
+    });
+  }
+
+  return true;
+};
+
+const completeStationBuilderResearchActiveJobInstantly = ({ notify = true } = {}) => {
+  if (!isInstantStationBuilderResearchEnabled()) {
+    return false;
+  }
+
+  const activeJob = getStationBuilderResearchActiveJob();
+  if (!activeJob) {
+    return false;
+  }
+
+  stationBuilderResearchState.activeJob = {
+    ...activeJob,
+    completedAtMs: Date.now() - 1,
+  };
+
+  return finalizeStationBuilderResearchActiveJob({
+    notify,
+    refreshUi: true,
+  });
+};
+
+const syncStationBuilderResearchProgressInterval = () => {
+  const activeJob = getStationBuilderResearchActiveJob();
+  if (!activeJob) {
+    stopStationBuilderResearchProgressInterval();
+    return;
+  }
+
+  if (stationBuilderResearchProgressIntervalId) {
+    return;
+  }
+
+  stationBuilderResearchProgressIntervalId = window.setInterval(() => {
+    const completed = finalizeStationBuilderResearchActiveJob({
+      notify: true,
+      refreshUi: true,
+    });
+    if (completed) {
+      return;
+    }
+
+    if (researchModalActive) {
+      renderResearchModal();
+    }
+  }, STATION_BUILDER_RESEARCH_PROGRESS_UPDATE_MS);
+};
+
 const completeDroneCraftingActiveJobInstantly = ({ notify = true } = {}) => {
   if (!isInstantDroneCraftingEnabled()) {
     return false;
@@ -10332,6 +10564,78 @@ const getCostumeResearchJobProgressState = (job = getCostumeResearchActiveJob())
   };
 };
 
+const normalizeStationBuilderResearchActiveJob = (rawJob) => {
+  if (!rawJob || typeof rawJob !== "object") {
+    return null;
+  }
+
+  const projectId =
+    typeof rawJob.projectId === "string" ? rawJob.projectId.trim() : "";
+  if (!projectId || !getStationBuilderResearchProjectById(projectId)) {
+    return null;
+  }
+
+  let durationMs = Number(rawJob.durationMs);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  durationMs = Math.max(1000, Math.floor(durationMs));
+
+  let startedAtMs = Number(rawJob.startedAtMs);
+  if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) {
+    startedAtMs = Date.now();
+  }
+  startedAtMs = Math.floor(startedAtMs);
+
+  let completedAtMs = Number(rawJob.completedAtMs);
+  if (!Number.isFinite(completedAtMs) || completedAtMs <= startedAtMs) {
+    completedAtMs = startedAtMs + durationMs;
+  }
+  completedAtMs = Math.floor(completedAtMs);
+
+  return {
+    projectId,
+    startedAtMs,
+    durationMs,
+    completedAtMs,
+  };
+};
+
+const getStationBuilderResearchActiveJob = () => {
+  const normalizedJob = normalizeStationBuilderResearchActiveJob(
+    stationBuilderResearchState.activeJob
+  );
+  if (!normalizedJob) {
+    stationBuilderResearchState.activeJob = null;
+    return null;
+  }
+
+  stationBuilderResearchState.activeJob = normalizedJob;
+  return normalizedJob;
+};
+
+const getStationBuilderResearchJobProgressState = (
+  job = getStationBuilderResearchActiveJob()
+) => {
+  if (!job) {
+    return null;
+  }
+
+  const now = Date.now();
+  const durationMs = Math.max(1, Number(job.durationMs) || 1);
+  const elapsedMs = Math.max(0, now - job.startedAtMs);
+  const remainingMs = Math.max(0, job.completedAtMs - now);
+  const progress = Math.max(0, Math.min(1, elapsedMs / durationMs));
+  const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const durationSeconds = Math.max(1, Math.round(durationMs / 1000));
+
+  return {
+    progress,
+    remainingSeconds,
+    durationSeconds,
+  };
+};
+
 const getResearchLabActiveJob = () => {
   const costumeJob = getCostumeResearchActiveJob();
   if (costumeJob) {
@@ -10351,6 +10655,15 @@ const getResearchLabActiveJob = () => {
     };
   }
 
+  const stationBuilderJob = getStationBuilderResearchActiveJob();
+  if (stationBuilderJob) {
+    return {
+      type: "station-builder",
+      id: stationBuilderJob.projectId,
+      job: stationBuilderJob,
+    };
+  }
+
   return null;
 };
 
@@ -10365,6 +10678,13 @@ const getResearchLabJobLabel = (activeResearchJob = getResearchLabActiveJob()) =
     );
   }
 
+  if (activeResearchJob.type === "station-builder") {
+    return (
+      getStationBuilderResearchProjectById(activeResearchJob.id)?.label ??
+      "Station Builder research"
+    );
+  }
+
   return getDroneCraftingPartById(activeResearchJob.id)?.label ?? "Drone research";
 };
 
@@ -10375,9 +10695,15 @@ const getResearchLabJobProgressState = (
     return null;
   }
 
-  return activeResearchJob.type === "costume"
-    ? getCostumeResearchJobProgressState(activeResearchJob.job)
-    : getDroneResearchJobProgressState(activeResearchJob.job);
+  if (activeResearchJob.type === "costume") {
+    return getCostumeResearchJobProgressState(activeResearchJob.job);
+  }
+
+  if (activeResearchJob.type === "station-builder") {
+    return getStationBuilderResearchJobProgressState(activeResearchJob.job);
+  }
+
+  return getDroneResearchJobProgressState(activeResearchJob.job);
 };
 
 const refundResearchRequirements = (requirements) => {
@@ -10483,6 +10809,15 @@ const stopCostumeResearchProgressInterval = () => {
 
   window.clearInterval(costumeResearchProgressIntervalId);
   costumeResearchProgressIntervalId = 0;
+};
+
+const stopStationBuilderResearchProgressInterval = () => {
+  if (!stationBuilderResearchProgressIntervalId) {
+    return;
+  }
+
+  window.clearInterval(stationBuilderResearchProgressIntervalId);
+  stationBuilderResearchProgressIntervalId = 0;
 };
 
 const isInstantCostumeResearchEnabled = () => Boolean(currentSettings?.godMode);
@@ -10972,6 +11307,7 @@ const startCostumeResearch = (projectId) => {
   ensureSingleResearchLabJob({ notify: false, refreshUi: false });
   finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
   finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+  finalizeStationBuilderResearchActiveJob({ notify: true, refreshUi: false });
   ensureSingleResearchLabJob({ notify: false, refreshUi: false });
   const activeResearchJob = getResearchLabActiveJob();
   if (activeResearchJob) {
@@ -11378,6 +11714,22 @@ const getElementRequirementStates = (requirements) =>
 
 const getDroneResearchRequirementStates = (part) =>
   getElementRequirementStates(part?.researchRequirements);
+
+const getStationBuilderResearchRequirementStates = (project) =>
+  getElementRequirementStates(project?.researchRequirements);
+
+const isInstantStationBuilderResearchEnabled = () => Boolean(currentSettings?.godMode);
+
+const getStationBuilderResearchDurationSeconds = (project) => {
+  if (isInstantStationBuilderResearchEnabled()) {
+    return 0;
+  }
+
+  const durationMinutes = Number.isFinite(project?.researchDurationMinutes)
+    ? Math.max(5, Math.min(60, Math.round(project.researchDurationMinutes)))
+    : 5;
+  return durationMinutes * 60;
+};
 
 const renderResearchProgressBlock = (item, progressState, labelPrefix = "Researching") => {
   if (!progressState || !(item instanceof HTMLElement)) {
@@ -11845,6 +12197,220 @@ const renderCostumeResearchPanel = (panel) => {
   panel.appendChild(grid);
 };
 
+const createStationBuilderResearchProjectCard = (project) => {
+  const item = document.createElement("li");
+  item.className = "crafting-panel__card research-panel__card";
+  item.dataset.stationBuilderResearchId = project.id;
+
+  const installed = isStationBuilderResearchProjectInstalled(project.id);
+  const readyToClaim = isStationBuilderResearchProjectReadyToClaim(project.id);
+  const requiredProject = getStationBuilderResearchRequiredProject(project);
+  const prerequisiteReady = isStationBuilderResearchProjectUnlocked(project);
+  const activeResearchJob = getResearchLabActiveJob();
+  const researchingThisProject = Boolean(
+    activeResearchJob &&
+      activeResearchJob.type === "station-builder" &&
+      activeResearchJob.id === project.id
+  );
+  const otherResearchActive = Boolean(activeResearchJob && !researchingThisProject);
+  const requirementStates = getStationBuilderResearchRequirementStates(project);
+  const canResearch = prerequisiteReady && requirementStates.every((state) => state.ready);
+  const researchDurationSeconds = getStationBuilderResearchDurationSeconds(project);
+
+  item.dataset.researched = installed ? "true" : "false";
+  item.dataset.researching = researchingThisProject ? "true" : "false";
+
+  const status = document.createElement("p");
+  status.className = "quick-access-modal__status-tag research-panel__status";
+  if (installed) {
+    status.textContent = "Installed";
+  } else if (readyToClaim) {
+    status.dataset.status = "busy";
+    status.textContent = "Complete";
+  } else if (researchingThisProject) {
+    status.dataset.status = "busy";
+    status.textContent = "Researching";
+  } else if (!prerequisiteReady) {
+    status.dataset.status = "locked";
+    status.textContent = "Locked";
+  } else if (otherResearchActive) {
+    status.dataset.status = "busy";
+    status.textContent = "Busy";
+  } else if (canResearch) {
+    status.textContent = "Available";
+  } else {
+    status.dataset.status = "locked";
+    status.textContent = "Locked";
+  }
+  item.appendChild(status);
+
+  const title = document.createElement("h3");
+  title.className = "crafting-panel__title";
+  title.textContent = project.label;
+  item.appendChild(title);
+
+  const description = document.createElement("p");
+  description.className = "crafting-panel__description";
+  description.textContent = project.description;
+  item.appendChild(description);
+
+  const effect = document.createElement("p");
+  effect.className = "crafting-panel__effect";
+  effect.textContent = formatStationBuilderResearchEffectLabel(project);
+  item.appendChild(effect);
+
+  if (installed) {
+    const installedMeta = document.createElement("p");
+    installedMeta.className = "crafting-panel__meta";
+    installedMeta.textContent = "Installed. This discount is active in the Station Builder shop.";
+    item.appendChild(installedMeta);
+  } else if (readyToClaim) {
+    const readyMeta = document.createElement("p");
+    readyMeta.className = "crafting-panel__meta";
+    readyMeta.textContent = "Research complete. Activate it to update Station Builder prices.";
+    item.appendChild(readyMeta);
+  } else {
+    if (requiredProject && !prerequisiteReady) {
+      const prerequisiteMeta = document.createElement("p");
+      prerequisiteMeta.className = "crafting-panel__meta";
+      prerequisiteMeta.textContent = `Requires previous tier: ${requiredProject.label}.`;
+      item.appendChild(prerequisiteMeta);
+    }
+
+    const requirements = document.createElement("ul");
+    requirements.className = "crafting-panel__requirements";
+    requirementStates.forEach(({ requirement, needed, available, ready }) => {
+      const requirementItem = document.createElement("li");
+      requirementItem.className = "crafting-panel__requirement";
+      requirementItem.dataset.ready = ready ? "true" : "false";
+      requirementItem.textContent = `Research cost • ${formatCraftingElementName(
+        requirement?.element
+      )}: ${available}/${needed}`;
+      requirements.appendChild(requirementItem);
+    });
+    item.appendChild(requirements);
+
+    const researchTime = document.createElement("p");
+    researchTime.className = "crafting-panel__meta";
+    researchTime.textContent = `Research time: ${formatDurationSeconds(
+      researchDurationSeconds
+    )}`;
+    item.appendChild(researchTime);
+  }
+
+  if (researchingThisProject) {
+    const progressState = getResearchLabJobProgressState(activeResearchJob);
+    renderResearchProgressBlock(item, progressState, "Researching");
+  }
+
+  const actionButton = document.createElement("button");
+  actionButton.type = "button";
+  actionButton.className = "crafting-panel__button";
+  actionButton.dataset.stationBuilderResearchId = project.id;
+
+  if (installed) {
+    actionButton.textContent = "Installed";
+    actionButton.disabled = true;
+  } else if (readyToClaim) {
+    actionButton.dataset.stationBuilderResearchAction = "claim";
+    actionButton.textContent = "Activate upgrade";
+    actionButton.disabled = false;
+  } else if (researchingThisProject) {
+    actionButton.textContent = "Researching...";
+    actionButton.disabled = true;
+  } else {
+    actionButton.dataset.stationBuilderResearchAction = "start";
+    actionButton.textContent = !prerequisiteReady
+      ? "Requires previous"
+      : otherResearchActive
+      ? "Lab busy"
+      : canResearch
+        ? "Start research"
+        : "Need materials";
+    actionButton.disabled = !prerequisiteReady || otherResearchActive || !canResearch;
+  }
+
+  item.appendChild(actionButton);
+  return item;
+};
+
+const renderStationBuilderResearchPanel = (panel) => {
+  if (!(panel instanceof HTMLElement)) {
+    return;
+  }
+
+  panel.classList.add("crafting-panel");
+  panel.innerHTML = "";
+
+  const activeResearchJob = getResearchLabActiveJob();
+  const progressState = getResearchLabJobProgressState(activeResearchJob);
+  const installedCount = STATION_BUILDER_RESEARCH_PROJECTS.filter((project) =>
+    isStationBuilderResearchProjectInstalled(project.id)
+  ).length;
+  const readyCount = STATION_BUILDER_RESEARCH_PROJECTS.filter((project) =>
+    isStationBuilderResearchProjectReadyToClaim(project.id)
+  ).length;
+
+  const summary = document.createElement("p");
+  summary.className = "crafting-panel__summary";
+  const summarySegments = [
+    `Installed ${installedCount}/${STATION_BUILDER_RESEARCH_PROJECTS.length}`,
+    `Ready ${readyCount}`,
+    getStationBuilderResearchSummaryText(),
+  ];
+  if (activeResearchJob && progressState) {
+    summarySegments.push(
+      `Lab busy: ${getResearchLabJobLabel(activeResearchJob)} (${formatDurationSeconds(
+        progressState.remainingSeconds
+      )} left)`
+    );
+  } else {
+    summarySegments.push("Lab idle");
+  }
+  summary.textContent = summarySegments.join(" • ");
+  panel.appendChild(summary);
+
+  const hint = document.createElement("p");
+  hint.className = "crafting-panel__hint";
+  hint.textContent =
+    "Research Station Builder efficiency here. Activated projects permanently reduce buy prices in the Station Builder shop; the Building Station quick slot still only places and removes bought models.";
+  panel.appendChild(hint);
+
+  const projectOrder = new Map(
+    STATION_BUILDER_RESEARCH_PROJECTS.map((project, index) => [project.id, index])
+  );
+  const orderedProjects = STATION_BUILDER_RESEARCH_PROJECTS.slice().sort(
+    (left, right) => {
+      const leftRank =
+        left.id === activeResearchJob?.id &&
+        activeResearchJob?.type === "station-builder"
+          ? 0
+          : isStationBuilderResearchProjectInstalled(left.id)
+            ? 2
+            : 1;
+      const rightRank =
+        right.id === activeResearchJob?.id &&
+        activeResearchJob?.type === "station-builder"
+          ? 0
+          : isStationBuilderResearchProjectInstalled(right.id)
+            ? 2
+            : 1;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+      return (projectOrder.get(left.id) ?? 0) - (projectOrder.get(right.id) ?? 0);
+    }
+  );
+
+  const grid = document.createElement("ul");
+  grid.className = "crafting-panel__grid";
+  grid.setAttribute("role", "list");
+  orderedProjects.forEach((project) => {
+    grid.appendChild(createStationBuilderResearchProjectCard(project));
+  });
+  panel.appendChild(grid);
+};
+
 const renderDiggerResearchPanel = (panel) => {
   if (!(panel instanceof HTMLElement)) {
     return;
@@ -11871,7 +12437,8 @@ const renderDiggerResearchPanel = (panel) => {
 };
 
 const syncResearchModalTabState = () => {
-  const { tabButtons, costumePanel, dronePanel, diggerPanel } = getResearchModalElements();
+  const { tabButtons, costumePanel, dronePanel, stationBuilderPanel, diggerPanel } =
+    getResearchModalElements();
   const activeTab = RESEARCH_MODAL_TAB_IDS.includes(researchModalActiveTab)
     ? researchModalActiveTab
     : RESEARCH_MODAL_DEFAULT_TAB_ID;
@@ -11889,6 +12456,9 @@ const syncResearchModalTabState = () => {
   if (dronePanel instanceof HTMLElement) {
     dronePanel.hidden = activeTab !== "drone";
   }
+  if (stationBuilderPanel instanceof HTMLElement) {
+    stationBuilderPanel.hidden = activeTab !== "station-builder";
+  }
   if (diggerPanel instanceof HTMLElement) {
     diggerPanel.hidden = activeTab !== "digger";
   }
@@ -11901,8 +12471,10 @@ const renderResearchModal = () => {
 
   finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
   finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+  finalizeStationBuilderResearchActiveJob({ notify: true, refreshUi: false });
 
-  const { costumePanel, diggerPanel, summary, partList } = getResearchModalElements();
+  const { costumePanel, stationBuilderPanel, diggerPanel, summary, partList } =
+    getResearchModalElements();
   const activeResearchJob = getResearchLabActiveJob();
   const progressState = getResearchLabJobProgressState(activeResearchJob);
   const loadedCount = DRONE_CRAFTING_PARTS.filter((part) =>
@@ -11917,6 +12489,7 @@ const renderResearchModal = () => {
 
   syncResearchModalTabState();
   renderCostumeResearchPanel(costumePanel);
+  renderStationBuilderResearchPanel(stationBuilderPanel);
   renderDiggerResearchPanel(diggerPanel);
 
   if (summary instanceof HTMLElement) {
@@ -12022,6 +12595,7 @@ const startDronePartResearch = (partId) => {
   ensureSingleResearchLabJob({ notify: false, refreshUi: false });
   finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
   finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+  finalizeStationBuilderResearchActiveJob({ notify: true, refreshUi: false });
   ensureSingleResearchLabJob({ notify: false, refreshUi: false });
   const activeResearchJob = getResearchLabActiveJob();
   if (activeResearchJob) {
@@ -12109,6 +12683,179 @@ const startDronePartResearch = (partId) => {
     description: `Research time: ${formatDurationSeconds(
       researchDurationSeconds
     )}.${materialCostsBypassed ? " God mode bypassed material costs." : " Materials were consumed by the lab."}`,
+  });
+  return true;
+};
+
+const startStationBuilderResearch = (projectId) => {
+  const project = getStationBuilderResearchProjectById(projectId);
+  if (!project) {
+    return false;
+  }
+
+  if (isStationBuilderResearchProjectInstalled(project.id)) {
+    showTerminalToast({
+      title: "Already installed",
+      description: `${project.label} is already reducing Station Builder prices.`,
+    });
+    return false;
+  }
+
+  if (isStationBuilderResearchProjectReadyToClaim(project.id)) {
+    showTerminalToast({
+      title: "Ready to activate",
+      description: `${project.label} research is complete. Activate it in this tab.`,
+    });
+    return false;
+  }
+
+  const requiredProject = getStationBuilderResearchRequiredProject(project);
+  if (requiredProject && !isStationBuilderResearchProjectUnlocked(project)) {
+    showTerminalToast({
+      title: "Previous tier required",
+      description: `Research ${requiredProject.label} first.`,
+    });
+    refreshResearchModalIfOpen();
+    return false;
+  }
+
+  ensureSingleResearchLabJob({ notify: false, refreshUi: false });
+  finalizeCostumeResearchActiveJob({ notify: true, refreshUi: false });
+  finalizeDroneResearchActiveJob({ notify: true, refreshUi: false });
+  finalizeStationBuilderResearchActiveJob({ notify: true, refreshUi: false });
+  ensureSingleResearchLabJob({ notify: false, refreshUi: false });
+  const activeResearchJob = getResearchLabActiveJob();
+  if (activeResearchJob) {
+    if (
+      activeResearchJob.type === "station-builder" &&
+      activeResearchJob.id === project.id
+    ) {
+      const progressState = getResearchLabJobProgressState(activeResearchJob);
+      showTerminalToast({
+        title: "Research in progress",
+        description: `${project.label} will finish in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+      return false;
+    }
+
+    showTerminalToast({
+      title: "Research lab busy",
+      description: `${getResearchLabJobLabel(activeResearchJob)} is currently running.`,
+    });
+    return false;
+  }
+
+  const requirementStates = getStationBuilderResearchRequirementStates(project);
+  const materialCostsBypassed = isResearchAndCraftingCostBypassed();
+  const missingRequirement = materialCostsBypassed
+    ? null
+    : requirementStates.find((state) => !state.ready);
+  if (missingRequirement) {
+    showTerminalToast({
+      title: "Missing research materials",
+      description: `${formatCraftingElementName(
+        missingRequirement.requirement?.element
+      )}: ${missingRequirement.available}/${missingRequirement.needed}.`,
+    });
+    refreshResearchModalIfOpen();
+    return false;
+  }
+
+  if (!materialCostsBypassed) {
+    for (const requirementState of requirementStates) {
+      const spent = spendSharedRoomResource(
+        requirementState.requirement?.element,
+        requirementState.needed
+      );
+      if (!spent) {
+        showTerminalToast({
+          title: "Research failed",
+          description: "Inventory changed while starting the experiment. Try again.",
+        });
+        refreshResearchModalIfOpen();
+        return false;
+      }
+    }
+  }
+
+  const researchDurationSeconds = getStationBuilderResearchDurationSeconds(project);
+  if (researchDurationSeconds <= 0) {
+    stationBuilderResearchState.readyResearchProjectIds.add(project.id);
+    stationBuilderResearchState.activeJob = null;
+    persistDroneCraftingState();
+    refreshInventoryUi();
+    refreshResearchModalIfOpen();
+    showTerminalToast({
+      title: `${project.label} researched`,
+      description: "God mode instant research. Activate it in this tab.",
+    });
+    return true;
+  }
+
+  const startedAtMs = Date.now();
+  const durationMs = Math.max(1000, researchDurationSeconds * 1000);
+  stationBuilderResearchState.activeJob = {
+    projectId: project.id,
+    startedAtMs,
+    durationMs,
+    completedAtMs: startedAtMs + durationMs,
+  };
+  persistDroneCraftingState();
+  syncStationBuilderResearchProgressInterval();
+  refreshResearchModalIfOpen();
+
+  showTerminalToast({
+    title: `${project.label} started`,
+    description: `Research time: ${formatDurationSeconds(
+      researchDurationSeconds
+    )}.${materialCostsBypassed ? " God mode bypassed material costs." : " Materials were consumed by the lab."}`,
+  });
+  return true;
+};
+
+const activateStationBuilderResearchProject = (projectId) => {
+  const project = getStationBuilderResearchProjectById(projectId);
+  if (!project) {
+    return false;
+  }
+
+  finalizeStationBuilderResearchActiveJob({ notify: true, refreshUi: false });
+
+  if (isStationBuilderResearchProjectInstalled(project.id)) {
+    showTerminalToast({
+      title: "Already installed",
+      description: `${project.label} is already active.`,
+    });
+    return false;
+  }
+
+  if (!isStationBuilderResearchProjectReadyToClaim(project.id)) {
+    const activeJob = getStationBuilderResearchActiveJob();
+    if (activeJob && activeJob.projectId === project.id) {
+      const progressState = getStationBuilderResearchJobProgressState(activeJob);
+      showTerminalToast({
+        title: "Still researching",
+        description: `${project.label} will be ready in ${formatDurationSeconds(
+          progressState?.remainingSeconds ?? 0
+        )}.`,
+      });
+    }
+    return false;
+  }
+
+  stationBuilderResearchState.readyResearchProjectIds.delete(project.id);
+  stationBuilderResearchState.researchedProjectIds.add(project.id);
+  persistDroneCraftingState();
+  refreshResearchModalIfOpen();
+  if (isModelPaletteOpen() && Array.isArray(cachedModelManifest)) {
+    renderModelPaletteEntries(cachedModelManifest, { preserveScroll: true });
+  }
+
+  showTerminalToast({
+    title: `${project.label} installed`,
+    description: `${getStationBuilderResearchSummaryText()} is now active.`,
   });
   return true;
 };
@@ -13529,6 +14276,32 @@ const handleResearchModalActionClick = (event) => {
 
     if (actionType === "claim") {
       moveCostumeResearchBlueprintToInventory(projectId);
+    }
+    return;
+  }
+
+  const stationBuilderActionTarget =
+    event.target instanceof HTMLElement
+      ? event.target.closest("[data-station-builder-research-action]")
+      : null;
+
+  if (stationBuilderActionTarget instanceof HTMLButtonElement) {
+    event.preventDefault();
+
+    const projectId = stationBuilderActionTarget.dataset.stationBuilderResearchId;
+    const actionType =
+      stationBuilderActionTarget.dataset.stationBuilderResearchAction;
+    if (!projectId || !actionType) {
+      return;
+    }
+
+    if (actionType === "start") {
+      startStationBuilderResearch(projectId);
+      return;
+    }
+
+    if (actionType === "claim") {
+      activateStationBuilderResearchProject(projectId);
     }
     return;
   }
@@ -19321,6 +20094,9 @@ const serializeDroneCraftingStateForPersistence = () => {
   const knownCostumeProjectIds = new Set(
     COSTUME_RESEARCH_PROJECTS.map((project) => project.id)
   );
+  const knownStationBuilderResearchProjectIds = new Set(
+    STATION_BUILDER_RESEARCH_PROJECTS.map((project) => project.id)
+  );
   const serializeDroneModule = (module) => ({
     id: module.id,
     partId: module.partId,
@@ -19543,6 +20319,40 @@ const serializeDroneCraftingStateForPersistence = () => {
           completedAtMs: Math.floor(activeCostumeCraftJob.completedAtMs),
         }
       : null;
+  const stationBuilderResearchedProjectIds = Array.from(
+    stationBuilderResearchState.researchedProjectIds
+  ).filter(
+    (projectId) =>
+      typeof projectId === "string" &&
+      knownStationBuilderResearchProjectIds.has(projectId)
+  );
+  const stationBuilderResearchedProjectSet = new Set(
+    stationBuilderResearchedProjectIds
+  );
+  const stationBuilderReadyResearchProjectIds = Array.from(
+    stationBuilderResearchState.readyResearchProjectIds
+  ).filter(
+    (projectId) =>
+      typeof projectId === "string" &&
+      knownStationBuilderResearchProjectIds.has(projectId) &&
+      !stationBuilderResearchedProjectSet.has(projectId)
+  );
+  const stationBuilderReadyResearchProjectSet = new Set(
+    stationBuilderReadyResearchProjectIds
+  );
+  const activeStationBuilderResearchJob = getStationBuilderResearchActiveJob();
+  const activeStationBuilderResearchJobForPersistence =
+    activeStationBuilderResearchJob &&
+    knownStationBuilderResearchProjectIds.has(activeStationBuilderResearchJob.projectId) &&
+    !stationBuilderResearchedProjectSet.has(activeStationBuilderResearchJob.projectId) &&
+    !stationBuilderReadyResearchProjectSet.has(activeStationBuilderResearchJob.projectId)
+      ? {
+          projectId: activeStationBuilderResearchJob.projectId,
+          startedAtMs: Math.floor(activeStationBuilderResearchJob.startedAtMs),
+          durationMs: Math.floor(activeStationBuilderResearchJob.durationMs),
+          completedAtMs: Math.floor(activeStationBuilderResearchJob.completedAtMs),
+        }
+      : null;
 
   return {
     researchedPartIds,
@@ -19578,6 +20388,9 @@ const serializeDroneCraftingStateForPersistence = () => {
     costumeReadyProjectIds,
     activeCostumeResearchJob: activeCostumeResearchJobForPersistence,
     activeCostumeCraftJob: activeCostumeCraftJobForPersistence,
+    stationBuilderResearchedProjectIds,
+    stationBuilderReadyResearchProjectIds,
+    activeStationBuilderResearchJob: activeStationBuilderResearchJobForPersistence,
   };
 };
 
@@ -19759,10 +20572,12 @@ const restoreDroneCraftingStateFromStorage = () => {
   const resetDroneCraftingRestoreState = () => {
     clearCostumeResearchState();
     clearDroneCraftingProgressState();
+    clearStationBuilderResearchState();
     syncCostumeResearchProgressInterval();
     syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
+    syncStationBuilderResearchProgressInterval();
     applyCostumeResearchBonuses({
       refreshResearch: false,
       persistOxygen: false,
@@ -19788,6 +20603,7 @@ const restoreDroneCraftingStateFromStorage = () => {
 
   clearCostumeResearchState();
   clearDroneCraftingProgressState();
+  clearStationBuilderResearchState();
 
   if (typeof serialized !== "string" || serialized.trim() === "") {
     return resetDroneCraftingRestoreState();
@@ -19801,6 +20617,9 @@ const restoreDroneCraftingStateFromStorage = () => {
     const knownModelIds = new Set(DRONE_UNLOCKABLE_MODEL_IDS);
     const knownCostumeProjectIds = new Set(
       COSTUME_RESEARCH_PROJECTS.map((project) => project.id)
+    );
+    const knownStationBuilderResearchProjectIds = new Set(
+      STATION_BUILDER_RESEARCH_PROJECTS.map((project) => project.id)
     );
     const storedResearchedPartIds = Array.isArray(data?.researchedPartIds)
       ? data.researchedPartIds
@@ -20243,6 +21062,53 @@ const restoreDroneCraftingStateFromStorage = () => {
     }
     syncCostumeNextModuleInstanceId();
 
+    const storedStationBuilderResearchedProjectIds = Array.isArray(
+      data?.stationBuilderResearchedProjectIds
+    )
+      ? data.stationBuilderResearchedProjectIds
+      : [];
+    storedStationBuilderResearchedProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownStationBuilderResearchProjectIds.has(projectId)
+      ) {
+        stationBuilderResearchState.researchedProjectIds.add(projectId);
+      }
+    });
+
+    const storedStationBuilderReadyResearchProjectIds = Array.isArray(
+      data?.stationBuilderReadyResearchProjectIds
+    )
+      ? data.stationBuilderReadyResearchProjectIds
+      : [];
+    storedStationBuilderReadyResearchProjectIds.forEach((projectId) => {
+      if (
+        typeof projectId === "string" &&
+        knownStationBuilderResearchProjectIds.has(projectId) &&
+        !stationBuilderResearchState.researchedProjectIds.has(projectId)
+      ) {
+        stationBuilderResearchState.readyResearchProjectIds.add(projectId);
+      }
+    });
+
+    const restoredActiveStationBuilderResearchJob =
+      normalizeStationBuilderResearchActiveJob(data?.activeStationBuilderResearchJob);
+    if (
+      restoredActiveStationBuilderResearchJob &&
+      knownStationBuilderResearchProjectIds.has(
+        restoredActiveStationBuilderResearchJob.projectId
+      ) &&
+      !stationBuilderResearchState.researchedProjectIds.has(
+        restoredActiveStationBuilderResearchJob.projectId
+      ) &&
+      !stationBuilderResearchState.readyResearchProjectIds.has(
+        restoredActiveStationBuilderResearchJob.projectId
+      ) &&
+      !getResearchLabActiveJob()
+    ) {
+      stationBuilderResearchState.activeJob = restoredActiveStationBuilderResearchJob;
+    }
+
     const hasExtraUnlockedModels = Array.from(ensureDroneUnlockedModelState()).some(
       (modelId) => modelId !== DRONE_LIGHT_MODEL_ID
     );
@@ -20264,6 +21130,9 @@ const restoreDroneCraftingStateFromStorage = () => {
       Boolean(costumeResearchState.activeCraftJob) ||
       Boolean(droneCraftingState.activeResearchJob) ||
       Boolean(droneCraftingState.activeJob) ||
+      stationBuilderResearchState.researchedProjectIds.size > 0 ||
+      stationBuilderResearchState.readyResearchProjectIds.size > 0 ||
+      Boolean(stationBuilderResearchState.activeJob) ||
       hasExtraUnlockedModels;
   } catch (error) {
     console.warn("Unable to parse stored drone crafting state", error);
@@ -20281,6 +21150,8 @@ const restoreDroneCraftingStateFromStorage = () => {
   syncCostumeCraftingProgressInterval();
   finalizeDroneResearchActiveJob({ notify: false, refreshUi: false });
   syncDroneResearchProgressInterval();
+  finalizeStationBuilderResearchActiveJob({ notify: false, refreshUi: false });
+  syncStationBuilderResearchProgressInterval();
   finalizeDroneCraftingActiveJob({ notify: false, refreshUi: false });
   syncDroneCraftingProgressInterval();
   applyCostumeResearchBonuses({
@@ -20686,6 +21557,7 @@ if (Boolean(currentSettings?.godMode)) {
   completeCostumeCraftingActiveJobInstantly({ notify: false });
   completeDroneResearchActiveJobInstantly({ notify: false });
   completeDroneCraftingActiveJobInstantly({ notify: false });
+  completeStationBuilderResearchActiveJobInstantly({ notify: false });
 }
 syncDroneModelSelectionWithUnlocks({
   persist: true,
@@ -21600,7 +22472,9 @@ const getModelPaletteEntryDescription = (entry) => {
 };
 
 const getModelPaletteEntryPrice = (entry) => {
-  return Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+  const basePrice = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+  const discount = getStationBuilderResearchDiscount();
+  return Math.max(0, Math.round(basePrice * (1 - discount)));
 };
 
 const getModelPaletteEntrySellPrice = (entry) => {
@@ -21918,7 +22792,7 @@ const updateModelPaletteDetail = (entry) => {
 
   highlightedModelPalettePath = entry.path ?? null;
   const label = entry.label || entry.path || "Selected model";
-  const price = Number.isFinite(entry?.price) ? Math.max(0, entry.price) : 0;
+  const price = getModelPaletteEntryPrice(entry);
   const ownedCount = getPurchasedStructureModelCount(entry.path);
 
   modelPaletteDetail.hidden = false;
@@ -24627,6 +25501,7 @@ if (godModeToggle instanceof HTMLInputElement) {
       completeCostumeCraftingActiveJobInstantly({ notify: true });
       completeDroneResearchActiveJobInstantly({ notify: true });
       completeDroneCraftingActiveJobInstantly({ notify: true });
+      completeStationBuilderResearchActiveJobInstantly({ notify: true });
     }
   });
 }
@@ -24920,10 +25795,12 @@ function handleReset(event) {
     ensureStorageBoxRecord(STORAGE_BOX_DEFAULT_ID);
     clearCostumeResearchState();
     clearDroneCraftingProgressState();
+    clearStationBuilderResearchState();
     syncCostumeResearchProgressInterval();
     syncCostumeCraftingProgressInterval();
     syncDroneResearchProgressInterval();
     syncDroneCraftingProgressInterval();
+    syncStationBuilderResearchProgressInterval();
     lastSerializedDroneCraftingState = null;
     applyCostumeResearchBonuses({
       refreshResearch: false,
