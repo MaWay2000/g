@@ -128,10 +128,6 @@
         opacity: 0;
       }
 
-      .crosshair[data-third-person="true"] .crosshair__reticle {
-        opacity: 0;
-      }
-
       .rendering-error {
         position: fixed;
         inset: clamp(1rem, 2vw, 1.5rem);
@@ -333,7 +329,7 @@
       .geo-scan-panel {
         position: fixed;
         left: 50%;
-        bottom: clamp(7.5rem, 14vw, 10.5rem);
+        top: clamp(0.75rem, 2.4vw, 1.5rem);
         transform: translateX(-50%);
         width: min(560px, 92vw);
         padding: clamp(0.75rem, 2vw, 1rem);
@@ -1024,6 +1020,9 @@
         .settings-menu__panels {
           display: grid;
           grid-template-columns: 1fr;
+          left: 50%;
+          right: auto;
+          transform: translateX(-50%);
         }
 
         .settings-menu__panel,
@@ -1037,6 +1036,8 @@
 
       .settings-menu__panel {
         min-width: 280px;
+        max-height: calc(100vh - 6rem);
+        overflow-y: auto;
         padding: 1rem;
         border-radius: 16px;
         border: 1px solid rgba(59, 130, 246, 0.4);
@@ -1883,8 +1884,10 @@
       }
 
       .resource-toast {
-        align-self: flex-start;
-        margin: 0 var(--ui-gutter) 0.85rem;
+        position: fixed;
+        left: 50%;
+        top: calc(clamp(0.75rem, 2.4vw, 1.5rem) + 10.25rem);
+        margin: 0;
         padding: 1rem 1.8rem;
         border-radius: 18px;
         background: rgba(30, 41, 59, 0.92);
@@ -1895,16 +1898,17 @@
         font-size: 0.95rem;
         pointer-events: none;
         opacity: 0;
-        transform: translateX(12px);
+        transform: translate(-50%, -8px);
         transition: opacity 200ms ease, transform 200ms ease;
         display: flex;
         flex-direction: column;
         gap: 0.35rem;
+        z-index: 6;
       }
 
       .resource-toast[data-visible="true"] {
         opacity: 1;
-        transform: translateX(0);
+        transform: translate(-50%, 0);
       }
 
       .resource-toast[hidden] {
@@ -5718,6 +5722,38 @@
                       <span class="performance-toggle__text">
                         <span class="performance-toggle__title">Third-person view (V)</span>
                       </span>
+                    </label>
+                  </div>
+                  <div class="settings-menu__section" role="group" aria-label="Digger settings">
+                    <label class="settings-slider settings-slider--compact" for="diggerRange">
+                      <div class="settings-slider__header">
+                        <span class="settings-slider__title">Digger range</span>
+                        <span class="settings-slider__value" data-digger-range-value>7</span>
+                      </div>
+                      <div class="settings-slider__controls">
+                        <input
+                          id="diggerRange"
+                          class="settings-slider__range"
+                          type="range"
+                          min="1"
+                          max="100"
+                          step="1"
+                          value="7"
+                          aria-label="Digger range"
+                          data-digger-range
+                        />
+                        <input
+                          class="settings-slider__number-input"
+                          type="number"
+                          min="1"
+                          max="100"
+                          step="1"
+                          value="7"
+                          inputmode="numeric"
+                          aria-label="Digger range"
+                          data-digger-range-input
+                        />
+                      </div>
                     </label>
                   </div>
                   <div class="settings-menu__section" role="group" aria-label="Speed settings">

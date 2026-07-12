@@ -204,6 +204,16 @@ export const initScene = (
     return Math.max(0.01, Math.min(3, numericValue));
   };
 
+  const normalizeDiggerRange = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 7;
+    }
+
+    return Math.max(1, Math.min(100, Math.round(numericValue)));
+  };
+
   const normalizeReflectorResolutionScale = (value) => {
     const numericValue = Number(value);
 
@@ -1621,6 +1631,10 @@ export const initScene = (
   let geoVisorLastRow = null;
   let geoVisorLastColumn = null;
   let geoVisorLastEnabled = null;
+  let geoVisorLastPlayerX = null;
+  let geoVisorLastPlayerZ = null;
+  let geoVisorLastDiggerRange = null;
+  const geoVisorLastReachableTileIndices = new Set();
   let geoVisorRevealMapKey = null;
   const geoVisorRevealedTileIndices = new Set();
   const geoVisorRevealFadeTiles = new Set();
@@ -1628,6 +1642,8 @@ export const initScene = (
   const GEO_VISOR_REVEAL_FADE_DURATION = 1;
   const geoVisorPlayerWorldPosition = new THREE.Vector3();
   const geoVisorTileWorldPosition = new THREE.Vector3();
+  const geoVisorRangeCenterUniform = { value: new THREE.Vector2() };
+  const geoVisorRangeSquaredUniform = { value: 0 };
   const geoVisorRevealOrigin = new THREE.Vector3();
   const geoVisorOcclusionOrigin = new THREE.Vector3();
   const geoVisorOcclusionDirection = new THREE.Vector3();
@@ -1878,7 +1894,10 @@ export const initScene = (
   const applyGeoVisorMaterialToTile = (
     tile,
     shouldReveal,
-    { useVisorMaterial = geoVisorEnabled } = {}
+    {
+      useVisorMaterial = geoVisorEnabled,
+      updateStoredRevealState = true,
+    } = {}
   ) => {
     if (!tile?.userData) {
       return;
@@ -1890,7 +1909,11 @@ export const initScene = (
       ? tile.userData.tileVariantIndex
       : null;
     let revealSetChanged = false;
-    if (Number.isInteger(tileIndex) && tileIndex >= 0) {
+    if (
+      updateStoredRevealState &&
+      Number.isInteger(tileIndex) &&
+      tileIndex >= 0
+    ) {
       if (shouldReveal) {
         if (!geoVisorRevealedTileIndices.has(tileIndex)) {
           geoVisorRevealedTileIndices.add(tileIndex);
@@ -2043,6 +2066,82 @@ export const initScene = (
     return null;
   };
 
+  const removeGeoVisorRangeOverlay = (tile) => {
+    const overlay = tile?.userData?.geoVisorRangeOverlay;
+    if (!overlay?.isObject3D) {
+      return;
+    }
+
+    tile.remove(overlay);
+    if (overlay.material?.isMaterial) {
+      overlay.material.dispose();
+    }
+    tile.userData.geoVisorRangeOverlay = null;
+  };
+
+  const ensureGeoVisorRangeOverlay = (tile) => {
+    const sourceMaterial = tile?.userData?.geoVisorVisorMaterial;
+    if (!tile?.isMesh || !sourceMaterial?.isMaterial) {
+      removeGeoVisorRangeOverlay(tile);
+      return null;
+    }
+
+    const existingOverlay = tile.userData.geoVisorRangeOverlay;
+    if (
+      existingOverlay?.isMesh &&
+      existingOverlay.userData.geoVisorSourceMaterialUuid === sourceMaterial.uuid
+    ) {
+      return existingOverlay;
+    }
+
+    removeGeoVisorRangeOverlay(tile);
+    const overlayMaterial = sourceMaterial.clone();
+    const sourceOnBeforeCompile = overlayMaterial.onBeforeCompile;
+    const sourceProgramCacheKey = overlayMaterial.customProgramCacheKey.bind(
+      overlayMaterial
+    );
+    overlayMaterial.depthWrite = false;
+    overlayMaterial.polygonOffset = true;
+    overlayMaterial.polygonOffsetFactor = -1;
+    overlayMaterial.polygonOffsetUnits = -1;
+    overlayMaterial.onBeforeCompile = (shader, rendererInstance) => {
+      sourceOnBeforeCompile(shader, rendererInstance);
+      shader.uniforms.geoVisorRangeCenter = geoVisorRangeCenterUniform;
+      shader.uniforms.geoVisorRangeSquared = geoVisorRangeSquaredUniform;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          "#include <common>",
+          "#include <common>\nvarying vec2 vGeoVisorWorldPosition;"
+        )
+        .replace(
+          "#include <project_vertex>",
+          "#include <project_vertex>\nvGeoVisorWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xz;"
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          "#include <common>\nvarying vec2 vGeoVisorWorldPosition;\nuniform vec2 geoVisorRangeCenter;\nuniform float geoVisorRangeSquared;"
+        )
+        .replace(
+          "#include <clipping_planes_fragment>",
+          "#include <clipping_planes_fragment>\nvec2 geoVisorOffset = vGeoVisorWorldPosition - geoVisorRangeCenter;\nif (dot(geoVisorOffset, geoVisorOffset) > geoVisorRangeSquared) discard;"
+        );
+    };
+    overlayMaterial.customProgramCacheKey = () =>
+      `${sourceProgramCacheKey()}-geo-visor-range-circle-v1`;
+
+    const overlay = new THREE.Mesh(tile.geometry, overlayMaterial);
+    overlay.name = "geo-visor-range-overlay";
+    overlay.castShadow = false;
+    overlay.receiveShadow = false;
+    overlay.renderOrder = tile.renderOrder + 1;
+    overlay.userData.isGeoVisorRangeOverlay = true;
+    overlay.userData.geoVisorSourceMaterialUuid = sourceMaterial.uuid;
+    tile.add(overlay);
+    tile.userData.geoVisorRangeOverlay = overlay;
+    return overlay;
+  };
+
   const isGeoVisorTileVisibleFromCamera = (tile, terrainTiles) => {
     if (!tile?.isObject3D || !Array.isArray(terrainTiles) || terrainTiles.length === 0) {
       return false;
@@ -2118,6 +2217,10 @@ export const initScene = (
       geoVisorLastRow = null;
       geoVisorLastColumn = null;
       geoVisorLastEnabled = geoVisorEnabled;
+      geoVisorLastPlayerX = null;
+      geoVisorLastPlayerZ = null;
+      geoVisorLastDiggerRange = resourceToolMaxDistance;
+      geoVisorLastReachableTileIndices.clear();
       return;
     }
 
@@ -2135,6 +2238,11 @@ export const initScene = (
     } else {
       geoVisorPlayerWorldPosition.set(0, 0, 0);
     }
+    geoVisorRangeCenterUniform.value.set(
+      geoVisorPlayerWorldPosition.x,
+      geoVisorPlayerWorldPosition.z
+    );
+    geoVisorRangeSquaredUniform.value = resourceToolMaxDistance ** 2;
 
     geoVisorRevealOrigin.copy(geoVisorPlayerWorldPosition);
     if (sampleTile?.parent?.isObject3D) {
@@ -2168,21 +2276,142 @@ export const initScene = (
             sampleTile.userData.geoVisorCellSize
         )
       : null;
-    const isPlayerInsideMapBounds =
-      Number.isInteger(playerRow) &&
-      Number.isInteger(playerColumn) &&
-      playerRow >= 0 &&
-      playerRow < height &&
-      playerColumn >= 0 &&
-      playerColumn < width;
+    const playerCellChanged =
+      geoVisorLastRow !== playerRow ||
+      geoVisorLastColumn !== playerColumn;
+    const visorStateChanged = geoVisorLastEnabled !== geoVisorEnabled;
+    const diggerRangeChanged =
+      geoVisorLastDiggerRange !== resourceToolMaxDistance;
+    const visibilityMovementThreshold = 0.25;
+    const playerMovedEnough =
+      !Number.isFinite(geoVisorLastPlayerX) ||
+      !Number.isFinite(geoVisorLastPlayerZ) ||
+      Math.hypot(
+        geoVisorPlayerWorldPosition.x - geoVisorLastPlayerX,
+        geoVisorPlayerWorldPosition.z - geoVisorLastPlayerZ
+      ) >= visibilityMovementThreshold;
 
     if (
       !force &&
-      geoVisorLastEnabled === geoVisorEnabled &&
-      geoVisorLastRow === playerRow &&
-      geoVisorLastColumn === playerColumn
+      !visorStateChanged &&
+      !playerCellChanged &&
+      !diggerRangeChanged &&
+      !playerMovedEnough
     ) {
       return;
+    }
+
+    const tilesWithinDiggerRange = new Set();
+    const diggerRangeSquared = resourceToolMaxDistance ** 2;
+    allTerrainTiles.forEach((tile) => {
+      if (!tile?.isObject3D) {
+        return;
+      }
+
+      tile.updateWorldMatrix(true, false);
+      tile.getWorldPosition(geoVisorTileWorldPosition);
+      const halfCellSize = Number.isFinite(tile.userData?.geoVisorCellSize)
+        ? tile.userData.geoVisorCellSize * 0.5
+        : 0;
+      const distanceX = Math.max(
+        0,
+        Math.abs(geoVisorTileWorldPosition.x - geoVisorPlayerWorldPosition.x) -
+          halfCellSize
+      );
+      const distanceZ = Math.max(
+        0,
+        Math.abs(geoVisorTileWorldPosition.z - geoVisorPlayerWorldPosition.z) -
+          halfCellSize
+      );
+      if (distanceX ** 2 + distanceZ ** 2 <= diggerRangeSquared) {
+        tilesWithinDiggerRange.add(tile);
+      }
+    });
+
+    const newlyReachableTiles = new Set();
+    tilesWithinDiggerRange.forEach((tile) => {
+      const tileIndex = Number.isFinite(tile?.userData?.tileVariantIndex)
+        ? tile.userData.tileVariantIndex
+        : null;
+      if (
+        Number.isInteger(tileIndex) &&
+        !geoVisorLastReachableTileIndices.has(tileIndex)
+      ) {
+        newlyReachableTiles.add(tile);
+      }
+    });
+
+    const activeRevealTiles = new Set();
+    const revealOnlyNewlyReachableTiles =
+      !force &&
+      !visorStateChanged &&
+      !playerCellChanged;
+    const shouldRevealNewTiles =
+      geoVisorEnabled &&
+      tilesWithinDiggerRange.size > 0 &&
+      (force ||
+        visorStateChanged ||
+        playerCellChanged ||
+        (newlyReachableTiles.size > 0 &&
+          (playerMovedEnough || diggerRangeChanged)));
+    if (shouldRevealNewTiles) {
+      const revealTileCount = 4;
+      const maxRevealRadius = Math.max(width, height);
+      let revealCandidates = [];
+
+      for (let radius = 0; radius <= maxRevealRadius; radius += 1) {
+        revealCandidates = allTerrainTiles.filter((tile) => {
+          const tileIndex = Number.isFinite(tile?.userData?.tileVariantIndex)
+            ? tile.userData.tileVariantIndex
+            : null;
+          if (
+            !tile?.isObject3D ||
+            !tilesWithinDiggerRange.has(tile) ||
+            (revealOnlyNewlyReachableTiles &&
+              !newlyReachableTiles.has(tile)) ||
+            (Number.isInteger(tileIndex) &&
+              geoVisorRevealedTileIndices.has(tileIndex))
+          ) {
+            return false;
+          }
+
+          const tileRow = Number.isFinite(tile.userData?.geoVisorRow)
+            ? tile.userData.geoVisorRow
+            : null;
+          const tileColumn = Number.isFinite(tile.userData?.geoVisorColumn)
+            ? tile.userData.geoVisorColumn
+            : null;
+
+          return (
+            tileRow !== null &&
+            tileColumn !== null &&
+            Math.max(
+              Math.abs(tileRow - playerRow),
+              Math.abs(tileColumn - playerColumn)
+            ) <= radius
+          );
+        });
+
+        if (revealCandidates.length >= revealTileCount) {
+          break;
+        }
+      }
+
+      for (
+        let index = revealCandidates.length - 1;
+        index > 0;
+        index -= 1
+      ) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [revealCandidates[index], revealCandidates[swapIndex]] = [
+          revealCandidates[swapIndex],
+          revealCandidates[index],
+        ];
+      }
+
+      revealCandidates
+        .slice(0, revealTileCount)
+        .forEach((tile) => activeRevealTiles.add(tile));
     }
 
     allTerrainTiles.forEach((tile) => {
@@ -2190,32 +2419,54 @@ export const initScene = (
         return;
       }
 
-      const tileRow = Number.isFinite(tile.userData?.geoVisorRow)
-        ? tile.userData.geoVisorRow
+      const tileIndex = Number.isFinite(tile.userData?.tileVariantIndex)
+        ? tile.userData.tileVariantIndex
         : null;
-      const tileColumn = Number.isFinite(tile.userData?.geoVisorColumn)
-        ? tile.userData.geoVisorColumn
-        : null;
-      const isAdjacentPlayerTile =
-        isPlayerInsideMapBounds &&
-        tileRow !== null &&
-        tileColumn !== null &&
-        playerRow !== null &&
-        playerColumn !== null &&
-        Math.abs(tileRow - playerRow) + Math.abs(tileColumn - playerColumn) === 1;
-      const isSavedRevealTile = Boolean(tile.userData?.geoVisorRevealed);
-      const isActiveRevealTile = geoVisorEnabled && isAdjacentPlayerTile;
-      const shouldReveal = isSavedRevealTile || isActiveRevealTile;
-      const shouldUseVisorMaterial = shouldReveal;
+      const isSavedRevealTile =
+        Number.isInteger(tileIndex) &&
+        geoVisorRevealedTileIndices.has(tileIndex);
+      const isActiveRevealTile = activeRevealTiles.has(tile);
+      const shouldShowReveal =
+        geoVisorEnabled &&
+        tilesWithinDiggerRange.has(tile) &&
+        (isSavedRevealTile || isActiveRevealTile);
+      if (isActiveRevealTile) {
+        applyGeoVisorMaterialToTile(tile, true, {
+          useVisorMaterial: false,
+          updateStoredRevealState: true,
+        });
+      }
 
-      applyGeoVisorMaterialToTile(tile, shouldReveal, {
-        useVisorMaterial: shouldUseVisorMaterial,
-      });
+      clearGeoVisorRevealFadeState(tile);
+      const baseMaterial = getNonVisorTerrainMaterialForTile(tile);
+      if (baseMaterial) {
+        tile.material = baseMaterial;
+        syncViewDistanceBaseMaterial(tile, baseMaterial);
+      }
+      const overlay = shouldShowReveal
+        ? ensureGeoVisorRangeOverlay(tile)
+        : tile.userData.geoVisorRangeOverlay;
+      if (overlay?.isObject3D) {
+        overlay.visible = shouldShowReveal;
+      }
+      tile.userData.geoVisorRevealed = shouldShowReveal;
     });
 
     geoVisorLastRow = playerRow;
     geoVisorLastColumn = playerColumn;
-    geoVisorLastEnabled = true;
+    geoVisorLastEnabled = geoVisorEnabled;
+    geoVisorLastPlayerX = geoVisorPlayerWorldPosition.x;
+    geoVisorLastPlayerZ = geoVisorPlayerWorldPosition.z;
+    geoVisorLastDiggerRange = resourceToolMaxDistance;
+    geoVisorLastReachableTileIndices.clear();
+    tilesWithinDiggerRange.forEach((tile) => {
+      const tileIndex = Number.isFinite(tile?.userData?.tileVariantIndex)
+        ? tile.userData.tileVariantIndex
+        : null;
+      if (Number.isInteger(tileIndex)) {
+        geoVisorLastReachableTileIndices.add(tileIndex);
+      }
+    });
   };
 
   const runGeoVisorTerrainVisibilityRegressionCheck = () => {
@@ -2226,11 +2477,7 @@ export const initScene = (
 
     const terrainTiles = getAllTerrainTilesForGeoVisor();
     const revealedBeforeDisable = terrainTiles.filter((tile) => {
-      if (!tile?.userData?.geoVisorVisorMaterial) {
-        return false;
-      }
-
-      return tile.material === tile.userData.geoVisorVisorMaterial;
+      return tile?.userData?.geoVisorRangeOverlay?.visible === true;
     });
 
     geoVisorEnabled = false;
@@ -2238,15 +2485,11 @@ export const initScene = (
     updateGeoVisorRevealFades(GEO_VISOR_REVEAL_FADE_DURATION);
 
     const retainedVisorTiles = terrainTiles.filter((tile) => {
-      if (!tile?.userData?.geoVisorVisorMaterial) {
-        return false;
-      }
-
-      return tile.material === tile.userData.geoVisorVisorMaterial;
+      return tile?.userData?.geoVisorRangeOverlay?.visible === true;
     });
 
     const onToOffTransitionRetainedVisorMaterial =
-      retainedVisorTiles.length === revealedBeforeDisable.length;
+      retainedVisorTiles.length === 0;
 
     geoVisorEnabled = initialState;
     updateGeoVisorTerrainVisibility({ force: true });
@@ -2518,11 +2761,13 @@ export const initScene = (
     const texture = textureLoader.load(
       resolvedUrl,
       (loadedTexture) => {
+        loadedTexture.userData.loaded = true;
         if (typeof onLoad === "function") {
           onLoad(loadedTexture);
         }
       }
     );
+    texture.userData.loaded = false;
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -2531,6 +2776,7 @@ export const initScene = (
   };
 
   const runtimeTerrainTextures = new Map();
+  const runtimeTerrainTextureCallbacks = new Map();
   const runtimeTerrainMaterials = new Map();
   const runtimeGeoVisorMaterials = new Map();
   let runtimeDepletedTerrainMaterial = null;
@@ -2543,7 +2789,7 @@ export const initScene = (
   const MINED_VOID_TERRAIN_EMISSIVE_COLOR = 0x1f2937;
   const MINED_VOID_TERRAIN_EMISSIVE_INTENSITY = 0.06;
 
-  const getRuntimeTerrainTexture = (tileId, variantIndex) => {
+  const getRuntimeTerrainTexture = (tileId, variantIndex, onLoad) => {
     const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
 
     if (!texturePath) {
@@ -2551,11 +2797,27 @@ export const initScene = (
     }
 
     if (!runtimeTerrainTextures.has(texturePath)) {
-      const texture = loadClampedTexture(texturePath);
+      runtimeTerrainTextureCallbacks.set(texturePath, []);
+      const texture = loadClampedTexture(texturePath, (loadedTexture) => {
+        const callbacks = runtimeTerrainTextureCallbacks.get(texturePath);
+        if (Array.isArray(callbacks)) {
+          callbacks.forEach((callback) => callback(loadedTexture));
+        }
+        runtimeTerrainTextureCallbacks.delete(texturePath);
+      });
       runtimeTerrainTextures.set(texturePath, texture);
     }
 
-    return runtimeTerrainTextures.get(texturePath);
+    const texture = runtimeTerrainTextures.get(texturePath);
+    if (
+      typeof onLoad === "function" &&
+      texture?.userData?.loaded !== true &&
+      runtimeTerrainTextureCallbacks.has(texturePath)
+    ) {
+      runtimeTerrainTextureCallbacks.get(texturePath).push(onLoad);
+    }
+
+    return texture;
   };
 
   const getRuntimeTerrainMaterial = (terrainId, tileId, variantIndex) => {
@@ -2574,21 +2836,31 @@ export const initScene = (
       DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
     const terrain = getOutsideTerrainById(terrainId);
     const isVoidTerrain = terrainId === "void";
-    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
-    const baseColor = texture
+    let material = null;
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex, (loadedTexture) => {
+      if (!material?.isMaterial) {
+        return;
+      }
+
+      material.map = loadedTexture;
+      material.color.set(0xffffff);
+      material.needsUpdate = true;
+    });
+    const hasLoadedTexture = texture?.userData?.loaded === true;
+    const baseColor = hasLoadedTexture
       ? 0xffffff
       : isVoidTerrain
         ? terrainStyle.color ??
           terrain?.color ??
           DEFAULT_OUTSIDE_TERRAIN_COLOR
         : 0xffffff;
-    const material = new THREE.MeshStandardMaterial({
+    material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
       roughness: terrainStyle.roughness,
       metalness: terrainStyle.metalness,
       emissive: new THREE.Color(terrainStyle.emissive),
       emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
-      map: texture ?? null,
+      map: hasLoadedTexture ? texture : null,
       vertexColors: true,
       transparent: false,
       opacity: 1,
@@ -2610,11 +2882,21 @@ export const initScene = (
     const terrain = getOutsideTerrainById(terrainId);
     const isVoidTerrain = terrainId === "void";
     const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-    const texture = getRuntimeTerrainTexture(tileId, variantIndex);
-    const baseColor = texture ? 0xffffff : terrainColor;
+    let material = null;
+    const texture = getRuntimeTerrainTexture(tileId, variantIndex, (loadedTexture) => {
+      if (!material?.isMaterial) {
+        return;
+      }
+
+      material.map = loadedTexture;
+      material.color.set(0xffffff);
+      material.needsUpdate = true;
+    });
+    const hasLoadedTexture = texture?.userData?.loaded === true;
+    const baseColor = hasLoadedTexture ? 0xffffff : terrainColor;
     const opacity = terrainStyle.opacity ?? 1;
     const isTransparent = opacity < 1;
-    const material = new THREE.MeshStandardMaterial({
+    material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(baseColor),
       roughness: terrainStyle.roughness,
       metalness: terrainStyle.metalness,
@@ -2623,7 +2905,7 @@ export const initScene = (
         0.65,
         terrainStyle.emissiveIntensity ?? 0
       ),
-      map: texture ?? null,
+      map: hasLoadedTexture ? texture : null,
       vertexColors: true,
       transparent: isTransparent,
       opacity,
@@ -7416,6 +7698,7 @@ export const initScene = (
       const editableModelContainers = new Set();
       const terrainMaterials = new Map();
       const terrainTextures = new Map();
+      const terrainTextureCallbacks = new Map();
       const geoVisorMaterials = new Map();
       const outsidePlacementColliderPadding = new THREE.Vector3(
         0.02,
@@ -7650,7 +7933,16 @@ export const initScene = (
           return perimeterMaterials.get(materialKey);
         }
 
-        const texture = loadClampedTexture(perimeterTexturePath);
+        let material = null;
+        const texture = loadClampedTexture(perimeterTexturePath, (loadedTexture) => {
+          if (!material?.isMaterial) {
+            return;
+          }
+
+          material.map = loadedTexture;
+          material.color.set(0xffffff);
+          material.needsUpdate = true;
+        });
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(repeatX, repeatY);
@@ -7658,15 +7950,14 @@ export const initScene = (
           texture.center.set(0.5, 0.5);
           texture.rotation = (Math.PI / 2) * rotateQuarterTurns;
         }
-        texture.needsUpdate = true;
 
-        const material = new THREE.MeshStandardMaterial({
+        material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(0xffffff),
           roughness: terrainStyle.roughness,
           metalness: terrainStyle.metalness,
           emissive: new THREE.Color(terrainStyle.emissive),
           emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
-          map: texture,
+          map: texture.userData?.loaded === true ? texture : null,
           side: THREE.DoubleSide,
         });
         perimeterMaterials.set(materialKey, material);
@@ -8133,7 +8424,7 @@ export const initScene = (
         return geometry;
       };
 
-      const getTextureForTerrainTile = (tileId, variantIndex) => {
+      const getTextureForTerrainTile = (tileId, variantIndex, onLoad) => {
         const texturePath = getOutsideTerrainTilePath(tileId, variantIndex);
 
         if (!texturePath) {
@@ -8141,11 +8432,27 @@ export const initScene = (
         }
 
         if (!terrainTextures.has(texturePath)) {
-          const texture = loadClampedTexture(texturePath);
+          terrainTextureCallbacks.set(texturePath, []);
+          const texture = loadClampedTexture(texturePath, (loadedTexture) => {
+            const callbacks = terrainTextureCallbacks.get(texturePath);
+            if (Array.isArray(callbacks)) {
+              callbacks.forEach((callback) => callback(loadedTexture));
+            }
+            terrainTextureCallbacks.delete(texturePath);
+          });
           terrainTextures.set(texturePath, texture);
         }
 
-        return terrainTextures.get(texturePath);
+        const texture = terrainTextures.get(texturePath);
+        if (
+          typeof onLoad === "function" &&
+          texture?.userData?.loaded !== true &&
+          terrainTextureCallbacks.has(texturePath)
+        ) {
+          terrainTextureCallbacks.get(texturePath).push(onLoad);
+        }
+
+        return texture;
       };
 
       const getMaterialForTerrain = (terrainId, tileId, variantIndex) => {
@@ -8164,8 +8471,18 @@ export const initScene = (
           DEFAULT_OUTSIDE_TERRAIN_TILE_STYLE;
         const terrain = getOutsideTerrainById(terrainId);
         const isVoidTerrain = terrainId === "void";
-        const texture = getTextureForTerrainTile(tileId, variantIndex);
-        const baseColor = texture
+        let material = null;
+        const texture = getTextureForTerrainTile(tileId, variantIndex, (loadedTexture) => {
+          if (!material?.isMaterial) {
+            return;
+          }
+
+          material.map = loadedTexture;
+          material.color.set(0xffffff);
+          material.needsUpdate = true;
+        });
+        const hasLoadedTexture = texture?.userData?.loaded === true;
+        const baseColor = hasLoadedTexture
           ? 0xffffff
           : isVoidTerrain
             ? terrainStyle.color ??
@@ -8173,13 +8490,13 @@ export const initScene = (
               DEFAULT_OUTSIDE_TERRAIN_COLOR
             : 0xffffff;
         const opacity = terrainStyle.opacity ?? 1;
-        const material = new THREE.MeshStandardMaterial({
+        material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
           roughness: terrainStyle.roughness,
           metalness: terrainStyle.metalness,
           emissive: new THREE.Color(terrainStyle.emissive),
           emissiveIntensity: terrainStyle.emissiveIntensity ?? 1,
-          map: texture ?? null,
+          map: hasLoadedTexture ? texture : null,
           vertexColors: true,
           side: THREE.DoubleSide,
           transparent: opacity < 1,
@@ -8206,10 +8523,20 @@ export const initScene = (
         const terrain = getOutsideTerrainById(terrainId);
         const isVoidTerrain = terrainId === "void";
         const terrainColor = terrain?.color ?? DEFAULT_OUTSIDE_TERRAIN_COLOR;
-        const texture = getTextureForTerrainTile(tileId, variantIndex);
-        const baseColor = texture ? 0xffffff : terrainColor;
+        let material = null;
+        const texture = getTextureForTerrainTile(tileId, variantIndex, (loadedTexture) => {
+          if (!material?.isMaterial) {
+            return;
+          }
+
+          material.map = loadedTexture;
+          material.color.set(0xffffff);
+          material.needsUpdate = true;
+        });
+        const hasLoadedTexture = texture?.userData?.loaded === true;
+        const baseColor = hasLoadedTexture ? 0xffffff : terrainColor;
         const opacity = terrainStyle.opacity ?? 1;
-        const material = new THREE.MeshStandardMaterial({
+        material = new THREE.MeshStandardMaterial({
           color: new THREE.Color(baseColor),
           roughness: terrainStyle.roughness,
           metalness: terrainStyle.metalness,
@@ -8218,7 +8545,7 @@ export const initScene = (
             0.65,
             terrainStyle.emissiveIntensity ?? 0
           ),
-          map: texture ?? null,
+          map: hasLoadedTexture ? texture : null,
           vertexColors: true,
           side: THREE.DoubleSide,
           transparent: true,
@@ -8549,7 +8876,11 @@ export const initScene = (
             return;
           }
 
-          if (child.geometry && typeof child.geometry.dispose === "function") {
+          if (
+            !child.userData?.isGeoVisorRangeOverlay &&
+            child.geometry &&
+            typeof child.geometry.dispose === "function"
+          ) {
             child.geometry.dispose();
           }
 
@@ -9533,19 +9864,28 @@ export const initScene = (
       "images/textures/pack2/002_hex_plate_rot_baseColor.png";
     const entranceWallTileSize = 1.1;
     const createEntranceWallMaterial = (repeatX, repeatY) => {
-      const texture = loadClampedTexture(entranceWallTexturePath);
+      let material = null;
+      const texture = loadClampedTexture(entranceWallTexturePath, (loadedTexture) => {
+        if (!material?.isMaterial) {
+          return;
+        }
+
+        material.map = loadedTexture;
+        material.color.set(0xffffff);
+        material.needsUpdate = true;
+      });
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(repeatX, repeatY);
-      texture.needsUpdate = true;
-      return new THREE.MeshStandardMaterial({
+      material = new THREE.MeshStandardMaterial({
         color: new THREE.Color(0xffffff),
         roughness: 0.65,
         metalness: 0.35,
         emissive: new THREE.Color(0x07131a),
         emissiveIntensity: 0.2,
-        map: texture,
+        map: texture.userData?.loaded === true ? texture : null,
       });
+      return material;
     };
 
     const entranceRoofRepeatX = Math.max(
@@ -12821,12 +13161,16 @@ export const initScene = (
           ? cameraLayers.isEnabled(REFLECTION_PLAYER_LAYER)
           : false;
       const hadReflectionProxyVisible = playerReflectionProxy?.visible === true;
+      const hadResourceToolVisible = resourceToolGroup?.visible === true;
 
       if (cameraLayers?.enable) {
         cameraLayers.enable(REFLECTION_PLAYER_LAYER);
       }
       if (playerReflectionProxy) {
         playerReflectionProxy.visible = true;
+      }
+      if (resourceToolGroup) {
+        resourceToolGroup.visible = false;
       }
 
       if (typeof baseOnBeforeRender === "function") {
@@ -12846,6 +13190,9 @@ export const initScene = (
       }
       if (playerReflectionProxy) {
         playerReflectionProxy.visible = hadReflectionProxyVisible;
+      }
+      if (resourceToolGroup) {
+        resourceToolGroup.visible = hadResourceToolVisible;
       }
     };
     const reflectorUserData = reflector.userData || (reflector.userData = {});
@@ -13719,6 +14066,7 @@ export const initScene = (
 
   const leftReflectionArm = createReflectionArmRig(-1);
   const rightReflectionArm = createReflectionArmRig(1);
+  leftReflectionArm.hand.scale.set(1.45, 1.35, 1.35);
   const leftReflectionLeg = createReflectionLegRig(-1);
   const rightReflectionLeg = createReflectionLegRig(1);
 
@@ -13791,11 +14139,21 @@ export const initScene = (
     reflectionHeadPivot.rotation.y = walkSin * 0.04 * moveBlend;
     reflectionHeadPivot.rotation.z = walkCos * 0.05 * moveBlend;
 
-    leftReflectionArm.shoulder.rotation.set(armSwing - 0.08, -0.08, -0.22);
+    const reflectionToolHeld =
+      resourceToolEnabled &&
+      reflectionResourceToolGroup?.visible === true;
+
+    if (reflectionToolHeld) {
+      leftReflectionArm.shoulder.rotation.set(1.05, -0.2, -0.28);
+      leftReflectionArm.elbow.rotation.x = -0.73;
+      leftReflectionArm.elbow.rotation.z = -0.08;
+    } else {
+      leftReflectionArm.shoulder.rotation.set(armSwing - 0.08, -0.08, -0.22);
+      leftReflectionArm.elbow.rotation.x = 0.28 + Math.max(0, -armSwing) * 0.42;
+      leftReflectionArm.elbow.rotation.z = -0.05;
+    }
     rightReflectionArm.shoulder.rotation.set(-armSwing - 0.08, 0.08, 0.22);
-    leftReflectionArm.elbow.rotation.x = 0.28 + Math.max(0, -armSwing) * 0.42;
     rightReflectionArm.elbow.rotation.x = 0.28 + Math.max(0, armSwing) * 0.42;
-    leftReflectionArm.elbow.rotation.z = -0.05;
     rightReflectionArm.elbow.rotation.z = 0.05;
 
     if (airborne) {
@@ -14138,8 +14496,8 @@ export const initScene = (
   resourceToolGroup.name = "ResourceTool";
   resourceToolGroup.visible = false;
 
-  const resourceToolBasePosition = new THREE.Vector3(0.45, -0.38, -0.72);
-  const resourceToolBaseRotation = new THREE.Euler(-0.28, 0.42, 0.08, "XYZ");
+  const resourceToolBasePosition = new THREE.Vector3(0.42, -0.44, -0.68);
+  const resourceToolBaseRotation = new THREE.Euler(-0.08, 0.34, 0.05, "XYZ");
   resourceToolGroup.position.copy(resourceToolBasePosition);
   resourceToolGroup.rotation.copy(resourceToolBaseRotation);
 
@@ -14167,7 +14525,7 @@ export const initScene = (
     }
   };
 
-  const registerResourceToolMesh = (mesh) => {
+  const registerResourceToolMesh = (mesh, parent = resourceToolGroup) => {
     if (!mesh) {
       return null;
     }
@@ -14176,63 +14534,311 @@ export const initScene = (
     trackResourceToolMaterial(mesh.material);
     mesh.castShadow = false;
     mesh.receiveShadow = false;
-    resourceToolGroup.add(mesh);
+    parent.add(mesh);
     return mesh;
   };
 
-  const resourceToolHandle = registerResourceToolMesh(
+  const resourceToolMaterialsByRole = {
+    olive: new THREE.MeshStandardMaterial({
+      color: 0x556052,
+      emissive: 0x121711,
+      emissiveIntensity: 0.08,
+      metalness: 0.58,
+      roughness: 0.34,
+    }),
+    darkOlive: new THREE.MeshStandardMaterial({
+      color: 0x29362d,
+      emissive: 0x0b120d,
+      emissiveIntensity: 0.06,
+      metalness: 0.48,
+      roughness: 0.42,
+    }),
+    black: new THREE.MeshStandardMaterial({
+      color: 0x151515,
+      metalness: 0.2,
+      roughness: 0.62,
+    }),
+    steel: new THREE.MeshStandardMaterial({
+      color: 0xb8b6aa,
+      metalness: 0.78,
+      roughness: 0.22,
+    }),
+    yellow: new THREE.MeshStandardMaterial({
+      color: 0xcddb19,
+      emissive: 0xa4b40c,
+      emissiveIntensity: 0.18,
+      metalness: 0.18,
+      roughness: 0.36,
+    }),
+    brass: new THREE.MeshStandardMaterial({
+      color: 0xd69218,
+      emissive: 0xb66f06,
+      emissiveIntensity: 0.18,
+      metalness: 0.48,
+      roughness: 0.28,
+    }),
+  };
+
+  const createY28ResourceToolModel = (
+    parent,
+    { mirrored = false, scale = 1 } = {}
+  ) => {
+    const root = new THREE.Group();
+    root.scale.setScalar(scale);
+    parent.add(root);
+
+    const side = mirrored ? -1 : 1;
+    const addMesh = (
+      geometry,
+      material,
+      position,
+      rotation = [0, 0, 0],
+      meshScale = [1, 1, 1]
+    ) => {
+      const mesh = registerResourceToolMesh(
+        new THREE.Mesh(geometry, material),
+        root
+      );
+      if (!mesh) {
+        return null;
+      }
+
+      mesh.position.set(position[0] * side, position[1], position[2]);
+      mesh.rotation.set(rotation[0], rotation[1] * side, rotation[2] * side);
+      mesh.scale.set(meshScale[0], meshScale[1], meshScale[2]);
+      return mesh;
+    };
+
+    addMesh(
+      new THREE.CylinderGeometry(0.095, 0.105, 0.46, 22),
+      resourceToolMaterialsByRole.olive,
+      [0, -0.06, 0]
+    );
+    addMesh(
+      new THREE.CylinderGeometry(0.085, 0.078, 0.3, 18),
+      resourceToolMaterialsByRole.darkOlive,
+      [0, -0.43, 0],
+      [0, 0, 0],
+      [0.82, 1, 0.82]
+    );
+    addMesh(
+      new THREE.ConeGeometry(0.075, 0.18, 18),
+      resourceToolMaterialsByRole.steel,
+      [0, -0.68, 0],
+      [Math.PI, 0, 0],
+      [0.82, 1, 0.82]
+    );
+    addMesh(
+      new THREE.CylinderGeometry(0.025, 0.03, 0.22, 12),
+      resourceToolMaterialsByRole.steel,
+      [0, -0.86, 0],
+      [0, 0, 0]
+    );
+
+    addMesh(
+      new THREE.CylinderGeometry(0.065, 0.065, 0.33, 18),
+      resourceToolMaterialsByRole.olive,
+      [0, 0.19, 0],
+      [0, 0, Math.PI / 2]
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.06, 0.22, 0.055),
+      resourceToolMaterialsByRole.darkOlive,
+      [-0.16, 0.31, 0],
+      [0, 0, -0.05]
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.06, 0.22, 0.055),
+      resourceToolMaterialsByRole.darkOlive,
+      [0.16, 0.31, 0],
+      [0, 0, 0.05]
+    );
+    addMesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.32, 18),
+      resourceToolMaterialsByRole.black,
+      [0, 0.45, 0],
+      [0, 0, Math.PI / 2]
+    );
+    [-0.12, -0.06, 0, 0.06, 0.12].forEach((x) => {
+      addMesh(
+        new THREE.TorusGeometry(0.043, 0.006, 8, 16),
+        resourceToolMaterialsByRole.steel,
+        [x, 0.45, 0],
+        [0, Math.PI / 2, 0]
+      );
+    });
+
+    addMesh(
+      new THREE.CylinderGeometry(0.105, 0.105, 0.04, 24),
+      resourceToolMaterialsByRole.yellow,
+      [0.105, -0.12, -0.105],
+      [Math.PI / 2, 0, 0],
+      [1, 1, 1.08]
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.055, 0.24, 0.045),
+      resourceToolMaterialsByRole.black,
+      [0.2, 0.02, 0.03],
+      [0, 0, -0.18]
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.04, 0.18, 0.035),
+      resourceToolMaterialsByRole.black,
+      [0.25, -0.08, 0.035],
+      [0, 0, 0.16]
+    );
+    addMesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.18, 10),
+      resourceToolMaterialsByRole.brass,
+      [-0.13, 0.14, 0.02],
+      [Math.PI / 2, 0, 0]
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.08, 0.05, 0.11),
+      resourceToolMaterialsByRole.steel,
+      [0, 0.28, 0.02],
+      [0, 0, 0]
+    );
+
+    addMesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.18, 14),
+      resourceToolMaterialsByRole.black,
+      [-0.2, 0.02, 0.03],
+      [0, 0, 0]
+    );
+    addMesh(
+      new THREE.CylinderGeometry(0.038, 0.038, 0.16, 14),
+      resourceToolMaterialsByRole.black,
+      [-0.22, 0.11, 0.0],
+      [Math.PI / 2, 0, 0]
+    );
+    addMesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 0.035, 14),
+      resourceToolMaterialsByRole.yellow,
+      [-0.22, 0.11, -0.1],
+      [Math.PI / 2, 0, 0]
+    );
+
+    [-0.07, 0.07].forEach((x) => {
+      addMesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.22, 12),
+        resourceToolMaterialsByRole.darkOlive,
+        [x, -0.62, 0.04],
+        [0, 0, 0]
+      );
+      [-0.69, -0.64, -0.59, -0.54].forEach((y) => {
+        addMesh(
+          new THREE.TorusGeometry(0.03, 0.004, 8, 14),
+          resourceToolMaterialsByRole.steel,
+          [x, y, 0.04],
+          [Math.PI / 2, 0, 0]
+        );
+      });
+    });
+
+    addMesh(
+      new THREE.BoxGeometry(0.12, 0.045, 0.08),
+      resourceToolMaterialsByRole.black,
+      [0, -0.78, 0.03],
+      [0, 0, 0]
+    );
+
+    return root;
+  };
+
+  const resourceToolModelRoot = createY28ResourceToolModel(resourceToolGroup, {
+    scale: 0.64,
+  });
+  resourceToolModelRoot.rotation.x = Math.PI / 2;
+  resourceToolModelRoot.position.set(0.04, -0.02, 0);
+
+  const resourceToolHandGroup = new THREE.Group();
+  resourceToolHandGroup.name = "ResourceToolHand";
+  resourceToolHandGroup.position.set(-0.09, -0.13, -0.17);
+  resourceToolHandGroup.rotation.set(-0.18, -0.1, -0.05);
+  resourceToolGroup.add(resourceToolHandGroup);
+
+  const resourceToolGloveMaterial = new THREE.MeshStandardMaterial({
+    color: 0x162033,
+    metalness: 0.12,
+    roughness: 0.64,
+  });
+  trackResourceToolMaterial(resourceToolGloveMaterial);
+  const resourceToolSleeveMaterial = new THREE.MeshStandardMaterial({
+    color: 0x22354d,
+    metalness: 0.16,
+    roughness: 0.58,
+  });
+  trackResourceToolMaterial(resourceToolSleeveMaterial);
+
+  const resourceToolHandPalm = registerResourceToolMesh(
     new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.28, 0.12),
-      new THREE.MeshStandardMaterial({
-        color: 0x111827,
-        roughness: 0.6,
-        metalness: 0.1,
-      })
-    )
+      new THREE.BoxGeometry(0.18, 0.12, 0.15),
+      resourceToolGloveMaterial
+    ),
+    resourceToolHandGroup
   );
-  if (resourceToolHandle) {
-    resourceToolHandle.position.set(-0.12, -0.12, -0.04);
+  if (resourceToolHandPalm) {
+    resourceToolHandPalm.position.set(-0.055, 0, 0.02);
+    resourceToolHandPalm.rotation.z = 0.08;
   }
 
-  const resourceToolBody = registerResourceToolMesh(
+  [-0.045, -0.015, 0.015, 0.045].forEach((fingerOffset) => {
+    const finger = registerResourceToolMesh(
+      new THREE.Mesh(
+        new THREE.BoxGeometry(0.028, 0.105, 0.034),
+        resourceToolGloveMaterial
+      ),
+      resourceToolHandGroup
+    );
+    if (finger) {
+      finger.position.set(-0.02 + fingerOffset, 0.02, -0.07);
+      finger.rotation.x = 0.34;
+    }
+  });
+
+  const resourceToolThumb = registerResourceToolMesh(
     new THREE.Mesh(
-      new THREE.BoxGeometry(0.34, 0.14, 0.46),
-      new THREE.MeshStandardMaterial({
-        color: 0x1d4ed8,
-        emissive: 0x38bdf8,
-        emissiveIntensity: 0.35,
-        metalness: 0.65,
-        roughness: 0.28,
-      })
-    )
+      new THREE.BoxGeometry(0.04, 0.12, 0.04),
+      resourceToolGloveMaterial
+    ),
+    resourceToolHandGroup
   );
-  if (resourceToolBody) {
-    resourceToolBody.position.set(0.06, -0.01, 0.02);
+  if (resourceToolThumb) {
+    resourceToolThumb.position.set(-0.14, 0.01, 0.05);
+    resourceToolThumb.rotation.set(-0.16, 0.24, 0.72);
   }
 
-  const resourceToolEmitter = registerResourceToolMesh(
+  const resourceToolSleeve = registerResourceToolMesh(
     new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.05, 0.26, 18),
-      new THREE.MeshStandardMaterial({
-        color: 0xf97316,
-        emissive: 0xf59e0b,
-        emissiveIntensity: 0.55,
-        metalness: 0.35,
-        roughness: 0.22,
-      })
-    )
+      new THREE.BoxGeometry(0.14, 0.34, 0.16),
+      resourceToolSleeveMaterial
+    ),
+    resourceToolHandGroup
   );
-  if (resourceToolEmitter) {
-    resourceToolEmitter.rotation.z = Math.PI / 2;
-    resourceToolEmitter.position.set(0.28, -0.02, 0.14);
+  if (resourceToolSleeve) {
+    resourceToolSleeve.position.set(-0.095, -0.18, 0.07);
+    resourceToolSleeve.rotation.set(-0.18, 0.03, -0.08);
   }
 
   const RESOURCE_TOOL_BEAM_LENGTH = 1.8;
+  const resourceToolBeamOrigin = new THREE.Vector3(0.04, -0.02, -0.72);
+  const resourceToolBeamAxis = new THREE.Vector3(0, 0, 1);
+  const resourceToolBeamTargetLocal = new THREE.Vector3();
+  const resourceToolBeamDirection = new THREE.Vector3();
+  const reflectionResourceToolBeamStartWorld = new THREE.Vector3();
+  const reflectionResourceToolBeamTargetWorld = new THREE.Vector3();
+  const reflectionResourceToolBeamDirection = new THREE.Vector3();
+  const reflectionResourceToolAimTargetWorld = new THREE.Vector3();
+  const reflectionResourceToolAimTargetLocal = new THREE.Vector3();
+  const reflectionResourceToolAimDirectionLocal = new THREE.Vector3();
+  const reflectionResourceToolForwardAxis = new THREE.Vector3(0, -1, 0);
   const resourceToolBeamMaterial = new THREE.MeshBasicMaterial({
     color: 0x7dd3fc,
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
+    depthTest: false,
     depthWrite: false,
   });
   trackResourceToolMaterial(resourceToolBeamMaterial);
@@ -14243,7 +14849,10 @@ export const initScene = (
     )
   );
   if (resourceToolBeam) {
-    resourceToolBeam.position.set(0.3, -0.03, -RESOURCE_TOOL_BEAM_LENGTH / 2 - 0.12);
+    resourceToolBeam.renderOrder = 20;
+    resourceToolBeam.position
+      .copy(resourceToolBeamOrigin)
+      .addScaledVector(resourceToolBeamAxis, -RESOURCE_TOOL_BEAM_LENGTH / 2);
   }
 
   const resourceToolGlowMaterial = new THREE.MeshBasicMaterial({
@@ -14258,11 +14867,63 @@ export const initScene = (
     new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), resourceToolGlowMaterial)
   );
   if (resourceToolGlow) {
-    resourceToolGlow.position.set(0.3, -0.03, -0.24);
+    resourceToolGlow.position.set(0.04, -0.02, -0.72);
   }
   const resourceToolLight = new THREE.PointLight(0x38bdf8, 0, 2.6, 2);
-  resourceToolLight.position.set(0.28, -0.02, -0.24);
-  const RESOURCE_TOOL_MAX_DISTANCE = 7;
+  resourceToolLight.position.set(0.04, -0.02, -0.72);
+
+  const reflectionResourceToolGroup = new THREE.Group();
+  reflectionResourceToolGroup.name = "ReflectionResourceTool";
+  const reflectionResourceToolBasePosition = new THREE.Vector3(
+    -0.03,
+    -0.04,
+    -0.085
+  );
+  const reflectionResourceToolBaseRotation = new THREE.Euler(
+    -0.1,
+    0.04,
+    0.04,
+    "XYZ"
+  );
+  reflectionResourceToolGroup.position.copy(reflectionResourceToolBasePosition);
+  reflectionResourceToolGroup.rotation.copy(reflectionResourceToolBaseRotation);
+  reflectionResourceToolGroup.scale.setScalar(0.62);
+  leftReflectionArm.hand.add(reflectionResourceToolGroup);
+  const reflectionResourceToolModelRoot = createY28ResourceToolModel(
+    reflectionResourceToolGroup,
+    {
+      mirrored: false,
+      scale: 0.95,
+    }
+  );
+  reflectionResourceToolModelRoot.rotation.set(Math.PI / 2, 0, 0);
+  reflectionResourceToolModelRoot.position.set(-0.05, 0, 0.39);
+  const reflectionResourceToolMuzzle = new THREE.Object3D();
+  reflectionResourceToolMuzzle.position.set(0, -1.12, 0);
+  reflectionResourceToolModelRoot.add(reflectionResourceToolMuzzle);
+  const reflectionResourceToolBeamMaterial = new THREE.MeshBasicMaterial({
+    color: 0x7dd3fc,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const reflectionResourceToolBeam = registerResourceToolMesh(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(0.07, 0.07, RESOURCE_TOOL_BEAM_LENGTH),
+      reflectionResourceToolBeamMaterial
+    ),
+    scene
+  );
+  reflectionResourceToolBeam.visible = false;
+  reflectionResourceToolBeam.renderOrder = 20;
+  const reflectionResourceHandBasePosition =
+    leftReflectionArm.hand.position.clone();
+  const reflectionResourceHandBaseRotation =
+    leftReflectionArm.hand.rotation.clone();
+
+  let resourceToolMaxDistance = normalizeDiggerRange(settings?.diggerRange);
   const GEO_VISOR_MAX_DISTANCE = ROOM_SCALE_FACTOR * 180;
   const RESOURCE_TOOL_MIN_ACTION_DURATION = 3;
   const RESOURCE_TOOL_MAX_ACTION_DURATION = 10;
@@ -14281,6 +14942,7 @@ export const initScene = (
     startPosition: new THREE.Vector3(),
     baseDetail: null,
     eventDetail: null,
+    preventAutoContinue: false,
     source,
     remainingTime: 0,
   });
@@ -14372,6 +15034,7 @@ export const initScene = (
   const findTerrainIntersection = ({
     allowRevealedBeyondGeoVisorDistance = false,
     ignoreGeoVisorDistance = false,
+    maxDistance = Infinity,
   } = {}) => {
     if (!controls.isLocked) {
       return null;
@@ -14390,6 +15053,9 @@ export const initScene = (
     }
 
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    raycaster.near = 0;
+    raycaster.far =
+      Number.isFinite(maxDistance) && maxDistance > 0 ? maxDistance : Infinity;
     const intersections = raycaster.intersectObjects(scannableTerrainTiles, false);
 
     if (intersections.length === 0) {
@@ -14441,7 +15107,18 @@ export const initScene = (
     const terrainLabel = effectiveTerrainState.terrainLabel;
     const tileIndex = effectiveTerrainState.tileIndex;
     const isDepleted = effectiveTerrainState.isDepleted;
-    const geoVisorRevealed = Boolean(targetObject.userData?.geoVisorRevealed);
+    if (playerObject?.isObject3D) {
+      playerObject.getWorldPosition(geoVisorPlayerWorldPosition);
+    }
+    const hitDistanceX =
+      intersection.point.x - geoVisorPlayerWorldPosition.x;
+    const hitDistanceZ =
+      intersection.point.z - geoVisorPlayerWorldPosition.z;
+    const geoVisorRevealed =
+      geoVisorEnabled &&
+      Number.isInteger(tileIndex) &&
+      geoVisorRevealedTileIndices.has(tileIndex) &&
+      hitDistanceX ** 2 + hitDistanceZ ** 2 <= resourceToolMaxDistance ** 2;
     const withinGeoVisorDistance =
       intersection.distance <= GEO_VISOR_MAX_DISTANCE;
 
@@ -14468,7 +15145,7 @@ export const initScene = (
 
   const prepareResourceCollection = ({
     requireLockedControls = true,
-    maxDistance = RESOURCE_TOOL_MAX_DISTANCE,
+    maxDistance = resourceToolMaxDistance,
   } = {}) => {
     if (requireLockedControls && !controls.isLocked) {
       return null;
@@ -14477,6 +15154,7 @@ export const initScene = (
     const terrainIntersection = findTerrainIntersection({
       allowRevealedBeyondGeoVisorDistance: true,
       ignoreGeoVisorDistance: true,
+      maxDistance,
     });
     if (!terrainIntersection || !Number.isFinite(terrainIntersection.distance)) {
       return null;
@@ -14658,7 +15336,18 @@ export const initScene = (
         ignoreGeoVisorDistance: true,
       });
 
-      if (terrainDetail?.terrainId === "void") {
+      if (
+        Number.isFinite(terrainDetail?.distance) &&
+        terrainDetail.distance > resourceToolMaxDistance
+      ) {
+        if (!resourceToolOutOfRangeNotified) {
+          resourceToolOutOfRangeNotified = true;
+          notifyResourceUnavailable({
+            reason: "out-of-range",
+            terrain: terrainDetail,
+          });
+        }
+      } else if (terrainDetail?.terrainId === "void") {
         notifyResourceUnavailable({ terrain: terrainDetail });
       }
 
@@ -16393,6 +17082,7 @@ export const initScene = (
   };
   let resourceToolEnabled = true;
   let primaryActionHeld = false;
+  let resourceToolOutOfRangeNotified = false;
   let autoResourceToolEngaged = false;
   let scheduledResourceToolResumeFrameId = 0;
 
@@ -16413,6 +17103,7 @@ export const initScene = (
     session.isActive = false;
     session.baseDetail = null;
     session.eventDetail = null;
+    session.preventAutoContinue = false;
     session.startPosition.set(0, 0, 0);
     session.remainingTime = 0;
   }
@@ -16455,6 +17146,7 @@ export const initScene = (
       source: sessionSource,
     };
     session.eventDetail = eventDetail ?? null;
+    session.preventAutoContinue = false;
     session.source = sessionSource;
     session.remainingTime = actionDuration;
 
@@ -16508,7 +17200,7 @@ export const initScene = (
     };
   }
 
-  function isPlayerResourceSessionTargetStillValid(sessionOrBaseDetail) {
+  function isPlayerResourceSessionTerrainAvailable(sessionOrBaseDetail) {
     const baseDetail = sessionOrBaseDetail?.baseDetail ?? sessionOrBaseDetail;
     const tileIndex = Number.isInteger(baseDetail?.terrain?.tileIndex)
       ? baseDetail.terrain.tileIndex
@@ -16527,6 +17219,17 @@ export const initScene = (
     if (Number.isFinite(liveTerrainLife) && liveTerrainLife <= 0) {
       return false;
     }
+
+    return true;
+  }
+
+  function isPlayerResourceSessionTargetStillValid(sessionOrBaseDetail) {
+    if (!isPlayerResourceSessionTerrainAvailable(sessionOrBaseDetail)) {
+      return false;
+    }
+
+    const baseDetail = sessionOrBaseDetail?.baseDetail ?? sessionOrBaseDetail;
+    const tileIndex = baseDetail.terrain.tileIndex;
 
     const currentTarget = getCurrentPlayerTerrainTargetState();
     if (!currentTarget) {
@@ -16590,10 +17293,11 @@ export const initScene = (
     const baseDetail = session.baseDetail;
     const eventDetail = session.eventDetail;
     const sessionSource = baseDetail?.source ?? session.source ?? RESOURCE_SESSION_PLAYER_SOURCE;
+    const preventAutoContinue = session.preventAutoContinue === true;
 
     if (
       sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
-      !isPlayerResourceSessionTargetStillValid(session)
+      !isPlayerResourceSessionTerrainAvailable(session)
     ) {
       cancelResourceSessionInstance(session, { reason: "target-lost" });
       return;
@@ -16628,6 +17332,7 @@ export const initScene = (
       });
       if (
         sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
+        !preventAutoContinue &&
         shouldContinueResourceToolAfterSession(baseDetail)
       ) {
         continueResourceToolIfHeld();
@@ -16649,6 +17354,7 @@ export const initScene = (
       });
       if (
         sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
+        !preventAutoContinue &&
         shouldContinueResourceToolAfterSession(baseDetail)
       ) {
         continueResourceToolIfHeld();
@@ -16674,6 +17380,7 @@ export const initScene = (
     });
     if (
       sessionSource === RESOURCE_SESSION_PLAYER_SOURCE &&
+      !preventAutoContinue &&
       shouldContinueResourceToolAfterSession(baseDetail)
     ) {
       continueResourceToolIfHeld();
@@ -16778,14 +17485,23 @@ export const initScene = (
           const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
 
           if (distanceSquared > RESOURCE_TOOL_MOVEMENT_CANCEL_DISTANCE_SQUARED) {
-            cancelResourceSessionInstance(session, { reason: "movement" });
-            return;
+            session.preventAutoContinue = true;
+            primaryActionHeld = false;
+            autoResourceToolEngaged = false;
+            cancelScheduledResourceToolResume();
           }
         }
 
-        if (!isPlayerResourceSessionTargetStillValid(session)) {
+        if (!isPlayerResourceSessionTerrainAvailable(session)) {
           cancelResourceSessionInstance(session, { reason: "target-lost" });
           return;
+        }
+
+        if (!isPlayerResourceSessionTargetStillValid(session)) {
+          session.preventAutoContinue = true;
+          primaryActionHeld = false;
+          autoResourceToolEngaged = false;
+          cancelScheduledResourceToolResume();
         }
       }
 
@@ -17004,6 +17720,7 @@ export const initScene = (
     }
 
     primaryActionHeld = true;
+    resourceToolOutOfRangeNotified = false;
     cancelScheduledResourceToolResume();
     triggerResourceToolAction();
   };
@@ -17014,6 +17731,7 @@ export const initScene = (
     }
 
     primaryActionHeld = false;
+    resourceToolOutOfRangeNotified = false;
     cancelScheduledResourceToolResume();
   };
 
@@ -17487,10 +18205,14 @@ export const initScene = (
   };
 
   const updateResourceToolVisibility = () => {
-    resourceToolGroup.visible =
+    const shouldShowResourceTool =
       controls.isLocked &&
       resourceToolEnabled &&
       !cameraViewSettings.thirdPersonEnabled;
+    resourceToolGroup.visible =
+      shouldShowResourceTool;
+    reflectionResourceToolGroup.visible =
+      controls.isLocked && resourceToolEnabled;
   };
 
   const applyCameraViewMode = () => {
@@ -20522,6 +21244,150 @@ export const initScene = (
       resourceToolBaseRotation.y + idleSway * 0.25,
       resourceToolBaseRotation.z + idleSway * 0.45
     );
+
+    const playerResourceSession = getResourceSession(
+      RESOURCE_SESSION_PLAYER_SOURCE
+    );
+    const beamTargetPosition = playerResourceSession.baseDetail?.position;
+    if (
+      resourceToolBeam &&
+      playerResourceSession.isActive &&
+      Number.isFinite(beamTargetPosition?.x) &&
+      Number.isFinite(beamTargetPosition?.y) &&
+      Number.isFinite(beamTargetPosition?.z)
+    ) {
+      resourceToolGroup.updateWorldMatrix(true, false);
+      resourceToolBeamTargetLocal
+        .set(
+          beamTargetPosition.x,
+          beamTargetPosition.y,
+          beamTargetPosition.z
+        );
+      resourceToolGroup.worldToLocal(resourceToolBeamTargetLocal);
+      resourceToolBeamDirection.subVectors(
+        resourceToolBeamTargetLocal,
+        resourceToolBeamOrigin
+      );
+
+      const beamLength = resourceToolBeamDirection.length();
+      if (beamLength > 0.001) {
+        resourceToolBeam.position
+          .copy(resourceToolBeamOrigin)
+          .addScaledVector(resourceToolBeamDirection, 0.5);
+        resourceToolBeam.quaternion.setFromUnitVectors(
+          resourceToolBeamAxis,
+          resourceToolBeamDirection.normalize()
+        );
+        resourceToolBeam.scale.set(
+          1,
+          1,
+          beamLength / RESOURCE_TOOL_BEAM_LENGTH
+        );
+      }
+    }
+
+    leftReflectionArm.hand.position.copy(reflectionResourceHandBasePosition);
+    leftReflectionArm.hand.position.x -=
+      idleSway * RESOURCE_TOOL_IDLE_SWAY * 0.11;
+    leftReflectionArm.hand.position.y +=
+      idleBob * RESOURCE_TOOL_IDLE_SWAY * 0.15;
+    leftReflectionArm.hand.position.z += resourceToolState.recoil * 0.0175;
+
+    leftReflectionArm.hand.rotation.set(
+      reflectionResourceHandBaseRotation.x -
+        resourceToolState.recoil * 0.12 +
+        idleBob * 0.025,
+      reflectionResourceHandBaseRotation.y - idleSway * 0.08,
+      reflectionResourceHandBaseRotation.z - idleSway * 0.14
+    );
+    reflectionResourceToolGroup.position.copy(reflectionResourceToolBasePosition);
+    reflectionResourceToolGroup.rotation.copy(reflectionResourceToolBaseRotation);
+
+    const hasReflectionBeamTarget =
+      playerResourceSession.isActive &&
+      Number.isFinite(beamTargetPosition?.x) &&
+      Number.isFinite(beamTargetPosition?.y) &&
+      Number.isFinite(beamTargetPosition?.z);
+    if (hasReflectionBeamTarget) {
+      reflectionResourceToolAimTargetWorld.set(
+        beamTargetPosition.x,
+        beamTargetPosition.y,
+        beamTargetPosition.z
+      );
+    } else {
+      camera.getWorldPosition(reflectionResourceToolAimTargetWorld);
+      camera.getWorldDirection(reflectionResourceToolBeamDirection);
+      reflectionResourceToolAimTargetWorld.addScaledVector(
+        reflectionResourceToolBeamDirection,
+        8
+      );
+    }
+
+    reflectionResourceToolGroup.updateWorldMatrix(true, false);
+    reflectionResourceToolAimTargetLocal.copy(
+      reflectionResourceToolAimTargetWorld
+    );
+    reflectionResourceToolGroup.worldToLocal(
+      reflectionResourceToolAimTargetLocal
+    );
+    reflectionResourceToolAimDirectionLocal.subVectors(
+      reflectionResourceToolAimTargetLocal,
+      reflectionResourceToolModelRoot.position
+    );
+    if (reflectionResourceToolAimDirectionLocal.lengthSq() > 0.000001) {
+      reflectionResourceToolModelRoot.quaternion.setFromUnitVectors(
+        reflectionResourceToolForwardAxis,
+        reflectionResourceToolAimDirectionLocal.normalize()
+      );
+      reflectionResourceToolModelRoot.rotateY(Math.PI);
+    }
+
+    const shouldShowReflectionBeam =
+      cameraViewSettings.thirdPersonEnabled &&
+      reflectionResourceToolGroup.visible &&
+      playerResourceSession.isActive &&
+      beamProgress > 0 &&
+      Number.isFinite(beamTargetPosition?.x) &&
+      Number.isFinite(beamTargetPosition?.y) &&
+      Number.isFinite(beamTargetPosition?.z);
+    reflectionResourceToolBeam.visible = shouldShowReflectionBeam;
+    reflectionResourceToolBeamMaterial.opacity = shouldShowReflectionBeam
+      ? 0.85 * beamProgress
+      : 0;
+
+    if (shouldShowReflectionBeam) {
+      reflectionResourceToolMuzzle.getWorldPosition(
+        reflectionResourceToolBeamStartWorld
+      );
+      reflectionResourceToolBeamTargetWorld.set(
+        beamTargetPosition.x,
+        beamTargetPosition.y,
+        beamTargetPosition.z
+      );
+      reflectionResourceToolBeamDirection.subVectors(
+        reflectionResourceToolBeamTargetWorld,
+        reflectionResourceToolBeamStartWorld
+      );
+      const reflectionBeamLength =
+        reflectionResourceToolBeamDirection.length();
+
+      if (reflectionBeamLength > 0.001) {
+        reflectionResourceToolBeam.position
+          .copy(reflectionResourceToolBeamStartWorld)
+          .addScaledVector(reflectionResourceToolBeamDirection, 0.5);
+        reflectionResourceToolBeam.quaternion.setFromUnitVectors(
+          resourceToolBeamAxis,
+          reflectionResourceToolBeamDirection.normalize()
+        );
+        reflectionResourceToolBeam.scale.set(
+          1,
+          1,
+          reflectionBeamLength / RESOURCE_TOOL_BEAM_LENGTH
+        );
+      } else {
+        reflectionResourceToolBeam.visible = false;
+      }
+    }
   };
 
   const animate = () => {
@@ -20940,6 +21806,11 @@ export const initScene = (
     },
     setGodMode: (enabled = false) => setGodModeEnabled(enabled),
     setResourceToolEnabled: (enabled = true) => setResourceToolEnabled(enabled),
+    setResourceToolSettings: (nextSettings = {}) => {
+      resourceToolMaxDistance = normalizeDiggerRange(nextSettings.diggerRange);
+      updateGeoVisorTerrainVisibility();
+      return resourceToolMaxDistance;
+    },
     setGeoVisorEnabled: (enabled = true) => {
       const nextState = Boolean(enabled);
 
@@ -21077,6 +21948,9 @@ export const initScene = (
       updateCraftingTableInteractableState(false);
       if (resourceToolGroup.parent) {
         resourceToolGroup.parent.remove(resourceToolGroup);
+      }
+      if (reflectionResourceToolBeam.parent) {
+        reflectionResourceToolBeam.parent.remove(reflectionResourceToolBeam);
       }
       resourceToolGeometries.forEach((geometry) => {
         if (geometry && typeof geometry.dispose === "function") {

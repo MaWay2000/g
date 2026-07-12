@@ -128,6 +128,8 @@ const jumpApexVelocityInput = document.querySelector(
 );
 const viewDistanceRange = document.querySelector("[data-view-distance-range]");
 const viewDistanceInput = document.querySelector("[data-view-distance-input]");
+const diggerRange = document.querySelector("[data-digger-range]");
+const diggerRangeInput = document.querySelector("[data-digger-range-input]");
 const starSizeRange = document.querySelector("[data-star-size-range]");
 const starDensityRange = document.querySelector("[data-star-density-range]");
 const starOpacityRange = document.querySelector("[data-star-opacity-range]");
@@ -145,6 +147,7 @@ const jumpApexVelocityValue = document.querySelector(
   "[data-jump-apex-velocity-value]"
 );
 const viewDistanceValue = document.querySelector("[data-view-distance-value]");
+const diggerRangeValue = document.querySelector("[data-digger-range-value]");
 const starSizeInput = document.querySelector("[data-star-size-input]");
 const starDensityInput = document.querySelector("[data-star-density-input]");
 const starOpacityInput = document.querySelector("[data-star-opacity-input]");
@@ -219,6 +222,7 @@ const reflectionSettingInputs = [reflectionScaleRange, reflectionScaleInput];
 const speedSettingInputs = [playerSpeedRange, playerSpeedInput];
 const jumpSettingInputs = [playerJumpRange, playerJumpInput];
 const viewSettingInputs = [viewDistanceRange, viewDistanceInput];
+const diggerRangeInputs = [diggerRange, diggerRangeInput];
 const jumpApexSmoothingInputs = [
   jumpApexSmoothingRange,
   jumpApexSmoothingInput,
@@ -945,40 +949,12 @@ function clearPlayerOxygenDiggingActivity() {
 }
 
 const getIsFullscreen = () => {
-  const hasFullscreenElement = Boolean(
+  return Boolean(
     document.fullscreenElement ||
       document.webkitFullscreenElement ||
       document.mozFullScreenElement ||
       document.msFullscreenElement
   );
-
-  if (hasFullscreenElement) {
-    return true;
-  }
-
-  const viewportHeight =
-    typeof window.innerHeight === "number" ? window.innerHeight : null;
-  const viewportWidth = typeof window.innerWidth === "number" ? window.innerWidth : null;
-  const screenHeight =
-    window.screen && typeof window.screen.height === "number"
-      ? window.screen.height
-      : null;
-  const screenWidth =
-    window.screen && typeof window.screen.width === "number" ? window.screen.width : null;
-
-  if (
-    viewportHeight === null ||
-    viewportWidth === null ||
-    screenHeight === null ||
-    screenWidth === null
-  ) {
-    return false;
-  }
-
-  const heightMatches = Math.abs(screenHeight - viewportHeight) <= 1;
-  const widthMatches = Math.abs(screenWidth - viewportWidth) <= 1;
-
-  return heightMatches && widthMatches;
 };
 
 const applyFullscreenClass = () => {
@@ -1854,6 +1830,19 @@ const applyViewSettingsUiState = () => {
   });
 };
 
+const applyDiggerRangeUiState = () => {
+  const storedRange = Number(currentSettings?.diggerRange ?? 7);
+  const range = Number.isFinite(storedRange)
+    ? Math.max(1, Math.min(100, Math.round(storedRange)))
+    : 7;
+
+  setRangeInputValue(diggerRange, range);
+  setNumberInputValue(diggerRangeInput, range);
+  setValueLabel(diggerRangeValue, String(range));
+
+  sceneController?.setResourceToolSettings?.({ diggerRange: range });
+};
+
 const applyThirdPersonUiState = () => {
   const thirdPersonEnabled = currentSettings?.thirdPersonCamera === true;
 
@@ -1903,6 +1892,7 @@ const setThirdPersonCameraEnabled = (
 };
 
 applyViewSettingsUiState();
+applyDiggerRangeUiState();
 applyThirdPersonUiState();
 
 if (previousCrosshairInteractableState) {
@@ -2150,6 +2140,8 @@ const quickAccessModalTemplates = {
 const DIGGER_QUICK_SLOT_ID = "digger";
 const DRONE_QUICK_SLOT_ID = "drone-miner";
 const DRONE_ALLOWED_LIFT_FLOOR_IDS = new Set(["operations-exterior"]);
+const GEO_VISOR_QUICK_SLOT_ID = "geo-visor";
+const GEO_VISOR_LEGACY_QUICK_SLOT_ID = "photon-cutter";
 const STATION_BUILDER_QUICK_SLOT_ID = "arc-welder";
 const INVENTORY_QUICK_SLOT_ID = "inventory";
 
@@ -2168,7 +2160,7 @@ const quickSlotDefinitions = [
     icon: "🤖",
   },
   {
-    id: "photon-cutter",
+    id: GEO_VISOR_QUICK_SLOT_ID,
     label: "Geo Visor",
     description: "Visor tuned for precision terrain analysis.",
     activateOnly: true,
@@ -2188,12 +2180,14 @@ const quickSlotDefinitions = [
   },
 ];
 
-const GEO_VISOR_SLOT_IDS = new Set(["photon-cutter"]);
-const GEO_VISOR_PANEL_SLOT_ID = "photon-cutter";
+const GEO_VISOR_SLOT_IDS = new Set([
+  GEO_VISOR_QUICK_SLOT_ID,
+  GEO_VISOR_LEGACY_QUICK_SLOT_ID,
+]);
+const GEO_VISOR_PANEL_SLOT_ID = GEO_VISOR_QUICK_SLOT_ID;
 const GEO_VISOR_BATTERY_RECHARGE_MS = 2 * 60 * 1000;
 const GEO_VISOR_BATTERY_UPDATE_INTERVAL_MS = 200;
 const GEO_VISOR_BATTERY_PERSIST_INTERVAL_MS = 1000;
-const GEO_VISOR_PULSE_DURATION_MS = 1500;
 const GEO_SCAN_MAX_HP = Math.max(
   1,
   ...(Array.isArray(OUTSIDE_TERRAIN_TYPES)
@@ -2433,7 +2427,6 @@ const geoVisorBatteryState = {
 
 const quickSlotActivationTimeouts = new Map();
 let persistGeoVisorBatteryTimeoutId = 0;
-let geoVisorPulseTimeoutId = 0;
 let geoVisorBatteryPersistenceEnabled = true;
 const QUICK_SLOT_ACTIVATION_EFFECT_DURATION = 900;
 
@@ -3898,18 +3891,20 @@ const updateGeoVisorBatteryState = () => {
     0,
     Math.min(
       1,
-      geoVisorBatteryState.level + deltaFraction
+      geoVisorBatteryState.level + (isGeoVisorActive ? -deltaFraction : deltaFraction)
     )
   );
 
-  if (isGeoVisorActive && nextLevel === 0) {
-    setGeoVisorActiveSlotId(null);
-  }
-
-  if (Math.abs(nextLevel - geoVisorBatteryState.level) >= 0.001) {
-    geoVisorBatteryState.level = nextLevel;
+  const levelChange = Math.abs(nextLevel - geoVisorBatteryState.level);
+  geoVisorBatteryState.level = nextLevel;
+  if (levelChange >= 0.001 || nextLevel === 0 || nextLevel === 1) {
     updateGeoVisorBatteryIndicator();
     schedulePersistGeoVisorBatteryState();
+  }
+
+  if (isGeoVisorActive && nextLevel === 0) {
+    setGeoVisorActiveSlotId(null);
+    schedulePersistGeoVisorBatteryState({ force: true });
   }
 };
 
@@ -3921,33 +3916,24 @@ const setGeoVisorActiveSlotId = (slotId) => {
   }
 
   geoVisorState.activeSlotId = normalizedId;
+  geoVisorBatteryState.lastUpdate = Date.now();
   updateGeoVisorQuickSlotState();
   updateGeoScanPanel();
   sceneController?.setGeoVisorEnabled?.(Boolean(getActiveGeoVisorSlotId()));
 };
 
-const isGeoVisorBatteryFullyCharged = () => geoVisorBatteryState.level >= 0.999;
+const hasGeoVisorBatteryCharge = () => geoVisorBatteryState.level > 0;
 
-const activateGeoVisorPulse = (slotId) => {
-  if (!GEO_VISOR_SLOT_IDS.has(slotId) || !isGeoVisorBatteryFullyCharged()) {
+const activateGeoVisor = (slotId) => {
+  if (!GEO_VISOR_SLOT_IDS.has(slotId) || !hasGeoVisorBatteryCharge()) {
     return false;
   }
 
-  if (geoVisorPulseTimeoutId) {
-    window.clearTimeout(geoVisorPulseTimeoutId);
-    geoVisorPulseTimeoutId = 0;
-  }
-
-  geoVisorBatteryState.level = 0;
   geoVisorBatteryState.lastUpdate = Date.now();
   updateGeoVisorBatteryIndicator();
   schedulePersistGeoVisorBatteryState({ force: true });
 
   setGeoVisorActiveSlotId(slotId);
-  geoVisorPulseTimeoutId = window.setTimeout(() => {
-    geoVisorPulseTimeoutId = 0;
-    setGeoVisorActiveSlotId(null);
-  }, GEO_VISOR_PULSE_DURATION_MS);
   playGeoVisorScanSuccessSound();
   return true;
 };
@@ -24875,16 +24861,19 @@ const handleGeoVisorQuickSlotChange = (event) => {
   }
 
   const { slot, userInitiated } = event.detail ?? {};
-  if (geoVisorState.activeSlotId) {
-    setGeoVisorActiveSlotId(null);
-  }
-
   if (!userInitiated || !GEO_VISOR_SLOT_IDS.has(slot?.id)) {
     return;
   }
 
-  const pulseActivated = activateGeoVisorPulse(slot.id);
-  if (!pulseActivated && !isGeoVisorBatteryFullyCharged()) {
+  updateGeoVisorBatteryState();
+  if (geoVisorState.activeSlotId === slot.id) {
+    setGeoVisorActiveSlotId(null);
+    schedulePersistGeoVisorBatteryState({ force: true });
+    return;
+  }
+
+  const visorActivated = activateGeoVisor(slot.id);
+  if (!visorActivated && !hasGeoVisorBatteryCharge()) {
     playGeoVisorOutOfBatterySound();
   }
 };
@@ -25334,7 +25323,13 @@ const bootstrapScene = () => {
           description: resourceToastDescription || "Resource extracted.",
         });
       },
-      onResourceUnavailable({ terrain } = {}) {
+      onResourceUnavailable({ reason, terrain } = {}) {
+        if (reason === "out-of-range") {
+          showResourceToast({ title: "Out of range" });
+          playGeoVisorOutOfBatterySound();
+          return;
+        }
+
         const unavailableTileIndex = Number.isInteger(terrain?.tileIndex)
           ? terrain.tileIndex
           : null;
@@ -25445,6 +25440,7 @@ const bootstrapScene = () => {
   applyLiftDoorFilterUiState();
   applyJumpSettingsUiState();
   applyViewSettingsUiState();
+  applyDiggerRangeUiState();
   applyThirdPersonUiState();
 
   updateDroneStatusUi();
@@ -25666,6 +25662,11 @@ bindTimeSettingInput(
   "viewDistance",
   viewSettingInputs,
   applyViewSettingsUiState
+);
+bindTimeSettingInput(
+  "diggerRange",
+  diggerRangeInputs,
+  applyDiggerRangeUiState
 );
 
 const scheduleBootstrapScene = () => {

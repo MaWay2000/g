@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   jumpApexSmoothing: 6,
   jumpApexVelocity: 1.4,
   viewDistance: 0.2,
+  diggerRange: 7,
   thirdPersonCamera: false,
   godMode: false,
   liftDoorFiltering: true,
@@ -99,6 +100,16 @@ const normalizeSettings = (settings = {}) => {
     return Math.max(0.01, Math.min(3, numericValue));
   };
 
+  const normalizeDiggerRange = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return DEFAULT_SETTINGS.diggerRange;
+    }
+
+    return Math.max(1, Math.min(100, Math.round(numericValue)));
+  };
+
   const normalizeReflectorResolutionScale = (value) => {
     const numericValue = Number(value);
 
@@ -161,6 +172,7 @@ const normalizeSettings = (settings = {}) => {
     jumpApexSmoothing: normalizeJumpApexSmoothing(settings.jumpApexSmoothing),
     jumpApexVelocity: normalizeJumpApexVelocity(settings.jumpApexVelocity),
     viewDistance: normalizeViewDistance(settings.viewDistance),
+    diggerRange: normalizeDiggerRange(settings.diggerRange),
     thirdPersonCamera: Boolean(settings.thirdPersonCamera),
     godMode: Boolean(settings.godMode),
     liftDoorFiltering: settings.liftDoorFiltering !== false,
