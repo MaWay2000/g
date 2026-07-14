@@ -17719,6 +17719,16 @@ export const initScene = (
       return;
     }
 
+    if (
+      terminalInteractable ||
+      liftInteractable ||
+      oxygenRefillInteractable ||
+      storageBoxInteractable ||
+      craftingTableInteractable
+    ) {
+      return;
+    }
+
     primaryActionHeld = true;
     resourceToolOutOfRangeNotified = false;
     cancelScheduledResourceToolResume();

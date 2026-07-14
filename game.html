@@ -955,6 +955,90 @@
         align-items: center;
         gap: 0.75rem;
         margin-left: auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .dev-tools-menu {
+        position: relative;
+      }
+
+      .dev-tools-menu__trigger {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.6rem;
+        border: 2px solid rgba(56, 189, 248, 0.5);
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.55);
+        color: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        user-select: none;
+        backdrop-filter: blur(8px);
+        transition: transform 150ms ease, box-shadow 150ms ease,
+          background 150ms ease;
+        list-style: none;
+      }
+
+      .dev-tools-menu__trigger::-webkit-details-marker {
+        display: none;
+      }
+
+      .dev-tools-menu__trigger:hover,
+      .dev-tools-menu__trigger:focus-visible {
+        transform: translateY(-2px);
+        background: rgba(30, 41, 59, 0.75);
+        box-shadow: 0 12px 24px rgba(56, 189, 248, 0.2);
+        outline: none;
+      }
+
+      .dev-tools-menu__chevron {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: rotate(45deg) translateY(-1px);
+        transition: transform 140ms ease;
+      }
+
+      .dev-tools-menu[open] .dev-tools-menu__chevron {
+        transform: rotate(-135deg) translateY(1px);
+      }
+
+      .dev-tools-menu__panel {
+        position: absolute;
+        top: calc(100% + 0.6rem);
+        right: 0;
+        display: grid;
+        gap: 0.35rem;
+        width: max-content;
+        min-width: 220px;
+        padding: 0.55rem;
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.94);
+        box-shadow: 0 18px 40px rgba(8, 47, 73, 0.45);
+        backdrop-filter: blur(12px);
+        z-index: 21;
+      }
+
+      .dev-tools-menu__link {
+        display: block;
+        padding: 0.7rem 0.8rem;
+        border-radius: 6px;
+        color: rgba(226, 232, 240, 0.96);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .dev-tools-menu__link:hover,
+      .dev-tools-menu__link:focus-visible {
+        background: rgba(56, 189, 248, 0.16);
+        color: #f8fafc;
+        outline: 2px solid rgba(56, 189, 248, 0.45);
+        outline-offset: -2px;
       }
 
       body.is-fullscreen .top-bar {
@@ -5534,6 +5618,32 @@
             Reset Progress
           </button>
           <div class="top-bar__actions">
+            <details class="dev-tools-menu">
+              <summary class="dev-tools-menu__trigger">
+                Dev tools
+                <span class="dev-tools-menu__chevron" aria-hidden="true"></span>
+              </summary>
+              <nav class="dev-tools-menu__panel" aria-label="Development tools">
+                <a
+                  class="dev-tools-menu__link"
+                  href="map_maker.html"
+                  target="_blank"
+                  rel="noopener"
+                >Map Maker</a>
+                <a
+                  class="dev-tools-menu__link"
+                  href="model_editor.html"
+                  target="_blank"
+                  rel="noopener"
+                >3D Model Editor</a>
+                <a
+                  class="dev-tools-menu__link"
+                  href="find_table.html"
+                  target="_blank"
+                  rel="noopener"
+                >Resource Find Rates</a>
+              </nav>
+            </details>
             <div class="settings-menu" data-settings-menu>
               <button
                 class="settings-menu__trigger"
