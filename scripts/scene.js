@@ -19319,6 +19319,24 @@ export const initScene = (
     verticalVelocity = 0;
     applyCameraViewMode();
 
+    if (
+      nextFloor.id === "operations-exterior" &&
+      typeof destinationEnvironment?.update === "function"
+    ) {
+      try {
+        // Rebuild windowed terrain around the destination camera after teleporting.
+        destinationEnvironment.update({
+          delta: 0,
+          elapsedTime: 0,
+          reason: "entry-positioned",
+          force: true,
+        });
+      } catch (error) {
+        console.warn("Unable to refresh positioned destination environment", error);
+      }
+      refreshActiveResourceTargets(nextFloor.id ?? null);
+    }
+
     updateLiftUi();
     savePlayerState(true);
 
