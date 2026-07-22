@@ -2438,7 +2438,9 @@ export const initScene = (
       }
 
       clearGeoVisorRevealFadeState(tile);
-      const baseMaterial = getNonVisorTerrainMaterialForTile(tile);
+      const baseMaterial =
+        tile.userData.geoVisorConcealedMaterial ??
+        getNonVisorTerrainMaterialForTile(tile);
       if (baseMaterial) {
         tile.material = baseMaterial;
         syncViewDistanceBaseMaterial(tile, baseMaterial);
@@ -7838,12 +7840,7 @@ export const initScene = (
       const removeOutsideObjectPlacement = (placementId) =>
         updateOutsideObjectPlacementById(placementId, () => null);
 
-      const concealedTerrainMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(CONCEALED_OUTSIDE_TERRAIN_COLOR),
-        roughness: 0.78,
-        metalness: 0.18,
-        side: THREE.DoubleSide,
-      });
+      let concealedTerrainMaterial = null;
 
       const getTerrainNoise = (x, z) => {
         const primary = Math.sin(x * 0.08 + z * 0.12);
@@ -8454,6 +8451,22 @@ export const initScene = (
 
         return texture;
       };
+
+      const concealedTerrainTileId = getOutsideTerrainDefaultTileId("nonmetal");
+      const concealedTerrainTexture = getTextureForTerrainTile(
+        concealedTerrainTileId,
+        0
+      );
+      concealedTerrainMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(
+          concealedTerrainTexture ? 0xffffff : CONCEALED_OUTSIDE_TERRAIN_COLOR
+        ),
+        roughness: 0.92,
+        metalness: 0.2,
+        map: concealedTerrainTexture,
+        vertexColors: false,
+        side: THREE.DoubleSide,
+      });
 
       const getMaterialForTerrain = (terrainId, tileId, variantIndex) => {
         if (CONCEAL_OUTSIDE_TERRAIN_TILES) {

@@ -48,6 +48,13 @@ const MAP_AREAS = [
 ];
 const DEFAULT_MAP_AREA_ID = "operations-exterior";
 const MAP_AREA_BY_ID = new Map(MAP_AREAS.map((area) => [area.id, area]));
+const CUSTOM_MAP_AREAS_STORAGE_KEY = `${LOCAL_STORAGE_KEY}.custom-areas`;
+const CUSTOM_MAP_AREA_PROFILE = Object.freeze({
+  width: 10,
+  height: 10,
+  terrainId: "transition-metal",
+  heightValue: 0,
+});
 const MAP_AREA_TEMPLATE_PROFILES = new Map([
   [
     "hangar-deck",
@@ -526,6 +533,7 @@ const elements = {
   mapNameInput: document.getElementById("mapNameInput"),
   regionInput: document.getElementById("regionInput"),
   notesInput: document.getElementById("mapNotesInput"),
+  createAreaButton: document.getElementById("createAreaButton"),
   areaList: document.getElementById("areaList"),
   selectedAreaName: document.getElementById("selectedAreaName"),
   selectedAreaId: document.getElementById("selectedAreaId"),
@@ -906,10 +914,21 @@ async function resolveExternalHeights(mapDefinition) {
     if (!Array.isArray(heights)) {
       throw new Error("Heights data is not an array");
     }
+    const width = clampOutsideMapDimension(mapDefinition.width);
+    const height = clampOutsideMapDimension(mapDefinition.height);
+    const hasExpectedDimensions = Array.isArray(heights[0])
+      ? heights.length >= height && heights.every((row) => Array.isArray(row) && row.length >= width)
+      : heights.length >= width * height;
+    if (!hasExpectedDimensions) {
+      throw new Error(`Heights data must contain at least ${width * height} values`);
+    }
     return { ...mapDefinition, heights };
   } catch (error) {
-    console.warn("Unable to load external heights file", error);
-    return mapDefinition;
+    console.error("Unable to load external heights file", error);
+    alert(
+      `Unable to load external heights file "${heightsFile}". The current map was not changed.`
+    );
+    return null;
   }
 }
 
@@ -1903,6 +1922,123 @@ function populateTerrainTileSelect() {
   });
 }
 
+function registerCustomMapArea(area) {
+  if (!area || MAP_AREA_BY_ID.has(area.id)) {
+    return false;
+  }
+  MAP_AREAS.push(area);
+  MAP_AREA_BY_ID.set(area.id, area);
+  MAP_AREA_TEMPLATE_PROFILES.set(area.id, { ...CUSTOM_MAP_AREA_PROFILE });
+  DOOR_DESTINATION_AREAS.push({ id: area.id, label: area.label });
+  return true;
+}
+
+function loadCustomMapAreas() {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return;
+  }
+  try {
+    const serialized = storage.getItem(CUSTOM_MAP_AREAS_STORAGE_KEY);
+    const entries = serialized ? JSON.parse(serialized) : [];
+    if (!Array.isArray(entries)) {
+      return;
+    }
+    entries.forEach((entry) => {
+      const id = typeof entry?.id === "string" ? entry.id.trim() : "";
+      const label = typeof entry?.label === "string" ? entry.label.trim() : "";
+      if (!id || !label) {
+        return;
+      }
+      registerCustomMapArea({
+        id,
+        label,
+        description:
+          typeof entry.description === "string" ? entry.description : "Custom area.",
+        isCustom: true,
+      });
+    });
+  } catch (error) {
+    console.warn("Unable to load custom Map Maker areas", error);
+  }
+}
+
+function saveCustomMapAreas() {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return false;
+  }
+  try {
+    const customAreas = MAP_AREAS.filter((area) => area.isCustom).map(
+      ({ id, label, description }) => ({ id, label, description })
+    );
+    storage.setItem(CUSTOM_MAP_AREAS_STORAGE_KEY, JSON.stringify(customAreas));
+    return true;
+  } catch (error) {
+    console.warn("Unable to save custom Map Maker areas", error);
+    return false;
+  }
+}
+
+function createUniqueAreaId(label) {
+  const baseId =
+    label
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "new-area";
+  let candidate = baseId;
+  let suffix = 2;
+  while (MAP_AREA_BY_ID.has(candidate)) {
+    candidate = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+function createCustomMapArea() {
+  const requestedLabel = prompt("New area name:", "New Area");
+  if (requestedLabel === null) {
+    return;
+  }
+  const label = requestedLabel.trim();
+  if (!label) {
+    alert("Enter a name for the new area.");
+    return;
+  }
+
+  const suggestedId = createUniqueAreaId(label);
+  const requestedId = prompt("Area id:", suggestedId);
+  if (requestedId === null) {
+    return;
+  }
+  const id = requestedId
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!id) {
+    alert("Enter a valid area id.");
+    return;
+  }
+  if (MAP_AREA_BY_ID.has(id)) {
+    alert(`An area with id "${id}" already exists.`);
+    return;
+  }
+
+  const area = {
+    id,
+    label,
+    description: "Custom area created in Map Maker.",
+    isCustom: true,
+  };
+  registerCustomMapArea(area);
+  saveCustomMapAreas();
+  state.areaMapCache.set(id, createDefaultMapForArea(id));
+  selectArea(id);
+  setActivePaletteTab("terrain");
+}
+
 function resolveMapArea(areaId) {
   if (typeof areaId !== "string") {
     return MAP_AREA_BY_ID.get(DEFAULT_MAP_AREA_ID) ?? MAP_AREAS[0] ?? null;
@@ -2354,6 +2490,34 @@ function resizeMap(width, height) {
     return;
   }
 
+  const existingObjects = Array.isArray(state.map.objects) ? state.map.objects : [];
+  const halfWidth = clampedWidth / 2;
+  const halfHeight = clampedHeight / 2;
+  const retainedObjects = existingObjects.filter((placement) => {
+    if (isMainSurfaceDoorPlacement(placement)) {
+      return true;
+    }
+    const position = placement?.position;
+    return (
+      Number.isFinite(position?.x) &&
+      Number.isFinite(position?.z) &&
+      position.x >= -halfWidth &&
+      position.x <= halfWidth &&
+      position.z >= -halfHeight &&
+      position.z <= halfHeight
+    );
+  });
+  const removedObjectCount = existingObjects.length - retainedObjects.length;
+  if (
+    removedObjectCount > 0 &&
+    !confirm(
+      `Resizing will remove ${removedObjectCount} object${removedObjectCount === 1 ? "" : "s"} outside the new map bounds. Continue?`
+    )
+  ) {
+    updateMetadataDisplays();
+    return;
+  }
+
   const snapshot = cloneMapDefinition(state.map);
   const newCells = Array.from(
     { length: clampedWidth * clampedHeight },
@@ -2383,6 +2547,7 @@ function resizeMap(width, height) {
   state.map.height = clampedHeight;
   state.map.cells = newCells;
   state.map.heights = newHeights;
+  state.map.objects = retainedObjects;
   ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
   clearSelection();
   updateMetadataDisplays();
@@ -3202,6 +3367,9 @@ function initPaletteTabs() {
 async function applyImportedMap(mapDefinition, { pushHistory = true } = {}) {
   const snapshot = cloneMapDefinition(state.map);
   const resolved = await resolveExternalHeights(mapDefinition);
+  if (!resolved) {
+    return false;
+  }
   const normalized = normalizeMapDefinition(resolved);
 
   state.map = ensureMainSurfaceDoorPlacement(normalized, state.selectedAreaId);
@@ -3214,6 +3382,7 @@ async function applyImportedMap(mapDefinition, { pushHistory = true } = {}) {
   if (pushHistory) {
     pushUndoSnapshot(snapshot);
   }
+  return true;
 }
 
 function resetMap() {
@@ -3420,15 +3589,31 @@ async function loadObjectManifest() {
 }
 
 function downloadJson() {
+  const area = resolveMapArea(state.selectedAreaId);
+  const originalFileName = `${state.map.name || area?.label || "outside-map"}.json`;
+  const requestedFileName = prompt("Download JSON as:", originalFileName);
+  if (requestedFileName === null) {
+    return;
+  }
+  let fileName = requestedFileName
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+    .replace(/[. ]+$/g, "");
+  if (!fileName) {
+    alert("Enter a file name before downloading the map.");
+    return;
+  }
+  if (!fileName.toLowerCase().endsWith(".json")) {
+    fileName += ".json";
+  }
+
   const blob = new Blob([JSON.stringify(state.map, null, 2)], {
     type: "application/json",
   });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  const area = resolveMapArea(state.selectedAreaId);
-  const fileName = `${state.map.name || area?.label || "outside-map"}.json`;
-  anchor.download = fileName.replace(/[^a-z0-9-_]+/gi, "-");
+  anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
@@ -3472,6 +3657,7 @@ function handleFileSelection(event) {
 }
 
 function initControls() {
+  loadCustomMapAreas();
   ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
   renderPalette();
   renderGrid();
@@ -3499,6 +3685,10 @@ function initControls() {
     elements.clearSelectedObjectButton.addEventListener("click", () => {
       setSelectedObject(null);
     });
+  }
+
+  if (elements.createAreaButton) {
+    elements.createAreaButton.addEventListener("click", createCustomMapArea);
   }
 
   if (elements.saveLocalButton?.dataset) {

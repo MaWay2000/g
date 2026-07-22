@@ -619,6 +619,11 @@
         gap: 0.65rem;
       }
 
+      .area-create-button {
+        width: 100%;
+        margin-bottom: 0.75rem;
+      }
+
       .object-card {
         display: flex;
         flex-direction: column;
@@ -1420,10 +1425,13 @@
       >
         <section class="sidebar-section">
           <h2>Select Area</h2>
-          <p class="hint">
-            Pick which game area map to edit. Save/load, import, and download actions apply
-            to the selected area.
-          </p>
+          <button
+            class="terrain-action-button area-create-button"
+            type="button"
+            id="createAreaButton"
+          >
+            Create new area
+          </button>
           <div class="objects-palette" id="areaList" role="list"></div>
         </section>
         <section class="sidebar-section">
