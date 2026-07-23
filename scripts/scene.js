@@ -9131,7 +9131,10 @@ export const initScene = (
         return tile;
       };
 
-      const updateTerrainWindowing = ({ force = false } = {}) => {
+      const updateTerrainWindowing = ({
+        force = false,
+        focusWorldPosition = null,
+      } = {}) => {
         if (!camera || !mapGroup?.isObject3D) {
           return;
         }
@@ -9145,7 +9148,11 @@ export const initScene = (
         const bufferDistance = bufferTiles * cellSize;
 
         mapGroup.updateWorldMatrix(true, false);
-        camera.getWorldPosition(cameraWorldPosition);
+        if (focusWorldPosition?.isVector3) {
+          cameraWorldPosition.copy(focusWorldPosition);
+        } else {
+          camera.getWorldPosition(cameraWorldPosition);
+        }
         cameraLocalPosition.copy(cameraWorldPosition);
         mapGroup.worldToLocal(cameraLocalPosition);
 
@@ -10292,6 +10299,7 @@ export const initScene = (
         if (typeof builtOutsideTerrain?.updateTerrainWindowing === "function") {
           builtOutsideTerrain.updateTerrainWindowing({
             force: payload?.force === true,
+            focusWorldPosition: payload?.focusWorldPosition ?? null,
           });
         }
         updateAntennaWarningBeacons(payload);
@@ -15341,7 +15349,12 @@ export const initScene = (
       return;
     }
 
-    const preparedSession = prepareResourceCollection();
+    let preparedSession = prepareResourceCollection();
+
+    if (!preparedSession && getActiveLiftFloor()?.id === "operations-exterior") {
+      refreshExteriorTerrainAtPlayerPosition("digger-action");
+      preparedSession = prepareResourceCollection();
+    }
 
     if (!preparedSession) {
       const terrainDetail = findTerrainIntersection({
@@ -18464,6 +18477,31 @@ export const initScene = (
     updateViewDistanceCulling({ force: true });
   }
 
+  const refreshExteriorTerrainAtPlayerPosition = (reason) => {
+    const activeFloorId = getActiveLiftFloor()?.id ?? null;
+    if (activeFloorId !== "operations-exterior") {
+      return;
+    }
+
+    const environment = deckEnvironmentMap.get(activeFloorId);
+    if (typeof environment?.update !== "function") {
+      return;
+    }
+
+    try {
+      environment.update({
+        delta: 0,
+        elapsedTime: 0,
+        reason,
+        force: true,
+        focusWorldPosition: playerObject.position,
+      });
+    } catch (error) {
+      console.warn("Unable to refresh exterior terrain at player position", error);
+    }
+    refreshActiveResourceTargets(activeFloorId);
+  };
+
   const updateActiveDeckEnvironment = (payload) => {
     const activeFloor = getActiveLiftFloor();
     if (!activeFloor?.id) {
@@ -19138,6 +19176,7 @@ export const initScene = (
   };
 
   applyPlayerHeight(initialPlayerHeight, { persist: false });
+  refreshExteriorTerrainAtPlayerPosition("initial-positioned");
   playerGroundedHeight = Math.max(roomFloorY, playerObject.position.y);
 
   const playerColliderRadius = 0.35;
@@ -19319,23 +19358,7 @@ export const initScene = (
     verticalVelocity = 0;
     applyCameraViewMode();
 
-    if (
-      nextFloor.id === "operations-exterior" &&
-      typeof destinationEnvironment?.update === "function"
-    ) {
-      try {
-        // Rebuild windowed terrain around the destination camera after teleporting.
-        destinationEnvironment.update({
-          delta: 0,
-          elapsedTime: 0,
-          reason: "entry-positioned",
-          force: true,
-        });
-      } catch (error) {
-        console.warn("Unable to refresh positioned destination environment", error);
-      }
-      refreshActiveResourceTargets(nextFloor.id ?? null);
-    }
+    refreshExteriorTerrainAtPlayerPosition("entry-positioned");
 
     updateLiftUi();
     savePlayerState(true);
@@ -20126,6 +20149,7 @@ export const initScene = (
       controls.setYaw(Math.atan2(forward.x, forward.z));
     }
     applyCameraViewMode();
+    refreshExteriorTerrainAtPlayerPosition("door-positioned");
 
     savePlayerState(true);
     return true;
@@ -21860,6 +21884,9 @@ export const initScene = (
       }
 
       geoVisorEnabled = nextState;
+      if (geoVisorEnabled) {
+        refreshExteriorTerrainAtPlayerPosition("geo-visor-enable");
+      }
       updateGeoVisorTerrainVisibility({ force: true });
       return geoVisorEnabled;
     },
