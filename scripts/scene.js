@@ -1741,6 +1741,12 @@ export const initScene = (
     return targets;
   };
 
+  const canUseGeoVisor = () =>
+    Array.isArray(activeResourceTargets) &&
+    activeResourceTargets.some(
+      (target) => target?.isObject3D && target?.userData?.isResourceTarget !== false
+    );
+
   const getTerrainTilesForFloor = (floorId) => {
     if (!floorId) {
       return [];
@@ -3445,14 +3451,22 @@ export const initScene = (
       const lineSpacingReduction = 8 / 1.5;
 
       lines.forEach((line, index) => {
-        const fontSize =
+        let fontSize =
           totalLines > 1
             ? baseFontSize - (totalLines - 1) * lineSpacingReduction
             : baseFontSize;
+        const label = String(line || "").toUpperCase();
         ctx.font = `700 ${fontSize}px sans-serif`;
+        while (
+          fontSize > 18 &&
+          ctx.measureText(label).width > canvasSize - 40
+        ) {
+          fontSize -= 2;
+          ctx.font = `700 ${fontSize}px sans-serif`;
+        }
         const yOffset =
           canvasSize / 2 + (index - (totalLines - 1) / 2) * (fontSize + 4);
-        ctx.fillText(line.toUpperCase(), canvasSize / 2, yOffset);
+        ctx.fillText(label, canvasSize / 2, yOffset);
       });
 
       const texture = new THREE.CanvasTexture(canvas);
@@ -4030,6 +4044,10 @@ export const initScene = (
         lightColor: 0xf472b6,
       },
     };
+    liftAccessStyles.destination = {
+      ...liftAccessStyles.area,
+      label: ["DESTINATION"],
+    };
 
     const panelLabelMaterial = new THREE.MeshBasicMaterial({
       map: createPanelLabelTexture(liftAccessStyles.area.label, {
@@ -4102,7 +4120,7 @@ export const initScene = (
         return fontSize;
       };
 
-      const drawDescription = (text, busyState) => {
+      const drawDescription = (text, busyState, titleBottomY) => {
         const descriptionWords =
           typeof text === "string"
             ? text
@@ -4116,25 +4134,38 @@ export const initScene = (
           return;
         }
 
-        const longestDescriptionWord = descriptionWords.reduce(
-          (longest, word) => (longest.length >= word.length ? longest : word),
-          descriptionWords[0]
-        );
-        const descriptionFontSize = fitText(longestDescriptionWord, {
-          weight: "500",
-          baseSize: 30,
-          minSize: 20,
-          maxWidth: width - 72,
-        });
+        const maxDescriptionWidth = width - 72;
+        let descriptionFontSize = 24;
+        let descriptionLines = [];
+        const wrapDescription = () => {
+          context.font = `500 ${descriptionFontSize}px sans-serif`;
+          descriptionLines = [];
+          descriptionWords.forEach((word) => {
+            const lineIndex = descriptionLines.length - 1;
+            const candidate =
+              lineIndex >= 0 ? `${descriptionLines[lineIndex]} ${word}` : word;
+            if (
+              lineIndex < 0 ||
+              context.measureText(candidate).width > maxDescriptionWidth
+            ) {
+              descriptionLines.push(word);
+            } else {
+              descriptionLines[lineIndex] = candidate;
+            }
+          });
+        };
 
-        context.font = `500 ${descriptionFontSize}px sans-serif`;
+        wrapDescription();
+        while (descriptionLines.length > 4 && descriptionFontSize > 16) {
+          descriptionFontSize -= 2;
+          wrapDescription();
+        }
+
+        const lineHeight = descriptionFontSize * 1.2;
+        const firstLineY = Math.max(height * 0.64, titleBottomY + 24);
         context.fillStyle = busyState ? "#fbbf24" : "#38bdf8";
-        const totalLines = descriptionWords.length;
-        descriptionWords.forEach((word, index) => {
-          const lineOffset = index - (totalLines - 1) / 2;
-          const lineY =
-            height * 0.58 + lineOffset * descriptionFontSize * 1.1;
-          context.fillText(word, width / 2, lineY);
+        descriptionLines.forEach((line, index) => {
+          context.fillText(line, width / 2, firstLineY + index * lineHeight);
         });
       };
 
@@ -4207,7 +4238,11 @@ export const initScene = (
           context.fillText(word, width / 2, lineY);
         });
 
-        drawDescription(current?.description ?? "", busy);
+        const titleBottomY =
+          height * 0.36 +
+          ((totalTitleLines - 1) / 2) * titleFontSize * 1.15 +
+          titleFontSize / 2;
+        drawDescription(current?.description ?? "", busy, titleBottomY);
 
         texture.needsUpdate = true;
       };
@@ -5123,6 +5158,15 @@ export const initScene = (
   };
 
   const MAP_MAKER_DEFAULT_AREA_ID = "operations-exterior";
+  const MAP_MAKER_CUSTOM_AREAS_STORAGE_KEY =
+    `${OUTSIDE_MAP_LOCAL_STORAGE_KEY}.custom-areas`;
+  const MAP_MAKER_BUILT_IN_AREA_IDS = new Set([
+    "hangar-deck",
+    "operations-concourse",
+    "operations-exterior",
+    "engineering-bay",
+    "exterior-outpost",
+  ]);
   const MAP_MAKER_DOOR_MARKER_PATH = "door-marker";
   const MAP_MAKER_MAIN_SURFACE_DOOR_ID = "main-surface-entrance";
   const MAP_MAKER_HEIGHT_MIN = 0;
@@ -5231,6 +5275,54 @@ export const initScene = (
     } catch (error) {
       console.warn(`Stored map for area "${areaId}" is invalid`, error);
       return null;
+    }
+  };
+
+  const loadStoredCustomMapAreas = () => {
+    const storage = tryGetOutsideMapStorage();
+    if (!storage) {
+      return [];
+    }
+
+    try {
+      const serialized = storage.getItem(MAP_MAKER_CUSTOM_AREAS_STORAGE_KEY);
+      const entries = serialized ? JSON.parse(serialized) : [];
+      if (!Array.isArray(entries)) {
+        return [];
+      }
+
+      const seenIds = new Set();
+      return entries
+        .map((entry) => {
+          const id = typeof entry?.id === "string" ? entry.id.trim() : "";
+          const title =
+            typeof entry?.label === "string" ? entry.label.trim() : "";
+          if (
+            !id ||
+            !title ||
+            MAP_MAKER_BUILT_IN_AREA_IDS.has(id) ||
+            seenIds.has(id) ||
+            !loadStoredMapForArea(id)
+          ) {
+            return null;
+          }
+
+          seenIds.add(id);
+          return {
+            id,
+            title,
+            areaType: entry?.areaType === "mining" ? "mining" : "room",
+            description:
+              typeof entry.description === "string" && entry.description.trim()
+                ? entry.description.trim()
+                : "Custom Map Maker area",
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 64);
+    } catch (error) {
+      console.warn("Unable to load custom Map Maker areas", error);
+      return [];
     }
   };
 
@@ -5879,7 +5971,10 @@ export const initScene = (
 
         if (destinationType === "area" && destinationId) {
           door.userData.liftFloorId = destinationId;
-          door.userData?.liftUi?.setAccessType?.("area");
+          if (door.userData?.liftUi) {
+            door.userData.liftUi.destinationFloorId = destinationId;
+            door.userData.liftUi.setAccessType?.("destination");
+          }
           const liftControls = [
             door.userData?.liftUi?.control,
             ...(Array.isArray(door.userData?.liftUi?.controls)
@@ -7538,10 +7633,15 @@ export const initScene = (
       paddingZ: 1.35,
     }
   );
-  const resolveOperationsExteriorTeleportOffset = () => {
+  const resolveOperationsExteriorTeleportOffset = (
+    areaId = MAP_MAKER_DEFAULT_AREA_ID
+  ) => {
     let mapDefinition = null;
     try {
-      mapDefinition = loadOutsideMapFromStorage();
+      mapDefinition =
+        areaId === MAP_MAKER_DEFAULT_AREA_ID
+          ? loadOutsideMapFromStorage()
+          : loadStoredMapForArea(areaId);
     } catch (error) {
       console.warn("Unable to load stored outside map for spawn", error);
     }
@@ -7684,7 +7784,18 @@ export const initScene = (
     depletedTerrainTileIndices.add(tileIndex);
   };
 
-    const createOperationsExteriorEnvironment = () => {
+    const createOperationsExteriorEnvironment = (
+      areaId = MAP_MAKER_DEFAULT_AREA_ID
+    ) => {
+      const isDefaultExteriorArea = areaId === MAP_MAKER_DEFAULT_AREA_ID;
+      const loadExteriorMap = () =>
+        isDefaultExteriorArea
+          ? loadOutsideMapFromStorage()
+          : loadStoredMapForArea(areaId);
+      const saveExteriorMap = (mapDefinition) =>
+        isDefaultExteriorArea
+          ? saveOutsideMapToStorage(mapDefinition)
+          : saveStoredMapForArea(areaId, mapDefinition);
       const group = new THREE.Group();
       const DOOR_MARKER_PATH = "door-marker";
 
@@ -7774,9 +7885,9 @@ export const initScene = (
       const platformBlendDistance = cellSize * 0.85;
       const terrainPlaneSegments = 14;
       const mapGroup = new THREE.Group();
-      mapGroup.name = "operations-exterior-outside-map";
+      mapGroup.name = `${areaId}-outside-map`;
       const mapObjectGroup = new THREE.Group();
-      mapObjectGroup.name = "operations-exterior-outside-objects";
+      mapObjectGroup.name = `${areaId}-outside-objects`;
       mapGroup.add(mapObjectGroup);
 
       const adjustable = [];
@@ -7833,7 +7944,7 @@ export const initScene = (
           return false;
         }
 
-        const latestMap = loadOutsideMapFromStorage() ?? normalizedMap;
+        const latestMap = loadExteriorMap() ?? normalizedMap;
         if (!latestMap || typeof latestMap !== "object") {
           return false;
         }
@@ -7862,7 +7973,7 @@ export const initScene = (
 
         let savedMap = null;
         try {
-          savedMap = saveOutsideMapToStorage({
+          savedMap = saveExteriorMap({
             ...latestMap,
             objects: nextObjects,
           });
@@ -9952,11 +10063,12 @@ export const initScene = (
                 ? placement.destinationId
                 : null;
             const isLegacyMainSurfaceDoor =
+              isDefaultExteriorArea &&
               !hasExplicitMainSurfaceDoorPlacement &&
               !isMainSurfaceDoor &&
               destinationType === "area" &&
               destinationId === "operations-concourse";
-            if (isMainSurfaceDoor) {
+            if (isDefaultExteriorArea && isMainSurfaceDoor) {
               hasExplicitMainSurfaceDoorPlacement = true;
               mainSurfaceDoorPlacementWorld = placementPosition;
               return;
@@ -9987,7 +10099,10 @@ export const initScene = (
             }
             if (destinationType === "area" && destinationId) {
               door.userData.liftFloorId = destinationId;
-              door.userData?.liftUi?.setAccessType?.("area");
+              if (door.userData?.liftUi) {
+                door.userData.liftUi.destinationFloorId = destinationId;
+                door.userData.liftUi.setAccessType?.("destination");
+              }
               const liftControls = [
                 door.userData?.liftUi?.control,
                 ...(Array.isArray(door.userData?.liftUi?.controls)
@@ -10070,7 +10185,7 @@ export const initScene = (
 
         if (shouldPersistGeneratedPlacementIds) {
           try {
-            const persistedMap = saveOutsideMapToStorage(normalizedMap);
+            const persistedMap = saveExteriorMap(normalizedMap);
             if (persistedMap) {
               normalizedMap = persistedMap;
             }
@@ -10126,7 +10241,7 @@ export const initScene = (
                         storageBoxId: placementId,
                         storageBoxLabel: formatImportedStorageBoxLabel(placement),
                         storageBoxCapacityKg: storageBoxOptions.maxLoadKg,
-                        storageBoxFloorId: "operations-exterior",
+                        storageBoxFloorId: areaId,
                       }
                     );
                     if (storageBoxControl) {
@@ -10273,7 +10388,7 @@ export const initScene = (
 
     let storedOutsideMap = null;
     try {
-      storedOutsideMap = loadOutsideMapFromStorage();
+      storedOutsideMap = loadExteriorMap();
       hasStoredOutsideMap = Boolean(storedOutsideMap);
     } catch (error) {
       console.warn("Unable to load stored outside map", error);
@@ -10287,7 +10402,7 @@ export const initScene = (
     storedOutsideMap = terrainLifeMap;
     if (terrainLifeChanged) {
       try {
-        storedOutsideMap = saveOutsideMapToStorage(storedOutsideMap);
+        storedOutsideMap = saveExteriorMap(storedOutsideMap);
         hasStoredOutsideMap = true;
       } catch (error) {
         console.warn("Unable to save outside map after terrain life sync", error);
@@ -10666,19 +10781,25 @@ export const initScene = (
 
       return roomFloorY;
     };
-    group.userData.resolveEntrySpawn = () => {
-      returnDoor.updateMatrixWorld(true);
+    group.userData.resolveEntrySpawn = ({ fromFloorId = null } = {}) => {
+      const linkedEntryDoor = !isDefaultExteriorArea
+        ? mapLiftDoors.find(
+            (door) => door?.userData?.liftFloorId === fromFloorId
+          ) ?? mapLiftDoors[0]
+        : null;
+      const entryDoor = linkedEntryDoor?.isObject3D ? linkedEntryDoor : returnDoor;
+      entryDoor.updateMatrixWorld(true);
 
       const spawnPosition = new THREE.Vector3();
       const doorQuaternion = new THREE.Quaternion();
-      returnDoor.getWorldPosition(spawnPosition);
-      returnDoor.getWorldQuaternion(doorQuaternion);
+      entryDoor.getWorldPosition(spawnPosition);
+      entryDoor.getWorldQuaternion(doorQuaternion);
 
       const doorForward = new THREE.Vector3(0, 0, 1).applyQuaternion(
         doorQuaternion
       );
-      const doorWidth = Number.isFinite(returnDoor.userData?.width)
-        ? returnDoor.userData.width
+      const doorWidth = Number.isFinite(entryDoor.userData?.width)
+        ? entryDoor.userData.width
         : BASE_DOOR_WIDTH;
       const spawnDistance = Math.max(doorWidth * 0.7, 1.15);
       spawnPosition.add(doorForward.multiplyScalar(spawnDistance));
@@ -10921,7 +11042,7 @@ export const initScene = (
       }
     };
 
-    const teleportOffset = operationsExteriorTeleportOffset.clone();
+    const teleportOffset = resolveOperationsExteriorTeleportOffset(areaId);
 
     return {
       group,
@@ -13602,6 +13723,180 @@ export const initScene = (
     };
   };
 
+  const resolveCustomAreaTeleportOffset = (areaId) => {
+    const storedMap = loadStoredMapForArea(areaId);
+    const width = Math.max(1, Number.parseInt(storedMap?.width, 10) || 1);
+    const height = Math.max(1, Number.parseInt(storedMap?.height, 10) || 1);
+    const doorPlacement = Array.isArray(storedMap?.objects)
+      ? storedMap.objects.find(
+          (placement) => placement?.path === MAP_MAKER_DOOR_MARKER_PATH
+        )
+      : null;
+    const doorX = Number.isFinite(doorPlacement?.position?.x)
+      ? doorPlacement.position.x
+      : 0;
+    const doorZ = Number.isFinite(doorPlacement?.position?.z)
+      ? doorPlacement.position.z
+      : 0;
+    const inwardDirection = new THREE.Vector2(-doorX, -doorZ);
+    if (inwardDirection.lengthSq() < 0.0001) {
+      inwardDirection.set(0, 1);
+    } else {
+      inwardDirection.normalize();
+    }
+    const preferredX = doorX + inwardDirection.x * 1.25;
+    const preferredZ = doorZ + inwardDirection.y * 1.25;
+    let bestPosition = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < width * height; index += 1) {
+      const terrain = getOutsideTerrainById(
+        storedMap?.cells?.[index]?.terrainId ?? "void"
+      );
+      if (terrain.id === "void") {
+        continue;
+      }
+
+      const column = index % width;
+      const row = Math.floor(index / width);
+      const x = column - width / 2 + 0.5;
+      const z = row - height / 2 + 0.5;
+      const distance = (x - preferredX) ** 2 + (z - preferredZ) ** 2;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestPosition = new THREE.Vector3(x, 0, z);
+      }
+    }
+
+    return bestPosition ?? new THREE.Vector3(0, 0, 0);
+  };
+
+  const createCustomStoredAreaEnvironment = (areaId, floorBounds) => {
+    const group = new THREE.Group();
+    const floorWidth = Math.max(1, floorBounds.maxX - floorBounds.minX);
+    const floorDepth = Math.max(1, floorBounds.maxZ - floorBounds.minZ);
+    const centerX = (floorBounds.minX + floorBounds.maxX) / 2;
+    const centerZ = (floorBounds.minZ + floorBounds.maxZ) / 2;
+    const wallThickness = 0.18;
+    const wallHeight = Math.max(roomHeight * 0.82, BASE_DOOR_HEIGHT + 0.6);
+    const shellMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x132433),
+      roughness: 0.76,
+      metalness: 0.24,
+      emissive: new THREE.Color(0x07131d),
+      emissiveIntensity: 0.24,
+    });
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0d1b2a),
+      roughness: 0.68,
+      metalness: 0.2,
+    });
+    const roofMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(0x0a1620),
+      roughness: 0.82,
+      metalness: 0.18,
+      emissive: new THREE.Color(0x061019),
+      emissiveIntensity: 0.22,
+    });
+
+    const shellEntries = [];
+    const addShellMesh = (geometry, material, position, offset) => {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(position);
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      shellEntries.push({ object: mesh, offset });
+      return mesh;
+    };
+
+    const floorThickness = 0.16;
+    addShellMesh(
+      new THREE.BoxGeometry(floorWidth, floorThickness, floorDepth),
+      floorMaterial,
+      new THREE.Vector3(centerX, roomFloorY - floorThickness / 2, centerZ),
+      -floorThickness / 2
+    );
+    addShellMesh(
+      new THREE.BoxGeometry(floorWidth, wallHeight, wallThickness),
+      shellMaterial,
+      new THREE.Vector3(centerX, roomFloorY + wallHeight / 2, floorBounds.minZ),
+      wallHeight / 2
+    );
+    addShellMesh(
+      new THREE.BoxGeometry(floorWidth, wallHeight, wallThickness),
+      shellMaterial,
+      new THREE.Vector3(centerX, roomFloorY + wallHeight / 2, floorBounds.maxZ),
+      wallHeight / 2
+    );
+    addShellMesh(
+      new THREE.BoxGeometry(wallThickness, wallHeight, floorDepth),
+      shellMaterial,
+      new THREE.Vector3(floorBounds.minX, roomFloorY + wallHeight / 2, centerZ),
+      wallHeight / 2
+    );
+    addShellMesh(
+      new THREE.BoxGeometry(wallThickness, wallHeight, floorDepth),
+      shellMaterial,
+      new THREE.Vector3(floorBounds.maxX, roomFloorY + wallHeight / 2, centerZ),
+      wallHeight / 2
+    );
+    addShellMesh(
+      new THREE.BoxGeometry(floorWidth, wallThickness, floorDepth),
+      roofMaterial,
+      new THREE.Vector3(
+        centerX,
+        roomFloorY + wallHeight + wallThickness / 2,
+        centerZ
+      ),
+      wallHeight + wallThickness / 2
+    );
+
+    const mapOverlay = createStoredAreaOverlay({
+      areaId,
+      floorBounds,
+      roomFloorY,
+    });
+    const roomTerrainTiles = Array.isArray(mapOverlay?.terrainTiles)
+      ? mapOverlay.terrainTiles.filter((tile) => tile?.isObject3D)
+      : [];
+    roomTerrainTiles.forEach((tile) => {
+      tile.visible = false;
+    });
+    if (mapOverlay?.group) {
+      group.add(mapOverlay.group);
+    }
+
+    const adjustableEntries = Array.isArray(mapOverlay?.adjustableEntries)
+      ? [...shellEntries, ...mapOverlay.adjustableEntries]
+      : shellEntries;
+    const updateForRoomHeight = ({ roomFloorY }) => {
+      adjustableEntries.forEach(({ object, offset }) => {
+        if (object) {
+          object.position.y = roomFloorY + offset;
+        }
+      });
+    };
+
+    return {
+      group,
+      liftDoors: Array.isArray(mapOverlay?.liftDoors)
+        ? mapOverlay.liftDoors.filter((door) => door?.isObject3D)
+        : [],
+      updateForRoomHeight,
+      bounds: floorBounds,
+      colliderDescriptors: Array.isArray(mapOverlay?.colliderDescriptors)
+        ? mapOverlay.colliderDescriptors
+        : [],
+      terrainTiles: [],
+      viewDistanceTargets: Array.isArray(mapOverlay?.viewDistanceTargets)
+        ? mapOverlay.viewDistanceTargets.filter(
+            (target) => !roomTerrainTiles.includes(target)
+          )
+        : [],
+      readyPromise: mapOverlay?.readyPromise,
+    };
+  };
+
   const operationsDeckGroupPosition = new THREE.Vector3(roomWidth * 3.2, 0, 0);
   const operationsDeckDimensions = resolveOperationsConcourseDeckDimensions();
   const operationsDeckLocalBounds = createFloorBounds(
@@ -13665,6 +13960,37 @@ export const initScene = (
     -exteriorDeckDimensions.depth / 2 + 1.9
   );
 
+  const customMapAreas = loadStoredCustomMapAreas();
+  const customDeckEnvironments = customMapAreas.map((area, index) => {
+    const mapSize = resolveStoredAreaMapSize(area.id, {
+      width: 10,
+      height: 10,
+    });
+    const localFloorBounds = createFloorBounds(mapSize.width, mapSize.height, {
+      paddingX: 0,
+      paddingZ: 0,
+    });
+    const groupPosition = new THREE.Vector3(
+      roomWidth * 8 + index * Math.max(roomWidth * 4, 24),
+      0,
+      0
+    );
+
+    return createLazyDeckEnvironment({
+      id: area.id,
+      title: area.title,
+      description: area.description,
+      yaw: 0,
+      groupPosition,
+      localFloorBounds,
+      teleportOffset: resolveCustomAreaTeleportOffset(area.id),
+      createEnvironment: () =>
+        area.areaType === "mining"
+          ? createOperationsExteriorEnvironment(area.id)
+          : createCustomStoredAreaEnvironment(area.id, localFloorBounds),
+    });
+  });
+
   const deckEnvironments = [
     createLazyDeckEnvironment({
       id: "operations-concourse",
@@ -13706,6 +14032,7 @@ export const initScene = (
       teleportOffset: exteriorDeckTeleportOffset,
       createEnvironment: createExteriorOutpostEnvironment,
     }),
+    ...customDeckEnvironments,
   ];
 
   const deckEnvironmentMap = new Map(
@@ -19079,6 +19406,14 @@ export const initScene = (
       yaw: 0,
       bounds: resolvedExteriorFloorBounds,
     },
+    ...customDeckEnvironments.map((environment) => ({
+      id: environment.id,
+      title: environment.title,
+      description: environment.description,
+      position: environment.position,
+      yaw: environment.yaw,
+      bounds: environment.bounds,
+    })),
   ];
 
   const getLiftFloorByIndex = (index) => {
@@ -19742,7 +20077,20 @@ export const initScene = (
 
     liftUiControllers.forEach((controller) => {
       if (controller && typeof controller.updateState === "function") {
-        controller.updateState(state);
+        const destination = controller.destinationFloorId
+          ? liftState.floors.find(
+              (floor) => floor?.id === controller.destinationFloorId
+            )
+          : null;
+        controller.updateState(
+          destination
+            ? {
+                ...state,
+                current: destination,
+                next: null,
+              }
+            : state
+        );
       }
     });
   };
@@ -22536,6 +22884,12 @@ export const initScene = (
     setGeoVisorEnabled: (enabled = true) => {
       const nextState = Boolean(enabled);
 
+      if (nextState && !canUseGeoVisor()) {
+        geoVisorEnabled = false;
+        updateGeoVisorTerrainVisibility({ force: true });
+        return false;
+      }
+
       if (geoVisorEnabled === nextState) {
         return geoVisorEnabled;
       }
@@ -22547,6 +22901,7 @@ export const initScene = (
       updateGeoVisorTerrainVisibility({ force: true });
       return geoVisorEnabled;
     },
+    canUseGeoVisor: () => canUseGeoVisor(),
     runGeoVisorTerrainVisibilityRegressionCheck: () =>
       runGeoVisorTerrainVisibilityRegressionCheck(),
     getTerrainScanTarget: () =>

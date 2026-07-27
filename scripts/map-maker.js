@@ -18,43 +18,74 @@ const localSaveFeedbackTimers = {
   restore: null,
 };
 let autoSaveTimerId = null;
+let createAreaIdEdited = false;
+let createAreaDescriptionEdited = false;
+let pendingAreaDeleteId = null;
 
 const MAP_AREAS = [
   {
     id: "hangar-deck",
     label: "Command Center",
     description: "Primary command deck and staging area.",
+    areaType: "room",
   },
   {
     id: "operations-concourse",
     label: "Outside Exit",
     description: "Transfer concourse between command and the surface.",
+    areaType: "room",
   },
   {
     id: "operations-exterior",
     label: "Surface Area",
     description: "Open outside terrain used for mining and traversal.",
+    areaType: "mining",
   },
   {
     id: "engineering-bay",
     label: "Engineering Bay",
     description: "Workshop bay for construction and object placement.",
+    areaType: "room",
   },
   {
     id: "exterior-outpost",
     label: "Exterior Outpost",
     description: "Forward outpost zone beyond the main decks.",
+    areaType: "room",
   },
 ];
 const DEFAULT_MAP_AREA_ID = "operations-exterior";
 const MAP_AREA_BY_ID = new Map(MAP_AREAS.map((area) => [area.id, area]));
 const CUSTOM_MAP_AREAS_STORAGE_KEY = `${LOCAL_STORAGE_KEY}.custom-areas`;
-const CUSTOM_MAP_AREA_PROFILE = Object.freeze({
-  width: 10,
-  height: 10,
-  terrainId: "transition-metal",
-  heightValue: 0,
+const DEFAULT_CUSTOM_MAP_AREA_TYPE = "room";
+const CUSTOM_MAP_AREA_PROFILES = Object.freeze({
+  room: Object.freeze({
+    width: 10,
+    height: 10,
+    terrainId: "transition-metal",
+    heightValue: 0,
+  }),
+  mining: Object.freeze({
+    width: 24,
+    height: 24,
+    terrainId: "nonmetal",
+    heightValue: 0,
+  }),
 });
+
+const normalizeCustomMapAreaType = (value) =>
+  value === "mining" ? "mining" : DEFAULT_CUSTOM_MAP_AREA_TYPE;
+
+const getCustomMapAreaProfile = (area = {}) => {
+  const areaType = normalizeCustomMapAreaType(area.areaType);
+  const defaults = CUSTOM_MAP_AREA_PROFILES[areaType];
+  return {
+    width: clampOutsideMapDimension(area.templateWidth ?? defaults.width),
+    height: clampOutsideMapDimension(area.templateHeight ?? defaults.height),
+    terrainId: getTerrainById(area.templateTerrainId ?? defaults.terrainId).id,
+    heightValue: 0,
+  };
+};
 const MAP_AREA_TEMPLATE_PROFILES = new Map([
   [
     "hangar-deck",
@@ -153,7 +184,7 @@ const state = {
   doorMode: null,
   activeDoorListIndex: null,
   showHeights: false,
-  showTextures: false,
+  showTextures: true,
   showTileNumbers: false,
   selectionStart: null,
   selectionEnd: null,
@@ -537,7 +568,29 @@ const elements = {
   areaList: document.getElementById("areaList"),
   selectedAreaName: document.getElementById("selectedAreaName"),
   selectedAreaId: document.getElementById("selectedAreaId"),
+  selectedAreaType: document.getElementById("selectedAreaType"),
   selectedAreaDescription: document.getElementById("selectedAreaDescription"),
+  selectedAreaPreviewName: document.getElementById("selectedAreaPreviewName"),
+  selectedAreaPreviewMeta: document.getElementById("selectedAreaPreviewMeta"),
+  createAreaDialog: document.getElementById("createAreaDialog"),
+  createAreaForm: document.getElementById("createAreaForm"),
+  createAreaCloseButton: document.getElementById("createAreaCloseButton"),
+  createAreaCancelButton: document.getElementById("createAreaCancelButton"),
+  createAreaName: document.getElementById("createAreaName"),
+  createAreaId: document.getElementById("createAreaId"),
+  createAreaDescription: document.getElementById("createAreaDescription"),
+  createAreaWidth: document.getElementById("createAreaWidth"),
+  createAreaHeight: document.getElementById("createAreaHeight"),
+  createAreaTerrain: document.getElementById("createAreaTerrain"),
+  createAreaError: document.getElementById("createAreaError"),
+  deleteAreaDialog: document.getElementById("deleteAreaDialog"),
+  deleteAreaForm: document.getElementById("deleteAreaForm"),
+  deleteAreaCloseButton: document.getElementById("deleteAreaCloseButton"),
+  deleteAreaCancelButton: document.getElementById("deleteAreaCancelButton"),
+  deleteAreaName: document.getElementById("deleteAreaName"),
+  warningsList: document.getElementById("warningsList"),
+  warningsEmpty: document.getElementById("warningsEmpty"),
+  warningsTabCount: document.getElementById("warningsTabCount"),
   widthInput: document.getElementById("widthInput"),
   heightInput: document.getElementById("heightInput"),
   resizeButton: document.getElementById("resizeButton"),
@@ -932,6 +985,210 @@ async function resolveExternalHeights(mapDefinition) {
   }
 }
 
+function getReciprocalDoorId(sourceAreaId, sourceDoorId) {
+  const safeSourceAreaId = String(sourceAreaId || "area")
+    .trim()
+    .replace(/[^a-z0-9-_]/gi, "-");
+  const safeSourceDoorId = String(sourceDoorId || "door")
+    .trim()
+    .replace(/[^a-z0-9-_]/gi, "-");
+  return `return-${safeSourceAreaId}-${safeSourceDoorId}`;
+}
+
+function saveMapForArea(areaId, map) {
+  if (!MAP_AREA_BY_ID.has(areaId) || !map) {
+    return false;
+  }
+  const normalized = normalizeMapDefinition(map);
+  ensureMainSurfaceDoorPlacement(normalized, areaId);
+  state.areaMapCache.set(areaId, cloneMapDefinition(normalized));
+  const storage = getLocalStorage();
+  if (!storage) {
+    return false;
+  }
+  try {
+    storage.setItem(getAreaStorageKey(areaId), JSON.stringify(normalized));
+    return true;
+  } catch (error) {
+    console.warn(`Unable to save reciprocal door for area "${areaId}"`, error);
+    return false;
+  }
+}
+
+function findReciprocalDoorCellIndex(map, { allowVoid = false } = {}) {
+  const width = Math.max(1, Number.parseInt(map?.width, 10) || 1);
+  const height = Math.max(1, Number.parseInt(map?.height, 10) || 1);
+  const occupiedDoorCells = new Set(
+    (Array.isArray(map?.objects) ? map.objects : [])
+      .filter((placement) => placement?.path === DOOR_MARKER_PATH)
+      .map((placement) => {
+        const x = Math.round((placement.position?.x ?? 0) + width / 2 - 0.5);
+        const y = Math.round((placement.position?.z ?? 0) + height / 2);
+        return y * width + x;
+      })
+  );
+  const centerColumn = Math.floor(width / 2);
+  const columnOrder = Array.from({ length: width }, (_, column) => column).sort(
+    (a, b) => Math.abs(a - centerColumn) - Math.abs(b - centerColumn)
+  );
+  const candidates = [];
+  columnOrder.forEach((column) => {
+    candidates.push(column, (height - 1) * width + column);
+  });
+  for (let row = 1; row < height - 1; row += 1) {
+    candidates.push(row * width, row * width + width - 1);
+  }
+  for (let index = 0; index < width * height; index += 1) {
+    candidates.push(index);
+  }
+  return candidates.find((index) => {
+    if (occupiedDoorCells.has(index)) {
+      return false;
+    }
+    return (
+      allowVoid ||
+      getTerrainById(map?.cells?.[index]?.terrainId ?? "void").id !== "void"
+    );
+  }) ?? null;
+}
+
+function getReciprocalDoorRotationY(column, row, width, height) {
+  if (row <= 0) {
+    return 0;
+  }
+  if (row >= height - 1) {
+    return Math.PI;
+  }
+  if (column <= 0) {
+    return Math.PI / 2;
+  }
+  if (column >= width - 1) {
+    return -Math.PI / 2;
+  }
+  return row < height / 2 ? 0 : Math.PI;
+}
+
+function removeReciprocalAreaDoor(destinationAreaId, sourceAreaId, sourceDoorId) {
+  if (!destinationAreaId || destinationAreaId === sourceAreaId) {
+    return;
+  }
+  const destinationMap = getAreaMapForWarnings(destinationAreaId);
+  if (!destinationMap) {
+    return;
+  }
+  const reciprocalDoorId = getReciprocalDoorId(sourceAreaId, sourceDoorId);
+  const objects = Array.isArray(destinationMap.objects) ? destinationMap.objects : [];
+  const nextObjects = objects.filter(
+    (placement) => placement?.id !== reciprocalDoorId
+  );
+  if (nextObjects.length === objects.length) {
+    return;
+  }
+  saveMapForArea(destinationAreaId, {
+    ...destinationMap,
+    objects: nextObjects,
+  });
+}
+
+function syncReciprocalAreaDoor(sourceAreaId, nextPlacement, previousPlacement = null) {
+  const sourceDoorId =
+    typeof nextPlacement?.id === "string" && nextPlacement.id.trim()
+      ? nextPlacement.id.trim()
+      : null;
+  if (!sourceAreaId || !sourceDoorId) {
+    return;
+  }
+  const previousDestination = resolvePlacementDestination(previousPlacement);
+  const nextDestination = resolvePlacementDestination(nextPlacement);
+  if (
+    previousDestination?.destinationType === "area" &&
+    previousDestination.destinationId !== nextDestination?.destinationId
+  ) {
+    removeReciprocalAreaDoor(
+      previousDestination.destinationId,
+      sourceAreaId,
+      sourceDoorId
+    );
+  }
+  if (
+    nextDestination?.destinationType !== "area" ||
+    !MAP_AREA_BY_ID.has(nextDestination.destinationId) ||
+    nextDestination.destinationId === sourceAreaId
+  ) {
+    return;
+  }
+  const destinationAreaId = nextDestination.destinationId;
+  const destinationArea = resolveMapArea(destinationAreaId);
+  const destinationMap =
+    getAreaMapForWarnings(destinationAreaId) ?? createDefaultMapForArea(destinationAreaId);
+  const reciprocalDoorId = getReciprocalDoorId(sourceAreaId, sourceDoorId);
+  const existingObjects = Array.isArray(destinationMap.objects)
+    ? destinationMap.objects
+    : [];
+  const width = destinationMap.width;
+  const height = destinationMap.height;
+  const existingReturnDoorIndex = existingObjects.findIndex(
+    (placement) => placement?.id === reciprocalDoorId
+  );
+  if (existingReturnDoorIndex >= 0) {
+    const existingReturnDoor = existingObjects[existingReturnDoorIndex];
+    const column = Math.round(
+      (existingReturnDoor.position?.x ?? 0) + width / 2 - 0.5
+    );
+    const row = Math.round(
+      (existingReturnDoor.position?.z ?? 0) + height / 2
+    );
+    const rotationY = getReciprocalDoorRotationY(column, row, width, height);
+    if (Math.abs((existingReturnDoor.rotation?.y ?? 0) - rotationY) > 0.0001) {
+      saveMapForArea(destinationAreaId, {
+        ...destinationMap,
+        objects: existingObjects.map((placement, index) =>
+          index === existingReturnDoorIndex
+            ? {
+                ...placement,
+                rotation: { ...placement.rotation, y: rotationY },
+              }
+            : placement
+        ),
+      });
+    }
+    return;
+  }
+  const cellIndex = findReciprocalDoorCellIndex(destinationMap, {
+    allowVoid: normalizeCustomMapAreaType(destinationArea?.areaType) === "room",
+  });
+  if (!Number.isFinite(cellIndex)) {
+    return;
+  }
+  const column = cellIndex % width;
+  const row = Math.floor(cellIndex / width);
+  const sourceArea = resolveMapArea(sourceAreaId);
+  const returnDoor = {
+    path: DOOR_MARKER_PATH,
+    id: reciprocalDoorId,
+    name: `Return to ${sourceArea?.label ?? sourceAreaId}`,
+    position: {
+      x: column - width / 2 + 0.5,
+      y: getMapLocalDoorHeightForCell(destinationMap, cellIndex),
+      z: row - height / 2,
+    },
+    heightReference: "map-local",
+    rotation: {
+      x: 0,
+      y: getReciprocalDoorRotationY(column, row, width, height),
+      z: 0,
+    },
+    scale: { ...DEFAULT_OBJECT_TRANSFORM.scale },
+    destinationType: "area",
+    destinationId: sourceAreaId,
+    destination: `area:${sourceAreaId}`,
+  };
+  saveMapForArea(destinationAreaId, {
+    ...destinationMap,
+    objects: [...existingObjects, returnDoor],
+  });
+}
+
 function updateLandscapeViewer() {
   if (!landscapeViewer) {
     return;
@@ -954,6 +1211,53 @@ function setTextureVisibility(isEnabled) {
     elements.mapGrid.dataset.showTextures = String(isEnabled);
   }
   syncTextureToggleLabel(isEnabled);
+}
+
+function syncAreaTerrainAvailability(
+  area = resolveMapArea(state.selectedAreaId)
+) {
+  const isMiningArea = normalizeCustomMapAreaType(area?.areaType) === "mining";
+  if (elements.landscapeTypeToggle) {
+    if (!elements.landscapeTypeToggle.dataset.miningPressed) {
+      elements.landscapeTypeToggle.dataset.miningPressed = String(
+        elements.landscapeTypeToggle.getAttribute("aria-pressed") !== "false"
+      );
+    }
+    elements.landscapeTypeToggle.disabled = !isMiningArea;
+  }
+  if (elements.landscapeTextureToggle) {
+    elements.landscapeTextureToggle.disabled = !isMiningArea;
+  }
+
+  if (!isMiningArea) {
+    landscapeViewer?.setTerrainTypeVisibility?.(false);
+    landscapeViewer?.setTextureVisibility?.(false);
+    if (elements.landscapeTypeToggle) {
+      elements.landscapeTypeToggle.setAttribute("aria-pressed", "false");
+      elements.landscapeTypeToggle.textContent = "Terrain types: Off";
+    }
+    if (elements.landscapeTextureToggle) {
+      elements.landscapeTextureToggle.setAttribute("aria-pressed", "false");
+      elements.landscapeTextureToggle.textContent = "Terrain textures: Off";
+    }
+    return;
+  }
+
+  const showTerrainTypes =
+    elements.landscapeTypeToggle?.dataset.miningPressed !== "false";
+  landscapeViewer?.setTerrainTypeVisibility?.(showTerrainTypes);
+  if (elements.landscapeTypeToggle) {
+    elements.landscapeTypeToggle.setAttribute(
+      "aria-pressed",
+      String(showTerrainTypes)
+    );
+    elements.landscapeTypeToggle.textContent = `Terrain types: ${
+      showTerrainTypes ? "On" : "Off"
+    }`;
+  }
+  const showTerrainTextures = getTextureVisibility();
+  landscapeViewer?.setTextureVisibility?.(showTerrainTextures);
+  syncTextureToggleLabel(showTerrainTextures);
 }
 
 function syncTextureToggleLabel(isEnabled) {
@@ -1244,11 +1548,28 @@ function removeDoorPlacementAtIndex(index) {
   if (isMainSurfaceDoorPlacement(existing[index])) {
     return;
   }
+  const removedPlacement = existing[index];
+  const removedDoorId =
+    typeof removedPlacement.id === "string" && removedPlacement.id.trim()
+      ? removedPlacement.id.trim()
+      : getDoorIdFromPlacement(removedPlacement, state.map.width, state.map.height);
+  const removedDestination = resolvePlacementDestination(removedPlacement);
+  if (
+    removedDoorId &&
+    removedDestination?.destinationType === "area"
+  ) {
+    removeReciprocalAreaDoor(
+      removedDestination.destinationId,
+      state.selectedAreaId,
+      removedDoorId
+    );
+  }
   const snapshot = cloneMapDefinition(state.map);
   state.map.objects = existing.filter((_, entryIndex) => entryIndex !== index);
   updateJsonPreview();
   landscapeViewer?.setObjectPlacements?.(state.map.objects);
   pushUndoSnapshot(snapshot);
+  updateWarnings();
 }
 
 function focusPlacedObject(placement, index = null) {
@@ -1475,19 +1796,30 @@ function updateDoorList() {
       }
       const value = event.target.value;
       const snapshot = cloneMapDefinition(state.map);
+      const objects = Array.isArray(state.map.objects) ? state.map.objects : [];
+      const placement = objects[entry.index];
+      if (!placement || placement.path !== DOOR_MARKER_PATH) {
+        return;
+      }
+      const nextPlacement = { ...placement, id: placement.id ?? entry.id };
       if (!value) {
-        delete entry.placement.destinationType;
-        delete entry.placement.destinationId;
-        delete entry.placement.destination;
+        delete nextPlacement.destinationType;
+        delete nextPlacement.destinationId;
+        delete nextPlacement.destination;
       } else {
         const [type, ...rest] = value.split(":");
         const idValue = rest.join(":");
-        entry.placement.destinationType = type;
-        entry.placement.destinationId = idValue;
-        entry.placement.destination = value;
+        nextPlacement.destinationType = type;
+        nextPlacement.destinationId = idValue;
+        nextPlacement.destination = value;
       }
-      updateJsonPreview();
+      state.map.objects = objects.map((object, index) =>
+        index === entry.index ? nextPlacement : object
+      );
+      syncReciprocalAreaDoor(state.selectedAreaId, nextPlacement, placement);
+      updateJsonPreview({ updateDoors: false });
       pushUndoSnapshot(snapshot);
+      updateWarnings();
     });
 
     destination.append(destinationLabel, select);
@@ -1926,9 +2258,14 @@ function registerCustomMapArea(area) {
   if (!area || MAP_AREA_BY_ID.has(area.id)) {
     return false;
   }
+  area.areaType = normalizeCustomMapAreaType(area.areaType);
+  const profile = getCustomMapAreaProfile(area);
+  area.templateWidth = profile.width;
+  area.templateHeight = profile.height;
+  area.templateTerrainId = profile.terrainId;
   MAP_AREAS.push(area);
   MAP_AREA_BY_ID.set(area.id, area);
-  MAP_AREA_TEMPLATE_PROFILES.set(area.id, { ...CUSTOM_MAP_AREA_PROFILE });
+  MAP_AREA_TEMPLATE_PROFILES.set(area.id, profile);
   DOOR_DESTINATION_AREAS.push({ id: area.id, label: area.label });
   return true;
 }
@@ -1955,6 +2292,10 @@ function loadCustomMapAreas() {
         label,
         description:
           typeof entry.description === "string" ? entry.description : "Custom area.",
+        areaType: normalizeCustomMapAreaType(entry.areaType),
+        templateWidth: entry.templateWidth,
+        templateHeight: entry.templateHeight,
+        templateTerrainId: entry.templateTerrainId,
         isCustom: true,
       });
     });
@@ -1969,15 +2310,81 @@ function saveCustomMapAreas() {
     return false;
   }
   try {
-    const customAreas = MAP_AREAS.filter((area) => area.isCustom).map(
-      ({ id, label, description }) => ({ id, label, description })
-    );
+    const customAreas = MAP_AREAS.filter((area) => area.isCustom).map((area) => ({
+      id: area.id,
+      label: area.label,
+      description: area.description,
+      areaType: normalizeCustomMapAreaType(area.areaType),
+      templateWidth: area.templateWidth,
+      templateHeight: area.templateHeight,
+      templateTerrainId: area.templateTerrainId,
+    }));
     storage.setItem(CUSTOM_MAP_AREAS_STORAGE_KEY, JSON.stringify(customAreas));
     return true;
   } catch (error) {
     console.warn("Unable to save custom Map Maker areas", error);
     return false;
   }
+}
+
+function closeDeleteAreaDialog() {
+  if (elements.deleteAreaDialog?.open) {
+    elements.deleteAreaDialog.close();
+  }
+}
+
+function openDeleteAreaDialog(areaId) {
+  const area = MAP_AREA_BY_ID.get(areaId);
+  if (!area?.isCustom || !elements.deleteAreaDialog) {
+    return;
+  }
+  pendingAreaDeleteId = area.id;
+  if (elements.deleteAreaName) {
+    elements.deleteAreaName.textContent = area.label;
+  }
+  elements.deleteAreaDialog.showModal();
+  elements.deleteAreaCancelButton?.focus();
+}
+
+function deleteCustomMapArea(event) {
+  event.preventDefault();
+  const area = MAP_AREA_BY_ID.get(pendingAreaDeleteId);
+  if (!area?.isCustom) {
+    closeDeleteAreaDialog();
+    return;
+  }
+
+  const storage = getLocalStorage();
+  const storageKey = getAreaStorageKey(area.id);
+  if (state.selectedAreaId === area.id) {
+    selectArea(DEFAULT_MAP_AREA_ID);
+  } else {
+    cacheCurrentAreaMap();
+  }
+
+  const areaIndex = MAP_AREAS.findIndex((entry) => entry.id === area.id);
+  if (areaIndex >= 0) {
+    MAP_AREAS.splice(areaIndex, 1);
+  }
+  MAP_AREA_BY_ID.delete(area.id);
+  MAP_AREA_TEMPLATE_PROFILES.delete(area.id);
+  state.areaMapCache.delete(area.id);
+  const destinationIndex = DOOR_DESTINATION_AREAS.findIndex(
+    (entry) => entry.id === area.id
+  );
+  if (destinationIndex >= 0) {
+    DOOR_DESTINATION_AREAS.splice(destinationIndex, 1);
+  }
+  try {
+    storage?.removeItem(storageKey);
+  } catch (error) {
+    console.warn("Unable to remove deleted Map Maker area save", error);
+  }
+
+  saveCustomMapAreas();
+  closeDeleteAreaDialog();
+  renderAreaList();
+  updateWarnings();
 }
 
 function createUniqueAreaId(label) {
@@ -1996,45 +2403,137 @@ function createUniqueAreaId(label) {
   return candidate;
 }
 
-function createCustomMapArea() {
-  const requestedLabel = prompt("New area name:", "New Area");
-  if (requestedLabel === null) {
+function getCreateAreaType() {
+  const selectedType = elements.createAreaForm?.querySelector(
+    'input[name="createAreaType"]:checked'
+  );
+  return normalizeCustomMapAreaType(selectedType?.value);
+}
+
+function getDefaultCreateAreaDescription(areaType) {
+  return areaType === "mining"
+    ? "Custom mining area created in Map Maker."
+    : "Custom room created in Map Maker.";
+}
+
+function setCreateAreaError(message = "") {
+  if (!elements.createAreaError) {
     return;
   }
-  const label = requestedLabel.trim();
+  elements.createAreaError.textContent = message;
+  elements.createAreaError.hidden = !message;
+}
+
+function applyCreateAreaTypeDefaults(areaType = DEFAULT_CUSTOM_MAP_AREA_TYPE) {
+  const normalizedType = normalizeCustomMapAreaType(areaType);
+  const profile = CUSTOM_MAP_AREA_PROFILES[normalizedType];
+  if (elements.createAreaWidth) {
+    elements.createAreaWidth.value = profile.width;
+  }
+  if (elements.createAreaHeight) {
+    elements.createAreaHeight.value = profile.height;
+  }
+  if (elements.createAreaTerrain) {
+    elements.createAreaTerrain.value = profile.terrainId;
+  }
+  if (elements.createAreaDescription && !createAreaDescriptionEdited) {
+    elements.createAreaDescription.value =
+      getDefaultCreateAreaDescription(normalizedType);
+  }
+}
+
+function populateCreateAreaTerrainSelect() {
+  if (!elements.createAreaTerrain) {
+    return;
+  }
+  elements.createAreaTerrain.innerHTML = "";
+  TERRAIN_TYPES.filter((terrain) => terrain.id !== "void").forEach((terrain) => {
+    const option = document.createElement("option");
+    option.value = terrain.id;
+    option.textContent = terrain.label;
+    elements.createAreaTerrain.appendChild(option);
+  });
+}
+
+function closeCreateAreaDialog() {
+  if (elements.createAreaDialog?.open) {
+    elements.createAreaDialog.close();
+  }
+}
+
+function createCustomMapArea() {
+  if (!elements.createAreaDialog || !elements.createAreaForm) {
+    return;
+  }
+  elements.createAreaForm.reset();
+  createAreaIdEdited = false;
+  createAreaDescriptionEdited = false;
+  if (elements.createAreaName) {
+    elements.createAreaName.value = "New Area";
+  }
+  if (elements.createAreaId) {
+    elements.createAreaId.value = createUniqueAreaId("New Area");
+  }
+  applyCreateAreaTypeDefaults(DEFAULT_CUSTOM_MAP_AREA_TYPE);
+  setCreateAreaError();
+  elements.createAreaDialog.showModal();
+  elements.createAreaName?.focus();
+  elements.createAreaName?.select();
+}
+
+function submitCustomMapArea(event) {
+  event.preventDefault();
+  const label = elements.createAreaName?.value.trim() ?? "";
   if (!label) {
-    alert("Enter a name for the new area.");
+    setCreateAreaError("Enter an area name.");
+    elements.createAreaName?.focus();
     return;
   }
 
-  const suggestedId = createUniqueAreaId(label);
-  const requestedId = prompt("Area id:", suggestedId);
-  if (requestedId === null) {
-    return;
-  }
-  const id = requestedId
+  const id = (elements.createAreaId?.value ?? "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (!id) {
-    alert("Enter a valid area id.");
+    setCreateAreaError("Enter a valid area id.");
+    elements.createAreaId?.focus();
     return;
   }
   if (MAP_AREA_BY_ID.has(id)) {
-    alert(`An area with id "${id}" already exists.`);
+    setCreateAreaError(`An area with id "${id}" already exists.`);
+    elements.createAreaId?.focus();
     return;
   }
 
+  const areaType = getCreateAreaType();
+  const defaults = CUSTOM_MAP_AREA_PROFILES[areaType];
+  const templateWidth = clampOutsideMapDimension(
+    Number.parseInt(elements.createAreaWidth?.value, 10) || defaults.width
+  );
+  const templateHeight = clampOutsideMapDimension(
+    Number.parseInt(elements.createAreaHeight?.value, 10) || defaults.height
+  );
+  const templateTerrainId = getTerrainById(
+    elements.createAreaTerrain?.value ?? defaults.terrainId
+  ).id;
+  const description =
+    elements.createAreaDescription?.value.trim() ||
+    getDefaultCreateAreaDescription(areaType);
   const area = {
     id,
     label,
-    description: "Custom area created in Map Maker.",
+    description,
+    areaType,
+    templateWidth,
+    templateHeight,
+    templateTerrainId,
     isCustom: true,
   };
   registerCustomMapArea(area);
   saveCustomMapAreas();
   state.areaMapCache.set(id, createDefaultMapForArea(id));
+  closeCreateAreaDialog();
   selectArea(id);
   setActivePaletteTab("terrain");
 }
@@ -2081,15 +2580,99 @@ function cacheCurrentAreaMap() {
 }
 
 function applyAreaSummary(area = resolveMapArea(state.selectedAreaId)) {
+  const isEditable = area?.isCustom === true;
+  const areaTypeLabel =
+    normalizeCustomMapAreaType(area?.areaType) === "mining"
+      ? "Mining area"
+      : "Room";
   if (elements.selectedAreaName) {
     elements.selectedAreaName.value = area?.label ?? "";
+    elements.selectedAreaName.readOnly = !isEditable;
   }
   if (elements.selectedAreaId) {
     elements.selectedAreaId.value = area?.id ?? "";
   }
+  if (elements.selectedAreaType) {
+    elements.selectedAreaType.value = normalizeCustomMapAreaType(area?.areaType);
+    elements.selectedAreaType.disabled = !isEditable;
+  }
   if (elements.selectedAreaDescription) {
     elements.selectedAreaDescription.value = area?.description ?? "";
+    elements.selectedAreaDescription.readOnly = !isEditable;
   }
+  if (elements.selectedAreaPreviewName) {
+    elements.selectedAreaPreviewName.textContent = area?.label ?? "Unknown area";
+  }
+  if (elements.selectedAreaPreviewMeta) {
+    elements.selectedAreaPreviewMeta.textContent = `${area?.id ?? "unknown"} · ${areaTypeLabel}`;
+  }
+}
+
+function updateSelectedAreaMetadata(
+  { label, description, areaType } = {},
+  { revertInvalid = false } = {}
+) {
+  const area = resolveMapArea(state.selectedAreaId);
+  if (!area?.isCustom) {
+    applyAreaSummary(area);
+    return;
+  }
+
+  const nextLabel = typeof label === "string" ? label.trim() : area.label;
+  const nextDescription =
+    typeof description === "string" ? description.trim() : area.description;
+  const nextAreaType =
+    typeof areaType === "string"
+      ? normalizeCustomMapAreaType(areaType)
+      : normalizeCustomMapAreaType(area.areaType);
+  if (!nextLabel) {
+    if (revertInvalid) {
+      applyAreaSummary(area);
+    }
+    return;
+  }
+  if (
+    nextLabel === area.label &&
+    nextDescription === area.description &&
+    nextAreaType === normalizeCustomMapAreaType(area.areaType)
+  ) {
+    return;
+  }
+
+  area.label = nextLabel;
+  area.description = nextDescription;
+  area.areaType = nextAreaType;
+  state.map.name = nextLabel;
+  state.map.region = area.id;
+  state.map.notes = nextDescription;
+  state.areaMapCache.set(area.id, cloneMapDefinition(state.map));
+
+  const destinationArea = DOOR_DESTINATION_AREAS.find(
+    (entry) => entry.id === area.id
+  );
+  if (destinationArea) {
+    destinationArea.label = nextLabel;
+  }
+
+  saveCustomMapAreas();
+  scheduleAutoSave();
+  const areaButton = Array.from(
+    elements.areaList?.querySelectorAll("[data-area-id]") ?? []
+  ).find((button) => button.dataset.areaId === area.id);
+  if (areaButton) {
+    const areaLabel = areaButton.querySelector(".object-card-label");
+    if (areaLabel) {
+      areaLabel.textContent = nextLabel;
+    }
+    areaButton.setAttribute(
+      "aria-label",
+      `${nextLabel}. ${nextDescription || "Select area."}`
+    );
+  }
+  applyAreaSummary(area);
+  syncAreaTerrainAvailability(area);
+  updateMetadataDisplays({ skipAreaSummary: true });
+  updateJsonPreview();
 }
 
 function renderAreaList() {
@@ -2101,6 +2684,9 @@ function renderAreaList() {
   elements.areaList.innerHTML = "";
   const fragment = document.createDocumentFragment();
   MAP_AREAS.forEach((area) => {
+    const row = document.createElement("div");
+    row.className = "area-list-row";
+    row.setAttribute("role", "listitem");
     const button = document.createElement("button");
     button.type = "button";
     button.className = "object-card";
@@ -2123,11 +2709,116 @@ function renderAreaList() {
     button.addEventListener("click", () => {
       selectArea(area.id);
     });
-    fragment.appendChild(button);
+    row.appendChild(button);
+    if (area.isCustom) {
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "area-delete-button";
+      deleteButton.textContent = "×";
+      deleteButton.title = `Delete ${area.label}`;
+      deleteButton.setAttribute("aria-label", `Delete ${area.label}`);
+      deleteButton.addEventListener("click", () => {
+        openDeleteAreaDialog(area.id);
+      });
+      row.appendChild(deleteButton);
+    }
+    fragment.appendChild(row);
   });
 
   elements.areaList.appendChild(fragment);
   applyAreaSummary();
+}
+
+function getAreaMapForWarnings(areaId) {
+  if (areaId === state.selectedAreaId) {
+    return state.map;
+  }
+  const cachedMap = state.areaMapCache.get(areaId);
+  if (cachedMap) {
+    return cachedMap;
+  }
+  return loadMapFromStorageForArea(areaId, { removeInvalid: false });
+}
+
+function collectMissingAreaDoorWarnings() {
+  cacheCurrentAreaMap();
+  const warnings = [];
+  MAP_AREAS.forEach((area) => {
+    const map = getAreaMapForWarnings(area.id);
+    const objects = Array.isArray(map?.objects) ? map.objects : [];
+    objects.forEach((placement, index) => {
+      if (
+        placement?.path !== DOOR_MARKER_PATH ||
+        placement.destinationType !== "area" ||
+        typeof placement.destinationId !== "string" ||
+        !placement.destinationId ||
+        MAP_AREA_BY_ID.has(placement.destinationId)
+      ) {
+        return;
+      }
+      const doorName =
+        (typeof placement.name === "string" && placement.name.trim()) ||
+        (typeof placement.id === "string" && placement.id.trim()) ||
+        `Door ${index + 1}`;
+      warnings.push({
+        areaId: area.id,
+        areaLabel: area.label,
+        doorIndex: index,
+        doorName,
+        destinationId: placement.destinationId,
+      });
+    });
+  });
+  return warnings;
+}
+
+function openWarningDoor(warning) {
+  if (!warning || !MAP_AREA_BY_ID.has(warning.areaId)) {
+    updateWarnings();
+    return;
+  }
+  selectArea(warning.areaId);
+  state.activeDoorListIndex = warning.doorIndex;
+  setActivePaletteTab("doors");
+  setDoorMode("view", { force: true });
+  updateDoorList();
+  const placement = state.map.objects?.[warning.doorIndex];
+  if (placement?.path === DOOR_MARKER_PATH) {
+    window.requestAnimationFrame(() => {
+      focusPlacedObject(placement, warning.doorIndex);
+    });
+  }
+}
+
+function updateWarnings() {
+  if (!elements.warningsList || !elements.warningsEmpty) {
+    return;
+  }
+  const warnings = collectMissingAreaDoorWarnings();
+  elements.warningsList.innerHTML = "";
+  warnings.forEach((warning) => {
+    const item = document.createElement("li");
+    item.className = "warning-list-item";
+    const title = document.createElement("div");
+    title.className = "warning-list-title";
+    title.textContent = "Missing area destination";
+    const message = document.createElement("p");
+    message.className = "warning-list-message";
+    message.textContent = `${warning.areaLabel}: ${warning.doorName} points to deleted area \"${warning.destinationId}\".`;
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "warning-list-link";
+    link.textContent = "Open door";
+    link.addEventListener("click", () => {
+      openWarningDoor(warning);
+    });
+    item.append(title, message, link);
+    elements.warningsList.appendChild(item);
+  });
+  elements.warningsEmpty.hidden = warnings.length > 0;
+  if (elements.warningsTabCount) {
+    elements.warningsTabCount.textContent = String(warnings.length);
+  }
 }
 
 function selectArea(areaId) {
@@ -2155,7 +2846,7 @@ function selectArea(areaId) {
   updateMetadataDisplays();
   renderGrid();
   if (landscapeViewer) {
-    landscapeViewer.setTextureVisibility?.(getTextureVisibility());
+    syncAreaTerrainAvailability(area);
     landscapeViewer.setTileNumberVisibility?.(getTileNumberVisibility());
     landscapeViewer.setHeightVisibility?.(state.showHeights);
     landscapeViewer.resize?.();
@@ -2302,6 +2993,15 @@ function saveMapToLocalStorage({ showAlert = true, showFeedback = true } = {}) {
     storage.setItem(getAreaStorageKey(), JSON.stringify(normalized));
     state.map = normalized;
     state.areaMapCache.set(state.selectedAreaId, cloneMapDefinition(state.map));
+    state.map.objects
+      .filter(
+        (placement) =>
+          placement?.path === DOOR_MARKER_PATH &&
+          !isMainSurfaceDoorPlacement(placement)
+      )
+      .forEach((placement) => {
+        syncReciprocalAreaDoor(state.selectedAreaId, placement);
+      });
   } catch (error) {
     console.error("Failed to save map locally", error);
     if (showAlert) {
@@ -2414,7 +3114,7 @@ function updateMapMetadata({ name, region, notes }) {
   updateJsonPreview();
 }
 
-function updateMetadataDisplays() {
+function updateMetadataDisplays({ skipAreaSummary = false } = {}) {
   if (elements.mapNameDisplay) {
     elements.mapNameDisplay.textContent = state.map.name || "Untitled";
   }
@@ -2439,7 +3139,9 @@ function updateMetadataDisplays() {
   if (elements.heightInput) {
     elements.heightInput.value = state.map.height;
   }
-  applyAreaSummary();
+  if (!skipAreaSummary) {
+    applyAreaSummary();
+  }
 }
 
 function updateSelectionPreview() {
@@ -3054,10 +3756,12 @@ function handleCellPointerEnter(event) {
   applyPointerPaint(index);
 }
 
-function updateJsonPreview() {
+function updateJsonPreview({ updateDoors = true } = {}) {
   const json = JSON.stringify(state.map, null, 2);
   elements.jsonPreview.textContent = json;
-  updateDoorList();
+  if (updateDoors) {
+    updateDoorList();
+  }
   updateObjectList();
   scheduleAutoSave();
 }
@@ -3075,6 +3779,8 @@ function setActivePaletteTab(tabId) {
     setHeightMode("brush");
   } else if (tabId === "doors" && !state.doorMode) {
     setDoorMode("view", { force: true });
+  } else if (tabId === "warnings") {
+    updateWarnings();
   }
 
   let activePanelId = null;
@@ -3299,9 +4005,7 @@ function setActivePaletteTab(tabId) {
         },
       });
     }
-    if (landscapeViewer?.setTextureVisibility) {
-      landscapeViewer.setTextureVisibility(getTextureVisibility());
-    }
+    syncAreaTerrainAvailability();
     if (landscapeViewer?.setTileNumberVisibility) {
       landscapeViewer.setTileNumberVisibility(getTileNumberVisibility());
     }
@@ -3658,6 +4362,7 @@ function handleFileSelection(event) {
 
 function initControls() {
   loadCustomMapAreas();
+  populateCreateAreaTerrainSelect();
   ensureMainSurfaceDoorPlacement(state.map, state.selectedAreaId);
   renderPalette();
   renderGrid();
@@ -3665,6 +4370,7 @@ function initControls() {
   updateJsonPreview();
   state.areaMapCache.set(state.selectedAreaId, cloneMapDefinition(state.map));
   renderAreaList();
+  updateWarnings();
   populateTerrainTypeSelect();
   populateTerrainTileSelect();
   updateTerrainMenu();
@@ -3689,6 +4395,74 @@ function initControls() {
 
   if (elements.createAreaButton) {
     elements.createAreaButton.addEventListener("click", createCustomMapArea);
+  }
+
+  elements.createAreaCloseButton?.addEventListener("click", closeCreateAreaDialog);
+  elements.createAreaCancelButton?.addEventListener("click", closeCreateAreaDialog);
+  elements.createAreaForm?.addEventListener("submit", submitCustomMapArea);
+  elements.createAreaName?.addEventListener("input", () => {
+    if (!createAreaIdEdited && elements.createAreaId) {
+      elements.createAreaId.value = createUniqueAreaId(
+        elements.createAreaName.value
+      );
+    }
+    setCreateAreaError();
+  });
+  elements.createAreaId?.addEventListener("input", () => {
+    createAreaIdEdited = true;
+    setCreateAreaError();
+  });
+  elements.createAreaDescription?.addEventListener("input", () => {
+    createAreaDescriptionEdited = true;
+  });
+  elements.createAreaForm
+    ?.querySelectorAll('input[name="createAreaType"]')
+    .forEach((input) => {
+      input.addEventListener("change", () => {
+        applyCreateAreaTypeDefaults(input.value);
+      });
+    });
+  elements.createAreaDialog?.addEventListener("close", () => {
+    setCreateAreaError();
+  });
+  elements.deleteAreaCloseButton?.addEventListener(
+    "click",
+    closeDeleteAreaDialog
+  );
+  elements.deleteAreaCancelButton?.addEventListener(
+    "click",
+    closeDeleteAreaDialog
+  );
+  elements.deleteAreaForm?.addEventListener("submit", deleteCustomMapArea);
+  elements.deleteAreaDialog?.addEventListener("close", () => {
+    pendingAreaDeleteId = null;
+    if (elements.deleteAreaName) {
+      elements.deleteAreaName.textContent = "";
+    }
+  });
+
+  if (elements.selectedAreaName) {
+    elements.selectedAreaName.addEventListener("input", (event) => {
+      updateSelectedAreaMetadata({ label: event.target.value });
+    });
+    elements.selectedAreaName.addEventListener("change", (event) => {
+      updateSelectedAreaMetadata(
+        { label: event.target.value },
+        { revertInvalid: true }
+      );
+    });
+  }
+
+  if (elements.selectedAreaDescription) {
+    elements.selectedAreaDescription.addEventListener("input", (event) => {
+      updateSelectedAreaMetadata({ description: event.target.value });
+    });
+  }
+
+  if (elements.selectedAreaType) {
+    elements.selectedAreaType.addEventListener("change", (event) => {
+      updateSelectedAreaMetadata({ areaType: event.target.value });
+    });
   }
 
   if (elements.saveLocalButton?.dataset) {

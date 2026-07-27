@@ -458,7 +458,21 @@ export const initMapMaker3d = ({
   const moveKeys = new Set();
   const clock = new THREE.Clock();
 
+  const isEditableTarget = (target) =>
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT");
+
+  const isEditingText = (event) =>
+    isEditableTarget(event.target) || isEditableTarget(document.activeElement);
+
   const handleKeyDown = (event) => {
+    if (isEditingText(event)) {
+      moveKeys.delete(event.code);
+      return;
+    }
     if (["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
       moveKeys.add(event.code);
       event.preventDefault();
@@ -468,7 +482,9 @@ export const initMapMaker3d = ({
   const handleKeyUp = (event) => {
     if (["KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
       moveKeys.delete(event.code);
-      event.preventDefault();
+      if (!isEditingText(event)) {
+        event.preventDefault();
+      }
     }
   };
 
@@ -846,12 +862,42 @@ export const initMapMaker3d = ({
       metalness: 0.35,
     });
 
+    const selectedAreaType =
+      document.getElementById("selectedAreaType")?.value === "mining"
+        ? "mining"
+        : "room";
+    const BUILT_IN_AREA_IDS = new Set([
+      "hangar-deck",
+      "operations-concourse",
+      "operations-exterior",
+      "engineering-bay",
+      "exterior-outpost",
+    ]);
+    const isCustomRoom =
+      !BUILT_IN_AREA_IDS.has(areaId) && selectedAreaType === "room";
+    const customRoomWallMaterial = isCustomRoom
+      ? createAreaReferenceMaterial({
+          color: 0x475569,
+          emissive: 0x0f1f2d,
+          emissiveIntensity: 0.3,
+          roughness: 0.62,
+          metalness: 0.3,
+        })
+      : wallMaterial;
+    const customRoomTrimMaterial = isCustomRoom
+      ? createAreaReferenceMaterial({
+          color: 0x94a3b8,
+          roughness: 0.42,
+          metalness: 0.48,
+        })
+      : trimMaterial;
+
     const AREA_IDS_WITH_PERIMETER_WALLS = new Set([
       "hangar-deck",
       "operations-concourse",
     ]);
 
-    if (AREA_IDS_WITH_PERIMETER_WALLS.has(areaId)) {
+    if (AREA_IDS_WITH_PERIMETER_WALLS.has(areaId) || isCustomRoom) {
       addPerimeterWalls(
         {
           halfWidth,
@@ -860,9 +906,33 @@ export const initMapMaker3d = ({
           wallThickness,
           wallInset: areaId === "exterior-outpost" ? 0.2 : 0,
         },
-        wallMaterial,
-        trimMaterial
+        customRoomWallMaterial,
+        customRoomTrimMaterial
       );
+    }
+
+    if (isCustomRoom) {
+      const floorThickness = 0.12;
+      const floor = createAreaReferenceMesh(
+        new THREE.BoxGeometry(referenceWidth, floorThickness, referenceDepth),
+        platformMaterial
+      );
+      floor.position.set(0, -floorThickness / 2, 0);
+      areaReferenceGroup.add(floor);
+
+      const previewRoofMaterial = createAreaReferenceMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+        wireframe: true,
+      });
+      const roof = createAreaReferenceMesh(
+        new THREE.BoxGeometry(referenceWidth, wallThickness, referenceDepth),
+        previewRoofMaterial
+      );
+      roof.position.set(0, wallHeight + wallThickness / 2, 0);
+      areaReferenceGroup.add(roof);
     }
 
     if (areaId === "hangar-deck") {
@@ -1381,6 +1451,7 @@ export const initMapMaker3d = ({
     if (!textureContext) {
       return;
     }
+    const nextToken = ++textureToken;
     const shouldShowTextures = showTerrainTextures;
     const shouldShowTileNumbers = showTileNumbers;
     const shouldShowHeights = showHeights;
@@ -1396,7 +1467,6 @@ export const initMapMaker3d = ({
       return;
     }
 
-    const nextToken = ++textureToken;
     const { width, height } = map;
     const nextCanvasWidth = width * TEXTURE_TILE_SIZE;
     const nextCanvasHeight = height * TEXTURE_TILE_SIZE;
@@ -2753,6 +2823,7 @@ export const initMapMaker3d = ({
   if (terrainTypeToggle) {
     terrainToggleHandler = () => {
       const nextValue = !showTerrainTypes;
+      terrainTypeToggle.dataset.miningPressed = String(nextValue);
       syncTerrainToggleLabel(nextValue);
       updateTerrainTypeDisplay(nextValue);
     };
@@ -2808,6 +2879,7 @@ export const initMapMaker3d = ({
 
   return {
     updateMap,
+    setTerrainTypeVisibility: updateTerrainTypeDisplay,
     setTextureVisibility: updateTerrainTextureDisplay,
     setTileNumberVisibility: updateTileNumberDisplay,
     setHeightVisibility: updateHeightDisplay,

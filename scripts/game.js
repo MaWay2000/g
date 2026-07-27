@@ -3925,7 +3925,11 @@ const setGeoVisorActiveSlotId = (slotId) => {
 const hasGeoVisorBatteryCharge = () => geoVisorBatteryState.level > 0;
 
 const activateGeoVisor = (slotId) => {
-  if (!GEO_VISOR_SLOT_IDS.has(slotId) || !hasGeoVisorBatteryCharge()) {
+  if (
+    !GEO_VISOR_SLOT_IDS.has(slotId) ||
+    !hasGeoVisorBatteryCharge() ||
+    sceneController?.canUseGeoVisor?.() !== true
+  ) {
     return false;
   }
 
@@ -8687,13 +8691,31 @@ const isLiftFloorDoorEnabled = (floorId) => {
   return trimmedFloorId !== "operations-concourse";
 };
 
+const defaultLiftSelectorFloorIds = new Set([
+  "hangar-deck",
+  "operations-exterior",
+  "engineering-bay",
+  "exterior-outpost",
+]);
+
+const getDefaultLiftSelectorFloors = () => {
+  const floors = sceneController?.getLiftFloors?.() ?? [];
+  return Array.isArray(floors)
+    ? floors.filter(
+        (floor) =>
+          typeof floor?.id === "string" &&
+          defaultLiftSelectorFloorIds.has(floor.id.trim()),
+      )
+    : [];
+};
+
 const renderLiftAreaSettings = () => {
   if (!(liftAreaSettingsList instanceof HTMLElement)) {
     return;
   }
 
   liftAreaSettingsList.innerHTML = "";
-  const floors = sceneController?.getLiftFloors?.() ?? [];
+  const floors = getDefaultLiftSelectorFloors();
 
   if (!Array.isArray(floors) || floors.length === 0) {
     const emptyState = document.createElement("p");
@@ -8787,7 +8809,7 @@ const renderLiftModalFloors = () => {
   }
 
   list.innerHTML = "";
-  const floors = sceneController?.getLiftFloors?.() ?? [];
+  const floors = getDefaultLiftSelectorFloors();
   const hasFloors = Array.isArray(floors) && floors.length > 0;
 
   if (empty instanceof HTMLElement) {
@@ -24873,7 +24895,7 @@ const handleGeoVisorQuickSlotChange = (event) => {
   }
 
   const visorActivated = activateGeoVisor(slot.id);
-  if (!visorActivated && !hasGeoVisorBatteryCharge()) {
+  if (!visorActivated) {
     playGeoVisorOutOfBatterySound();
   }
 };
@@ -25241,6 +25263,13 @@ const bootstrapScene = () => {
       },
       onLiftTravel(event) {
         handleDroneSurfaceExitTransition(event);
+        if (
+          getActiveGeoVisorSlotId() &&
+          sceneController?.canUseGeoVisor?.() !== true
+        ) {
+          setGeoVisorActiveSlotId(null);
+          schedulePersistGeoVisorBatteryState({ force: true });
+        }
         playTerminalInteractionSound();
         const destination = event?.to ?? null;
         const floorTitle = destination?.title || destination?.id || "New deck";
