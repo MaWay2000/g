@@ -5536,6 +5536,8 @@ export const initScene = (
     floorBounds,
     roomFloorY,
     liftDoorTheme = null,
+    terrainTileMode = "all",
+    terrainTileMaterial = null,
   }) => {
     const storedMap = loadStoredMapForArea(areaId);
     if (!storedMap) {
@@ -5907,35 +5909,42 @@ export const initScene = (
     const tileWidth = Math.max(0.12, cellSizeX * 0.96);
     const tileDepth = Math.max(0.12, cellSizeZ * 0.96);
 
-    for (let index = 0; index < width * height; index += 1) {
-      const cell = normalizedMap.cells?.[index];
-      const terrain = getOutsideTerrainById(cell?.terrainId ?? "void");
-      if (terrain.id === "void") {
-        continue;
-      }
+    if (terrainTileMode !== "none") {
+      for (let index = 0; index < width * height; index += 1) {
+        const cell = normalizedMap.cells?.[index];
+        const terrain = getOutsideTerrainById(cell?.terrainId ?? "void");
+        if (terrain.id === "void") {
+          continue;
+        }
 
-      const column = index % width;
-      const row = Math.floor(index / width);
-      const worldX = (column - width / 2 + 0.5) * cellSizeX;
-      const worldZ = (row - height / 2 + 0.5) * cellSizeZ;
-      const elevation = getMapMakerHeightElevation(normalizedMap.heights?.[index]);
-      const tileHeight = MAP_MAKER_TILE_THICKNESS + elevation;
-      const tile = new THREE.Mesh(
-        new THREE.BoxGeometry(tileWidth, tileHeight, tileDepth),
-        getTerrainMaterial(terrain.id)
-      );
-      tile.position.set(
-        worldX,
-        roomFloorY + MAP_MAKER_TILE_SURFACE_CLEARANCE + tileHeight / 2,
-        worldZ
-      );
-      overlayGroup.add(tile);
-      adjustableEntries.push({
-        object: tile,
-        offset: tile.position.y - roomFloorY,
-      });
-      terrainTiles.push(tile);
-      viewDistanceTargets.push(tile);
+        const column = index % width;
+        const row = Math.floor(index / width);
+        const worldX = (column - width / 2 + 0.5) * cellSizeX;
+        const worldZ = (row - height / 2 + 0.5) * cellSizeZ;
+        const elevation = getMapMakerHeightElevation(normalizedMap.heights?.[index]);
+        if (terrainTileMode === "elevated" && elevation <= 0) {
+          continue;
+        }
+        const tileHeight = MAP_MAKER_TILE_THICKNESS + elevation;
+        const tile = new THREE.Mesh(
+          new THREE.BoxGeometry(tileWidth, tileHeight, tileDepth),
+          terrainTileMaterial ?? getTerrainMaterial(terrain.id)
+        );
+        tile.position.set(
+          worldX,
+          roomFloorY + MAP_MAKER_TILE_SURFACE_CLEARANCE + tileHeight / 2,
+          worldZ
+        );
+        overlayGroup.add(tile);
+        adjustableEntries.push({
+          object: tile,
+          offset: tile.position.y - roomFloorY,
+        });
+        if (terrainTileMode === "all") {
+          terrainTiles.push(tile);
+        }
+        viewDistanceTargets.push(tile);
+      }
     }
 
     const objectPlacements = Array.isArray(normalizedMap.objects)
@@ -7546,6 +7555,7 @@ export const initScene = (
       areaId: "operations-concourse",
       floorBounds,
       roomFloorY,
+      terrainTileMode: "elevated",
     });
     const mapColliderDescriptors = Array.isArray(mapOverlay?.colliderDescriptors)
       ? mapOverlay.colliderDescriptors
@@ -8719,6 +8729,82 @@ export const initScene = (
         applyDistantConcealedTerrainTexture(concealedTerrainTexture);
       }
 
+      const terrainBatchAtlasColumns = 4;
+      const terrainBatchAtlasRows = 4;
+      const terrainBatchAtlasTileSize = 256;
+      const terrainBatchAtlasCanvas = document.createElement("canvas");
+      terrainBatchAtlasCanvas.width =
+        terrainBatchAtlasColumns * terrainBatchAtlasTileSize;
+      terrainBatchAtlasCanvas.height =
+        terrainBatchAtlasRows * terrainBatchAtlasTileSize;
+      const terrainBatchAtlasContext = terrainBatchAtlasCanvas.getContext("2d");
+      terrainBatchAtlasContext.fillStyle = "#5a2d1b";
+      terrainBatchAtlasContext.fillRect(
+        0,
+        0,
+        terrainBatchAtlasCanvas.width,
+        terrainBatchAtlasCanvas.height
+      );
+      const terrainBatchAtlasTexture = new THREE.CanvasTexture(
+        terrainBatchAtlasCanvas
+      );
+      terrainBatchAtlasTexture.colorSpace = THREE.SRGBColorSpace;
+      terrainBatchAtlasTexture.wrapS = THREE.ClampToEdgeWrapping;
+      terrainBatchAtlasTexture.wrapT = THREE.ClampToEdgeWrapping;
+      terrainBatchAtlasTexture.minFilter = THREE.LinearMipmapLinearFilter;
+      terrainBatchAtlasTexture.magFilter = THREE.LinearFilter;
+      terrainBatchAtlasTexture.generateMipmaps = true;
+      terrainBatchAtlasTexture.anisotropy = Math.min(
+        4,
+        renderer.capabilities.getMaxAnisotropy()
+      );
+      const terrainBatchAtlasMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0xffffff),
+        roughness: 0.92,
+        metalness: 0.2,
+        map: terrainBatchAtlasTexture,
+        vertexColors: false,
+        side: THREE.DoubleSide,
+      });
+      const distantTerrainBatchAtlasMaterial = new THREE.MeshLambertMaterial({
+        color: new THREE.Color(0xffffff),
+        map: terrainBatchAtlasTexture,
+        side: THREE.DoubleSide,
+      });
+      const getTerrainBatchAtlasIndex = (tileId) => {
+        const match = /^floor-(\d+)$/.exec(tileId ?? "");
+        const tileNumber = match ? Number.parseInt(match[1], 10) : 11;
+        return THREE.MathUtils.clamp(tileNumber - 1, 0, 10);
+      };
+      const drawTerrainBatchAtlasTile = (tileId, texture) => {
+        const sourceImage = texture?.image;
+        if (!sourceImage || !terrainBatchAtlasContext) {
+          return;
+        }
+        const atlasIndex = getTerrainBatchAtlasIndex(tileId);
+        const column = atlasIndex % terrainBatchAtlasColumns;
+        const row = Math.floor(atlasIndex / terrainBatchAtlasColumns);
+        terrainBatchAtlasContext.drawImage(
+          sourceImage,
+          column * terrainBatchAtlasTileSize,
+          (terrainBatchAtlasRows - row - 1) * terrainBatchAtlasTileSize,
+          terrainBatchAtlasTileSize,
+          terrainBatchAtlasTileSize
+        );
+        terrainBatchAtlasTexture.needsUpdate = true;
+      };
+      for (let tileNumber = 1; tileNumber <= 11; tileNumber += 1) {
+        const tileId = `floor-${tileNumber}`;
+        const texture = getTextureForTerrainTile(
+          tileId,
+          0,
+          (loadedTexture) => drawTerrainBatchAtlasTile(tileId, loadedTexture)
+        );
+        if (texture?.userData?.loaded === true) {
+          drawTerrainBatchAtlasTile(tileId, texture);
+        }
+      }
+
       const getMaterialForTerrain = (terrainId, tileId, variantIndex) => {
         if (CONCEAL_OUTSIDE_TERRAIN_TILES) {
           return concealedTerrainMaterial;
@@ -9369,6 +9455,10 @@ export const initScene = (
           }
           const sourceNormals = geometry.getAttribute("normal");
           const sourceUvs = geometry.getAttribute("uv");
+          const atlasIndex = getTerrainBatchAtlasIndex(tile.userData?.tileId);
+          const atlasColumn = atlasIndex % terrainBatchAtlasColumns;
+          const atlasRow = Math.floor(atlasIndex / terrainBatchAtlasColumns);
+          const atlasPadding = 0.5 / terrainBatchAtlasTileSize;
 
           for (let index = 0; index < sourcePositions.count; index += 1) {
             const targetIndex = vertexOffset + index;
@@ -9380,8 +9470,14 @@ export const initScene = (
             normals[targetIndex * 3] = sourceNormals?.getX(index) ?? 0;
             normals[targetIndex * 3 + 1] = sourceNormals?.getY(index) ?? 1;
             normals[targetIndex * 3 + 2] = sourceNormals?.getZ(index) ?? 0;
-            uvs[targetIndex * 2] = sourceUvs?.getX(index) ?? 0;
-            uvs[targetIndex * 2 + 1] = sourceUvs?.getY(index) ?? 0;
+            const sourceU = sourceUvs?.getX(index) ?? 0;
+            const sourceV = sourceUvs?.getY(index) ?? 0;
+            const paddedU = atlasPadding + sourceU * (1 - atlasPadding * 2);
+            const paddedV = atlasPadding + sourceV * (1 - atlasPadding * 2);
+            uvs[targetIndex * 2] =
+              (atlasColumn + paddedU) / terrainBatchAtlasColumns;
+            uvs[targetIndex * 2 + 1] =
+              (atlasRow + paddedV) / terrainBatchAtlasRows;
           }
 
           const sourceIndex = geometry.index;
@@ -9448,8 +9544,8 @@ export const initScene = (
         );
         const material =
           distanceFromDetailCenter > terrainDetailDistance * 1.35
-            ? distantConcealedTerrainMaterial
-            : concealedTerrainMaterial;
+            ? distantTerrainBatchAtlasMaterial
+            : terrainBatchAtlasMaterial;
         const mesh = new THREE.Mesh(geometry, material);
         mesh.name = `outside-terrain-batch-${chunkKey}`;
         mesh.position.y = roomFloorY + OUTSIDE_TERRAIN_CLEARANCE;
@@ -9564,8 +9660,8 @@ export const initScene = (
           );
           entry.mesh.material =
             distance > simpleMaterialDistance
-              ? distantConcealedTerrainMaterial
-              : concealedTerrainMaterial;
+              ? distantTerrainBatchAtlasMaterial
+              : terrainBatchAtlasMaterial;
         });
 
         if (terrainEffectsDirty) {
@@ -12674,6 +12770,7 @@ export const initScene = (
       floorBounds,
       roomFloorY,
       liftDoorTheme: ENGINEERING_BAY_DOOR_THEME,
+      terrainTileMode: "elevated",
     });
     const mapColliderDescriptors = Array.isArray(mapOverlay?.colliderDescriptors)
       ? mapOverlay.colliderDescriptors
@@ -13148,6 +13245,7 @@ export const initScene = (
       areaId: "exterior-outpost",
       floorBounds,
       roomFloorY,
+      terrainTileMode: "elevated",
     });
     const mapColliderDescriptors = Array.isArray(mapOverlay?.colliderDescriptors)
       ? mapOverlay.colliderDescriptors
@@ -13350,6 +13448,7 @@ export const initScene = (
       paddingZ: 1,
     }),
     roomFloorY,
+    terrainTileMode: "elevated",
   });
 
   if (hangarDeckStoredAreaOverlay?.group) {
@@ -13855,12 +13954,8 @@ export const initScene = (
       areaId,
       floorBounds,
       roomFloorY,
-    });
-    const roomTerrainTiles = Array.isArray(mapOverlay?.terrainTiles)
-      ? mapOverlay.terrainTiles.filter((tile) => tile?.isObject3D)
-      : [];
-    roomTerrainTiles.forEach((tile) => {
-      tile.visible = false;
+      terrainTileMode: "elevated",
+      terrainTileMaterial: floorMaterial,
     });
     if (mapOverlay?.group) {
       group.add(mapOverlay.group);
@@ -13889,9 +13984,7 @@ export const initScene = (
         : [],
       terrainTiles: [],
       viewDistanceTargets: Array.isArray(mapOverlay?.viewDistanceTargets)
-        ? mapOverlay.viewDistanceTargets.filter(
-            (target) => !roomTerrainTiles.includes(target)
-          )
+        ? mapOverlay.viewDistanceTargets
         : [],
       readyPromise: mapOverlay?.readyPromise,
     };
