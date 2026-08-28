@@ -144,10 +144,19 @@ export const initScene = (
   const STEP_CLIMB_SPEED = 6;
   const STEP_CLIMB_SPEED_MULTIPLIER = 10;
   const STEP_HEIGHT_TOLERANCE = 0.05;
+  const normalizeRenderResolutionScale = (value) => {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue)
+      ? Math.max(0.1, Math.min(1, numericValue))
+      : 1;
+  };
   const performanceSettings = {
     maxPixelRatio: Number.isFinite(settings?.maxPixelRatio)
       ? Math.max(0.5, settings.maxPixelRatio)
       : 1.25,
+    renderResolutionScale: normalizeRenderResolutionScale(
+      settings?.renderResolutionScale
+    ),
   };
 
   const sceneSettings = {
@@ -992,9 +1001,13 @@ export const initScene = (
     typeof window.devicePixelRatio === "number" && window.devicePixelRatio > 0
       ? window.devicePixelRatio
       : 1;
-  renderer.setPixelRatio(
-    Math.min(devicePixelRatio, Math.max(0.5, effectivePixelRatioCap))
-  );
+  const getEffectivePixelRatio = () =>
+    Math.max(
+      0.1,
+      Math.min(devicePixelRatio, Math.max(0.5, effectivePixelRatioCap)) *
+        performanceSettings.renderResolutionScale
+    );
+  renderer.setPixelRatio(getEffectivePixelRatio());
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   const terrainDepthTarget = createTerrainDepthTarget();
 
@@ -22963,6 +22976,17 @@ export const initScene = (
         enabled: reflectionSettings.enabled,
         resolutionScale: reflectionSettings.resolutionScale,
       };
+    },
+    setRenderResolutionScale: (value) => {
+      const nextScale = normalizeRenderResolutionScale(value);
+      if (nextScale === performanceSettings.renderResolutionScale) {
+        return nextScale;
+      }
+
+      performanceSettings.renderResolutionScale = nextScale;
+      renderer.setPixelRatio(getEffectivePixelRatio());
+      handleResize();
+      return nextScale;
     },
     setTimeSettings: (nextSettings = {}) => {
       const nextOffset = normalizeTimeOffset(nextSettings.timeZoneOffsetHours);

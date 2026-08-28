@@ -17,6 +17,7 @@ const getDefaultTimeZoneOffsetHours = () => {
 
 const DEFAULT_SETTINGS = {
   maxPixelRatio: 1.25,
+  renderResolutionScale: 1,
   showFpsCounter: false,
   showStars: true,
   reflectionsEnabled: true,
@@ -120,6 +121,16 @@ const normalizeSettings = (settings = {}) => {
     return Math.max(0.25, Math.min(1, numericValue));
   };
 
+  const normalizeRenderResolutionScale = (value) => {
+    const numericValue = Number(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return DEFAULT_SETTINGS.renderResolutionScale;
+    }
+
+    return Math.max(0.1, Math.min(1, numericValue));
+  };
+
   const normalizeLiftDoorFilterByArea = (value) => {
     if (!value || typeof value !== "object") {
       return {};
@@ -161,6 +172,9 @@ const normalizeSettings = (settings = {}) => {
   return {
     ...DEFAULT_SETTINGS,
     maxPixelRatio: pixelRatioCap,
+    renderResolutionScale: normalizeRenderResolutionScale(
+      settings.renderResolutionScale
+    ),
     showFpsCounter: Boolean(settings.showFpsCounter),
     showStars: settings.showStars !== false,
     reflectionsEnabled: settings.reflectionsEnabled !== false,

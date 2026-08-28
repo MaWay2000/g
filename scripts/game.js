@@ -106,6 +106,12 @@ const settingsPanel = settingsMenu?.querySelector("[data-settings-panel]");
 const fpsToggle = document.querySelector("[data-fps-toggle]");
 const starsToggle = document.querySelector("[data-stars-toggle]");
 const reflectionsToggle = document.querySelector("[data-reflections-toggle]");
+const renderResolutionRange = document.querySelector(
+  "[data-render-resolution-range]"
+);
+const renderResolutionInput = document.querySelector(
+  "[data-render-resolution-input]"
+);
 const starFollowToggle = document.querySelector("[data-stars-follow-toggle]");
 const godModeToggle = document.querySelector("[data-god-mode-toggle]");
 const liftDoorFilterToggle = document.querySelector("[data-lift-door-filter-toggle]");
@@ -161,6 +167,9 @@ const starDensityValue = document.querySelector("[data-star-density-value]");
 const starOpacityValue = document.querySelector("[data-star-opacity-value]");
 const reflectionScaleValue = document.querySelector(
   "[data-reflection-scale-value]"
+);
+const renderResolutionValue = document.querySelector(
+  "[data-render-resolution-value]"
 );
 const timeOffsetValue = document.querySelector("[data-time-offset-value]");
 const skyExtentValue = document.querySelector("[data-sky-extent-value]");
@@ -219,6 +228,7 @@ const starSettingsInputs = [
   skyHeightInput,
 ];
 const reflectionSettingInputs = [reflectionScaleRange, reflectionScaleInput];
+const renderResolutionInputs = [renderResolutionRange, renderResolutionInput];
 const speedSettingInputs = [playerSpeedRange, playerSpeedInput];
 const jumpSettingInputs = [playerJumpRange, playerJumpInput];
 const viewSettingInputs = [viewDistanceRange, viewDistanceInput];
@@ -1499,6 +1509,23 @@ const formatViewDistance = (value) => {
   const displayValue = numericValue.toFixed(2);
   return `${displayValue.replace(/\.?0+$/, "")}x`;
 };
+
+const applyRenderResolutionUiState = () => {
+  const renderResolutionScale = Number(
+    currentSettings?.renderResolutionScale ?? 1
+  );
+
+  setRangeInputValue(renderResolutionRange, renderResolutionScale);
+  setNumberInputValue(renderResolutionInput, renderResolutionScale);
+  setValueLabel(
+    renderResolutionValue,
+    formatViewDistance(renderResolutionScale)
+  );
+
+  sceneController?.setRenderResolutionScale?.(renderResolutionScale);
+};
+
+applyRenderResolutionUiState();
 
 const applyReflectionSettingsUiState = () => {
   const reflectionsEnabled = currentSettings?.reflectionsEnabled !== false;
@@ -25464,6 +25491,7 @@ const bootstrapScene = () => {
   }
 
   applyStarVisualUiState();
+  applyRenderResolutionUiState();
   applyReflectionSettingsUiState();
   applyGodModeUiState();
   applyLiftDoorFilterUiState();
@@ -25657,6 +25685,11 @@ bindStarSettingInput("starDensity", [starDensityRange, starDensityInput]);
 bindStarSettingInput("starOpacity", [starOpacityRange, starOpacityInput]);
 bindStarSettingInput("skyExtent", [skyExtentRange, skyExtentInput]);
 bindStarSettingInput("skyDomeHeight", [skyHeightRange, skyHeightInput]);
+bindTimeSettingInput(
+  "renderResolutionScale",
+  renderResolutionInputs,
+  applyRenderResolutionUiState
+);
 bindTimeSettingInput(
   "reflectorResolutionScale",
   reflectionSettingInputs,
