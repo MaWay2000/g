@@ -9306,7 +9306,7 @@ export const initScene = (
           BASE_VIEW_DISTANCE *
           viewSettings.distanceMultiplier *
           VIEW_DISTANCE_CULLING_BUFFER;
-        const minimumWindowDistance = Math.max(cellSize * 3, 120);
+        const minimumWindowDistance = cellSize * 3;
         if (!Array.isArray(viewDistanceTargets) || viewDistanceTargets.length === 0) {
           return Number.isFinite(baseDistance) && baseDistance > 0
             ? Math.max(baseDistance, minimumWindowDistance)
