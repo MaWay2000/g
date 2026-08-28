@@ -1121,7 +1121,11 @@
       .settings-menu__panel {
         min-width: 280px;
         max-height: calc(100vh - 6rem);
+        max-height: calc(100dvh - 6rem);
         overflow-y: auto;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
         padding: 1rem;
         border-radius: 16px;
         border: 1px solid rgba(59, 130, 246, 0.4);
