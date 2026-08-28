@@ -189,6 +189,15 @@ export const logout = async (options = {}) => {
 
   const headers = buildRequestHeaders(providedHeaders);
 
+  if (
+    endpoint === DEFAULT_LOGOUT_ENDPOINT &&
+    !headers.has("Authorization") &&
+    !headers.has("X-CSRF-Token")
+  ) {
+    clearStoredSession();
+    return null;
+  }
+
   let response;
 
   try {
