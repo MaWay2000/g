@@ -876,8 +876,18 @@ export const initScene = (
     });
   };
 
+  const hasVisibleStarFields = () => {
+    for (const starField of registeredStarFields) {
+      if (starField?.visible) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   const updateTerrainDepthTexture = () => {
-    if (!terrainDepthTarget) {
+    if (!terrainDepthTarget || !hasVisibleStarFields()) {
       return;
     }
 
@@ -895,6 +905,10 @@ export const initScene = (
     scene.overrideMaterial = previousOverrideMaterial;
     camera.layers.mask = previousLayerMask;
   };
+
+  const isCoarsePointerDevice =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
 
   const createRenderer = () => {
     const testCanvas = document.createElement("canvas");
@@ -926,14 +940,18 @@ export const initScene = (
     const rendererOptions = [
       {
         canvas,
-        antialias: true,
+        antialias: !isCoarsePointerDevice,
         powerPreference: "high-performance",
       },
-      {
-        canvas,
-        antialias: false,
-        powerPreference: "high-performance",
-      },
+      ...(!isCoarsePointerDevice
+        ? [
+            {
+              canvas,
+              antialias: false,
+              powerPreference: "high-performance",
+            },
+          ]
+        : []),
       {
         canvas,
         antialias: false,
@@ -967,7 +985,9 @@ export const initScene = (
   const renderer = createRenderer();
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = false;
-  const effectivePixelRatioCap = performanceSettings.maxPixelRatio;
+  const effectivePixelRatioCap = isCoarsePointerDevice
+    ? Math.min(performanceSettings.maxPixelRatio, 0.8)
+    : performanceSettings.maxPixelRatio;
   const devicePixelRatio =
     typeof window.devicePixelRatio === "number" && window.devicePixelRatio > 0
       ? window.devicePixelRatio
