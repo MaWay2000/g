@@ -2,9 +2,9 @@
 """Inspect an Android APK without installing or executing it.
 
 Usage:
-  python3 tools/analyze-game.py dn.apk
-  python3 tools/analyze-game.py https://maway2000.github.io/g/dn.apk
-  python3 tools/analyze-game.py dn.apk --json
+  python3 tools/analyze-game.py /private/path/game.apk
+  python3 tools/analyze-game.py https://example.com/game.apk
+  python3 tools/analyze-game.py /private/path/game.apk --json
 
 Only the Python standard library is required. If apkanalyzer, aapt/aapt2, or
 apksigner is installed, their package/signing details are included as well.
