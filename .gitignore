@@ -1,2 +1,13 @@
 node_modules/
 .DS_Store
+
+# Native Godot project and private Android release artifacts do not belong in
+# this public browser-game repository.
+*.apk
+CODEX_HANDOFF.md
+.godot/
+project.godot
+export_presets.cfg
+*.gd
+*.tscn
+*.tres
